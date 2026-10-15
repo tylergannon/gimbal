@@ -1,7 +1,7 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { onMount, tick } from "svelte";
-  import { beforeNavigate, goto, refreshAll } from "$app/navigation";
+  import { afterNavigate, beforeNavigate, goto, refreshAll } from "$app/navigation";
   import { page } from "$app/state";
   import { openProject } from "../window.remote";
   import { chooseProjectFolder } from "./native";
@@ -17,11 +17,10 @@
     project: "",
   });
   let native = $state(false);
-  let stream = $state<ReturnType<typeof watchRecording>>();
+  const stream = $derived(native && status.sessionID && status.project ? watchRecording({ project: status.project, id: status.sessionID }) : undefined);
   const current = $derived(stream?.current);
   const available = $derived(!stream || (!!current && current.id === status.sessionID && (stream.connected || (stream.done && ['stopped', 'interrupted'].includes(current.status))) && current.sequence >= status.sequence));
   let approvedPath: string | undefined;
-  let arrival = $state<string>();
   beforeNavigate((navigation) => {
     if (!native || !navigation.to) return;
     const path = navigation.to.url.pathname;
@@ -38,7 +37,7 @@
     try {
       await goto(path, { reset: false });
       await tick();
-      arrival = path.split('/')[2];
+      nativeMessage('projectNavigationComplete', { project: path.split('/')[2] });
     } catch (error) {
       approvedPath = undefined;
       nativeMessage('projectNavigationComplete', { project: path.split('/')[2], error: 'Could not open the destination workspace.' });
@@ -56,19 +55,7 @@
       nativeMessage('projectAdmissionError', { error: `Could not open ${path}` });
     }
   }
-  $effect(() => {
-    if (!arrival || page.params.project !== arrival) return;
-    nativeMessage('projectNavigationComplete', { project: arrival });
-    arrival = undefined;
-  });
-  $effect(() => {
-    if (native)
-      nativeMessage("selectProject", { project: page.params.project ?? "" });
-  });
-  $effect(() => {
-    if (!native || !status.sessionID || !status.project) return;
-    stream = watchRecording({ project: status.project, id: status.sessionID });
-  });
+  afterNavigate(() => { if (native) nativeMessage('selectProject', { project: page.params.project ?? '' }); });
   $effect(() => {
     if (!native) return;
     nativeMessage("displayAvailability", {
@@ -99,6 +86,7 @@
     if (window.voiceNotesLatestStatus) status = window.voiceNotesLatestStatus;
     window.addEventListener('gimbal-project-navigation', navigate);
     window.addEventListener('gimbal-workspace-command', command);
+    nativeMessage("selectProject", { project: page.params.project ?? "" });
     nativeMessage("bridgeReady", {});
     return () => {
       window.removeEventListener('gimbal-project-navigation', navigate);

@@ -13,12 +13,15 @@ const auth = vi.hoisted(() => ({
   currentUser: vi.fn(),
   viewRun: vi.fn(),
   goto: vi.fn(() => Promise.resolve()),
+  after: undefined as undefined | (() => void),
 }));
 vi.mock("$app/state", () => ({ page: auth.page }));
 vi.mock("$app/navigation", () => ({
   goto: auth.goto,
   invalidateAll: vi.fn(),
-  afterNavigate: vi.fn(),
+  afterNavigate: (callback: () => void) => {
+    auth.after = callback;
+  },
   beforeNavigate: vi.fn(),
   onNavigate: vi.fn(),
   invalidate: vi.fn(),
@@ -539,16 +542,13 @@ test("a retained run panel renders a raw route preload without proxying its obse
     snapshot: structuredClone(planTripFixture.snapshot),
     graph: JSON.stringify(planTripFixture.graph),
   };
-  const onstate = vi.fn();
   const screen = await render(RunPanel, {
     project: "retained-project",
     id: data.snapshot.run.id,
     initial: data,
     active: true,
-    onstate,
   });
   await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
-  await expect.poll(() => onstate.mock.calls.length).toBeGreaterThan(0);
   await screen.getByRole("button", { name: "Watchboard", exact: true }).click();
   await screen.rerender({
     project: "retained-project",
@@ -558,14 +558,12 @@ test("a retained run panel renders a raw route preload without proxying its obse
       graph: JSON.stringify(implementInterviewFixture.graph),
     },
     active: false,
-    onstate,
   });
   await screen.rerender({
     project: "retained-project",
     id: data.snapshot.run.id,
     initial: data,
     active: true,
-    onstate,
   });
   await expect
     .element(
@@ -582,15 +580,12 @@ test("an unseeded retained run panel renders the query result", async () => {
     graph: JSON.stringify(planTripFixture.graph),
   };
   auth.viewRun.mockReturnValue({ current: data, error: undefined });
-  const onstate = vi.fn();
   const screen = await render(RunPanel, {
     project: "retained-project",
     id: data.snapshot.run.id,
     active: true,
-    onstate,
   });
   await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
-  await expect.poll(() => onstate.mock.calls.length).toBeGreaterThan(0);
 });
 
 test("agent focus offers steering while guarded run controls stay in the run view", async () => {
@@ -639,4 +634,27 @@ test("agent focus leaves unconfirmed run cleanup controls in the run view", asyn
   await expect
     .element(screen.getByRole("button", { name: "Retry cleanup", exact: true }))
     .not.toBeInTheDocument();
+});
+
+test("navigation closes a retained run confirmation without changing its selected view", async () => {
+  const props = {
+    project: "retained-project",
+    data: { snapshot: multiAgentSnapshot(), graph: JSON.stringify(planTripFixture.graph) },
+  };
+  const screen = await render(RunView, { ...props, active: true });
+  await screen.getByRole("button", { name: "Map", exact: true }).click();
+  await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
+  await expect.element(screen.getByRole("alertdialog")).toBeVisible();
+  await screen.rerender({ ...props, active: false });
+  auth.after?.();
+  await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
+  await screen.rerender({ ...props, active: true });
+  await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
+  await expect
+    .element(
+      screen
+        .getByRole("navigation", { name: "Run views" })
+        .getByRole("button", { name: "Map", exact: true }),
+    )
+    .toHaveAttribute("aria-current", "page");
 });

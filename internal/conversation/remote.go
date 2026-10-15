@@ -88,7 +88,7 @@ func (m *Manager) createRemote(ctx context.Context, in NewConversation, provider
 			return Conversation{}, err
 		}
 		now := time.Now().UnixMilli()
-		item = &Conversation{ID: id, Title: normalized.Title, Provider: provider, Model: model, Environment: in.Environment, Placement: polytype.Nullable[Placement]{Present: true, Value: Placement{Machine: PlacementMachine{ID: target.Machine.ID, Name: target.Machine.Name, Kind: target.Machine.Kind}, Environment: environments.DescribeEnvironment(target.Environment), Directory: target.Directory}}, Contact: "unknown", Capabilities: target.Capabilities, CleanupPending: true, Status: "preparing", Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{}}
+		item = &Conversation{ID: id, Title: normalized.Title, Provider: provider, Model: model, Effort: in.Effort, SharedCheckout: in.SharedCheckout, Base: in.Base, Environment: in.Environment, Placement: polytype.Nullable[Placement]{Present: true, Value: Placement{Machine: PlacementMachine{ID: target.Machine.ID, Name: target.Machine.Name, Kind: target.Machine.Kind}, Environment: environments.DescribeEnvironment(target.Environment), Directory: target.Directory}}, Contact: "unknown", Capabilities: target.Capabilities, CleanupPending: true, Status: "preparing", Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{}}
 		if item.Title == "" {
 			item.Title = providerLabel(provider) + " conversation"
 		}
@@ -155,7 +155,7 @@ func (m *Manager) createRemote(ctx context.Context, in NewConversation, provider
 		m.remotePreparationFailed(id, err, &binding)
 		return Conversation{}, err
 	}
-	_, effort, _ := providerModel(provider, model)
+	effort := in.Effort
 	session := backend.MessageRequest{ID: ulid.Make().String(), Created: time.UnixMilli(now), Owner: owner, Kind: "session", SessionID: "session", Session: &backend.Session{Owner: owner, Harness: provider, Model: model, Effort: effort, Workdir: prepared.Directory}}
 	m.mu.Lock()
 	item = m.items[id]
@@ -868,7 +868,7 @@ func (m *Manager) createLocalEnvironment(ctx context.Context, in NewConversation
 	if title == "" {
 		title = providerLabel(provider) + " conversation"
 	}
-	item := &Conversation{ID: id, Title: title, Provider: provider, Model: model, Branch: prepared.Branch, Worktree: prepared.Directory, Live: true, Status: StatusIdle, Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{}, Environment: in.Environment, Contact: "connected", Capabilities: prepared.Target.Capabilities, Placement: polytype.Nullable[Placement]{Present: true, Value: Placement{Machine: PlacementMachine{ID: environments.Local, Name: "This Mac", Kind: "local"}, Environment: environments.DescribeEnvironment(target.Environment), Directory: prepared.Directory}}}
+	item := &Conversation{ID: id, Title: title, Provider: provider, Model: model, Effort: in.Effort, SharedCheckout: in.SharedCheckout, Base: in.Base, Branch: prepared.Branch, Worktree: prepared.Directory, Live: true, Status: StatusIdle, Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{}, Environment: in.Environment, Contact: "connected", Capabilities: prepared.Target.Capabilities, Placement: polytype.Nullable[Placement]{Present: true, Value: Placement{Machine: PlacementMachine{ID: environments.Local, Name: "This Mac", Kind: "local"}, Environment: environments.DescribeEnvironment(target.Environment), Directory: prepared.Directory}}}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closing {

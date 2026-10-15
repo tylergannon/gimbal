@@ -153,7 +153,7 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 	active.request, active.cancel = r.ID, cancel
 	_ = m.reduce(item, requestEvent{kind: "started", request: r, delivery: "turn"})
 	_ = m.userEvent(item, r, "turn")
-	provider, model, worktree := item.Provider, item.Model, item.Worktree
+	provider, model, worktree, effort := item.Provider, item.Model, item.Worktree, item.Effort
 	m.mu.Unlock()
 	active.steerMu.Unlock()
 	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + r.Message
@@ -175,7 +175,6 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 		active.adapter = resolved
 		m.mu.Unlock()
 	}
-	_, effort, _ := providerModel(provider, model)
 	if active.resume {
 		resumer, ok := active.adapter.(persistentSessionAdapter)
 		if !ok {

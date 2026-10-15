@@ -1,10 +1,18 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import NewSession from "./NewSession.svelte";
+import type { Conversation } from "#lib/skgo/conversation/types";
 
 const remote = vi.hoisted(() => ({
   setup: {
-    harnesses: [{ id: "claude", default: "claude-haiku-4-5", models: ["claude-haiku-4-5"] }],
+    harnesses: [
+      {
+        id: "claude",
+        default: "claude-haiku-4-5",
+        models: ["claude-haiku-4-5"],
+        efforts: [] as { model: string; levels: string[] }[],
+      },
+    ],
     directory: "~/project",
     git: true,
     unborn: false,
@@ -14,7 +22,7 @@ const remote = vi.hoisted(() => ({
     environment: "local",
     machine: "This Mac",
     capabilities: { steer: true, fork: true, worktree: true, browse: true, clone: true },
-    harness_states: [],
+    harness_states: [] as { id: string; state: string }[],
   },
   inventory: {
     project: "project",
@@ -92,13 +100,25 @@ const remote = vi.hoisted(() => ({
     ],
   },
   submitted: [] as FormData[],
+  recent: [] as Conversation[],
+  notifyRecent: () => {},
+  defaultsLoaded: undefined as Promise<void> | undefined,
   fail: false,
 }));
 vi.mock("#lib/environments.remote", () => ({
   environmentSnapshot: () => ({ current: remote.inventory, ready: false, refresh: async () => {} }),
 }));
 vi.mock("$app/navigation", () => ({ goto: vi.fn() }));
-vi.mock("../../routes/conversation.remote", () => {
+vi.mock("../../routes/conversation.remote", async () => {
+  const { createSubscriber } = await import("svelte/reactivity");
+  let notify = () => {};
+  const subscribe = createSubscriber((update) => {
+    notify = update;
+    return () => {
+      notify = () => {};
+    };
+  });
+  remote.notifyRecent = () => notify();
   const field = (name: string) => ({
     as: (type: string, value?: string | boolean) => ({
       name,
@@ -109,9 +129,10 @@ vi.mock("../../routes/conversation.remote", () => {
   });
   const fields = Object.fromEntries(
     [
-      "file_id",
       "provider",
       "model",
+      "effort",
+      "file_id",
       "message",
       "environment",
       "shared_checkout",
@@ -129,7 +150,15 @@ vi.mock("../../routes/conversation.remote", () => {
         environments: remote.inventory,
       },
     }),
-    projectConversations: () => ({ current: [] }),
+    projectConversations: () => ({
+      get current() {
+        subscribe();
+        return remote.recent;
+      },
+      ready: true,
+      then: (resolve: (value: Conversation[]) => unknown, reject: (error: unknown) => unknown) =>
+        (remote.defaultsLoaded ?? Promise.resolve()).then(() => resolve(remote.recent), reject),
+    }),
     createConversation: {
       for: () => ({
         pending: 0,
@@ -158,6 +187,12 @@ beforeEach(() => {
   remote.setup.unborn = false;
   remote.submitted = [];
   remote.fail = false;
+  remote.recent = [];
+  remote.defaultsLoaded = undefined;
+  remote.setup.harness_states = [];
+  remote.setup.harnesses = [
+    { id: "claude", default: "claude-haiku-4-5", models: ["claude-haiku-4-5"], efforts: [] },
+  ];
 });
 
 test("checkout choices survive popover dismissal and a rejected submission", async () => {
@@ -284,6 +319,133 @@ test("Discuss adds removable file context without replacing an existing draft", 
   expect(oncontextremoved).toHaveBeenCalledOnce();
 });
 
+test("unavailable harnesses stay visible with their machine-specific reason", async () => {
+  remote.setup.harnesses.push({
+    id: "codex",
+    default: "gpt-6-luna",
+    models: ["gpt-6-luna"],
+    efforts: [{ model: "gpt-6-luna", levels: ["low", "medium", "high"] }],
+  });
+  remote.setup.harness_states = [{ id: "codex", state: "missing" }];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await expect
+    .element(screen.getByRole("button", { name: /Codex Not installed · This Mac/ }))
+    .toBeDisabled();
+});
+
+test("last session and Start like restore environment and checkout setup", async () => {
+  remote.recent = [
+    {
+      id: "last",
+      title: "Prior setup",
+      provider: "claude",
+      model: "claude-haiku-4-5",
+      effort: "",
+      environment: "build",
+      shared_checkout: true,
+      base: "release",
+    } as Conversation,
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await expect
+    .element(screen.getByRole("button", { name: "Environment" }))
+    .toHaveTextContent("Build box · /srv/project");
+  await expect
+    .element(screen.getByRole("button", { name: "Worktree", exact: true }))
+    .toHaveTextContent("Shared checkout");
+  remote.recent.push({
+    id: "earlier",
+    title: "Local setup",
+    provider: "claude",
+    model: "claude-haiku-4-5",
+    effort: "",
+    environment: "local",
+    shared_checkout: false,
+    base: "main",
+  } as Conversation);
+  screen.component.applySetup(remote.recent[1]);
+  await expect
+    .element(screen.getByRole("button", { name: "Environment" }))
+    .toHaveTextContent("This Mac · ~/project");
+  await expect
+    .element(screen.getByRole("button", { name: "Worktree", exact: true }))
+    .toHaveTextContent("New worktree");
+});
+
+test("explicit effort stays with the submitted session setup", async () => {
+  remote.setup.harnesses = [
+    {
+      id: "codex",
+      default: "gpt-6-luna",
+      models: ["gpt-6-luna"],
+      efforts: [{ model: "gpt-6-luna", levels: ["low", "medium", "high"] }],
+    },
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await screen.getByRole("combobox", { name: "Effort" }).selectOptions("high");
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await screen.getByRole("textbox", { name: "First message" }).fill("Use this effort");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("effort")).toBe("high");
+});
+
+test.each(["Harness and model", "Environment", "Worktree"])(
+  "deactivating New session unmounts the open %s picker without an animation frame",
+  async (picker) => {
+    const oncreated = vi.fn();
+    const props = { project: "project", name: "Project", oncreated, active: true };
+    const screen = await render(NewSession, props);
+    await screen
+      .getByRole("textbox", { name: "First message" })
+      .fill("Keep the question while another tab is open");
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await screen.getByRole("textbox", { name: "New branch" }).fill("feature/retained-draft");
+    await screen.getByRole("combobox", { name: "Base branch" }).selectOptions("release");
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await screen.getByRole("button", { name: picker, exact: true }).click();
+    expect(document.querySelectorAll("[data-popover-content][data-state='open']")).toHaveLength(1);
+
+    // WKWebView may stop frame callbacks for an inactive view. Removal must
+    // happen on component teardown, not wait for a close animation frame.
+    const frames = vi.fn(() => 0);
+    vi.stubGlobal("requestAnimationFrame", frames);
+    try {
+      await screen.rerender({ ...props, active: false });
+      expect(document.querySelectorAll("[data-popover-content]")).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    await screen.rerender(props);
+    expect(document.querySelectorAll("[data-popover-content]")).toHaveLength(0);
+    await expect
+      .element(screen.getByRole("textbox", { name: "First message" }))
+      .toHaveValue("Keep the question while another tab is open");
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await expect
+      .element(screen.getByRole("textbox", { name: "New branch" }))
+      .toHaveValue("feature/retained-draft");
+    await expect
+      .element(screen.getByRole("combobox", { name: "Base branch" }))
+      .toHaveValue("release");
+    expect(remote.submitted).toEqual([]);
+  },
+);
+
 test("opening a file unmounts setup popups while retaining the draft and choices", async () => {
   const oncreated = vi.fn();
   const screen = await render(NewSession, {
@@ -321,4 +483,137 @@ test("opening a file unmounts setup popups while retaining the draft and choices
   await expect
     .element(screen.getByRole("textbox", { name: "New branch" }))
     .toHaveValue("codex/retained-file-draft");
+});
+
+test("a background reply cannot replace the setup owned by an existing draft", async () => {
+  remote.recent = [
+    {
+      id: "last",
+      title: "Last local",
+      provider: "claude",
+      model: "claude-haiku-4-5",
+      effort: "",
+      environment: "local",
+      shared_checkout: true,
+      base: "main",
+    } as Conversation,
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Keep my draft");
+  remote.recent = [
+    {
+      id: "background",
+      title: "Background",
+      provider: "codex",
+      model: "gpt-6-luna",
+      effort: "high",
+      environment: "build",
+      shared_checkout: false,
+      base: "release",
+    } as Conversation,
+    ...remote.recent,
+  ];
+  remote.notifyRecent();
+  await expect
+    .element(screen.getByRole("button", { name: "Environment", exact: true }))
+    .toHaveTextContent("This Mac · ~/project");
+  await expect
+    .element(screen.getByRole("button", { name: "Harness and model" }))
+    .toHaveTextContent("C Claude Code · Haiku 4.5");
+  await expect
+    .element(screen.getByRole("button", { name: "Worktree", exact: true }))
+    .toHaveTextContent("Shared checkout");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("environment")).toBe("local");
+  expect(remote.submitted[0].get("message")).toBe("Keep my draft");
+});
+
+test("a saved setup stays recoverable when the selected machine reports no harnesses", async () => {
+  remote.setup.harnesses = [];
+  remote.recent = [
+    {
+      id: "saved",
+      title: "Saved setup",
+      provider: "claude",
+      model: "claude-haiku-4-5",
+      effort: "",
+      environment: "local",
+      shared_checkout: true,
+      base: "main",
+    } as Conversation,
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Keep my work");
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await expect
+    .element(screen.getByRole("textbox", { name: "First message" }))
+    .toHaveValue("Keep my work");
+  await expect
+    .element(screen.getByRole("button", { name: "Environment", exact: true }))
+    .toBeEnabled();
+});
+
+test("late defaults cannot overwrite checkout choices made while history loads", async () => {
+  let release!: () => void;
+  remote.defaultsLoaded = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  remote.recent = [
+    {
+      id: "prior",
+      title: "Prior remote",
+      provider: "claude",
+      model: "claude-haiku-4-5",
+      environment: "build",
+      shared_checkout: true,
+      base: "main",
+    } as Conversation,
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("My chosen setup");
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("textbox", { name: "New branch" }).fill("feature/my-choice");
+  await screen.getByRole("combobox", { name: "Base branch" }).selectOptions("release");
+  release();
+  await remote.defaultsLoaded;
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Environment", exact: true }))
+    .toHaveTextContent("This Mac · ~/project");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("branch")).toBe("feature/my-choice");
+  expect(remote.submitted[0].get("base")).toBe("release");
+  expect(remote.submitted[0].get("message")).toBe("My chosen setup");
+});
+
+test("setup pickers switch without waiting for an exit animation", async () => {
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await expect.element(screen.getByRole("group", { name: "Harness", exact: true })).toBeVisible();
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await expect
+      .element(screen.getByRole("group", { name: "Harness", exact: true }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole("textbox", { name: "New branch" })).toBeInTheDocument();
+  } finally {
+    noFrames.mockRestore();
+  }
 });

@@ -3,6 +3,13 @@ import { render } from "vitest-browser-svelte";
 import "../../app.css";
 import RunsList from "./RunsList.svelte";
 import { runsListFixture } from "./fixtures/index.js";
+const navigation = vi.hoisted(() => ({ after: undefined as undefined | (() => void) }));
+vi.mock("$app/navigation", () => ({
+  goto: vi.fn(async () => {}),
+  afterNavigate: (callback: () => void) => {
+    navigation.after = callback;
+  },
+}));
 const remote = vi.hoisted(() => ({
   cancel: vi.fn(async (_request: unknown) => ({ accepted: true })),
 }));
@@ -78,12 +85,14 @@ test("inactive Runs removes menus and cancellation dialogs without reviving them
     screen.getByRole("button", { name: "Actions for plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF" });
   await menu().click();
   await screen.rerender({ ...props, active: false });
+  navigation.after?.();
   await expect.element(screen.getByRole("button", { name: "Cancel run…" })).not.toBeInTheDocument();
   await screen.rerender({ ...props, active: true });
   await menu().click();
   await screen.getByRole("button", { name: "Cancel run…" }).click();
   await expect.element(screen.getByRole("alertdialog")).toBeVisible();
   await screen.rerender({ ...props, active: false });
+  navigation.after?.();
   await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
   await screen.rerender({ ...props, active: true });
   await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();

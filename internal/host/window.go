@@ -7,15 +7,24 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/tylergannon/polytype"
 )
 
 // WindowState is where the desktop window last was: its project, the view it
 // showed, and the tabs it had open. The instance keeps it so the window
 // reopens there, checked against the projects this instance actually owns.
 type WindowState struct {
-	Project string      `json:"project"`
-	Path    string      `json:"path"`
-	Tabs    []WindowTab `json:"tabs"`
+	Project string                  `json:"project"`
+	Path    string                  `json:"path"`
+	Tabs    []WindowTab             `json:"tabs"`
+	Sidebar polytype.Nullable[bool] `json:"sidebar"`
+	Seen    []SeenReply             `json:"seen"`
+}
+
+type SeenReply struct {
+	Path    string `json:"path"`
+	Request string `json:"request"`
 }
 
 type WindowTab struct {
@@ -60,6 +69,33 @@ func (o *Owner) RememberWindow(w WindowState) error {
 	if o.dir == "" {
 		return nil
 	}
+	var previous WindowState
+	if raw, err := os.ReadFile(filepath.Join(o.dir, "window.json")); err == nil {
+		_ = json.Unmarshal(raw, &previous)
+	}
+	seen := map[string]SeenReply{}
+	if !w.Sidebar.Present {
+		w.Sidebar = previous.Sidebar
+	}
+	entries := append([]SeenReply{}, previous.Seen...)
+	for _, entry := range w.Seen {
+		if strings.HasPrefix(entry.Path, "/projects/"+w.Project+"/conversations/") {
+			entries = append(entries, entry)
+		}
+	}
+	for _, entry := range entries {
+		for _, p := range o.projects {
+			if strings.HasPrefix(entry.Path, "/projects/"+p.id+"/conversations/") {
+				seen[entry.Path] = entry
+				break
+			}
+		}
+	}
+	w.Seen = nil
+	for _, entry := range seen {
+		w.Seen = append(w.Seen, entry)
+	}
+	slices.SortFunc(w.Seen, func(a, b SeenReply) int { return strings.Compare(a.Path, b.Path) })
 	raw, err := json.Marshal(w.within())
 	if err != nil {
 		return err
@@ -75,7 +111,16 @@ func (o *Owner) RememberWindow(w WindowState) error {
 func (w WindowState) within() WindowState {
 	root := "/projects/" + w.Project
 	inside := func(path string) bool { return strings.HasPrefix(path, root+"/") || path == root }
-	out := WindowState{Project: w.Project, Path: root + "/recordings", Tabs: []WindowTab{}}
+	out := WindowState{Project: w.Project, Path: root + "/recordings", Tabs: []WindowTab{}, Sidebar: w.Sidebar}
+	if w.Seen != nil {
+		out.Seen = []SeenReply{}
+		for _, seen := range w.Seen {
+			parts := strings.Split(strings.Trim(seen.Path, "/"), "/")
+			if len(parts) == 4 && parts[0] == "projects" && parts[1] != "" && parts[2] == "conversations" && parts[3] != "" {
+				out.Seen = append(out.Seen, seen)
+			}
+		}
+	}
 	if inside(w.Path) {
 		out.Path = w.Path
 	}

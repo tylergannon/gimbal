@@ -13,7 +13,25 @@ const remote = vi.hoisted(() => ({
 }));
 vi.mock("../../routes/conversation.remote", () => ({
   watchConversation: remote.watch,
-  projectConversations: () => ({ error: undefined, refresh: remote.refresh }),
+  renameConversation: {
+    for: () => ({
+      fields: {
+        ...Object.fromEntries(
+          ["project", "conversation", "title"].map((name) => [
+            name,
+            { as: (type: string, value?: unknown) => ({ name, type, value }) },
+          ]),
+        ),
+        allIssues: () => [],
+      },
+      enhance: () => ({ onsubmit: (event: SubmitEvent) => event.preventDefault() }),
+    }),
+  },
+  projectConversations: () => ({
+    error: undefined,
+    refresh: remote.refresh,
+    catch: async () => {},
+  }),
   stopConversationRequest: remote.stop,
   cleanupConversation: remote.cleanup,
   sendConversationMessage: {
@@ -40,35 +58,38 @@ vi.mock("../../routes/conversation.remote", () => ({
   },
 }));
 
+const record = (id: string): Conversation => ({
+  id,
+  title: `Chat ${id}`,
+  provider: "claude",
+  model: "haiku",
+  effort: "",
+  shared_checkout: true,
+  base: "",
+  branch: "",
+  worktree: "/project",
+  native_session: "",
+  live: true,
+  status: "idle",
+  error: "",
+  created: 1,
+  updated: 1,
+  messages: [],
+  runs: [],
+  requests: [],
+  active_request: "",
+  state: "",
+  revision: 1,
+  environment: "local",
+  placement: null,
+  contact: "connected",
+  capabilities: { steer: true, fork: true, worktree: true, browse: true, clone: true },
+  cleanup_pending: false,
+});
 test("eight retained chats add no live connections and Stop refreshes the shared owner inventory", async () => {
   remote.watch.mockClear();
   remote.refresh.mockClear();
   remote.stop.mockClear();
-  const record = (id: string): Conversation => ({
-    id,
-    title: `Chat ${id}`,
-    provider: "claude",
-    model: "haiku",
-    branch: "",
-    worktree: "/project",
-    native_session: "",
-    live: true,
-    status: "idle",
-    error: "",
-    created: 1,
-    updated: 1,
-    messages: [],
-    runs: [],
-    requests: [],
-    active_request: "",
-    state: "",
-    revision: 1,
-    environment: "local",
-    placement: null,
-    contact: "connected",
-    capabilities: { steer: true, fork: true, worktree: true, browse: true, clone: true },
-    cleanup_pending: false,
-  });
   const screens = [];
   for (let i = 0; i < 8; i++)
     screens.push(
@@ -88,4 +109,21 @@ test("eight retained chats add no live connections and Stop refreshes the shared
   expect(remote.refresh).toHaveBeenCalledOnce();
   expect(remote.watch).not.toHaveBeenCalled();
   for (const screen of screens) await screen.unmount();
+});
+
+test("leaving a chat destroys Rename without losing its message draft", async () => {
+  const current = record("rename");
+  const screen = await render(ConversationView, { project: "project", current, active: true });
+  await screen.getByRole("textbox", { name: "Message Chat rename" }).fill("Unsent followup");
+  window.dispatchEvent(
+    new CustomEvent("gimbal-workspace-command", { detail: { command: "renameTab" } }),
+  );
+  await expect.element(screen.getByRole("dialog")).toBeVisible();
+  await screen.rerender({ project: "project", current, active: false });
+  await expect.element(screen.getByRole("dialog")).not.toBeInTheDocument();
+  await screen.rerender({ project: "project", current, active: true });
+  await expect.element(screen.getByRole("dialog")).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("textbox", { name: "Message Chat rename" }))
+    .toHaveValue("Unsent followup");
 });

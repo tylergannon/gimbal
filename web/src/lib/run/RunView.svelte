@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { afterNavigate } from "$app/navigation";
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { currentUser } from "../../routes/auth.remote";
   import type { Graph } from "#lib/workflow/types.js";
@@ -136,6 +137,7 @@
     if (id) {
       selectedSessionID = id;
       view = "focus";
+      cancelOpen = false;
     }
   }
 
@@ -165,7 +167,7 @@
 
   $effect(() => { const run = snapshot.run; const count = waiting; untrack(() => onstate?.(run, count)); });
 
-  $effect(() => { if (!active || view === "focus") cancelOpen = false; });
+  afterNavigate(() => { cancelOpen = false; });
 
   $effect(() => {
     const next = observation;
@@ -404,6 +406,7 @@
         aria-current={view === item.id ? "page" : undefined}
         onclick={() => {
           view = item.id as RunView;
+          if (view === "focus") cancelOpen = false;
           if (view === "focus" && !selectedSessionID) {
             selectedSessionID = Object.values(snapshot.turns)
               .filter((turn) => snapshot.sessions[turn.session])
@@ -470,7 +473,7 @@
         {graph}
         {graphMatches}
         {selectedSessionID}
-        onfocus={(id) => { selectedSessionID = id; view = "focus"; }}
+        onfocus={(id) => { selectedSessionID = id; view = "focus"; cancelOpen = false; }}
         onopenmap={() => (view = "map")}
         onmapselect={selectMapItem}
       />

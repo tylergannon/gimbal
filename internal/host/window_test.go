@@ -2,6 +2,7 @@ package host
 
 import (
 	"context"
+	"github.com/tylergannon/polytype"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -55,5 +56,36 @@ func TestWindowReopensOnlyWhereTheInstanceStillOwnsTheProject(t *testing.T) {
 	want := WindowState{Project: second.ID(), Path: chat.ID, Tabs: []WindowTab{chat}}
 	if got := restored.Window(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("restored window = %+v, want %+v", got, want)
+	}
+}
+
+func TestWindowFactsStayOwnedAcrossProjectsAndStaleSnapshots(t *testing.T) {
+	owner := New(t.Context(), t.TempDir())
+	defer owner.Close()
+	a, err := owner.AdmitProject(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := owner.AdmitProject(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pathA := "/projects/" + a.ID() + "/conversations/chat"
+	pathB := "/projects/" + b.ID() + "/conversations/chat"
+	if err := owner.RememberWindow(WindowState{Project: a.ID(), Sidebar: polytype.Nullable[bool]{Present: true, Value: true}, Seen: []SeenReply{{Path: pathA, Request: "reply-A"}}}); err != nil {
+		t.Fatal(err)
+	}
+	// B cannot overwrite A's acknowledgment with a stale startup snapshot.
+	if err := owner.RememberWindow(WindowState{Project: b.ID(), Seen: []SeenReply{{Path: pathA, Request: "stale"}, {Path: pathB, Request: "reply-B"}}}); err != nil {
+		t.Fatal(err)
+	}
+	got := owner.Window()
+	if !got.Sidebar.Present || !got.Sidebar.Value || len(got.Seen) != 2 {
+		t.Fatalf("lost window facts: %+v", got)
+	}
+	for _, entry := range got.Seen {
+		if entry.Path == pathA && entry.Request != "reply-A" {
+			t.Fatal("stale cross-project write replaced read fact")
+		}
 	}
 }

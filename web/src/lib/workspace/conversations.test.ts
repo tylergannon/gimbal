@@ -1,6 +1,11 @@
 import { expect, test } from "vite-plus/test";
 import type { Conversation } from "#lib/skgo/conversation/types";
-import { conversationsForWorkspace, conversationNeedsUpdates } from "./conversations";
+import {
+  conversationsForWorkspace,
+  conversationNeedsUpdates,
+  completedReply,
+  conversationStatus,
+} from "./conversations";
 
 const chat = (id: string, updated: number): Conversation => ({
   id,
@@ -8,6 +13,9 @@ const chat = (id: string, updated: number): Conversation => ({
   title: id,
   provider: "codex",
   model: "gpt-5.6-luna",
+  effort: "",
+  shared_checkout: true,
+  base: "",
   branch: "",
   worktree: "/project",
   native_session: "",
@@ -77,4 +85,42 @@ test("an accepted prompt keeps observation updating before async delivery change
   expect(conversationNeedsUpdates(accepted)).toBe(true);
   accepted.requests[0].status = "completed";
   expect(conversationNeedsUpdates(accepted)).toBe(false);
+});
+
+test("a later steer acknowledgment cannot hide the original turn completion", () => {
+  const item = chat("steered", 3);
+  const request = {
+    id: "original",
+    kind: "prompt",
+    status: "completed",
+    delivery: "turn",
+  } as Conversation["requests"][number];
+  item.requests = [request, { ...request, id: "steer", delivery: "steer" }];
+  expect(completedReply(item)).toBe("original");
+  item.requests = [
+    { ...request, status: "working" },
+    { ...request, id: "steer", delivery: "steer" },
+  ];
+  expect(completedReply(item)).toBe("");
+});
+
+test("restart uncertainty needs attention while real work and unread replies remain distinct", () => {
+  const item = chat("recover", 1);
+  item.status = "unresolved";
+  item.error = "The server restarted; outcome unconfirmed";
+  expect(conversationStatus(item)).toBe("attention");
+  item.error = "";
+  item.status = "working";
+  expect(conversationStatus(item)).toBe("working");
+  item.status = "idle";
+  item.requests = [
+    {
+      id: "reply",
+      kind: "prompt",
+      status: "completed",
+      delivery: "turn",
+    } as Conversation["requests"][number],
+  ];
+  expect(conversationStatus(item)).toBe("unread");
+  expect(conversationStatus(item, "reply")).toBeUndefined();
 });

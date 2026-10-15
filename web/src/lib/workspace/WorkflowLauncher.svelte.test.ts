@@ -1,6 +1,13 @@
 import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import Launcher from "./WorkflowLauncher.svelte";
+const navigation = vi.hoisted(() => ({ after: undefined as undefined | (() => void) }));
+vi.mock("$app/navigation", () => ({
+  goto: vi.fn(async () => {}),
+  afterNavigate: (callback: () => void) => {
+    navigation.after = callback;
+  },
+}));
 const remote = vi.hoisted(() => ({ opened: vi.fn(), guide: vi.fn() }));
 vi.mock("../../routes/workflow.remote", () => ({
   workflowCatalog: () => ({
@@ -97,6 +104,7 @@ test("leaving a retained Runs view removes its popup and does not reopen it on r
     await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
     await expect.element(screen.getByRole("button", { name: "Read the guide" })).toBeVisible();
     await screen.rerender({ ...props, active: false });
+    navigation.after?.();
     await expect
       .element(screen.getByRole("button", { name: "Start run", includeHidden: true }))
       .not.toBeVisible();
@@ -120,6 +128,7 @@ test("launch draft survives reading the guide in another retained view", async (
   await screen.getByRole("textbox", { name: "Directory", exact: true }).fill("/work/draft");
   await screen.getByRole("button", { name: "Read the guide" }).click();
   await screen.rerender({ ...props, active: false });
+  navigation.after?.();
   await screen.rerender({ ...props, active: true });
   await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
   await expect

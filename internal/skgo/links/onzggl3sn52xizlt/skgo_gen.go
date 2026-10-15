@@ -101,6 +101,8 @@ var (
 	Skgo_createConversation = createConversation
 	// Skgo_projectConversations is projectConversations, published as src/routes/conversation.remote.ts#projectConversations.
 	Skgo_projectConversations = projectConversations
+	// Skgo_renameConversation is renameConversation, published as src/routes/conversation.remote.ts#renameConversation.
+	Skgo_renameConversation = renameConversation
 	// Skgo_sendConversationMessage is sendConversationMessage, published as src/routes/conversation.remote.ts#sendConversationMessage.
 	Skgo_sendConversationMessage = sendConversationMessage
 	// Skgo_stopConversationRequest is stopConversationRequest, published as src/routes/conversation.remote.ts#stopConversationRequest.
@@ -130,6 +132,10 @@ type (
 	SkgoArg_createConversation = CreateConversation
 	// SkgoOut_createConversation is the type createConversation returns.
 	SkgoOut_createConversation = conversation.Conversation
+	// SkgoArg_renameConversation is the type renameConversation takes.
+	SkgoArg_renameConversation = RenameConversation
+	// SkgoOut_renameConversation is the type renameConversation returns.
+	SkgoOut_renameConversation = conversation.Conversation
 	// SkgoArg_sendConversationMessage is the type sendConversationMessage takes.
 	SkgoArg_sendConversationMessage = SendConversationMessage
 	// SkgoOut_sendConversationMessage is the type sendConversationMessage returns.

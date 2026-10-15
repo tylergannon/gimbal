@@ -1387,6 +1387,16 @@ func encHarness_6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e
 	}
 	var enc8 any = enc4
 	enc1.Set("models", enc8)
+	enc9 := make([]any, 0, len(v.Efforts))
+	for i10, item11 := range v.Efforts {
+		enc12, err := encModelEfforts(item11, at+"/efforts"+"/"+strconv.Itoa(i10))
+		if err != nil {
+			return nil, err
+		}
+		enc9 = append(enc9, enc12)
+	}
+	var enc13 any = enc9
+	enc1.Set("efforts", enc13)
 	return enc1, nil
 }
 
@@ -1397,7 +1407,7 @@ func decHarness_6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "default", "models"); err != nil {
+	if err := dvKnown(obj2, at, "id", "default", "models", "efforts"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "id", at+"/id")
@@ -1435,6 +1445,23 @@ func decHarness_6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e
 		dec8 = append(dec8, dec12)
 	}
 	dec1.Models = dec8
+	raw13, err := dvRequired(obj2, "efforts", at+"/efforts")
+	if err != nil {
+		return dvZero, err
+	}
+	items15, err := dvArray(raw13, at+"/efforts")
+	if err != nil {
+		return dvZero, err
+	}
+	dec14 := make([]pkg_conversation.ModelEfforts, 0, len(items15))
+	for i16, item17 := range items15 {
+		dec18, err := decModelEfforts(item17, at+"/efforts"+"/"+strconv.Itoa(i16))
+		if err != nil {
+			return dvZero, err
+		}
+		dec14 = append(dec14, dec18)
+	}
+	dec1.Efforts = dec14
 	return dec1, nil
 }
 
@@ -1466,6 +1493,87 @@ func ParseHarness_6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f69
 		return zero, err
 	}
 	return decHarness_6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e7465726e616c2f636f6e766572736174696f6e(parsed, "")
+}
+
+func encModelEfforts(v pkg_conversation.ModelEfforts, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.Model)
+	enc1.Set("model", enc2)
+	enc3 := make([]any, 0, len(v.Levels))
+	for _, item5 := range v.Levels {
+		var enc6 any = string(item5)
+		enc3 = append(enc3, enc6)
+	}
+	var enc7 any = enc3
+	enc1.Set("levels", enc7)
+	return enc1, nil
+}
+
+func decModelEfforts(raw any, at string) (pkg_conversation.ModelEfforts, error) {
+	var dvZero pkg_conversation.ModelEfforts
+	var dec1 pkg_conversation.ModelEfforts
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "model", "levels"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "model", at+"/model")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/model")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Model = dec4
+	raw5, err := dvRequired(obj2, "levels", at+"/levels")
+	if err != nil {
+		return dvZero, err
+	}
+	items7, err := dvArray(raw5, at+"/levels")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6 := make([]string, 0, len(items7))
+	for i8, item9 := range items7 {
+		dec10, err := dvString(item9, at+"/levels"+"/"+strconv.Itoa(i8))
+		if err != nil {
+			return dvZero, err
+		}
+		dec6 = append(dec6, dec10)
+	}
+	dec1.Levels = dec6
+	return dec1, nil
+}
+
+// EncodeModelEfforts converts v into the devalue value model.
+func EncodeModelEfforts(v pkg_conversation.ModelEfforts) (any, error) { return encModelEfforts(v, "") }
+
+// DecodeModelEfforts converts a devalue value model tree into a pkg_conversation.ModelEfforts, rejecting any
+// shape the type grammar does not admit.
+func DecodeModelEfforts(raw any) (pkg_conversation.ModelEfforts, error) {
+	return decModelEfforts(raw, "")
+}
+
+// StringifyModelEfforts encodes v and serializes it with devalue.
+func StringifyModelEfforts(v pkg_conversation.ModelEfforts) (string, error) {
+	encoded, err := encModelEfforts(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseModelEfforts parses a devalue document and decodes it into a pkg_conversation.ModelEfforts.
+func ParseModelEfforts(s string) (pkg_conversation.ModelEfforts, error) {
+	var zero pkg_conversation.ModelEfforts
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decModelEfforts(parsed, "")
 }
 
 func encCapabilities(v pkg_environments.Capabilities, at string) (any, error) {
@@ -2839,81 +2947,87 @@ func encConversation(v pkg_conversation.Conversation, at string) (any, error) {
 	enc1.Set("provider", enc4)
 	var enc5 any = string(v.Model)
 	enc1.Set("model", enc5)
-	var enc6 any = string(v.Branch)
-	enc1.Set("branch", enc6)
-	var enc7 any = string(v.Worktree)
-	enc1.Set("worktree", enc7)
-	var enc8 any = string(v.NativeSession)
-	enc1.Set("native_session", enc8)
-	var enc9 any = bool(v.Live)
-	enc1.Set("live", enc9)
-	var enc10 any = string(v.Status)
-	enc1.Set("status", enc10)
-	var enc11 any = string(v.Error)
-	enc1.Set("error", enc11)
-	var enc12 any = float64(v.Created)
-	enc1.Set("created", enc12)
-	var enc13 any = float64(v.Updated)
-	enc1.Set("updated", enc13)
-	enc14 := make([]any, 0, len(v.Messages))
-	for i15, item16 := range v.Messages {
-		enc17, err := encMessage(item16, at+"/messages"+"/"+strconv.Itoa(i15))
+	var enc6 any = string(v.Effort)
+	enc1.Set("effort", enc6)
+	var enc7 any = bool(v.SharedCheckout)
+	enc1.Set("shared_checkout", enc7)
+	var enc8 any = string(v.Base)
+	enc1.Set("base", enc8)
+	var enc9 any = string(v.Branch)
+	enc1.Set("branch", enc9)
+	var enc10 any = string(v.Worktree)
+	enc1.Set("worktree", enc10)
+	var enc11 any = string(v.NativeSession)
+	enc1.Set("native_session", enc11)
+	var enc12 any = bool(v.Live)
+	enc1.Set("live", enc12)
+	var enc13 any = string(v.Status)
+	enc1.Set("status", enc13)
+	var enc14 any = string(v.Error)
+	enc1.Set("error", enc14)
+	var enc15 any = float64(v.Created)
+	enc1.Set("created", enc15)
+	var enc16 any = float64(v.Updated)
+	enc1.Set("updated", enc16)
+	enc17 := make([]any, 0, len(v.Messages))
+	for i18, item19 := range v.Messages {
+		enc20, err := encMessage(item19, at+"/messages"+"/"+strconv.Itoa(i18))
 		if err != nil {
 			return nil, err
 		}
-		enc14 = append(enc14, enc17)
+		enc17 = append(enc17, enc20)
 	}
-	var enc18 any = enc14
-	enc1.Set("messages", enc18)
-	enc19 := make([]any, 0, len(v.Runs))
-	for i20, item21 := range v.Runs {
-		enc22, err := encRun(item21, at+"/runs"+"/"+strconv.Itoa(i20))
+	var enc21 any = enc17
+	enc1.Set("messages", enc21)
+	enc22 := make([]any, 0, len(v.Runs))
+	for i23, item24 := range v.Runs {
+		enc25, err := encRun(item24, at+"/runs"+"/"+strconv.Itoa(i23))
 		if err != nil {
 			return nil, err
 		}
-		enc19 = append(enc19, enc22)
+		enc22 = append(enc22, enc25)
 	}
-	var enc23 any = enc19
-	enc1.Set("runs", enc23)
-	enc24 := make([]any, 0, len(v.Requests))
-	for i25, item26 := range v.Requests {
-		enc27, err := encRequestState(item26, at+"/requests"+"/"+strconv.Itoa(i25))
+	var enc26 any = enc22
+	enc1.Set("runs", enc26)
+	enc27 := make([]any, 0, len(v.Requests))
+	for i28, item29 := range v.Requests {
+		enc30, err := encRequestState(item29, at+"/requests"+"/"+strconv.Itoa(i28))
 		if err != nil {
 			return nil, err
 		}
-		enc24 = append(enc24, enc27)
+		enc27 = append(enc27, enc30)
 	}
-	var enc28 any = enc24
-	enc1.Set("requests", enc28)
-	var enc29 any = string(v.ActiveRequest)
-	enc1.Set("active_request", enc29)
-	enc30, err := encJSONText(v.State, at+"/state")
+	var enc31 any = enc27
+	enc1.Set("requests", enc31)
+	var enc32 any = string(v.ActiveRequest)
+	enc1.Set("active_request", enc32)
+	enc33, err := encJSONText(v.State, at+"/state")
 	if err != nil {
 		return nil, err
 	}
-	enc1.Set("state", enc30)
-	var enc31 any = float64(v.Revision)
-	enc1.Set("revision", enc31)
-	var enc32 any = string(v.Environment)
-	enc1.Set("environment", enc32)
+	enc1.Set("state", enc33)
+	var enc34 any = float64(v.Revision)
+	enc1.Set("revision", enc34)
+	var enc35 any = string(v.Environment)
+	enc1.Set("environment", enc35)
 	if v.Placement.Present {
-		enc33, err := encPlacement(v.Placement.Value, at+"/placement")
+		enc36, err := encPlacement(v.Placement.Value, at+"/placement")
 		if err != nil {
 			return nil, err
 		}
-		enc1.Set("placement", enc33)
+		enc1.Set("placement", enc36)
 	} else {
 		enc1.Set("placement", nil)
 	}
-	var enc34 any = string(v.Contact)
-	enc1.Set("contact", enc34)
-	enc35, err := encCapabilities(v.Capabilities, at+"/capabilities")
+	var enc37 any = string(v.Contact)
+	enc1.Set("contact", enc37)
+	enc38, err := encCapabilities(v.Capabilities, at+"/capabilities")
 	if err != nil {
 		return nil, err
 	}
-	enc1.Set("capabilities", enc35)
-	var enc36 any = bool(v.CleanupPending)
-	enc1.Set("cleanup_pending", enc36)
+	enc1.Set("capabilities", enc38)
+	var enc39 any = bool(v.CleanupPending)
+	enc1.Set("cleanup_pending", enc39)
 	return enc1, nil
 }
 
@@ -2924,7 +3038,7 @@ func decConversation(raw any, at string) (pkg_conversation.Conversation, error) 
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "title", "provider", "model", "branch", "worktree", "native_session", "live", "status", "error", "created", "updated", "messages", "runs", "requests", "active_request", "state", "revision", "environment", "placement", "contact", "capabilities", "cleanup_pending"); err != nil {
+	if err := dvKnown(obj2, at, "id", "title", "provider", "model", "effort", "shared_checkout", "base", "branch", "worktree", "native_session", "live", "status", "error", "created", "updated", "messages", "runs", "requests", "active_request", "state", "revision", "environment", "placement", "contact", "capabilities", "cleanup_pending"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "id", at+"/id")
@@ -2963,207 +3077,234 @@ func decConversation(raw any, at string) (pkg_conversation.Conversation, error) 
 		return dvZero, err
 	}
 	dec1.Model = dec10
-	raw11, err := dvRequired(obj2, "branch", at+"/branch")
+	raw11, err := dvRequired(obj2, "effort", at+"/effort")
 	if err != nil {
 		return dvZero, err
 	}
-	dec12, err := dvString(raw11, at+"/branch")
+	dec12, err := dvString(raw11, at+"/effort")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Branch = dec12
-	raw13, err := dvRequired(obj2, "worktree", at+"/worktree")
+	dec1.Effort = dec12
+	raw13, err := dvRequired(obj2, "shared_checkout", at+"/shared_checkout")
 	if err != nil {
 		return dvZero, err
 	}
-	dec14, err := dvString(raw13, at+"/worktree")
+	dec14, err := dvBool(raw13, at+"/shared_checkout")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Worktree = dec14
-	raw15, err := dvRequired(obj2, "native_session", at+"/native_session")
+	dec1.SharedCheckout = dec14
+	raw15, err := dvRequired(obj2, "base", at+"/base")
 	if err != nil {
 		return dvZero, err
 	}
-	dec16, err := dvString(raw15, at+"/native_session")
+	dec16, err := dvString(raw15, at+"/base")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.NativeSession = dec16
-	raw17, err := dvRequired(obj2, "live", at+"/live")
+	dec1.Base = dec16
+	raw17, err := dvRequired(obj2, "branch", at+"/branch")
 	if err != nil {
 		return dvZero, err
 	}
-	dec18, err := dvBool(raw17, at+"/live")
+	dec18, err := dvString(raw17, at+"/branch")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Live = dec18
-	raw19, err := dvRequired(obj2, "status", at+"/status")
+	dec1.Branch = dec18
+	raw19, err := dvRequired(obj2, "worktree", at+"/worktree")
 	if err != nil {
 		return dvZero, err
 	}
-	dec20, err := dvString(raw19, at+"/status")
+	dec20, err := dvString(raw19, at+"/worktree")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Status = dec20
-	raw21, err := dvRequired(obj2, "error", at+"/error")
+	dec1.Worktree = dec20
+	raw21, err := dvRequired(obj2, "native_session", at+"/native_session")
 	if err != nil {
 		return dvZero, err
 	}
-	dec22, err := dvString(raw21, at+"/error")
+	dec22, err := dvString(raw21, at+"/native_session")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Error = dec22
-	raw23, err := dvRequired(obj2, "created", at+"/created")
+	dec1.NativeSession = dec22
+	raw23, err := dvRequired(obj2, "live", at+"/live")
 	if err != nil {
 		return dvZero, err
 	}
-	num25, err := dvInteger(raw23, at+"/created", math.MinInt64, math.MaxInt64)
+	dec24, err := dvBool(raw23, at+"/live")
 	if err != nil {
 		return dvZero, err
 	}
-	dec24 := int64(num25)
-	dec1.Created = dec24
-	raw26, err := dvRequired(obj2, "updated", at+"/updated")
+	dec1.Live = dec24
+	raw25, err := dvRequired(obj2, "status", at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	num28, err := dvInteger(raw26, at+"/updated", math.MinInt64, math.MaxInt64)
+	dec26, err := dvString(raw25, at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec27 := int64(num28)
-	dec1.Updated = dec27
-	raw29, err := dvRequired(obj2, "messages", at+"/messages")
+	dec1.Status = dec26
+	raw27, err := dvRequired(obj2, "error", at+"/error")
 	if err != nil {
 		return dvZero, err
 	}
-	items31, err := dvArray(raw29, at+"/messages")
+	dec28, err := dvString(raw27, at+"/error")
 	if err != nil {
 		return dvZero, err
 	}
-	dec30 := make([]pkg_conversation.Message, 0, len(items31))
-	for i32, item33 := range items31 {
-		dec34, err := decMessage(item33, at+"/messages"+"/"+strconv.Itoa(i32))
-		if err != nil {
-			return dvZero, err
-		}
-		dec30 = append(dec30, dec34)
-	}
-	dec1.Messages = dec30
-	raw35, err := dvRequired(obj2, "runs", at+"/runs")
+	dec1.Error = dec28
+	raw29, err := dvRequired(obj2, "created", at+"/created")
 	if err != nil {
 		return dvZero, err
 	}
-	items37, err := dvArray(raw35, at+"/runs")
+	num31, err := dvInteger(raw29, at+"/created", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec36 := make([]pkg_conversation.Run, 0, len(items37))
+	dec30 := int64(num31)
+	dec1.Created = dec30
+	raw32, err := dvRequired(obj2, "updated", at+"/updated")
+	if err != nil {
+		return dvZero, err
+	}
+	num34, err := dvInteger(raw32, at+"/updated", math.MinInt64, math.MaxInt64)
+	if err != nil {
+		return dvZero, err
+	}
+	dec33 := int64(num34)
+	dec1.Updated = dec33
+	raw35, err := dvRequired(obj2, "messages", at+"/messages")
+	if err != nil {
+		return dvZero, err
+	}
+	items37, err := dvArray(raw35, at+"/messages")
+	if err != nil {
+		return dvZero, err
+	}
+	dec36 := make([]pkg_conversation.Message, 0, len(items37))
 	for i38, item39 := range items37 {
-		dec40, err := decRun(item39, at+"/runs"+"/"+strconv.Itoa(i38))
+		dec40, err := decMessage(item39, at+"/messages"+"/"+strconv.Itoa(i38))
 		if err != nil {
 			return dvZero, err
 		}
 		dec36 = append(dec36, dec40)
 	}
-	dec1.Runs = dec36
-	raw41, err := dvRequired(obj2, "requests", at+"/requests")
+	dec1.Messages = dec36
+	raw41, err := dvRequired(obj2, "runs", at+"/runs")
 	if err != nil {
 		return dvZero, err
 	}
-	items43, err := dvArray(raw41, at+"/requests")
+	items43, err := dvArray(raw41, at+"/runs")
 	if err != nil {
 		return dvZero, err
 	}
-	dec42 := make([]pkg_conversation.RequestState, 0, len(items43))
+	dec42 := make([]pkg_conversation.Run, 0, len(items43))
 	for i44, item45 := range items43 {
-		dec46, err := decRequestState(item45, at+"/requests"+"/"+strconv.Itoa(i44))
+		dec46, err := decRun(item45, at+"/runs"+"/"+strconv.Itoa(i44))
 		if err != nil {
 			return dvZero, err
 		}
 		dec42 = append(dec42, dec46)
 	}
-	dec1.Requests = dec42
-	raw47, err := dvRequired(obj2, "active_request", at+"/active_request")
+	dec1.Runs = dec42
+	raw47, err := dvRequired(obj2, "requests", at+"/requests")
 	if err != nil {
 		return dvZero, err
 	}
-	dec48, err := dvString(raw47, at+"/active_request")
+	items49, err := dvArray(raw47, at+"/requests")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.ActiveRequest = dec48
-	raw49, err := dvRequired(obj2, "state", at+"/state")
-	if err != nil {
-		return dvZero, err
-	}
-	dec50, err := decJSONText(raw49, at+"/state")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.State = dec50
-	raw51, err := dvRequired(obj2, "revision", at+"/revision")
-	if err != nil {
-		return dvZero, err
-	}
-	num53, err := dvInteger(raw51, at+"/revision", 0, math.MaxUint64)
-	if err != nil {
-		return dvZero, err
-	}
-	dec52 := uint64(num53)
-	dec1.Revision = dec52
-	raw54, err := dvRequired(obj2, "environment", at+"/environment")
-	if err != nil {
-		return dvZero, err
-	}
-	dec55, err := dvString(raw54, at+"/environment")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.Environment = dec55
-	raw56, err := dvRequired(obj2, "placement", at+"/placement")
-	if err != nil {
-		return dvZero, err
-	}
-	if raw56 != nil {
-		dec1.Placement.Present = true
-		dec57, err := decPlacement(raw56, at+"/placement")
+	dec48 := make([]pkg_conversation.RequestState, 0, len(items49))
+	for i50, item51 := range items49 {
+		dec52, err := decRequestState(item51, at+"/requests"+"/"+strconv.Itoa(i50))
 		if err != nil {
 			return dvZero, err
 		}
-		dec1.Placement.Value = dec57
+		dec48 = append(dec48, dec52)
 	}
-	raw58, err := dvRequired(obj2, "contact", at+"/contact")
+	dec1.Requests = dec48
+	raw53, err := dvRequired(obj2, "active_request", at+"/active_request")
 	if err != nil {
 		return dvZero, err
 	}
-	dec59, err := dvString(raw58, at+"/contact")
+	dec54, err := dvString(raw53, at+"/active_request")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Contact = dec59
-	raw60, err := dvRequired(obj2, "capabilities", at+"/capabilities")
+	dec1.ActiveRequest = dec54
+	raw55, err := dvRequired(obj2, "state", at+"/state")
 	if err != nil {
 		return dvZero, err
 	}
-	dec61, err := decCapabilities(raw60, at+"/capabilities")
+	dec56, err := decJSONText(raw55, at+"/state")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Capabilities = dec61
-	raw62, err := dvRequired(obj2, "cleanup_pending", at+"/cleanup_pending")
+	dec1.State = dec56
+	raw57, err := dvRequired(obj2, "revision", at+"/revision")
 	if err != nil {
 		return dvZero, err
 	}
-	dec63, err := dvBool(raw62, at+"/cleanup_pending")
+	num59, err := dvInteger(raw57, at+"/revision", 0, math.MaxUint64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.CleanupPending = dec63
+	dec58 := uint64(num59)
+	dec1.Revision = dec58
+	raw60, err := dvRequired(obj2, "environment", at+"/environment")
+	if err != nil {
+		return dvZero, err
+	}
+	dec61, err := dvString(raw60, at+"/environment")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Environment = dec61
+	raw62, err := dvRequired(obj2, "placement", at+"/placement")
+	if err != nil {
+		return dvZero, err
+	}
+	if raw62 != nil {
+		dec1.Placement.Present = true
+		dec63, err := decPlacement(raw62, at+"/placement")
+		if err != nil {
+			return dvZero, err
+		}
+		dec1.Placement.Value = dec63
+	}
+	raw64, err := dvRequired(obj2, "contact", at+"/contact")
+	if err != nil {
+		return dvZero, err
+	}
+	dec65, err := dvString(raw64, at+"/contact")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Contact = dec65
+	raw66, err := dvRequired(obj2, "capabilities", at+"/capabilities")
+	if err != nil {
+		return dvZero, err
+	}
+	dec67, err := decCapabilities(raw66, at+"/capabilities")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Capabilities = dec67
+	raw68, err := dvRequired(obj2, "cleanup_pending", at+"/cleanup_pending")
+	if err != nil {
+		return dvZero, err
+	}
+	dec69, err := dvBool(raw68, at+"/cleanup_pending")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.CleanupPending = dec69
 	return dec1, nil
 }
 
@@ -7418,6 +7559,22 @@ func encWindowState(v pkg_host.WindowState, at string) (any, error) {
 	}
 	var enc8 any = enc4
 	enc1.Set("tabs", enc8)
+	if v.Sidebar.Present {
+		var enc9 any = bool(v.Sidebar.Value)
+		enc1.Set("sidebar", enc9)
+	} else {
+		enc1.Set("sidebar", nil)
+	}
+	enc10 := make([]any, 0, len(v.Seen))
+	for i11, item12 := range v.Seen {
+		enc13, err := encSeenReply(item12, at+"/seen"+"/"+strconv.Itoa(i11))
+		if err != nil {
+			return nil, err
+		}
+		enc10 = append(enc10, enc13)
+	}
+	var enc14 any = enc10
+	enc1.Set("seen", enc14)
 	return enc1, nil
 }
 
@@ -7428,7 +7585,7 @@ func decWindowState(raw any, at string) (pkg_host.WindowState, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "project", "path", "tabs"); err != nil {
+	if err := dvKnown(obj2, at, "project", "path", "tabs", "sidebar", "seen"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "project", at+"/project")
@@ -7466,6 +7623,35 @@ func decWindowState(raw any, at string) (pkg_host.WindowState, error) {
 		dec8 = append(dec8, dec12)
 	}
 	dec1.Tabs = dec8
+	raw13, err := dvRequired(obj2, "sidebar", at+"/sidebar")
+	if err != nil {
+		return dvZero, err
+	}
+	if raw13 != nil {
+		dec1.Sidebar.Present = true
+		dec14, err := dvBool(raw13, at+"/sidebar")
+		if err != nil {
+			return dvZero, err
+		}
+		dec1.Sidebar.Value = dec14
+	}
+	raw15, err := dvRequired(obj2, "seen", at+"/seen")
+	if err != nil {
+		return dvZero, err
+	}
+	items17, err := dvArray(raw15, at+"/seen")
+	if err != nil {
+		return dvZero, err
+	}
+	dec16 := make([]pkg_host.SeenReply, 0, len(items17))
+	for i18, item19 := range items17 {
+		dec20, err := decSeenReply(item19, at+"/seen"+"/"+strconv.Itoa(i18))
+		if err != nil {
+			return dvZero, err
+		}
+		dec16 = append(dec16, dec20)
+	}
+	dec1.Seen = dec16
 	return dec1, nil
 }
 
@@ -7570,6 +7756,72 @@ func ParseWindowTab(s string) (pkg_host.WindowTab, error) {
 		return zero, err
 	}
 	return decWindowTab(parsed, "")
+}
+
+func encSeenReply(v pkg_host.SeenReply, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.Path)
+	enc1.Set("path", enc2)
+	var enc3 any = string(v.Request)
+	enc1.Set("request", enc3)
+	return enc1, nil
+}
+
+func decSeenReply(raw any, at string) (pkg_host.SeenReply, error) {
+	var dvZero pkg_host.SeenReply
+	var dec1 pkg_host.SeenReply
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "path", "request"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "path", at+"/path")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/path")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Path = dec4
+	raw5, err := dvRequired(obj2, "request", at+"/request")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6, err := dvString(raw5, at+"/request")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Request = dec6
+	return dec1, nil
+}
+
+// EncodeSeenReply converts v into the devalue value model.
+func EncodeSeenReply(v pkg_host.SeenReply) (any, error) { return encSeenReply(v, "") }
+
+// DecodeSeenReply converts a devalue value model tree into a pkg_host.SeenReply, rejecting any
+// shape the type grammar does not admit.
+func DecodeSeenReply(raw any) (pkg_host.SeenReply, error) { return decSeenReply(raw, "") }
+
+// StringifySeenReply encodes v and serializes it with devalue.
+func StringifySeenReply(v pkg_host.SeenReply) (string, error) {
+	encoded, err := encSeenReply(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseSeenReply parses a devalue document and decodes it into a pkg_host.SeenReply.
+func ParseSeenReply(s string) (pkg_host.SeenReply, error) {
+	var zero pkg_host.SeenReply
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decSeenReply(parsed, "")
 }
 
 func encDocument(v pkg_projectfiles.Document, at string) (any, error) {
@@ -12293,6 +12545,28 @@ func requestedArg_projectConversations(arg any) (any, error) {
 	return in, nil
 }
 
+// remote_renameConversation answers src/routes/conversation.remote.ts#renameConversation, a form.
+//
+// A form's submission is assigned onto the handler's own argument type:
+// kit posts a form as binary form data, which can carry an uploaded File,
+// and a File is not a value polytype describes.
+// The result is encoded by EncodeRoot44, generated for its result type.
+func remote_renameConversation(ctx context.Context, call skgo.Call) (any, error) {
+	var in pkg_onzggl3sn52xizlt.SkgoArg_renameConversation
+	if err := skgo.DecodeForm(call.Arg, &in); err != nil {
+		return nil, err
+	}
+	event, err := params.SkgoRequestEvent(skgo.EventFrom(ctx))
+	if err != nil {
+		return nil, err
+	}
+	out, err := pkg_onzggl3sn52xizlt.Skgo_renameConversation(event.Context(), event, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot44(out)
+}
+
 // remote_sendConversationMessage answers src/routes/conversation.remote.ts#sendConversationMessage, a form.
 //
 // A form's submission is assigned onto the handler's own argument type:
@@ -12946,6 +13220,15 @@ func Remotes() []*skgo.Remote {
 			Fn:        pkg_onzggl3sn52xizlt.Skgo_projectConversations,
 			Call:      remote_projectConversations,
 			DecodeArg: requestedArg_projectConversations,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:           skgo.KindForm,
+			Module:         "src/routes/conversation.remote.ts",
+			Name:           "renameConversation",
+			Fn:             pkg_onzggl3sn52xizlt.Skgo_renameConversation,
+			CallerMatchers: skgoCallerMatchers(),
+			CallerRoutes:   params.SkgoCallerRoutes(),
+			Call:           remote_renameConversation,
 		}),
 		skgo.NewRemote(skgo.RemoteSpec{
 			Kind:           skgo.KindForm,

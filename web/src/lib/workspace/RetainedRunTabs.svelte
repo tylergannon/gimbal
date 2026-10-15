@@ -15,7 +15,7 @@
 
 <WorkspaceShell {project} items={[]} {tabs} {active} onselect={id => active = id} onclose={() => {}} onopen={id => active = id}>
   {#snippet content(tab)}
-    {#if tab.kind === 'run'}<RunPanel {project} id={byID[tab.id].snapshot.run.id} initial={byID[tab.id]} active={active === tab.id} onstate={() => {}} />
+    {#if tab.kind === 'run'}<RunPanel {project} id={byID[tab.id].snapshot.run.id} initial={byID[tab.id]} active={active === tab.id} />
     {:else}<textarea aria-label="Draft"></textarea>{/if}
   {/snippet}
 </WorkspaceShell>

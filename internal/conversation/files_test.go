@@ -35,11 +35,6 @@ func cacheFixture(t *testing.T, m *Manager, data []byte) string {
 	return id
 }
 
-type effortChat struct {
-	chatAdapter
-	model, effort string
-}
-
 func TestFirstTurnFileContextUsesExactPrivateFileAndSurvivesFollowup(t *testing.T) {
 	a := &controlledChat{started: make(chan string, 3), release: make(chan struct{}), landed: true}
 	m, unused := managerWithControl(t, a)

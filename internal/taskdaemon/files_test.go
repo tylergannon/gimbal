@@ -59,7 +59,7 @@ func TestMaterializedTaskFileKeepsFormatExtension(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := d.files[file]
-	defer os.Remove(path)
+	defer func() { _ = os.Remove(path) }()
 	if !strings.HasSuffix(path, ".pdf") {
 		t.Fatalf("PDF path lost its format: %q", path)
 	}

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.30] - 2026-10-15
+
+### Changed
+
+- feat(desktop): complete session environments and machine configuration (#568)
+
 ## [0.13.29] - 2026-10-15
 
 ### Changed
@@ -356,7 +362,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.29...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.30...main
+[0.13.30]: https://github.com/tylergannon/gimbal/compare/v0.13.29...v0.13.30
 [0.13.29]: https://github.com/tylergannon/gimbal/compare/v0.13.28...v0.13.29
 [0.13.28]: https://github.com/tylergannon/gimbal/compare/v0.13.27...v0.13.28
 [0.13.27]: https://github.com/tylergannon/gimbal/compare/v0.13.26...v0.13.27

@@ -2,6 +2,8 @@ const harnesses: Record<string, { name: string; mark: string }> = {
   claude: { name: "Claude Code", mark: "C" },
   codex: { name: "Codex", mark: "X" },
   agy: { name: "Antigravity", mark: "A" },
+  opencode: { name: "OpenCode", mark: "O" },
+  pi: { name: "Pi", mark: "P" },
 };
 
 export const harnessName = (id: string) => harnesses[id]?.name ?? id;

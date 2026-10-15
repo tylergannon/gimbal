@@ -10,7 +10,10 @@
     @Published var hasActiveTab = false
     @Published var windowIsKey = false
     @Published var canStopResponse = false
+    @Published var canRename = false
     @Published var canMove = false
+    @Published var tabs: [WorkspaceMenuItem] = []
+    @Published var recentSessions: [WorkspaceMenuItem] = []
     @Published var projects: [WorkspaceProject] = []
     @Published var projectName = ""
     var currentProject = ""
@@ -36,10 +39,10 @@
         let json = String(data: data, encoding: .utf8) else { return }
       webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('gimbal-project-navigation', {detail: \(json)}));", completionHandler: nil)
     }
-    func send(_ command: String, project: String = "") {
+    func send(_ command: String, project: String = "", conversation: String = "", path: String = "") {
       guard ready,
         let data = try? JSONSerialization.data(withJSONObject: [
-          "command": command, "project": project,
+          "command": command, "project": project, "conversation": conversation, "path": path,
         ]),
         let detail = String(data: data, encoding: .utf8)
       else { return }
@@ -55,6 +58,11 @@
     let path: String
   }
 
+  struct WorkspaceMenuItem: Identifiable {
+    let id: String
+    let title: String
+  }
+
   struct WorkspaceMenu: Commands {
     @ObservedObject var workspace: WorkspaceState
     let openMachines: (String) -> Void
@@ -65,6 +73,11 @@
         Button("New Session…") { workspace.send("newSession") }
           .keyboardShortcut("n", modifiers: [.command])
           .disabled(!workspace.enabled)
+        Menu("New Session Like") {
+          ForEach(workspace.recentSessions) { session in
+            Button(session.title) { workspace.send("newSessionLike", conversation: session.id) }
+          }
+        }.disabled(!workspace.enabled || workspace.recentSessions.isEmpty)
         Button("Open File…") { workspace.send("openFileChooser") }
           .keyboardShortcut("o", modifiers: [.command])
           .disabled(!workspace.enabled)
@@ -78,6 +91,11 @@
           }
         }
         .disabled(!workspace.enabled || workspace.projects.isEmpty)
+        Button("Reveal in Finder") {
+          if let project = workspace.projects.first(where: { $0.id == workspace.currentProject }) {
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.path)
+          }
+        }.disabled(!workspace.enabled || workspace.currentProject.isEmpty)
         Divider()
         Toggle(
           "Show Sidebar",
@@ -96,6 +114,8 @@
         Button("Machines…") { openMachines("") }
       }
       CommandMenu("Chat") {
+        Button("Rename…") { workspace.send("renameTab") }
+          .disabled(!workspace.enabled || !workspace.canRename)
         Button("Move Tab to New Window") { workspace.send("moveTab") }
           .disabled(!workspace.enabled || !workspace.canMove)
         Divider()
@@ -113,6 +133,13 @@
         Button("Next Tab") { workspace.send("nextTab") }
           .keyboardShortcut(.tab, modifiers: [.control])
           .disabled(!workspace.enabled || workspace.tabCount < 2)
+      }
+      CommandGroup(before: .windowList) {
+        ForEach(workspace.tabs) { tab in
+          Button(tab.title) { workspace.send("selectTab", path: tab.id) }
+            .disabled(!workspace.enabled)
+        }
+        if !workspace.tabs.isEmpty { Divider() }
       }
     }
   }

@@ -5,6 +5,7 @@ import type {
   CleanupConversation,
   ConversationSetup,
   CreateConversation,
+  RenameConversation,
   SendConversationMessage,
   StopConversationRequest,
   WatchConversation,
@@ -15,6 +16,7 @@ export type {
   Conversation,
   ConversationSetup,
   CreateConversation,
+  RenameConversation,
   RequestState,
   SendConversationMessage,
   Setup,
@@ -42,6 +44,10 @@ export const createConversation = form("unchecked", (_arg: CreateConversation): 
 );
 
 export const projectConversations = query("unchecked", (_arg: string): Array<Conversation> =>
+  unimplemented(),
+);
+
+export const renameConversation = form("unchecked", (_arg: RenameConversation): Conversation =>
   unimplemented(),
 );
 

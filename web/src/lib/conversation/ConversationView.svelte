@@ -10,6 +10,7 @@
   import type { Conversation } from '#lib/skgo/conversation/types';
   import type { ProjectionState } from '#lib/sessionstate';
   import ConversationTranscript from './ConversationTranscript.svelte';
+  import RenameChat from './RenameChat.svelte';
   import { harnessName, modelName } from './names';
 
   let { project, current, active = true }: { project: string; current: Conversation; active?: boolean } = $props();
@@ -34,6 +35,8 @@
   let scroller = $state<HTMLDivElement>();
   let ending = $state(false);
   let confirmEnd = $state(false);
+  let renaming = $state(false);
+  $effect(() => { if (!active) { renaming = false; confirmEnd = false; } });
 
   async function endSession() {
     ending = true; actionError = '';
@@ -65,7 +68,7 @@
   }
   onMount(() => {
     requestID = crypto.randomUUID(); created = Date.now();
-    const command = (event: Event) => { if (active && (event as CustomEvent).detail.command === 'stopResponse') void stop(); };
+    const command = (event: Event) => { if (!active) return; const value = (event as CustomEvent).detail.command; if (value === 'stopResponse') void stop(); else if (value === 'renameTab') renaming = true; };
     const shortcut = (event: KeyboardEvent) => {
       if (active && (event.metaKey || event.ctrlKey) && event.key === '.' && canStop) { event.preventDefault(); void stop(); }
     };
@@ -113,7 +116,7 @@
     <input {...form.fields.id.as('hidden', requestID)} />
     <input {...form.fields.created.as('hidden', created)} />
     <textarea {...form.fields.message.as('text')} rows={2} onkeydown={keydown} placeholder={`Message ${provider}…`} aria-label={`Message ${record.title}`} disabled={!record.live || !!form.pending || stopping || uncertain}></textarea>
-    <div class="composer-meta"><span title={record.model}>{provider} · {modelName(record.model)}</span><code title={record.worktree}>{record.branch || record.worktree} · {machine}</code>{#if working && hasMessage}<span>{canSteer ? '↩ sends now · esc stops' : '↩ queues until this turn ends · esc stops'}</span>{/if}</div>
+    <div class="composer-meta"><span title={record.model}>{provider} · {modelName(record.model)}{record.effort ? ` · ${record.effort}` : ''}</span><code title={record.worktree}>{record.branch || record.worktree} · {machine}</code>{#if working && hasMessage}<span>{canSteer ? '↩ sends now · esc stops' : '↩ queues until this turn ends · esc stops'}</span>{/if}</div>
     {#if working && (!hasMessage || uncertain)}
       <button type="button" class="send" aria-label="Stop response" onclick={stop} disabled={!canStop || stopPending}>{#if stopping || stopPending}<LoaderCircle size={16} class="spin" />{:else}<Square size={12} fill="currentColor" />{/if}</button>
     {:else}
@@ -123,6 +126,8 @@
     {#if actionError}<p class="notice" role="alert">{actionError}</p>{/if}
   </form>
 </section>
+
+{#if renaming && active}<RenameChat {project} conversation={record} onclose={() => (renaming = false)} />{/if}
 
 {#if confirmEnd && active}
   <Dialog.Root open onOpenChange={(open) => { if (!open) confirmEnd = false; }}><Dialog.Content>
@@ -137,7 +142,7 @@
   .placement { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--muted-foreground); }
   .placement span { overflow-wrap: anywhere; }
   .placement button { flex: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
-  .transcript { flex: 1; min-height: 0; overflow: auto; overflow-wrap: anywhere; padding: 28px max(24px, calc((100% - 720px) / 2)); display: flex; flex-direction: column; gap: 22px; }
+  .transcript { flex: 1; min-height: 0; overflow: auto; overflow-wrap: anywhere; padding: 28px max(24px, calc((100% - 680px) / 2)); display: flex; flex-direction: column; gap: 22px; }
   p, h2 { margin: 0; }
   article p { white-space: pre-wrap; line-height: 1.65; }
   article.user { align-self: flex-end; max-width: 86%; border-radius: 18px; padding: 12px 16px; background: var(--muted); }
@@ -147,12 +152,13 @@
   .notice { line-height: 1.5; overflow-wrap: anywhere; }
   .runs { display: grid; gap: 6px; font-size: 12px; }
   .runs a { color: inherit; text-decoration: none; }
-  .composer { position: relative; flex: none; width: min(720px, calc(100% - 48px)); margin: 0 auto 20px; }
+  .composer { position: relative; flex: none; width: min(680px, calc(100% - 48px)); margin: 0 auto 20px; }
   textarea { box-sizing: border-box; width: 100%; min-height: 96px; max-height: 35vh; resize: vertical; padding: 14px 48px 38px 16px; border: 1px solid var(--border); border-radius: 18px; outline: none; color: var(--foreground); background: var(--background); font: inherit; font-size: 14px; }
   textarea:focus { border-color: var(--ring); }
-  .composer-meta { position: absolute; left: 16px; right: 52px; bottom: 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted-foreground); font-size: 11px; pointer-events: none; }
+  .composer-meta { position: absolute; left: 16px; right: 52px; bottom: 16px; min-width: 0; overflow: hidden; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted-foreground); font-size: 11px; pointer-events: none; }
   code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 11px; }
-  .composer-meta span { white-space: nowrap; }
+  .composer-meta code { flex: 1; min-width: 0; text-align: right; }
+  .composer-meta span { flex: none; white-space: nowrap; }
   .send { position: absolute; right: 12px; bottom: 14px; display: grid; place-items: center; width: 30px; height: 30px; border: 0; border-radius: 50%; color: var(--primary-foreground); background: var(--primary); cursor: pointer; }
   .send:disabled { opacity: .35; cursor: default; }
   .send:focus-visible { outline: 2px solid var(--ring); outline-offset: 3px; }

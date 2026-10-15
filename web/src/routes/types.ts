@@ -42,6 +42,7 @@ export type CreateConversation = {
   file_id: string;
   provider: string;
   model: string;
+  effort: string;
   message: string;
   shared_checkout: boolean;
   branch: string;
@@ -101,6 +102,15 @@ export type LoopMessage = {
   scope: string;
   message: string;
   wrap_up: boolean;
+};
+
+/**
+ * RenameConversation changes the saved chat title without changing its session.
+ */
+export type RenameConversation = {
+  project: string;
+  conversation: string;
+  title: string;
 };
 
 /**

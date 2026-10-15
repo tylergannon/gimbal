@@ -13,6 +13,7 @@ const remote = vi.hoisted(() => ({
 }));
 vi.mock("../../routes/conversation.remote", () => ({
   watchConversation: remote.watch,
+  renameConversation: { for: () => ({ fields: {}, enhance: () => ({}) }) },
   projectConversations: () => ({ error: undefined, refresh: remote.refresh }),
   stopConversationRequest: remote.stop,
   cleanupConversation: remote.cleanup,
@@ -49,6 +50,9 @@ test("eight retained chats add no live connections and Stop refreshes the shared
     title: `Chat ${id}`,
     provider: "claude",
     model: "haiku",
+    effort: "",
+    shared_checkout: true,
+    base: "",
     branch: "",
     worktree: "/project",
     native_session: "",

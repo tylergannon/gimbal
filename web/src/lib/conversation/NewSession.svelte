@@ -1,5 +1,6 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { SvelteMap } from 'svelte/reactivity';
   import FileTextIcon from '@lucide/svelte/icons/file-text';
   import XIcon from '@lucide/svelte/icons/x';
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
@@ -18,9 +19,17 @@
   import { environmentSnapshot } from '#lib/environments.remote';
   import EnvironmentPicker from '#lib/environments/EnvironmentPicker.svelte';
 
-  let { project, name, active = true, oncreated, fileContext, oncontextremoved }: { project: string; name: string; active?: boolean; fileContext?: { id: string; name: string }; oncontextremoved?: () => void; oncreated: (conversation: Conversation) => void } = $props();
+  let { project, name, active = true, oncreated, fileContext, oncontextremoved, startLike }: {
+    project: string; name: string; active?: boolean; oncreated: (conversation: Conversation) => void;
+    fileContext?: { id: string; name: string }; oncontextremoved?: () => void; startLike?: { conversation: string; nonce: number };
+  } = $props();
   const form = $derived(createConversation.for(project));
+  const conversationsQuery = $derived(projectConversations(project));
+  const recent = $derived(conversationsQuery.current ?? []);
   let environment = $state('local');
+  let initialized = $state(false);
+  let appliedSetup = $state(0);
+  function pickEnvironment(id: string) { environment = id; initialized = true; }
   const setupQuery = $derived(conversationSetup({ project, environment }));
   const inventory = $derived(environmentSnapshot(project));
   $effect(() => {
@@ -30,28 +39,55 @@
     const timer = setInterval(() => { void query.refresh().catch(navigateOnUnauthorized); }, 2000);
     return () => clearInterval(timer);
   });
-  const conversationsQuery = $derived(projectConversations(project));
   const setup = $derived(setupQuery.current);
-  const recent = $derived(conversationsQuery.current ?? []);
   let actionError = $state('');
-  type Choices = { shared?: boolean; branch?: string; base?: string; harness?: { provider: string; model: string } };
-  let choices = $state<Record<string, Choices>>({});
-  const selected = $derived(choices[environment] ?? {});
-  function choose(patch: Partial<Choices>) { choices[environment] = { ...selected, ...patch }; }
+  let picker = $state('');
+  $effect(() => { if (!active) picker = ''; });
+  type Choices = { shared?: boolean; branch?: string; base?: string; harness?: { provider: string; model: string; effort?: string } };
+  const choices = new SvelteMap<string, Choices>();
+  const selected = $derived(choices.get(environment) ?? {});
+  function choose(patch: Partial<Choices>) { choices.set(environment, { ...selected, ...patch }); }
   const sharedCheckout = $derived(selected.shared ?? false);
   const isolated = $derived(!!setup?.git && setup.capabilities.worktree && !sharedCheckout);
   const suggestedBranch = $derived((form.fields.message.value() ?? '').split('\n')[0]
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48).replace(/-$/, ''));
   const branch = $derived(selected.branch ?? (suggestedBranch ? `gimbal/${suggestedBranch}` : ''));
   const base = $derived(selected.base ?? setup?.base ?? '');
-  const harnesses = $derived(setup?.harnesses.filter(item => !setup.harness_states.some(state => state.id === item.id && (state.state === 'missing' || state.state === 'sign-in-required'))) ?? []);
-  const lastSession = $derived(recent.find(item => (item.environment || 'local') === environment));
-  // Defaults follow this project's last session, then the first harness's cheap model.
-  const choice = $derived(selected.harness
-    ?? (lastSession && harnesses.some(item => item.id === lastSession.provider) ? { provider: lastSession.provider, model: lastSession.model }
-    : harnesses[0] && { provider: harnesses[0].id, model: harnesses[0].default }));
-  const starts = $derived(recent.filter((item, index) =>
-    recent.findIndex(other => other.provider === item.provider && other.model === item.model) === index).slice(0, 2));
+  const harnesses = $derived(setup?.harnesses ?? []);
+  const usable = $derived(harnesses.filter(item => !setup?.harness_states.some(state => state.id === item.id && (state.state === 'missing' || state.state === 'sign-in-required'))));
+  const choice = $derived(selected.harness ?? ((usable[0] ?? harnesses[0]) && { provider: (usable[0] ?? harnesses[0]).id, model: (usable[0] ?? harnesses[0]).default, effort: '' }));
+  // Capture defaults once into the draft. Later background activity may reorder
+  // recent sessions, but cannot change a draft's setup.
+  $effect(() => {
+    if (!conversationsQuery.ready) return;
+    if (startLike && appliedSetup !== startLike.nonce) {
+      const item = recent.find(item => item.id === startLike.conversation);
+      if (item) untrack(() => like(item));
+      appliedSetup = startLike.nonce;
+    } else if (!initialized) {
+      const item = recent[0];
+      if (item) untrack(() => like(item));
+      initialized = true;
+    }
+    if (setup && !choices.has(environment)) {
+      const item = untrack(() => recent.find(item => (item.environment || 'local') === environment));
+      const first = usable[0] ?? harnesses[0];
+      choices.set(environment, item ? setupOf(item) : { shared: false, base: setup.base,
+        harness: first && { provider: first.id, model: first.default, effort: '' } });
+    }
+  });
+  const canStart = $derived(!!choice && usable.some(item => item.id === choice.provider) && (!choice.effort || !!harnesses.find(item => item.id === choice.provider)?.efforts.find(item => item.model === choice.model)?.levels.includes(choice.effort)));
+  const setupKey = (item: Conversation) => JSON.stringify([item.provider, item.model, item.effort || '', item.environment || 'local', !!item.shared_checkout, item.base || '']);
+  const starts = $derived(recent.filter((item, index) => recent.findIndex(other => setupKey(other) === setupKey(item)) === index).slice(0, 3));
+  function setupOf(item: Conversation): Choices {
+    return { shared: !!item.shared_checkout, base: item.base || undefined,
+      harness: { provider: item.provider, model: item.model, effort: item.effort || '' } };
+  }
+  function like(item: Conversation) {
+    pickEnvironment(item.environment || 'local');
+    choices.set(item.environment || 'local', setupOf(item));
+  }
+
 </script>
 
 <section class="new-session">
@@ -70,24 +106,25 @@
     {#if choice}
       <input {...form.fields.provider.as('hidden', choice.provider)} />
       <input {...form.fields.model.as('hidden', choice.model)} />
+      <input {...form.fields.effort.as('hidden', choice.effort || '')} />
     {/if}
-    <input {...form.fields.file_id.as('hidden', fileContext?.id ?? '')} />
     <input {...form.fields.environment.as('hidden', environment)} />
+    <input {...form.fields.file_id.as('hidden', fileContext?.id ?? '')} />
     <input {...form.fields.shared_checkout.as('hidden', !isolated)} />
     <input {...form.fields.branch.as('hidden', isolated ? branch : '')} />
     <input {...form.fields.base.as('hidden', isolated ? base : '')} />
     {#if fileContext}<div class="file-context"><FileTextIcon size={14} aria-hidden="true" /><span>{fileContext.name}</span><button type="button" aria-label="Remove file context" onclick={oncontextremoved} disabled={!!form.pending}><XIcon size={12} /></button></div>{/if}
     <textarea {...form.fields.message.as('text')} rows={3} aria-label="First message" disabled={!!form.pending}
       placeholder="Describe the work. Your first message starts the session."
-      onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}></textarea>
+      onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); if (canStart && !form.pending) event.currentTarget.form?.requestSubmit(); } }}></textarea>
     {#if active}
-    <div class="choices">
-      {#if setup && choice}<HarnessPicker {harnesses} {choice} onpick={(next) => choose({ harness: next })} />{/if}
+    <fieldset class="choices" aria-label="Session setup" disabled={!!form.pending}>
+      {#if setup && choice}<HarnessPicker bind:open={() => picker === 'harness', (open) => picker = open ? 'harness' : ''} {harnesses} {choice} states={setup.harness_states} machine={setup.machine} onpick={(next) => choose({ harness: next })} />{/if}
       {#if inventory.current || setup}
-        <EnvironmentPicker snapshot={(inventory.current ?? setup!.environments)} selected={environment} directory={setup?.directory ?? inventory.current?.environments.find(row => row.environment.id === environment)?.environment.directory ?? ''} machine={setup?.machine ?? inventory.current?.machines.find(item => item.id === inventory.current?.environments.find(row => row.environment.id === environment)?.environment.machine)?.name ?? 'Environment'} onpick={(id) => (environment = id)} />
+        <EnvironmentPicker bind:open={() => picker === 'environment', (open) => picker = open ? 'environment' : ''} snapshot={(inventory.current ?? setup!.environments)} selected={environment} directory={setup?.directory ?? inventory.current?.environments.find(row => row.environment.id === environment)?.environment.directory ?? ''} machine={setup?.machine ?? inventory.current?.machines.find(item => item.id === inventory.current?.environments.find(row => row.environment.id === environment)?.environment.machine)?.name ?? 'Environment'} onpick={pickEnvironment} />
       {/if}
       {#if setup}
-        <Popover.Root>
+        <Popover.Root bind:open={() => picker === 'checkout', (open) => picker = open ? 'checkout' : ''}>
           <Popover.Trigger class="chip" aria-label="Worktree">
             {#if isolated}<GitBranchIcon size={14} aria-hidden="true" />New worktree{:else}<FolderIcon size={14} aria-hidden="true" />{setup.git ? 'Shared checkout' : 'No worktree'}{/if}
             <ChevronDownIcon size={14} aria-hidden="true" />
@@ -112,12 +149,12 @@
           </Popover.Content>
         </Popover.Root>
       {/if}
-      <button class="send" aria-label="Start session" disabled={!!form.pending || !choice || !setup || !!setupQuery.error}><ArrowUpIcon size={16} /></button>
-    </div>
+      <button class="send" aria-label="Start session" disabled={!!form.pending || !canStart || !setup || !!setupQuery.error}><ArrowUpIcon size={16} /></button>
+    </fieldset>
     {/if}
   </form>
   {#if setupQuery.error}<p class="issue" role="alert">{errorMessage(setupQuery.error)} <button type="button" onclick={() => setupQuery.refresh()}>Retry setup</button></p>{/if}
-  {#if setup && !choice}<p class="issue" role="status">No usable harness is available on {setup.machine}. Open Machines to inspect sign-in and installation details.</p>{/if}
+  {#if setup && !canStart}<p class="issue" role="status">No usable harness is available on {setup.machine}. Open Machines to inspect sign-in and installation details.</p>{/if}
   {#if setup?.harness_states.some(item => item.id === choice?.provider && item.state === 'unknown')}<p class="note">Harness sign-in on {setup.machine} is unverified. The first request will report any sign-in needed there.</p>{/if}
   {#if actionError}<p class="issue" role="alert">{actionError}</p>{/if}
   {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p class="issue" role="alert">{issue.message}</p>{/each}
@@ -125,7 +162,7 @@
     <div class="start-like">
       <span>Start like</span>
       {#each starts as item (item.id)}
-        <button type="button" onclick={() => { environment = item.environment || 'local'; choose({ harness: { provider: item.provider, model: item.model } }); }}>{item.title} · {harnessName(item.provider)} on {item.placement?.machine.name ?? 'This Mac'}</button>
+        <button type="button" disabled={!!form.pending} onclick={() => like(item)}>{item.title} · {harnessName(item.provider)} on {item.placement?.machine.name ?? 'This Mac'}{item.effort ? ` · ${item.effort}` : ''}</button>
       {/each}
     </div>
   {/if}
@@ -137,7 +174,7 @@
   .composer { border: 1px solid var(--border); border-radius: 14px; background: var(--background); box-shadow: var(--shadow-xs, 0 1px 2px rgb(0 0 0 / .05)); }
   .composer:focus-within { border-color: var(--ring); }
   textarea { box-sizing: border-box; display: block; width: 100%; min-height: 76px; max-height: 40vh; resize: none; padding: 14px 16px 4px; border: 0; outline: none; color: var(--foreground); background: transparent; font: inherit; }
-  .choices { display: flex; align-items: center; gap: 4px; min-width: 0; padding: 6px 8px 8px; }
+  .choices { border: 0; margin: 0; display: flex; align-items: center; gap: 4px; min-width: 0; padding: 6px 8px 8px; }
   .choices :global(.chip) { display: inline-flex; flex: none; align-items: center; gap: 6px; min-width: 0; max-width: 300px; height: 28px; padding: 0 8px; border: 0; border-radius: 6px; color: var(--foreground); background: none; font: inherit; font-size: 13px; white-space: nowrap; cursor: pointer; }
   .choices :global(.chip:hover), .choices :global(.chip[aria-expanded='true']) { background: var(--muted); }
   .choices :global(.chip svg) { flex: none; color: var(--muted-foreground); }

@@ -20,6 +20,7 @@ type CreateConversation struct {
 	FileID         string `json:"file_id"`
 	Provider       string `json:"provider"`
 	Model          string `json:"model"`
+	Effort         string `json:"effort"`
 	Message        string `json:"message"`
 	SharedCheckout bool   `json:"shared_checkout"`
 	Branch         string `json:"branch"`
@@ -52,7 +53,7 @@ func createConversation(ctx context.Context, event app.RequestEvent[params.Param
 			return conversation.Conversation{}, skgo.Invalidf("file_id", "%s", err)
 		}
 	}
-	item, err := manager.Start(ctx, conversation.NewConversation{FileID: arg.FileID, Provider: arg.Provider, Model: arg.Model, SharedCheckout: arg.SharedCheckout, Branch: arg.Branch, Base: arg.Base, Environment: arg.Environment}, arg.Message)
+	item, err := manager.Start(ctx, conversation.NewConversation{FileID: arg.FileID, Provider: arg.Provider, Model: arg.Model, Effort: arg.Effort, SharedCheckout: arg.SharedCheckout, Branch: arg.Branch, Base: arg.Base, Environment: arg.Environment}, arg.Message)
 	if err != nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusBadRequest, "%s", err)
 	}
@@ -197,3 +198,24 @@ func projectManager(ctx context.Context, project string) (*conversation.Manager,
 var _ = skgo.Query(projectConversations)
 
 var _ = skgo.Query(conversationSetup)
+
+// RenameConversation changes the saved chat title without changing its session.
+type RenameConversation struct {
+	Project      string `json:"project"`
+	Conversation string `json:"conversation"`
+	Title        string `json:"title"`
+}
+
+func renameConversation(ctx context.Context, event app.RequestEvent[params.Params], arg RenameConversation) (conversation.Conversation, error) {
+	manager, err := projectManager(ctx, arg.Project)
+	if err != nil {
+		return conversation.Conversation{}, err
+	}
+	item, err := manager.Rename(arg.Conversation, arg.Title)
+	if err != nil {
+		return item, skgo.Invalidf("title", "%s", err)
+	}
+	return item, skgo.RefreshRequested(ctx, projectConversations, 1)
+}
+
+var _ = skgo.Form(renameConversation)

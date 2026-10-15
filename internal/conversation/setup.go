@@ -27,6 +27,12 @@ func (m *Manager) SetupEnvironment(ctx context.Context, environment string) (Set
 				return setup, err
 			}
 			setup.Environments = snapshot
+			for _, machine := range snapshot.Machines {
+				if machine.ID == environments.Local {
+					setup.HarnessStates = machine.Harnesses
+					setup.Harnesses = observedHarnesses(machine.Harnesses, setup.Harnesses)
+				}
+			}
 		}
 		return setup, nil
 	}
@@ -53,12 +59,27 @@ func (m *Manager) SetupEnvironment(ctx context.Context, environment string) (Set
 		setup.Capabilities.Steer = machine.Capabilities.Steer
 		setup.Capabilities.Fork = machine.Capabilities.Fork
 		setup.HarnessStates = machine.Harnesses
-		for _, harness := range machine.Harnesses {
-			if _, _, supported := providerModel(harness.ID, harness.Default); supported == nil && harness.State != environments.HarnessMissing && harness.State != environments.HarnessSignInRequired {
-				setup.Harnesses = append(setup.Harnesses, Harness{ID: harness.ID, Default: harness.Default, Models: harness.Models})
-			}
-		}
+		setup.Harnesses = observedHarnesses(machine.Harnesses, nil)
 	}
 	setup.Capabilities.Worktree = directory.Git && !directory.Unborn && directory.FixedWorkdir == ""
 	return setup, nil
+}
+
+func observedHarnesses(states []environments.Harness, fallback []Harness) []Harness {
+	if len(states) == 0 {
+		return fallback
+	}
+	result := []Harness{}
+	for _, h := range states {
+		model, _, err := providerModel(h.ID, h.Default)
+		if err != nil {
+			continue
+		}
+		models := h.Models
+		if len(models) == 0 {
+			models = []string{model}
+		}
+		result = append(result, harnessOptions(h.ID, model, models))
+	}
+	return result
 }

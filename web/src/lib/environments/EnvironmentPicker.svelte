@@ -6,10 +6,9 @@
   import type { Snapshot } from '#lib/skgo/environments/types';
   import { openMachines, timeLabel } from './navigation';
 
-  let { snapshot, selected = 'local', directory, machine = 'This Mac', onpick }: {
-    snapshot: Snapshot; selected?: string; directory: string; machine?: string; onpick: (id: string) => void;
+  let { snapshot, selected = 'local', directory, machine = 'This Mac', onpick, open = $bindable(false) }: {
+    snapshot: Snapshot; selected?: string; directory: string; machine?: string; onpick: (id: string) => void; open?: boolean;
   } = $props();
-  let open = $state(false);
   const machines = $derived([...snapshot.machines].sort((a, b) => {
     if (a.id === 'local') return -1;
     if (b.id === 'local') return 1;

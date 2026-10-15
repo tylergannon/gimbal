@@ -22,3 +22,13 @@ export function conversationsForWorkspace(
   }
   return [...byID.values()];
 }
+
+/** A steer acknowledgment is not a completed agent reply. */
+export function completedReply(item: Conversation): string {
+  return (
+    item.requests.findLast(
+      (request) =>
+        request.kind === "prompt" && request.status === "completed" && request.delivery === "turn",
+    )?.id ?? ""
+  );
+}

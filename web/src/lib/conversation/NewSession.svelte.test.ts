@@ -597,3 +597,18 @@ test("late defaults cannot overwrite checkout choices made while history loads",
   expect(remote.submitted[0].get("base")).toBe("release");
   expect(remote.submitted[0].get("message")).toBe("My chosen setup");
 });
+
+test("setup pickers are mutually exclusive under accessible activation", async () => {
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await expect.element(screen.getByRole("group", { name: "Harness", exact: true })).toBeVisible();
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await expect
+    .element(screen.getByRole("group", { name: "Harness", exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(screen.getByRole("textbox", { name: "New branch" })).toBeVisible();
+});

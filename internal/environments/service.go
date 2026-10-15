@@ -336,6 +336,37 @@ func (s *Service) Resolve(ctx context.Context, project, id string) (Target, erro
 	}
 	return Target{}, fmt.Errorf("environment is not available for this project")
 }
+
+// ResolveDirectory identifies a prospective directory on a validated machine.
+// It neither saves an environment nor acquires resources or starts a harness.
+// Using the same cache as Resolve isolates invalid configuration siblings and
+// retains last-known-good machines while a hand edit has malformed JSON.
+func (s *Service) ResolveDirectory(ctx context.Context, project, machine, directory string) (Target, error) {
+	if err := ctx.Err(); err != nil {
+		return Target{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.refreshLocked(); err != nil {
+		return Target{}, err
+	}
+	if _, ok := s.projects[project]; !ok {
+		return Target{}, fmt.Errorf("unknown project")
+	}
+	m, ok := s.machineLocked(machine)
+	if !ok {
+		return Target{}, fmt.Errorf("machine is not available; reload Machines and try again")
+	}
+	if strings.TrimSpace(directory) == "" {
+		return Target{}, fmt.Errorf("choose a directory to inspect")
+	}
+	route, err := routeFor(m)
+	if err != nil {
+		return Target{}, err
+	}
+	return Target{Environment: Environment{Project: project, Machine: machine, Directory: directory}, Machine: m, Directory: directory, Route: route, Capabilities: capabilities(m, Directory{})}, nil
+}
+
 func addressURL(address string) (string, error) {
 	u, e := url.Parse(address)
 	if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") || u.User != nil || u.RawQuery != "" || u.Fragment != "" {

@@ -172,26 +172,7 @@ func inspectionTarget(ctx context.Context, service *environments.Service, in Env
 	if _, err := project(ctx, in.Project); err != nil {
 		return environments.Target{}, err
 	}
-	target := environments.Target{Environment: environments.Environment{Project: in.Project, Machine: in.Machine, Directory: in.Directory}, Directory: in.Directory}
-	if in.Machine == environments.Local {
-		target.Machine = environments.Machine{ID: environments.Local, Name: "This Mac"}
-		return target, nil
-	}
-	document, err := service.Config(ctx)
-	if err != nil {
-		return target, err
-	}
-	var config environments.Config
-	if err := json.Unmarshal([]byte(document.Text), &config); err != nil {
-		return target, skgo.Errorf(400, "Fix the configuration syntax before inspecting a new directory: %s", err)
-	}
-	for _, machine := range config.Machines {
-		if machine.ID == in.Machine {
-			target.Machine = machine
-			return target, nil
-		}
-	}
-	return target, skgo.Errorf(404, "Machine not found. Reload Machines and try again.")
+	return service.ResolveDirectory(ctx, in.Project, in.Machine, in.Directory)
 }
 func inspectEnvironment(ctx context.Context, in EnvironmentLocation) (environments.Directory, error) {
 	service, err := environmentService(ctx)

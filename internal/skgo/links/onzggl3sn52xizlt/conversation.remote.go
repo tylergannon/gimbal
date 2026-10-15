@@ -71,7 +71,7 @@ func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.
 	if err != nil {
 		return result, skgo.Errorf(400, "%s", err)
 	}
-	return result, nil
+	return result, skgo.RefreshRequested(ctx, projectConversations, 1)
 }
 
 type StopConversationRequest struct {

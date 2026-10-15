@@ -36,7 +36,9 @@ vi.mock("../../../../auth.remote", () => ({
 }));
 
 vi.mock("#lib/runs.remote", () => ({ viewRun: auth.viewRun }));
-vi.mock("#lib/environments.remote", () => ({ environmentSnapshot: () => ({ current: undefined }) }));
+vi.mock("#lib/environments.remote", () => ({
+  environmentSnapshot: () => ({ current: undefined }),
+}));
 
 class TestEventSource {
   static instances: TestEventSource[] = [];

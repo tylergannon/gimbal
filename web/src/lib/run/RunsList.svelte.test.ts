@@ -92,7 +92,7 @@ test("inactive Runs removes menus and cancellation dialogs without reviving them
 test("run confirmation is opaque even when animation timelines cannot advance", async () => {
   const paused = document.createElement("style");
   paused.textContent =
-    "[data-slot=alert-dialog-content], [data-slot=alert-dialog-overlay] { animation-play-state: paused !important; }";
+    "[data-slot=popover-content], [data-slot=alert-dialog-content], [data-slot=alert-dialog-overlay] { animation-play-state: paused !important; }";
   document.head.append(paused);
   try {
     const screen = await render(RunsList, {
@@ -102,6 +102,8 @@ test("run confirmation is opaque even when animation timelines cannot advance", 
     await screen
       .getByRole("button", { name: "Actions for plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF" })
       .click();
+    const menu = document.querySelector('[data-slot="popover-content"]')!;
+    expect(getComputedStyle(menu).opacity).toBe("1");
     await screen.getByRole("button", { name: "Cancel run…" }).click();
     const dialog = screen.getByRole("alertdialog").element();
     expect(getComputedStyle(dialog).opacity).toBe("1");

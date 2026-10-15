@@ -57,7 +57,7 @@
           <span class="facts"><span title="Elapsed">{item.elapsed}</span><span title="Total cost">{item.cost}</span><span title={`${item.session_count} sessions · ${item.turn_count} turns`}>{item.session_count} {item.session_count === 1 ? 'session' : 'sessions'}</span></span>
         </button>
         {#if item.run.status === 'running'}
-          <Popover.Root open={active && menuRun === item.run.id} onOpenChange={(open) => menuRun = open ? item.run.id : ''}><Popover.Trigger class="run-menu" aria-label={`Actions for ${item.run.name} ${item.run.id}`}><EllipsisIcon size={15} /></Popover.Trigger>{#if active && menuRun === item.run.id}<Popover.Content align="end" class="w-40 p-1"><button class="cancel-action" onclick={() => { menuRun = ''; cancelling = item.run; feedback = ''; }}>Cancel run…</button></Popover.Content>{/if}</Popover.Root>
+          <Popover.Root open={active && menuRun === item.run.id} onOpenChange={(open) => menuRun = open ? item.run.id : ''}><Popover.Trigger class="run-menu" aria-label={`Actions for ${item.run.name} ${item.run.id}`}><EllipsisIcon size={15} /></Popover.Trigger>{#if active && menuRun === item.run.id}<Popover.Content align="end" class="w-40 p-1" style="animation: none"><button class="cancel-action" onclick={() => { menuRun = ''; cancelling = item.run; feedback = ''; }}>Cancel run…</button></Popover.Content>{/if}</Popover.Root>
         {:else}<span class="menu-space"></span>{/if}
       </div>
     {:else}<p class="empty" role="status">No runs match this filter or search.</p>{/each}

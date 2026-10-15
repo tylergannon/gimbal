@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -119,11 +120,12 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 			}
 		}
 	}()
-	if onEvent != nil {
+	observation, _ := ctx.Value(observationKey{}).(observationOptions)
+	if onEvent != nil || observation.task != nil {
 		eventsDone = make(chan struct{})
 		go func() {
 			defer close(eventsDone)
-			after := 0
+			after := observation.cursor
 			failures := 0
 			for eventCtx.Err() == nil {
 				readCtx, cancel := context.WithTimeout(eventCtx, time.Second)
@@ -132,13 +134,19 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 				cancel()
 				if err == nil && !events.Unavailable && !events.Gap {
 					if failures > 0 && len(events.Events) > 0 {
-						onEvent(json.RawMessage(`{"type":"observation-restored","data":{"message":"task event delivery resumed"}}`))
+						if onEvent != nil {
+							onEvent(json.RawMessage(`{"type":"observation-restored","data":{"message":"task event delivery resumed"}}`))
+						}
 					}
 					if len(events.Events) > 0 {
 						failures = 0
 					}
-					for _, event := range events.Events {
-						onEvent(event)
+					for i, event := range events.Events {
+						if observation.task != nil {
+							observation.task(after+i+1, event)
+						} else {
+							onEvent(event)
+						}
 					}
 					after = events.Cursor
 				} else {
@@ -147,7 +155,9 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 					}
 					failures++
 					if failures == 1 {
-						onEvent(json.RawMessage(`{"Type":"observation-gap","Data":{"message":"task events unavailable; execution continues"}}`))
+						if onEvent != nil {
+							onEvent(json.RawMessage(`{"Type":"observation-gap","Data":{"message":"task events unavailable; execution continues"}}`))
+						}
 					}
 					if failures >= 3 {
 						select {
@@ -170,14 +180,33 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 	var disconnected time.Time
 	for {
 		if ctx.Err() != nil {
+			if detached(ctx) {
+				return nil, &backend.DeliveryUncertain{RequestID: target.ID, Err: ctx.Err()}
+			}
 			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 			var reply Reply
 			err := Call(stopCtx, endpoint, "interrupt", target, &reply)
-			cancel()
-			if err != nil {
-				return nil, fmt.Errorf("%w; task remains owned: %v", ctx.Err(), err)
+			if err == nil && reply.Error != "" {
+				err = errors.New(reply.Error)
 			}
-			return nil, ctx.Err()
+			if err == nil {
+				// An interrupt acknowledgement is not native cessation. Read the
+				// original task until its terminal result confirms the outcome.
+				for stopCtx.Err() == nil {
+					var result backend.Result
+					err = Call(stopCtx, endpoint, "result", target, &result)
+					if err == nil && result.Done && result.Error != "task not found" && !result.Expired {
+						cancel()
+						return terminalResult(result, target.ID)
+					}
+					select {
+					case <-stopCtx.Done():
+					case <-time.After(50 * time.Millisecond):
+					}
+				}
+			}
+			cancel()
+			return nil, &backend.DeliveryUncertain{RequestID: target.ID, Err: fmt.Errorf("stop unconfirmed; task remains owned: %v", err)}
 		}
 		var result backend.Result
 		readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
@@ -188,21 +217,18 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 				disconnected = time.Now()
 			}
 			if time.Since(disconnected) >= 15*time.Second {
-				return nil, fmt.Errorf("task %s remains owned; result unavailable: %w", target.ID, err)
+				return nil, &backend.DeliveryUncertain{RequestID: target.ID, Err: fmt.Errorf("result unavailable; task remains owned: %w", err)}
 			}
 		} else {
 			disconnected = time.Time{}
 			if result.Done {
+				if result.Error == "task not found" || result.Expired {
+					return nil, &backend.DeliveryUncertain{RequestID: target.ID, Err: fmt.Errorf("original task outcome unavailable: %s", result.Error)}
+				}
 				if eventsDone != nil {
 					time.Sleep(110 * time.Millisecond)
 				}
-				if result.InvalidOutput {
-					return result.Result, &InvalidOutput{Message: result.Error}
-				}
-				if result.Error != "" {
-					return result.Result, fmt.Errorf("task %s: %s", target.ID, result.Error)
-				}
-				return result.Result, nil
+				return terminalResult(result, target.ID)
 			}
 		}
 		select {
@@ -210,6 +236,19 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 		case <-time.After(100 * time.Millisecond):
 		}
 	}
+}
+
+func terminalResult(result backend.Result, id string) (json.RawMessage, error) {
+	if result.Interrupted {
+		return result.Result, context.Canceled
+	}
+	if result.InvalidOutput {
+		return result.Result, &InvalidOutput{Message: result.Error}
+	}
+	if result.Error != "" {
+		return result.Result, fmt.Errorf("task %s: %s", id, result.Error)
+	}
+	return result.Result, nil
 }
 
 // ConfirmStarted reconciles a lost admission reply using the already assigned
@@ -227,7 +266,7 @@ func ConfirmStarted(ctx context.Context, endpoint string, target Target) error {
 		last = err
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("admission of %s is unconfirmed; cleanup retains its scope: %v: %w", target.ID, last, ctx.Err())
+			return &backend.DeliveryUncertain{RequestID: target.ID, Err: fmt.Errorf("admission unconfirmed; cleanup retains its scope: %v: %w", last, ctx.Err())}
 		case <-time.After(100 * time.Millisecond):
 		}
 	}

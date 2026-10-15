@@ -1,6 +1,7 @@
 package taskdaemon
 
 import (
+	"context"
 	"errors"
 
 	"github.com/tylergannon/gimbal"
@@ -17,6 +18,7 @@ func (d *Daemon) result(v backend.Target) backend.Result {
 	if task != nil {
 		task.mu.Lock()
 		result.InvalidOutput = errors.Is(task.err, gimbal.ErrInvalidOutput)
+		result.Interrupted = errors.Is(task.err, context.Canceled)
 		task.mu.Unlock()
 	}
 	return result

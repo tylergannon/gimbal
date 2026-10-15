@@ -92,6 +92,7 @@ type Events struct {
 	Error            string
 }
 type Result struct {
+	Interrupted   bool
 	Done          bool
 	Result        json.RawMessage
 	Error         string

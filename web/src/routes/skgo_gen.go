@@ -115,6 +115,10 @@ var (
 	Skgo_steer = steer
 	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
 	Skgo_steerLoop = steerLoop
+	// Skgo_workflowCatalog is workflowCatalog, published as src/routes/workflow.remote.ts#workflowCatalog.
+	Skgo_workflowCatalog = workflowCatalog
+	// Skgo_workflowGuide is workflowGuide, published as src/routes/workflow.remote.ts#workflowGuide.
+	Skgo_workflowGuide = workflowGuide
 	// Skgo_layout is layout, published as the server load of src/routes/+layout.server.ts.
 	Skgo_layout = layout
 	// Skgo_load is load, published as the server load of src/routes/+page.server.ts.

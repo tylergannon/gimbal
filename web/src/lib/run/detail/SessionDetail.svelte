@@ -30,7 +30,6 @@
 	import Payload from './Payload.svelte';
 	import TabBar from './TabBar.svelte';
 	import { usageOf, type RunObservation, type RunSnapshot, type TurnRow } from '../../observation/index.js';
-	import type { ActionFeedback } from '../DetailPane.svelte';
 
 	let {
 		snapshot,
@@ -40,7 +39,6 @@
 		definition,
 		watchers = [],
 		live,
-		onsteer,
 		showSteering = true,
 		onscope
 	}: {
@@ -51,7 +49,6 @@
 		definition?: AgentCall;
 		watchers?: WatcherRow[];
 		live: boolean;
-		onsteer: (message: string) => Promise<ActionFeedback>;
 		showSteering?: boolean;
 		onscope?: (scopeKey: string) => void;
 	} = $props();
@@ -206,8 +203,10 @@
 
 {#if showSteering}
 	<SteerBox
-		onsteer={(message) => onsteer(message)}
+		run={snapshot.run.id}
+    session={turn.session}
 		ended={ended || !live}
+    reason={!live ? 'This run has ended. Steering is closed.' : ended ? 'This recorded turn has ended. Open agent focus to steer its running session.' : ''}
 	/>
 {/if}
 

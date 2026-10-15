@@ -89,17 +89,27 @@ type ScopeRow struct {
 	Decisions []Decision            `json:"decisions"`
 }
 
+type steerRecord struct {
+	Message string `json:"message"`
+	Source  string `json:"source"`
+	Landed  bool   `json:"landed"`
+	Created int64  `json:"created"`
+}
+
 // SessionRow is one agent conversation. Scope is where the session was
 // created, which is not where its turns necessarily ran.
 type SessionRow struct {
-	Run     string `json:"run"`
-	ID      string `json:"id"`
-	Name    string `json:"name"`
-	Adapter string `json:"adapter"`
-	Model   string `json:"model"`
-	Scope   string `json:"scope"`
-	Parent  string `json:"parent"`
-	Created int64  `json:"created"`
+	Workdir string        `json:"workdir,omitempty"`
+	Effort  string        `json:"effort,omitempty"`
+	Steers  []steerRecord `json:"steers,omitempty"`
+	Run     string        `json:"run"`
+	ID      string        `json:"id"`
+	Name    string        `json:"name"`
+	Adapter string        `json:"adapter"`
+	Model   string        `json:"model"`
+	Scope   string        `json:"scope"`
+	Parent  string        `json:"parent"`
+	Created int64         `json:"created"`
 }
 
 // InterviewRow is one question an interview asked. An accepted answer updates

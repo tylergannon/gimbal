@@ -1,0 +1,128 @@
+import { expect, test, vi } from "vite-plus/test";
+import { render } from "vitest-browser-svelte";
+import Launcher from "./WorkflowLauncher.svelte";
+const remote = vi.hoisted(() => ({ opened: vi.fn(), guide: vi.fn() }));
+vi.mock("../../routes/workflow.remote", () => ({
+  workflowCatalog: () => ({
+    current: {
+      project: "/work/project",
+      workflows: [
+        {
+          name: "review",
+          summary: "Read-only review",
+          help: "",
+          fields: [],
+          roles: [],
+          source_json: "",
+        },
+      ],
+    },
+  }),
+}));
+vi.mock("../../routes/launch.remote", () => {
+  const field = (name: string) => ({
+    as: (type: string, value?: unknown) => ({
+      name,
+      type,
+      ...(value === undefined ? {} : { value: String(value) }),
+    }),
+  });
+  return {
+    launchWorkflow: {
+      for: () => ({
+        pending: 0,
+        fields: {
+          workflow: field("workflow"),
+          project: field("project"),
+          workdir: field("workdir"),
+          allIssues: () => [],
+        },
+        enhance: (handler: (submitted: unknown) => Promise<void>) => ({
+          onsubmit: async (event: SubmitEvent) => {
+            event.preventDefault();
+            await handler({
+              submit: async () => true,
+              result: { project_id: "project", run_id: "admitted" },
+            });
+          },
+        }),
+      }),
+    },
+  };
+});
+
+test("opening the guide removes the popup immediately even without animation frames", async () => {
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    const screen = await render(Launcher, {
+      project: "project",
+      onopen: remote.opened,
+      onopenguide: remote.guide,
+    });
+    await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
+    await screen.getByRole("button", { name: "Read the guide" }).click();
+    expect(remote.guide).toHaveBeenCalledWith("review");
+    await expect
+      .element(screen.getByRole("button", { name: "Start run", includeHidden: true }))
+      .not.toBeVisible();
+  } finally {
+    noFrames.mockRestore();
+  }
+});
+
+test("admitting a run removes the popup before opening its retained view", async () => {
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    const screen = await render(Launcher, {
+      project: "project",
+      onopen: remote.opened,
+      onopenguide: remote.guide,
+    });
+    await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
+    await screen.getByRole("button", { name: "Start run" }).click();
+    expect(remote.opened).toHaveBeenCalledWith("/projects/project/runs/admitted");
+    await expect
+      .element(screen.getByRole("button", { name: "Start run", includeHidden: true }))
+      .not.toBeVisible();
+  } finally {
+    noFrames.mockRestore();
+  }
+});
+
+test("leaving a retained Runs view removes its popup and does not reopen it on return", async () => {
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    const props = { project: "project", onopen: remote.opened, onopenguide: remote.guide };
+    const screen = await render(Launcher, { ...props, active: true });
+    await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
+    await expect.element(screen.getByRole("button", { name: "Read the guide" })).toBeVisible();
+    await screen.rerender({ ...props, active: false });
+    await expect
+      .element(screen.getByRole("button", { name: "Start run", includeHidden: true }))
+      .not.toBeVisible();
+    await screen.rerender({ ...props, active: true });
+    await expect
+      .element(screen.getByRole("button", { name: "Start run", includeHidden: true }))
+      .not.toBeVisible();
+    await expect
+      .element(screen.getByRole("button", { name: "Run a workflow", exact: true }))
+      .toHaveAttribute("aria-expanded", "false");
+  } finally {
+    noFrames.mockRestore();
+  }
+});
+
+test("launch draft survives reading the guide in another retained view", async () => {
+  const props = { project: "project", onopen: remote.opened, onopenguide: remote.guide };
+  const screen = await render(Launcher, { ...props, active: true });
+  await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
+  await screen.getByText("Work directory", { exact: false }).first().click();
+  await screen.getByRole("textbox", { name: "Directory", exact: true }).fill("/work/draft");
+  await screen.getByRole("button", { name: "Read the guide" }).click();
+  await screen.rerender({ ...props, active: false });
+  await screen.rerender({ ...props, active: true });
+  await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
+  await expect
+    .element(screen.getByRole("textbox", { name: "Directory", exact: true }))
+    .toHaveValue("/work/draft");
+});

@@ -69,7 +69,7 @@
 	</header>
 
 	{#if turn}
-		<SessionDetail {snapshot} {observation} {revision} {turn} {live} {onsteer} />
+		<SessionDetail {snapshot} {observation} {revision} {turn} {live} />
 	{/if}
 </div>
 

@@ -36,6 +36,9 @@ vi.mock("../../../../auth.remote", () => ({
 }));
 
 vi.mock("#lib/runs.remote", () => ({ viewRun: auth.viewRun }));
+vi.mock("#lib/environments.remote", () => ({
+  environmentSnapshot: () => ({ current: undefined }),
+}));
 
 class TestEventSource {
   static instances: TestEventSource[] = [];
@@ -172,7 +175,7 @@ test("multiple running agents default to Watchboard and remain visible without a
     .toBeVisible();
 
   await screen.getByRole("button", { name: "Focus interviewer" }).last().click();
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
   await expect
     .element(screen.getByText("No assistant prose recorded for this turn yet."))
     .toBeVisible();
@@ -230,7 +233,7 @@ test("Map runtime selection rebinds across snapshots and clears when its row dis
   const { screen, stream } = await renderRunningPage(implementInterviewFixture);
   await screen.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Select coding" }).click();
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
   await screen.getByRole("button", { name: "Map", exact: true }).click();
   await expect
     .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
@@ -330,7 +333,7 @@ test("Map agent selection opens Focus and remains selected through live snapshot
   const { screen, snapshot } = await renderRunningPage(implementInterviewFixture);
   await screen.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Select coding" }).click();
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 
   const refreshed = structuredClone(snapshot);
   refreshed.position++;
@@ -338,7 +341,7 @@ test("Map agent selection opens Focus and remains selected through live snapshot
   await screen.rerender({
     data: { snapshot: refreshed, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 
   const missing = structuredClone(refreshed);
   missing.position++;
@@ -346,7 +349,7 @@ test("Map agent selection opens Focus and remains selected through live snapshot
   await screen.rerender({
     data: { snapshot: missing, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 });
 
 test("live elapsed time advances without events and fixes at the recorded end", async () => {
@@ -588,4 +591,52 @@ test("an unseeded retained run panel renders the query result", async () => {
   });
   await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
   await expect.poll(() => onstate.mock.calls.length).toBeGreaterThan(0);
+});
+
+test("agent focus offers steering while guarded run controls stay in the run view", async () => {
+  const snapshot = multiAgentSnapshot();
+  const turns = Object.values(snapshot.turns);
+  delete snapshot.turns[turns[1].id];
+  const { screen } = await renderRunningPage({ graph: planTripFixture.graph, snapshot });
+  await expect
+    .element(screen.getByRole("button", { name: "Cancel run", exact: true }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Stop turn", exact: true }))
+    .not.toBeInTheDocument();
+  const views = screen.getByRole("navigation", { name: "Run views" });
+  await views.getByRole("button", { name: "Map", exact: true }).click();
+  await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
+  await expect.element(screen.getByRole("alertdialog")).toBeVisible();
+  await screen.getByRole("button", { name: "Keep running", exact: true }).click();
+  await views.getByRole("button", { name: "Focus", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Cancel run", exact: true }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Stop turn", exact: true }))
+    .not.toBeInTheDocument();
+});
+
+test("agent focus leaves unconfirmed run cleanup controls in the run view", async () => {
+  const snapshot = multiAgentSnapshot();
+  snapshot.run.status = "cancelled";
+  snapshot.run.cancellation = {
+    by: "person",
+    reason: "Cancelled",
+    cleanup: "unconfirmed",
+    cleanup_error: "No response",
+  };
+  for (const turn of Object.values(snapshot.turns)) turn.ended = turn.started + 1;
+  const screen = await render(Page, {
+    data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
+  });
+  const views = screen.getByRole("navigation", { name: "Run views" });
+  await expect
+    .element(screen.getByRole("button", { name: "Retry cleanup", exact: true }))
+    .toBeVisible();
+  await views.getByRole("button", { name: "Focus", exact: true }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Retry cleanup", exact: true }))
+    .not.toBeInTheDocument();
 });

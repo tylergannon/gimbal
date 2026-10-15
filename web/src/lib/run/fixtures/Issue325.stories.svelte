@@ -61,7 +61,6 @@
         operation: codingNode,
         runtime: runningCodingTurn,
       }}
-      onsteer={async () => ({ ok: true, message: "Sent into the running turn." })}
     />
   </div>
 </Story>

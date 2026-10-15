@@ -13,6 +13,7 @@
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
   import Map, { type MapSelection } from "#lib/run/Map.svelte";
   import SessionPage from "#lib/run/detail/SessionPage.svelte";
+  import RunQuestions from "./RunQuestions.svelte";
   import Watchboard from "#lib/run/Watchboard.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
@@ -30,7 +31,7 @@
   import { watcherRows } from "#lib/run/watchers.js";
   import { cancelRun, stopTurn } from "../../routes/control.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../routes/interview.remote.js";
-  import { steer, steerLoop, type LoopMessage, type Steer } from "../../routes/steer.remote.js";
+  import { steerLoop, type LoopMessage } from "../../routes/steer.remote.js";
 	import { page } from "$app/state";
 
   import { tick, untrack } from "svelte";
@@ -44,7 +45,6 @@
   const graph = $derived<Graph | undefined>(
     data.graph ? (JSON.parse(data.graph) as Graph) : undefined,
   );
-  const steerForm = $derived(steer.for(`workspace-steer-${project}-${data.snapshot.run.id}`));
   const loopForm = $derived(steerLoop.for(`workspace-loop-${project}-${data.snapshot.run.id}`));
   const answerForm = $derived(answerInterview.for(`workspace-answer-${project}-${data.snapshot.run.id}`));
 
@@ -103,7 +103,7 @@
     );
   });
   const waiting = $derived(
-    Object.values(snapshot.interviews).filter((row) => row.status === "pending").length,
+    snapshot.run.status === "running" ? Object.values(snapshot.interviews).filter((row) => row.status === "pending").length : 0,
   );
   const openScopes = $derived(
     Object.values(snapshot.scopes).filter((scope) => scope.status === "running").length,
@@ -165,7 +165,7 @@
 
   $effect(() => { const run = snapshot.run; const count = waiting; untrack(() => onstate?.(run, count)); });
 
-  $effect(() => { if (!active) cancelOpen = false; });
+  $effect(() => { if (!active || view === "focus") cancelOpen = false; });
 
   $effect(() => {
     const next = observation;
@@ -217,26 +217,6 @@
   function clearSelection() {
     selection = undefined;
     reveal = undefined;
-  }
-
-  async function deliverSteer(request: Steer): Promise<ActionFeedback> {
-    try {
-      steerForm.fields.set(request);
-      await tick();
-      const submitted = await steerForm.submit();
-      if (!submitted || !steerForm.result) {
-        return {
-          ok: false,
-          message: issueText(steerForm.fields.allIssues(), "The message was not accepted."),
-        };
-      }
-      return steerForm.result.landed
-        ? { ok: true, message: "Sent into the running turn." }
-        : { ok: false, message: "Not sent: the turn ended before it could receive the message." };
-    } catch (error) {
-      navigateOnUnauthorized(error);
-      return { ok: false, message: error instanceof Error ? error.message : String(error) };
-    }
   }
 
   async function deliverLoop(request: LoopMessage): Promise<ActionFeedback> {
@@ -399,6 +379,7 @@
     {project}
     {active}
     run={snapshot.run}
+    agentFocus={view === "focus"}
     {connection}
     {activeTurn}
     {waiting}
@@ -433,6 +414,13 @@
       >{item.label}</button>
     {/each}
   </nav>
+  {#if waiting}
+    <div class="run-questions" aria-label="Run questions">
+      {#each Object.values(snapshot.interviews).filter(question => question.status === 'pending') as question (question.question_id)}
+        <RunQuestions run={snapshot.run.id} {question} />
+      {/each}
+    </div>
+  {/if}
   <!-- Hidden, not unmounted, while a session is open, so the map keeps its
   scroll and expanded instances. -->
   <div class={["workspace-slot", { hidden: view !== "map" }]}>
@@ -467,7 +455,6 @@
           {width}
           {maximized}
           {onmaximize}
-          onsteer={deliverSteer}
           onloop={deliverLoop}
           onanswer={deliverAnswer}
           onselectscope={selectScope}
@@ -490,19 +477,21 @@
     </div>
   {:else if view === "focus" && selectedSessionID}
     <div class="workspace-slot">
+      {#key selectedSessionID}
       <SessionPage
+        {project}
         {snapshot}
         {observation}
         {revision}
         sessionID={selectedSessionID}
         definition={openSessionCall?.definition}
         watchers={openSessionCall?.watchers}
-        onsteer={deliverSteer}
         onscope={(scopeKey) => {
           closeSession();
           selectScope(scopeKey);
         }}
       />
+      {/key}
     </div>
   {:else if view === "focus"}
     <div class="workspace-slot">
@@ -526,7 +515,7 @@
 </div>
 
 <CancelGuard
-  open={active && cancelOpen}
+  open={active && view !== "focus" && cancelOpen}
   run={snapshot.run}
   {activeTurn}
   {openScopes}
@@ -537,11 +526,6 @@
   oncancel={cancelActiveRun}
 />
 
-<form class="remote-form" {...steerForm} aria-hidden="true">
-  <input {...steerForm.fields.run.as("hidden", steerForm.fields.run.value() ?? "")} />
-  <input {...steerForm.fields.session.as("hidden", steerForm.fields.session.value() ?? "")} />
-  <input {...steerForm.fields.message.as("hidden", steerForm.fields.message.value() ?? "")} />
-</form>
 <form class="remote-form" {...loopForm} aria-hidden="true">
   <input {...loopForm.fields.run.as("hidden", loopForm.fields.run.value() ?? "")} />
   <input {...loopForm.fields.scope.as("hidden", loopForm.fields.scope.value() ?? "")} />
@@ -560,6 +544,7 @@
 </form>
 
 <style>
+  .run-questions { flex: none; max-height: 30vh; overflow: auto; }
  .placement{margin:0;padding:6px 20px;font-size:13px;color:#374151;background:#f7f8fa}
   .run-workspace {
     display: flex;

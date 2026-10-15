@@ -6,4 +6,4 @@
   let { data }: { data: { items: RunCardItem[]; attention: InterviewRow[]; now: number } } = $props();
   import ProjectRuns from "#lib/workspace/ProjectRuns.svelte";
 </script>
-<ProjectRuns initial={data} project={page.params.project!} onopen={path => void goto(path)} onstate={() => {}} />
+<ProjectRuns initial={data} project={page.params.project!} onopen={path => void goto(path)} onopenguide={name => void goto(`/projects/${page.params.project}/workflows/${encodeURIComponent(name)}`)} onstate={() => {}} />

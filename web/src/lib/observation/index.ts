@@ -70,6 +70,9 @@ export type ScopeRow = {
 /** One agent conversation. `scope` is where it was created, which is not
  * where its turns necessarily ran. */
 export type SessionRow = {
+  workdir?: string;
+  effort?: string;
+  steers?: { message: string; source: string; landed: boolean; created: number }[];
   run: string;
   id: string;
   name: string;
@@ -316,6 +319,19 @@ export class RunObservation {
         if (!transcript) {
           transcript = { projection: SessionProjection.restore(emptySnapshot()), provenance: {} };
           this.transcripts.set(value.turn, transcript);
+        }
+        // Starting another step or ending execution can settle the previous assistant
+        // without naming its message. Invalidate that row as well as the explicit target.
+        if (
+          value.event.type === "session.step.started" ||
+          /^session\.execution\.(succeeded|failed|interrupted)$/.test(value.event.type)
+        ) {
+          const sid = value.event.data?.sessionID;
+          const previous = (transcript.projection.viewState().message[sid] ?? []).findLast(
+            (message) => message.type === "assistant" && !message.time?.completed,
+          );
+          if (previous)
+            this.messageRevisions.set(`${value.turn}\0${previous.id}`, this.revision + 1);
         }
         transcript.projection.apply(value.event);
         foldProvenance(transcript.provenance, value.event, value.nativeRef);

@@ -469,3 +469,41 @@ test("a delta advances the cursor only after its complete frame group applies", 
     false,
   );
 });
+
+test("implicit assistant settlement invalidates the previous message without invalidating other history", () => {
+  const value = snapshot();
+  value.transcripts.turn.snapshot.state.message.ses = [
+    { id: "old", type: "assistant", time: { created: 1, completed: 2 }, content: [] },
+    {
+      id: "current",
+      type: "assistant",
+      time: { created: 3 },
+      content: [],
+      retry: { error: "Backoff" },
+    },
+  ];
+  const observation = new RunObservation(value);
+  const generation = observation.beginConnection();
+  const oldRevision = observation.messageRevision("turn", "old");
+  const currentRevision = observation.messageRevision("turn", "current");
+  observation.apply(
+    {
+      type: "event",
+      data: {
+        session: "ses",
+        scope: "",
+        turn: "turn",
+        event: {
+          id: "end",
+          type: "session.execution.succeeded",
+          created: 4,
+          data: { sessionID: "ses" },
+        },
+      },
+    },
+    generation,
+  );
+  assert.equal(observation.messageRevision("turn", "old"), oldRevision);
+  assert.ok(observation.messageRevision("turn", "current") > currentRevision);
+  assert.equal(observation.state("turn")?.message.ses[1].retry, undefined);
+});

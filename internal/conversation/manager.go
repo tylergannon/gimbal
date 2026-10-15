@@ -18,9 +18,11 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/environments"
 	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
+	"github.com/tylergannon/polytype"
 )
 
 const (
@@ -50,24 +52,42 @@ type Run struct {
 
 // Conversation is the durable metadata and visible transcript for one chat.
 type Conversation struct {
-	ID            string          `json:"id"`
-	Title         string          `json:"title"`
-	Provider      string          `json:"provider"`
-	Model         string          `json:"model"`
-	Branch        string          `json:"branch"`
-	Worktree      string          `json:"worktree"`
-	NativeSession string          `json:"native_session"`
-	Live          bool            `json:"live"`
-	Status        string          `json:"status"`
-	Error         string          `json:"error"`
-	Created       int64           `json:"created"`
-	Updated       int64           `json:"updated"`
-	Messages      []Message       `json:"messages"`
-	Runs          []Run           `json:"runs"`
-	Requests      []RequestState  `json:"requests"`
-	ActiveRequest string          `json:"active_request"`
-	State         gimbal.JSONText `json:"state"`
-	Revision      uint64          `json:"revision"`
+	ID             string                       `json:"id"`
+	Title          string                       `json:"title"`
+	Provider       string                       `json:"provider"`
+	Model          string                       `json:"model"`
+	Branch         string                       `json:"branch"`
+	Worktree       string                       `json:"worktree"`
+	NativeSession  string                       `json:"native_session"`
+	Live           bool                         `json:"live"`
+	Status         string                       `json:"status"`
+	Error          string                       `json:"error"`
+	Created        int64                        `json:"created"`
+	Updated        int64                        `json:"updated"`
+	Messages       []Message                    `json:"messages"`
+	Runs           []Run                        `json:"runs"`
+	Requests       []RequestState               `json:"requests"`
+	ActiveRequest  string                       `json:"active_request"`
+	State          gimbal.JSONText              `json:"state"`
+	Revision       uint64                       `json:"revision"`
+	Environment    string                       `json:"environment"`
+	Placement      polytype.Nullable[Placement] `json:"placement"`
+	Contact        string                       `json:"contact"`
+	Capabilities   environments.Capabilities    `json:"capabilities"`
+	CleanupPending bool                         `json:"cleanup_pending"`
+}
+
+// Placement exposes display facts, while transport configuration remains in the
+// private durable Transport snapshot and is never projected into browser state.
+type Placement struct {
+	Machine     PlacementMachine             `json:"machine"`
+	Environment environments.EnvironmentInfo `json:"environment"`
+	Directory   string                       `json:"directory"`
+}
+type PlacementMachine struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Kind string `json:"kind"`
 }
 
 // NewConversation is the provider and optional presentation selected by the
@@ -79,19 +99,22 @@ type NewConversation struct {
 	SharedCheckout bool
 	Branch         string
 	Base           string
+	Environment    string
 }
 
 // AdapterFactory resolves a provider name to its existing Gimbal harness.
 type AdapterFactory func(string) (gimbal.HarnessAdapter, error)
 
 type activeConversation struct {
-	turnMu  sync.Mutex
-	steerMu sync.Mutex
-	adapter gimbal.HarnessAdapter
-	session string
-	resume  bool
-	request string
-	cancel  context.CancelFunc
+	turnMu    sync.Mutex
+	steerMu   sync.Mutex
+	adapter   gimbal.HarnessAdapter
+	session   string
+	resume    bool
+	request   string
+	cancel    context.CancelFunc
+	remote    *environments.Binding
+	observing bool
 }
 
 // persistentSessionAdapter is the extra lifecycle used only by durable,
@@ -113,12 +136,15 @@ type Manager struct {
 	project     string
 	registry    *observation.Registry
 
-	mu          sync.RWMutex
-	items       map[string]*Conversation
-	active      map[string]*activeConversation
-	projections map[string]*sessionstate.Projection
-	closing     bool
-	closed      chan struct{}
+	mu           sync.RWMutex
+	items        map[string]*Conversation
+	active       map[string]*activeConversation
+	projections  map[string]*sessionstate.Projection
+	closing      bool
+	closed       chan struct{}
+	environments *environments.Service
+	projectID    string
+	remoteStates map[string]*remoteState
 }
 
 type managerKey struct{}
@@ -152,7 +178,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	}
 	manager := &Manager{
 		ctx: ctx, projectDir: projectDir, factory: factory, cli: cli, instanceDir: instanceDir, project: project, registry: registry,
-		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}),
+		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}), remoteStates: make(map[string]*remoteState),
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -166,10 +192,11 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 		if err != nil {
 			return nil, fmt.Errorf("conversation: read %s: %w", entry.Name(), err)
 		}
-		var item Conversation
-		if err := json.Unmarshal(data, &item); err != nil {
+		var record conversationRecord
+		if err := json.Unmarshal(data, &record); err != nil {
 			return nil, fmt.Errorf("conversation: decode %s: %w", entry.Name(), err)
 		}
+		item := record.Conversation
 		if item.ID == "" {
 			return nil, fmt.Errorf("conversation: %s has no id", entry.Name())
 		}
@@ -183,9 +210,11 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 		// is read separately from the project's authoritative run record.
 		if item.ActiveRequest != "" {
 			item.Status, item.Error = "unresolved", "The server restarted before this request's outcome was confirmed."
-			item.ActiveRequest = ""
+			if !remotePlacement(&item) {
+				item.ActiveRequest = ""
+			}
 			for i := range item.Requests {
-				if item.Requests[i].Status == "running" || item.Requests[i].Status == "accepted" {
+				if item.Requests[i].Status == "running" || (item.Requests[i].Status == "accepted" && !remotePlacement(&item)) {
 					item.Requests[i].Status = "unresolved"
 				}
 			}
@@ -193,7 +222,23 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 		manager.refresh(&item)
 		// A persisted native identity can be resumed lazily on the next send.
 		// Loading the page itself still does not start or contact a harness.
-		item.Live = item.NativeSession != ""
+		if !remotePlacement(&item) {
+			item.Live = item.NativeSession != ""
+		} else {
+			item.Live = item.Live || item.ActiveRequest != "" || item.CleanupPending
+		}
+		if !item.Placement.Present {
+			item.Environment = environments.Local
+			item.Contact = "connected"
+			item.Capabilities = localCapabilities()
+		}
+		if len(record.Transport) > 0 {
+			var remote remoteState
+			if err := json.Unmarshal(record.Transport, &remote); err != nil {
+				return nil, fmt.Errorf("conversation: read retained transport: %w", err)
+			}
+			manager.remoteStates[item.ID] = &remote
+		}
 		copy := item
 		manager.items[item.ID] = &copy
 		var state sessionstate.ProjectionState
@@ -215,6 +260,22 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 	model, _, err := providerModel(provider, strings.TrimSpace(in.Model))
 	if err != nil {
 		return Conversation{}, err
+	}
+	if in.Environment != "" && in.Environment != environments.Local {
+		m.mu.RLock()
+		service, projectID := m.environments, m.projectID
+		m.mu.RUnlock()
+		if service == nil {
+			return Conversation{}, errors.New("conversation: environment service unavailable")
+		}
+		target, err := service.Resolve(ctx, projectID, in.Environment)
+		if err != nil {
+			return Conversation{}, err
+		}
+		if target.Machine.ID == environments.Local || target.Machine.ID == "" {
+			return m.createLocalEnvironment(ctx, in, provider, model, target)
+		}
+		return m.createRemote(ctx, in, provider, model)
 	}
 	checkout, err := m.prepareCheckout(ctx, in)
 	if err != nil {
@@ -250,6 +311,7 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		ID: id, Title: title, Provider: provider, Model: model,
 		Branch: branch, Worktree: worktree, Live: true, Status: StatusIdle,
 		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{},
+		Environment: environments.Local, Contact: "connected", Capabilities: localCapabilities(),
 	}
 	if err := m.save(item); err != nil {
 		return Conversation{}, err
@@ -278,13 +340,18 @@ type Harness struct {
 // will work. Bases are locally available branches; no discovery fetches Git.
 // Git means this admitted directory has usable committed history.
 type Setup struct {
-	Harnesses []Harness `json:"harnesses"`
-	Directory string    `json:"directory"`
-	Git       bool      `json:"git"`
-	Branch    string    `json:"branch"`
-	Unborn    bool      `json:"unborn"`
-	Bases     []string  `json:"bases"`
-	Base      string    `json:"base"`
+	Harnesses     []Harness                 `json:"harnesses"`
+	Directory     string                    `json:"directory"`
+	Git           bool                      `json:"git"`
+	Branch        string                    `json:"branch"`
+	Unborn        bool                      `json:"unborn"`
+	Bases         []string                  `json:"bases"`
+	Base          string                    `json:"base"`
+	Environment   string                    `json:"environment"`
+	Machine       string                    `json:"machine"`
+	Capabilities  environments.Capabilities `json:"capabilities"`
+	Environments  environments.Snapshot     `json:"environments"`
+	HarnessStates []environments.Harness    `json:"harness_states"`
 }
 
 // Setup reports the choices and the fixed environment for a new conversation.
@@ -472,7 +539,9 @@ func (m *Manager) Close() {
 	m.mu.Unlock()
 	for _, conversation := range active {
 		conversation.turnMu.Lock()
-		if conversation.adapter != nil && conversation.session != "" {
+		if conversation.remote != nil {
+			// Shared transport handles belong to the instance environment service.
+		} else if conversation.adapter != nil && conversation.session != "" {
 			if persistent, ok := conversation.adapter.(persistentSessionAdapter); ok {
 				_ = persistent.DetachSession(context.WithoutCancel(m.ctx), conversation.session)
 			} else {
@@ -483,8 +552,21 @@ func (m *Manager) Close() {
 	}
 }
 
+type conversationRecord struct {
+	Conversation
+	Transport json.RawMessage `json:"transport,omitempty"`
+}
+
 func (m *Manager) save(item *Conversation) error {
-	data, err := json.MarshalIndent(item, "", "  ")
+	var raw json.RawMessage
+	if remote := m.remoteStates[item.ID]; remote != nil {
+		var err error
+		raw, err = json.Marshal(remote)
+		if err != nil {
+			return err
+		}
+	}
+	data, err := json.MarshalIndent(conversationRecord{Conversation: *item, Transport: raw}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("conversation: encode %s: %w", item.ID, err)
 	}
@@ -540,6 +622,16 @@ func providerModel(provider, model string) (string, string, error) {
 			}
 		}
 		return model, effort, nil
+	case "opencode":
+		if model == "" {
+			model = "opencode/gpt-5-nano"
+		}
+		return model, "", nil
+	case "pi":
+		if model == "" {
+			model = "anthropic/claude-haiku-4-5"
+		}
+		return model, "", nil
 	default:
 		return "", "", fmt.Errorf("conversation: unknown provider %q", provider)
 	}

@@ -18,6 +18,7 @@ import SwiftUI
   #if os(macOS)
     @Published var settingsPane = "recording"
     @Published var settingsProject = ""
+    @Published var settingsPresentation = 0
     var requestSettings: ((String, String) -> Void)?
   #endif
   private var heartbeat: Task<Void, Never>?
@@ -131,6 +132,9 @@ struct ApplicationView: View {
             state.requestSettings = { pane, project in
               state.settingsPane = pane
               state.settingsProject = project
+              // Add Environment is a repeatable action even when its route
+              // is unchanged. Ordinary Settings presentation retains its view.
+              if pane == "machines" && !project.isEmpty { state.settingsPresentation += 1 }
               openSettings()
             }
           }
@@ -153,7 +157,7 @@ struct ApplicationView: View {
             let path = state.settingsProject.isEmpty
               ? "/settings/machines" : "/settings/machines/projects/\(state.settingsProject)"
             if let url = URL(string: path, relativeTo: origin)?.absoluteURL {
-              ApplicationWebView(url: url, recoveryRevision: 0, onOpenSession: { path in
+              ApplicationWebView(url: url, recoveryRevision: state.settingsPresentation, onOpenSession: { path in
                 state.workspace.requestProject?(path)
                 state.workspace.webView?.window?.makeKeyAndOrderFront(nil)
               })

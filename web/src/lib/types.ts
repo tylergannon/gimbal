@@ -52,6 +52,7 @@ export type HistoryRequest = {
  * MachineForm intentionally leaves opaque route/plugin configuration in the file.
  */
 export type MachineForm = {
+  attempt: string;
   revision: string;
   id: string;
   name: string;

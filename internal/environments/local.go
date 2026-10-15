@@ -31,7 +31,7 @@ type HelperResult struct {
 	Harnesses []Harness `json:"harnesses"`
 }
 
-func localFacts() (string, []Harness) {
+func buildRevision() string {
 	build := "unknown"
 	if info, ok := debug.ReadBuildInfo(); ok {
 		for _, v := range info.Settings {
@@ -40,6 +40,11 @@ func localFacts() (string, []Harness) {
 			}
 		}
 	}
+	return build
+}
+
+func localFacts() (string, []Harness) {
+	build := buildRevision()
 	models := modelalias.Newest()
 	hs := []Harness{}
 	for _, id := range []string{"claude", "codex", "agy", "opencode", "pi"} {

@@ -2,14 +2,13 @@
   import type { Snippet } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
   import { PanelLeft } from '@lucide/svelte';
-  import { APP_NAME } from '#lib/app.js';
   import TabStrip from './TabStrip.svelte';
   import TabGlyph from './TabGlyph.svelte';
   import TabStatus from './TabStatus.svelte';
   import type { WorkspaceTab, RecordingDisplay } from './types.js';
 
   let { project, items, tabs, active, sidebar = $bindable(false), recording, content,
-    sidebarExtra, fallback, native = false, onproject, onrecording, oncontrol, onselect, onclose, onopen, onnew }: {
+    sidebarExtra, sidebarFooter, fallback, native = false, onproject, onrecording, oncontrol, onselect, onclose, onopen, onnew }: {
     project: string;
     /** Project inventory, including views that are currently closed. */
     items: WorkspaceTab[];
@@ -19,6 +18,7 @@
     recording?: RecordingDisplay;
     content: Snippet<[WorkspaceTab]>;
     sidebarExtra?: Snippet;
+    sidebarFooter?: Snippet;
     fallback?: Snippet;
     native?: boolean;
     onproject?: (event: MouseEvent) => void;
@@ -63,8 +63,7 @@
     <aside aria-label="Project sidebar" bind:this={aside}>
       <!-- Native titlebar integration supplies the traffic lights later. -->
       <div class="native-space"></div>
-      <div class="brand"><span class="tile" aria-hidden="true">{APP_NAME.slice(0, 1)}</span><span>{APP_NAME}</span></div>
-      <button class="project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`}><span title={project}>{project}</span><span aria-hidden="true">⌃⌄</span></button>
+      <button class="project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`}><span class="tile" aria-hidden="true">{project.slice(0, 1).toUpperCase()}</span><span class="project-name" title={project}>{project}</span><span aria-hidden="true">⌃⌄</span></button>
       {@render recordingStatus()}
       {#each ['chat', 'file'] as kind}
         <h2>{kind === 'chat' ? 'Chats' : 'Files'}</h2>
@@ -74,8 +73,10 @@
             {#if tab.detail}<span class="detail">{tab.detail}</span>{/if}
           </button>
         {/each}
+        {#if kind === 'chat' && onnew}<button class="item new-chat" onclick={onnew}>New chat</button>{/if}
       {/each}
       {#if sidebarExtra}{@render sidebarExtra()}{/if}
+      {#if sidebarFooter}<div class="sidebar-footer">{@render sidebarFooter()}</div>{/if}
     </aside>
   {/if}
   <section class="workspace" aria-label="Open views">
@@ -116,8 +117,10 @@
   .empty { display: grid; place-items: center; height: 100%; color: var(--muted-foreground); }
   aside { width: 260px; flex: none; display: flex; flex-direction: column; min-height: 0; overflow: auto; padding: 0 8px 12px; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
   .native-space { height: 52px; flex: none; }
-  .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; height: 36px; flex: none; font-weight: 600; }
-  .project { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; text-align: left; flex: none; margin-top: 12px; padding: 0 10px; font-size: 13px; font-weight: 500; }
+  .project { display: flex; align-items: center; gap: 8px; min-height: 38px; text-align: left; flex: none; padding: 0 10px; font-size: 13px; font-weight: 500; }
+  .project-name { flex: 1; }
+  .new-chat { color: var(--muted-foreground); padding-left: 32px; }
+  .sidebar-footer { margin-top: auto; padding-top: 20px; }
   .project span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tile { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--sidebar-primary); color: var(--sidebar-primary-foreground); font-size: 12px; }
   .recording-status { display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; flex: none; font-size: 13px; color: var(--muted-foreground); }

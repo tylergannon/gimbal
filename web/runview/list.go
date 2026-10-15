@@ -139,7 +139,7 @@ func formatCost(snapshot observation.RunSnapshot) string {
 		return "—"
 	}
 	if cost > 0 && cost < 0.01 {
-		return fmt.Sprintf("$%.4f", cost)
+		return "<$0.01"
 	}
 	return fmt.Sprintf("$%.2f", cost)
 }

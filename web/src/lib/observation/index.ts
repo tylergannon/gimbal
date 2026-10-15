@@ -70,6 +70,9 @@ export type ScopeRow = {
 /** One agent conversation. `scope` is where it was created, which is not
  * where its turns necessarily ran. */
 export type SessionRow = {
+  workdir?: string;
+  effort?: string;
+  steers?: { message: string; source: string; landed: boolean; created: number }[];
   run: string;
   id: string;
   name: string;

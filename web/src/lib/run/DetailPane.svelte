@@ -1,6 +1,6 @@
 <script module lang="ts">
   import type { InterviewAnswer } from "../../routes/interview.remote.js";
-  import type { LoopMessage, Steer } from "../../routes/steer.remote.js";
+  import type { LoopMessage } from "../../routes/steer.remote.js";
 
   export type ActionFeedback = {
     ok: boolean;
@@ -46,7 +46,6 @@
     revision = 0,
     width = 480,
     maximized = false,
-    onsteer,
     onloop,
     onanswer,
     onmaximize,
@@ -59,7 +58,6 @@
     revision?: number;
     width?: number;
     maximized?: boolean;
-    onsteer?: (request: Steer) => Promise<ActionFeedback>;
     onloop?: (request: LoopMessage) => Promise<ActionFeedback>;
     onanswer?: (request: InterviewAnswer) => Promise<ActionFeedback>;
     onmaximize?: () => void;
@@ -69,7 +67,6 @@
     onopen?: () => void;
   } = $props();
 
-  let steerMessage = $state("");
   let loopMessage = $state("");
   let answer = $state("");
   let pending = $state(false);
@@ -373,9 +370,6 @@
       definition={agentDefinition}
       watchers={selection?.kind === "node" ? watcherRowList : []}
       {live}
-      onsteer={(message) =>
-        onsteer?.({ run: snapshot.run.id, session: turn.session, message }) ??
-        Promise.resolve({ ok: false, message: "Steering is unavailable." })}
       onscope={onselectscope}
     />
   {:else}

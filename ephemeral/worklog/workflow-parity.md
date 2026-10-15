@@ -1,0 +1,9 @@
+# Workflow, run and promises parity
+
+decision: Workspace workflow admission uses the same registry and launch form as command-line/chat launches. The current project is resolved server-side from its admitted ID; guide/diagram state stays in its retained view.
+doc_bug: Agent focus discarded workdir and effort already present in session-created records. Preserve these observed values without inventing facts for older records.
+correction: A four-decimal display can still round an extremely small nonzero charge to zero. Costs below one cent now render as less than $0.01, covered at sub-microcent values.
+decision: Earlier steer delivery facts come from lifecycle records, including dropped steers whose canceled inbox rows correctly disappear from the chat projection. Do not infer landed from absence in the pending inbox.
+friction: Two real views may show the same workflow agent, so remote forms keyed only by run/session share one form object and conflict when both mount. Key each visible form by its stable component instance as well as the explicit runtime target; retain the target in submitted fields.
+correction: Native launch integration must validate and submit the keyed remote form action, preserving unrelated page query fields; a strict unkeyed action string rejects correct instance-addressed forms. Runs SSR assertions now inspect rendered HTML before hydration data so serialized hidden facts cannot satisfy UI expectations.
+friction: WKWebView can stop animation frames as a retained workspace view becomes hidden. A Popover controlled closed immediately before tab selection may retain its portal while waiting for its exit frame. Mount the launch popup only while open, matching the established cancellation guard behavior, so switching tabs removes the overlay immediately.

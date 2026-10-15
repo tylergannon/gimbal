@@ -141,6 +141,28 @@ type MachineState struct {
 	Issues       []Issue      `json:"issues"`
 }
 
+// ConnectionCheck records only work actually attempted by the connect operation.
+// Pending is in progress; a fatal failed check ends the list at that line.
+type ConnectionCheck struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	State       string `json:"state"`
+	Cause       string `json:"cause"`
+	Consequence string `json:"consequence"`
+	Fix         string `json:"fix"`
+	Fatal       bool   `json:"fatal"`
+}
+
+// ConnectionProgress belongs to a draft machine ID, before configuration is saved.
+// CanConnect permits confirmation of nonfatal warnings for that checked machine.
+type ConnectionProgress struct {
+	ID         string            `json:"id"`
+	Checks     []ConnectionCheck `json:"checks"`
+	Complete   bool              `json:"complete"`
+	CanConnect bool              `json:"can_connect"`
+	Saved      bool              `json:"saved"`
+}
+
 // EnvironmentInfo is the directory identity shown in the UI. The editable
 // configuration's opaque properties remain in the configuration document.
 type EnvironmentInfo struct {

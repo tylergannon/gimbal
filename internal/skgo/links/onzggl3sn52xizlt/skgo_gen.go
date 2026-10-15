@@ -101,6 +101,8 @@ var (
 	Skgo_createConversation = createConversation
 	// Skgo_projectConversations is projectConversations, published as src/routes/conversation.remote.ts#projectConversations.
 	Skgo_projectConversations = projectConversations
+	// Skgo_renameConversation is renameConversation, published as src/routes/conversation.remote.ts#renameConversation.
+	Skgo_renameConversation = renameConversation
 	// Skgo_sendConversationMessage is sendConversationMessage, published as src/routes/conversation.remote.ts#sendConversationMessage.
 	Skgo_sendConversationMessage = sendConversationMessage
 	// Skgo_stopConversationRequest is stopConversationRequest, published as src/routes/conversation.remote.ts#stopConversationRequest.
@@ -115,6 +117,10 @@ var (
 	Skgo_steer = steer
 	// Skgo_steerLoop is steerLoop, published as src/routes/steer.remote.ts#steerLoop.
 	Skgo_steerLoop = steerLoop
+	// Skgo_workflowCatalog is workflowCatalog, published as src/routes/workflow.remote.ts#workflowCatalog.
+	Skgo_workflowCatalog = workflowCatalog
+	// Skgo_workflowGuide is workflowGuide, published as src/routes/workflow.remote.ts#workflowGuide.
+	Skgo_workflowGuide = workflowGuide
 	// Skgo_layout is layout, published as the server load of src/routes/+layout.server.ts.
 	Skgo_layout = layout
 	// Skgo_load is load, published as the server load of src/routes/+page.server.ts.
@@ -126,6 +132,10 @@ type (
 	SkgoArg_createConversation = CreateConversation
 	// SkgoOut_createConversation is the type createConversation returns.
 	SkgoOut_createConversation = conversation.Conversation
+	// SkgoArg_renameConversation is the type renameConversation takes.
+	SkgoArg_renameConversation = RenameConversation
+	// SkgoOut_renameConversation is the type renameConversation returns.
+	SkgoOut_renameConversation = conversation.Conversation
 	// SkgoArg_sendConversationMessage is the type sendConversationMessage takes.
 	SkgoArg_sendConversationMessage = SendConversationMessage
 	// SkgoOut_sendConversationMessage is the type sendConversationMessage returns.

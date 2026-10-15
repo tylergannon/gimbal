@@ -1,7 +1,7 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import type { InterviewAnswer } from "../../routes/interview.remote.js";
-import type { LoopMessage, Steer } from "../../routes/steer.remote.js";
+import type { LoopMessage } from "../../routes/steer.remote.js";
 import { RunObservation } from "../observation/index.js";
 import DetailPane from "./DetailPane.svelte";
 import {
@@ -11,6 +11,39 @@ import {
   planTripFixture,
   serviceOwnershipFixture,
 } from "./fixtures/index.js";
+
+const steerRemote = vi.hoisted(() => ({ sent: vi.fn() }));
+vi.mock("../../routes/steer.remote", () => ({
+  steer: {
+    for: () => ({
+      pending: 0,
+      fields: {
+        ...Object.fromEntries(
+          ["run", "session", "message"].map((name) => [
+            name,
+            {
+              as: (type: string, value?: string) => ({
+                name,
+                type,
+                value: value ?? (name === "message" ? "Draft steer" : ""),
+              }),
+              value: () => "Draft steer",
+            },
+          ]),
+        ),
+        allIssues: () => [],
+      },
+      enhance: () => ({
+        onsubmit: (event: SubmitEvent) => {
+          event.preventDefault();
+          steerRemote.sent(
+            Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement)),
+          );
+        },
+      }),
+    }),
+  },
+}));
 
 test("a selected interview follows the next pending question and submits its identity", async () => {
   const operation = planTripFixture.graph.body[0];
@@ -121,7 +154,7 @@ test("steering emits the selected runtime session and entered message", async ()
   const coding = loop?.body.find((operation) => operation.kind === "agent_call");
   if (!coding || coding.kind !== "agent_call") throw new Error("coding node is missing");
   const turn = implementInterviewFixture.snapshot.turns["coding.1/turn.3"];
-  const sent: Steer[] = [];
+  steerRemote.sent.mockClear();
   const screen = await render(DetailPane, {
     snapshot: implementInterviewFixture.snapshot,
     observation: new RunObservation(implementInterviewFixture.snapshot),
@@ -131,21 +164,15 @@ test("steering emits the selected runtime session and entered message", async ()
       operation: coding,
       runtime: turn,
     },
-    onsteer: async (message: Steer) => {
-      sent.push(message);
-      return { ok: true, message: "landed" };
-    },
   });
 
   await screen.getByPlaceholder("Steer this turn…").fill("Check the failing assertion first.");
-  await screen.getByRole("button", { name: "Steer" }).click();
-  expect(sent).toEqual([
-    {
-      run: implementInterviewFixture.snapshot.run.id,
-      session: turn.session,
-      message: "Check the failing assertion first.",
-    },
-  ]);
+  await screen.getByRole("button", { name: "Send steer" }).click();
+  expect(steerRemote.sent).toHaveBeenCalledWith({
+    run: implementInterviewFixture.snapshot.run.id,
+    session: turn.session,
+    message: "Check the failing assertion first.",
+  });
 });
 
 test("an unobserved guarded command does not inherit its ended scope state", async () => {

@@ -34,6 +34,7 @@ type Service struct {
 	recents     map[string]int64
 	tunnels     map[string]*tunnel
 	connections map[string]backend.Connection
+	checks      map[string]connectionAttempt
 	closed      bool
 }
 
@@ -62,7 +63,7 @@ func New(ctx context.Context, o Options) (*Service, error) {
 		o.Registry = gimbal.DefaultRegistry
 	}
 	ctx, cancel := context.WithCancel(ctx)
-	s := &Service{ctx: ctx, cancel: cancel, path: path, registry: o.Registry, options: o, projects: map[string]string{}, states: map[string]MachineState{}, facts: map[string]EnvironmentRow{}, recents: map[string]int64{}, tunnels: map[string]*tunnel{}, connections: map[string]backend.Connection{}}
+	s := &Service{ctx: ctx, cancel: cancel, path: path, registry: o.Registry, options: o, projects: map[string]string{}, states: map[string]MachineState{}, facts: map[string]EnvironmentRow{}, recents: map[string]int64{}, tunnels: map[string]*tunnel{}, connections: map[string]backend.Connection{}, checks: map[string]connectionAttempt{}}
 	if b, e := os.ReadFile(filepath.Join(o.InstanceDir, "environment-recents.json")); e == nil {
 		_ = json.Unmarshal(b, &s.recents)
 	}
@@ -492,7 +493,10 @@ func (s *Service) Reconnect(ctx context.Context, id string) (MachineState, error
 	if !ok {
 		return MachineState{}, fmt.Errorf("unknown machine")
 	}
-	e := s.probe(ctx, m, true)
+	var e error
+	if id != Local {
+		e = s.checkConnection(ctx, m)
+	}
 	return s.machineState(m), e
 }
 func (s *Service) Close() error {

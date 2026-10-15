@@ -8,6 +8,7 @@
   import MachineConnect from './MachineConnect.svelte';
   import AddEnvironment from './AddEnvironment.svelte';
   import ConfigEditor from './ConfigEditor.svelte';
+  import StateGlyph from './StateGlyph.svelte';
   import './environments.css';
 
   let { project = '', projects = [] }: { project?: string; projects?: { id: string; path: string }[] } = $props();
@@ -29,10 +30,10 @@
 </script>
 
 <section class="machine-settings" aria-label="Machines settings">
-  <header><div><h1>Machines</h1><p>Where your project directories and agent sessions live.</p></div><div class="tools"><button class="action" onclick={() => (editor = true)}>Open configuration</button><button class="action" onclick={() => { connecting = true; editing = undefined; }}>Add machine…</button></div></header>
+  <header><div><h1>Machines</h1><p>Where your project directories and agent sessions live.</p></div><div class="tools"><button class="action" onclick={() => (editor = true)}>Open environments.json</button><button class="action" onclick={() => { connecting = true; editing = undefined; }}>Add machine…</button></div></header>
   {#if snapshot}
     {#each snapshot.issues as issue}<p class="issue" role="alert">{issue.line ? `Line ${issue.line}: ` : ''}{issue.entry ? `${issue.entry}: ` : ''}{issue.message}</p>{/each}
-    <div class="body"><nav aria-label="Configured machines">{#each machines as item (item.id)}<button class:selected={machine?.id === item.id} aria-current={machine?.id === item.id ? 'true' : undefined} onclick={() => (selected = item.id)}><strong>{item.name}</strong><span>{item.id === 'local' ? 'This application' : item.kind === 'ssh' ? 'SSH tunnel' : item.kind === 'route' ? 'Backend route' : 'HTTP daemon'}</span><small class:trouble={item.state === 'error' || item.state === 'unreachable'}>{item.state === 'connected' ? `Connected · ${item.latency_ms} ms` : item.state === 'not-started' ? 'Starts when needed' : item.state}</small></button>{/each}</nav>
+    <div class="body"><nav aria-label="Configured machines">{#each machines as item (item.id)}<button class:selected={machine?.id === item.id} aria-current={machine?.id === item.id ? 'true' : undefined} onclick={() => (selected = item.id)}><strong>{item.name}</strong><span>{item.id === 'local' ? 'This application' : item.kind === 'ssh' ? 'SSH tunnel' : item.kind === 'route' ? 'Backend route' : 'HTTP daemon'}</span><small class="machine-state" class:trouble={item.state === 'error'}><StateGlyph state={item.state} />{item.state === 'connected' ? item.kind === 'route' ? 'Worker reachable' : `Connected · ${item.latency_ms} ms` : item.state === 'not-started' ? 'Starts when needed' : item.state}</small></button>{/each}</nav>
       {#if machine}{#key machine.id}<MachineDetail {machine} configuration={selectedConfig} {snapshot} onchanged={changed} onedit={() => { editing = selectedConfig; connecting = true; }} onadd={() => { editingEnvironment = undefined; adding = true; }} oneditenvironment={(environment) => { editingEnvironment = environment; forProject = environment.project; adding = true; }} />{/key}{/if}
     </div>
     <footer>Saved in <code>{snapshot.config_path}</code>. File edits apply automatically. {#if !stream.connected}<span role="status">Connection to the app server was lost. <button onclick={() => stream.reconnect()}>Reconnect</button></span>{/if}</footer>
@@ -50,6 +51,7 @@
   header { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; padding: 20px 24px; border-bottom: 1px solid var(--border); }
   h1 { margin: 0; font-size: 18px; font-weight: 600; } header p { margin: 4px 0 0; font-size: 12px; color: var(--muted-foreground); }
   .tools { display: flex; gap: 7px; }
+  .machine-state { display: flex; align-items: center; gap: 6px; }
   .body { display: grid; grid-template-columns: 225px minmax(0, 1fr); flex: 1; min-height: 0; }
   nav { padding: 10px; overflow: auto; border-right: 1px solid var(--border); background: var(--sidebar); }
   nav button { display: grid; gap: 3px; width: 100%; padding: 12px; margin-bottom: 4px; border: 0; border-radius: 8px; background: none; color: inherit; text-align: left; font: inherit; font-size: 13px; cursor: pointer; }

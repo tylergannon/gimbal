@@ -65,7 +65,8 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 		t.Fatalf("GET /conversations: status %d, body %s", response.StatusCode, body)
 	}
 	for _, want := range []string{
-		"Chats", "New tab", "Codex", "Claude", "agy / Gemini", "Antigravity · Flash 3.8 Low",
+		"Chats", "New tab", "Codex", "Claude Code", "Antigravity · Flash 3.8 Low",
+		`placeholder="Message Antigravity…"`, selected.Branch + " · This Mac",
 		selected.Title, selected.Model, selected.Branch, selected.Worktree,
 	} {
 		if !strings.Contains(string(body), want) {

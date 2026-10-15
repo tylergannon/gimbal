@@ -1,94 +1,71 @@
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import RunsList from "./RunsList.svelte";
 import { runsListFixture } from "./fixtures/index.js";
+const remote = vi.hoisted(() => ({
+  cancel: vi.fn(async (_request: unknown) => ({ accepted: true })),
+}));
+vi.mock("../../routes/control.remote", () => ({ cancelRun: remote.cancel }));
 
-test("cards show observation-derived facts and open the selected run", async () => {
+test("run rows expose real summaries and small cost and open the selected run", async () => {
   const opened: string[] = [];
+  const items = structuredClone(runsListFixture.items);
+  items[0].cost = "<$0.01";
   const screen = await render(RunsList, {
-    items: runsListFixture.items,
+    items,
     attention: runsListFixture.attention,
-    now: 1_800_000_760_000,
     onopenrun: (run) => opened.push(run.id),
   });
-
-  const card = screen.getByRole("button", {
-    name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
-  });
-  await expect.element(card).toMatchTextContent("Running");
-  await expect.element(card).toMatchTextContent("Latest activity");
-  await expect.element(card).toMatchTextContent("40 s");
-  await expect.element(card).toMatchTextContent("$0.32");
-  await expect.element(card).toMatchTextContent("12m 40s");
-  await expect.element(card).toMatchTextContent("Sessions3");
-  await expect.element(card).toMatchTextContent("Turns7");
-  await expect
-    .element(card)
-    .toMatchTextContent("Compare the available cabins and ask about the tradeoffs that matter.");
-
-  await card.click();
-  expect(opened).toEqual(["01M2RWXNFFYQA4HHQWMQ252CYF"]);
-  await expect.element(screen.getByText("No instruction recorded yet.")).toBeVisible();
+  const row = screen.getByRole("button", { name: `Open ${items[0].run.name} ${items[0].run.id}` });
+  await expect.element(row).toMatchTextContent("Needs you");
+  await expect.element(row).toMatchTextContent("<$0.01");
+  await expect.element(row).toMatchTextContent("3 sessions");
+  await row.click();
+  expect(opened).toEqual([items[0].run.id]);
+  await expect.element(screen.getByRole("searchbox")).not.toBeInTheDocument();
 });
 
-test("filters, search, attention access, and refreshed card data stay useful", async () => {
-  const opened: string[] = [];
+test("four filters and revealed search preserve failed and cancelled history", async () => {
   const screen = await render(RunsList, {
     items: runsListFixture.items,
     attention: runsListFixture.attention,
-    now: 1_800_000_760_000,
-    onopenrun: (run) => opened.push(run.id),
   });
-
-  await screen.getByRole("button", { name: "Failed · 1" }).click();
+  await screen.getByRole("button", { name: "Ended", exact: true }).click();
   await expect
     .element(
-      screen.getByRole("button", {
-        name: "Open implement-interview 01M2QZ7PB3N6D0R9X2G5HKW8VY",
-      }),
+      screen.getByRole("button", { name: "Open implement-interview 01M2QZ7PB3N6D0R9X2G5HKW8VY" }),
     )
     .toBeVisible();
   await expect
-    .element(
-      screen.getByRole("button", {
-        name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
-      }),
-    )
+    .element(screen.getByRole("button", { name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF" }))
     .not.toBeInTheDocument();
-
-  await screen.getByRole("button", { name: "All · 6" }).click();
-  await screen.getByPlaceholder("Search by workflow or run id").fill("Q1HD4");
+  await screen.getByRole("button", { name: "All", exact: true }).click();
+  await screen.getByRole("button", { name: "Search runs", exact: true }).click();
+  await screen.getByRole("searchbox").fill("Q1HD4");
   await expect
-    .element(
-      screen.getByRole("button", {
-        name: "Open plan-trip 01M2Q1HD4T8KJ2M7P5S0B9XNAE",
-      }),
-    )
+    .element(screen.getByRole("button", { name: "Open plan-trip 01M2Q1HD4T8KJ2M7P5S0B9XNAE" }))
     .toBeVisible();
-
-  await screen.getByPlaceholder("Search by workflow or run id").fill("");
-  await screen.getByText("Would you trade reliable Wi-Fi for a more secluded cabin?").click();
-  expect(opened).toEqual(["01M2RWXNFFYQA4HHQWMQ252CYF"]);
-
-  const refreshed = structuredClone(runsListFixture.items);
-  refreshed[0].activity_at = 1_800_000_755_000;
-  refreshed[0].cost = "$0.44";
-  refreshed[0].turn_count = 8;
-  refreshed[0].instruction = "Use the newly answered preference to rank the final options.";
-  await screen.rerender({
-    items: refreshed,
-    attention: runsListFixture.attention,
-    now: 1_800_000_760_000,
-    onopenrun: (run) => opened.push(run.id),
-  });
-
-  const refreshedCard = screen.getByRole("button", {
-    name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF",
-  });
-  await expect.element(refreshedCard).toMatchTextContent("5 s");
-  await expect.element(refreshedCard).toMatchTextContent("$0.44");
-  await expect.element(refreshedCard).toMatchTextContent("Turns8");
+  await screen.getByRole("searchbox").fill("");
+  await screen.getByRole("button", { name: "Needs you", exact: true }).click();
   await expect
-    .element(refreshedCard)
-    .toMatchTextContent("Use the newly answered preference to rank the final options.");
+    .element(screen.getByRole("button", { name: "Open plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF" }))
+    .toBeVisible();
+});
+
+test("row cancellation requires confirmation and leaves the run record authoritative", async () => {
+  remote.cancel.mockClear();
+  const screen = await render(RunsList, {
+    items: runsListFixture.items,
+    attention: runsListFixture.attention,
+  });
+  await screen
+    .getByRole("button", { name: "Actions for plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF" })
+    .click();
+  await screen.getByRole("button", { name: "Cancel run…" }).click();
+  expect(remote.cancel).not.toHaveBeenCalled();
+  await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
+  expect(remote.cancel).toHaveBeenCalledWith({ run: "01M2RWXNFFYQA4HHQWMQ252CYF" });
+  await expect
+    .element(screen.getByText("Cancellation accepted. Waiting for the run record to update."))
+    .toBeVisible();
 });

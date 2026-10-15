@@ -3,7 +3,7 @@
   import { APP_NAME } from "#lib/app";
   import { errorMessage } from "#lib/errors";
   import { onMount, untrack, type Snippet } from 'svelte';
-  import { MediaQuery } from 'svelte/reactivity';
+  import { MediaQuery, SvelteMap } from 'svelte/reactivity';
   import * as Dialog from '#lib/components/ui/dialog';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { afterNavigate, goto } from '$app/navigation';
@@ -26,26 +26,49 @@
   import type { RunRow, RunSnapshot, InterviewRow } from '#lib/observation';
   import { nativeMessage, projectMenu, recordingControl, recordingTime, type NativeStatus } from './native';
   import { conversationsForWorkspace, conversationNeedsUpdates } from './conversations';
-  import OpenFolder from './OpenFolder.svelte';
+  import { watchRuns } from '../runs.remote';
+  import WorkflowGuide from './WorkflowGuide.svelte';
+  import type { Header } from '#lib/skgo/transcript/types';
+  import { harnessName } from '#lib/conversation/names';
 
-  let { project, name, projects, restored = [], children }: {
-    project: string; name: string; projects: { id: string; path: string }[]; restored?: WindowTab[]; children: Snippet;
+  let { project, name, projects, restored = [], sidebarPreference = null, seenReplies = [], children }: {
+    project: string; name: string; projects: { id: string; path: string }[]; restored?: WindowTab[];
+    sidebarPreference?: boolean | null; seenReplies?: { path: string; request: string }[]; children: Snippet;
   } = $props();
   const root = $derived(`/projects/${project}`);
   const chats = $derived(projectConversations(project));
   const documents = $derived(projectFiles(project));
+  const runInventory = $derived(watchRuns(project));
+  const liveRuns = $derived(runInventory.current?.items.filter(item => item.run.status === 'running').length ?? 0);
   let after = $state('');
+  let olderCursors = $state<string[]>([]);
+  let loadingOlder = $state(false);
   const recordings = $derived(recordingHistory({ project, after }));
   const newest = $derived(recordingHistory({ project, after: '' }));
   const routeConversations = $derived((page.data as { items?: Conversation[]; selected?: Conversation }).items?.filter(item => typeof item.provider === 'string') ?? []);
   const routeSelected = $derived((page.data as { selected?: Conversation }).selected);
   const conversations = $derived(conversationsForWorkspace(chats.current ?? [], routeConversations, routeSelected));
   const files = $derived(documents.current ?? []);
-  const history = $derived(recordings.current ?? { items: [], next: '' });
+  const history = $derived.by(() => {
+    const pages = olderCursors.map(cursor => recordingHistory({ project, after: cursor }).current);
+    const saved = new Map<string, Header>();
+    for (const value of [...pages, newest.current]) for (const item of value?.items ?? []) saved.set(item.id, item);
+    return { items: [...saved.values()].toSorted((a, b) => b.created - a.created), next: recordings.current?.next ?? '' };
+  });
+  async function olderRecordings() {
+    if (!history.next || loadingOlder) return;
+    loadingOlder = true;
+    const cursor = history.next;
+    try { await recordingHistory({ project, after: cursor }); olderCursors = [...olderCursors, cursor]; after = cursor; }
+    catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
+    finally { loadingOlder = false; }
+  }
   const initialConversation = (page.data as { selected?: Conversation }).selected;
   const initialPath = page.url.pathname;
   const initialTab: WorkspaceTab | undefined = initialConversation?.id
     ? { id: `${initialPath.split("/").slice(0, 3).join("/")}/conversations/${initialConversation.id}`, title: initialConversation.title, kind: 'chat' }
+    : initialPath.endsWith('/discuss') ? { id: initialPath, title: 'New session', kind: 'chat' }
+    : page.params.workflow ? { id: initialPath, title: `${page.params.workflow} guide`, kind: 'file' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
     : initialPath.endsWith('/promises') ? { id: initialPath, title: 'Promises', kind: 'file' }
@@ -58,14 +81,23 @@
   let open = $state<WorkspaceTab[]>([...reopened, ...(initialTab && !reopened.some(tab => tab.id === initialTab.id) ? [initialTab] : [])]);
   // The desktop window opens at 1000 px, so its server render starts without the sidebar.
   const wide = new MediaQuery('min-width: 1100px', !(page.data as { desktop?: boolean }).desktop);
-  let sidebar = $derived(wide.current);
+  let preferredSidebar = $state(untrack(() => sidebarPreference));
+  const sidebar = $derived(preferredSidebar ?? wide.current);
   let native = $state(false);
   let status = $state<NativeStatus>();
   const active = $derived(page.status >= 400 ? undefined : open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));
+  const seen = new SvelteMap<string, string>(untrack(() => seenReplies.map(item => [item.path, item.request] as const)));
+  function replyID(item: Conversation) { return item.requests?.findLast(request => request.kind === 'prompt' && request.status === 'completed')?.id ?? ''; }
+  $effect(() => {
+    for (const item of conversations) {
+      const path = `${root}/conversations/${item.id}`;
+      if (!seen.has(path) || path === active) seen.set(path, replyID(item));
+    }
+  });
   const items = $derived<WorkspaceTab[]>([
     ...conversations.map(item => ({ id: `${root}/conversations/${item.id}`, title: item.title,
-      kind: 'chat' as const, detail: item.provider === 'codex' ? 'Codex' : item.provider === 'agy' ? 'agy / Gemini' : 'Claude',
-      status: ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running') ? 'working' as const : item.error ? 'attention' as const : undefined })),
+      kind: 'chat' as const, detail: harnessName(item.provider),
+      status: ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running') ? 'working' as const : item.error ? 'attention' as const : seen.has(`${root}/conversations/${item.id}`) && replyID(item) !== seen.get(`${root}/conversations/${item.id}`) ? 'unread' as const : undefined })),
     ...files.map(file => ({ id: `${root}/files/${file.id}`, title: file.name, kind: 'file' as const })),
   ]);
   let runTabs = $state<WorkspaceTab[]>([]);
@@ -93,19 +125,34 @@
   }
   function control(action: 'pause' | 'resume' | 'stop') { if (status) recordingControl(status, action); }
   function chooseProject(event: MouseEvent) { if (native) projectMenu(event); else projectChooser = true; }
+  const isDraft = (path: string) => path === `${root}/conversations/new` || path.endsWith('/discuss');
+  let context = $state<{ id: string; name: string } | undefined>(initialPath.endsWith('/discuss') && page.params.fileID ? { id: page.params.fileID, name: 'Project file' } : undefined);
+  const fileContext = $derived.by(() => {
+    const selected = context;
+    return selected && { id: selected.id, name: files.find(file => file.id === selected.id)?.name ?? selected.name };
+  });
+  let startLike = $state<string>();
+  function newSession() { select(open.find(tab => isDraft(tab.id))?.id ?? `${root}/conversations/new`); }
+  function discuss(file: { id: string; name: string }) { context = file; newSession(); }
+  function guide(workflow: string) { select(`${root}/workflows/${encodeURIComponent(workflow)}`); }
+  function moveFile(path: string) {
+    if (native) { nativeMessage('openFile', { path: `${path}/window` }); close(path); }
+    else window.open(`${path}/window`, '_blank', 'noopener');
+  }
   function visit(path: string) {
     if (page.status >= 400) return;
     const item = items.find(item => item.id === path);
     const recordingID = page.params.recordingID;
     const tab = item ?? (path === root ? { id: path, title: 'Runs', kind: 'run' as const }
       : page.params.runID && path.startsWith(`${root}/runs/`) ? { id: path, title: (page.data as { snapshot?: { run: { name: string } } }).snapshot?.run.name ?? 'Run', kind: 'run' as const }
-      : path === `${root}/conversations/new`
+      : isDraft(path)
       ? { id: path, title: 'New session', kind: 'chat' as const }
+      : path.startsWith(`${root}/workflows/`) ? { id: path, title: `${decodeURIComponent(path.split('/').at(-1)!)} guide`, kind: 'file' as const }
       : path === `${root}/promises` ? { id: path, title: 'Promises', kind: 'file' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
       : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
     // A conversation started from the New conversation tab takes over that tab.
-    const form = path === started ? open.findIndex(item => item.id === `${root}/conversations/new`) : -1;
+    const form = path === started ? open.findIndex(item => isDraft(item.id)) : -1;
     started = undefined;
     if (!tab || open.some(item => item.id === tab.id)) return;
     open = form >= 0 ? open.with(form, tab) : [...open, tab];
@@ -118,6 +165,8 @@
   function created(conversation: Conversation) {
     chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]);
     started = `${root}/conversations/${conversation.id}`;
+    context = undefined;
+    startLike = undefined;
   }
   afterNavigate(() => {
     if (page.url.pathname === `${root}/conversations` && initialConversation?.id) select(`${root}/conversations/${initialConversation.id}`);
@@ -130,12 +179,15 @@
     if (page.url.pathname === path) select(open[Math.min(index, open.length - 1)]?.id ?? `${root}/recordings`);
   }
   function command(event: Event) {
-    const { command: value, project: targetProject } = (event as CustomEvent<{ command: string; project?: string }>).detail;
+    const { command: value, project: targetProject, conversation, path } = (event as CustomEvent<{ command: string; project?: string; conversation?: string; path?: string }>).detail;
     if (value === 'openRecording') {
       const current = window.voiceNotesLatestStatus ?? status;
       if (current?.project && current.sessionID) select(`/projects/${current.project}/recordings/${current.sessionID}`);
     }
-    else if (value === 'newSession') select(`${root}/conversations/new`);
+    else if (value === 'newSession') newSession();
+    else if (value === 'newSessionLike' && conversation) { startLike = conversation; newSession(); }
+    else if (value === 'selectTab' && path && tabs.some(tab => tab.id === path)) select(path);
+    else if (value === 'moveTab' && active?.startsWith(`${root}/files/`)) moveFile(active);
     else if (value === 'openFileChooser') fileChooser = true;
     else if (value === 'switchProject') {
       if (targetProject && projects.some(item => item.id === targetProject)) select(`/projects/${targetProject}/recordings`);
@@ -143,7 +195,7 @@
     }
     else if (value === 'showRuns') select(root);
     else if (value === 'openTodayTranscript' && todayRecording) select(`${root}/recordings/${todayRecording.id}`);
-    else if (value === 'toggleSidebar') sidebar = !sidebar;
+    else if (value === 'toggleSidebar') preferredSidebar = !sidebar;
     else if (value === 'closeTab' && active) close(active);
     else if (value === 'nextTab' || value === 'previousTab') {
       const index = tabs.findIndex(tab => tab.id === active);
@@ -153,9 +205,9 @@
   }
   $effect(() => {
     if (!native) return;
-    nativeMessage('workspaceState', { project, ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path, path: item.path })), canOpenTodayTranscript: !!todayRecording });
+    nativeMessage('workspaceState', { project, ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, tabs: tabs.map(({ id, title }) => ({ id, title })), canRename: conversations.some(item => `${root}/conversations/${item.id}` === active), canMove: !!active?.startsWith(`${root}/files/`) && !isDraft(active), recentSessions: conversations.slice(0, 6).map(item => ({ id: item.id, title: item.title })), canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path, path: item.path })), canOpenTodayTranscript: !!todayRecording });
   });
-  const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })) }));
+  const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })), sidebar: preferredSidebar, seen: [...seen].map(([path, request]) => ({ path, request })) }));
   $effect(() => {
     const value = JSON.parse(place);
     if (native) untrack(() => void rememberWindow(value).catch(() => {}));
@@ -185,26 +237,27 @@
 
 <svelte:head><title>{tabs.find(tab => tab.id === active)?.title ?? name} · {APP_NAME}</title></svelte:head>
 
-<WorkspaceShell project={name} {items} {tabs} {active} bind:sidebar {recording} {native}
+<WorkspaceShell project={name} {items} {tabs} {active} bind:sidebar={() => sidebar, (value) => preferredSidebar = value} {recording} {native}
   onproject={chooseProject} onrecording={openRecording} oncontrol={control}
-  onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
+  onselect={select} onclose={close} onopen={select} onnew={newSession}>
   {#snippet content(tab)}
     <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
-      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} active={active === tab.id} oncreated={created} />
+      {#if isDraft(tab.id)}<NewSession {project} {name} active={active === tab.id} {fileContext} {startLike} oncontextremoved={() => context = undefined} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
-      {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} />
-      {:else if tab.id === root}<ProjectRuns {project} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onstate={value => runTabs = value} />
+      {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
+      {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split('/').at(-1)!)} />
+      {:else if tab.id === root}<ProjectRuns {project} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onopenguide={guide} onstate={value => runTabs = value} />
       {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} onstate={runState} />
       {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
-      {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} />{/if}
+      {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} nativeStatus={status} />{/if}
       {#snippet failed(error, reset)}<p class="notice" role="alert">Could not load this view. <button onclick={reset}>Retry</button></p>{/snippet}
     </svelte:boundary>
   {/snippet}
   {#snippet fallback()}
     {#if page.url.pathname === `${root}/conversations`}
-      <NewSession {project} {name} oncreated={created} />
+      <NewSession {project} {name} {fileContext} {startLike} oncontextremoved={() => context = undefined} oncreated={created} />
     {:else if page.url.pathname === `${root}/recordings`}
       <section class="welcome"><p class="eyebrow">Project</p><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}
@@ -217,9 +270,10 @@
       <a class="row" class:selected={page.params.recordingID === item.id} href={`${root}/recordings/${item.id}`} title={`${item.status} · ${item.source}`}><span class:live={status?.project === project && status.sessionID === item.id && status.state === 'recording'}>{status?.project === project && status.sessionID === item.id && status.state === 'paused' ? '◌' : '●'}</span><span>{new Date(item.created).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</span><small>{recordingTime(status?.project === project && status.sessionID === item.id && !['idle', 'stopped'].includes(status.state) ? status.elapsedMs : item.durationMs)}</small></a>
     {:else}<p class="quiet">No recordings yet</p>{/each}
     <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
-    <div class="pager">{#if after}<button onclick={() => after = ''}>Newest</button>{/if}{#if history.next}<button onclick={() => after = history.next}>Older recordings</button>{/if}</div>
-    <nav class="tools" aria-label="Project tools"><a href={root}>Runs</a><a href={`${root}/promises`}>Promises</a><a href="/workflows">Workflows</a><a href={`${root}/about`}>About project</a></nav>
-    <details class="projects"><summary>Switch project</summary>{#each projects as item (item.id)}<a class="row" href={`/projects/${item.id}/recordings`}>{item.path.split('/').at(-1)}</a>{/each}{#if native}<OpenFolder class="hover:bg-sidebar-accent flex min-h-8 w-full items-center rounded-lg px-2.5 text-xs">Add project</OpenFolder>{:else}<a class="row" href="/">Add project</a>{/if}</details>
+    <div class="pager">{#if history.next}<button disabled={loadingOlder} onclick={olderRecordings}>{loadingOlder ? 'Loading…' : 'Older recordings'}</button>{/if}</div>
+  {/snippet}
+  {#snippet sidebarFooter()}
+    <nav class="tools" aria-label="Project tools"><a class="row" href={root}>Runs {#if liveRuns}<small>{liveRuns} live</small>{/if}</a><a class="row" href={`${root}/promises`}>Promises</a></nav>
   {/snippet}
 </WorkspaceShell>
 
@@ -254,10 +308,10 @@
   .pager { display: flex; gap: 12px; padding: 0 10px; }
   .pager button { padding: 4px 0; border: 0; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 12px; cursor: pointer; }
   .pager button:hover { color: var(--foreground); }
-  .tools { display: grid; gap: 8px; border-top: 1px solid var(--border); padding: 14px 10px; margin-top: 18px; }
+  .tools { display: grid; gap: 4px; }
   .tools a { color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
   .tools a:hover { color: var(--foreground); }
-  .projects, .upload { padding: 8px 10px; font-size: 12px; }
+  .upload { padding: 8px 10px; font-size: 12px; }
   summary { cursor: pointer; color: var(--muted-foreground); }
   .upload form { display: grid; gap: 8px; padding-top: 8px; }
   .upload input { width: 100%; font-size: 11px; }

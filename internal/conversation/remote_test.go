@@ -19,6 +19,7 @@ import (
 )
 
 type remoteFixture struct {
+	receivedTurns     []backend.Turn
 	mu                sync.Mutex
 	processes         map[string][]byte
 	processAdmissions int
@@ -87,6 +88,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 	case "/tasks/turn":
 		var turn backend.Turn
 		_ = json.NewDecoder(r.Body).Decode(&turn)
+		f.receivedTurns = append(f.receivedTurns, turn)
 		f.admissions++
 		raw, _ := json.Marshal(backend.TurnResult{Output: []byte(`"remote reply"`)})
 		f.turns[turn.Task] = backend.Result{Done: f.autoComplete, Result: raw}

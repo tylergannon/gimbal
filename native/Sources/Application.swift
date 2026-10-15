@@ -81,10 +81,10 @@ import SwiftUI
       CommandMenu("Recording") {
         Button("Recording Controls…", action: showControls)
         Divider()
-        Button("Start Recording") { controller.record() }.keyboardShortcut(
+        Button("Record") { controller.record() }.keyboardShortcut(
           "r", modifiers: [.command]
         ).disabled(!controller.canRecord)
-        Button("Start Requirements Discussion") { controller.record(requirements: true) }
+        Button("Record Requirements Discussion") { controller.record(requirements: true) }
           .disabled(!controller.canRecord)
         Button("Pause Recording", action: controller.pause).keyboardShortcut(
           "r", modifiers: [.command, .shift]

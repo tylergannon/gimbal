@@ -60,27 +60,25 @@ func TestRunsPageRendersEveryRunAndPendingInterview(t *testing.T) {
 	}
 
 	body := recorder.Body.String()
+	rendered := strings.SplitN(body, "<script>", 2)[0]
 	for _, want := range []string{
 		"Runs",
 		"run-running",
 		"plan-trip",
-		"Running",
-		"Needs your answer",
-		"Would you trade reliable Wi-Fi for a secluded cabin?",
-		"Latest activity",
-		"2026-09-18T12:00:20.000Z",
+		"Needs you",
+		"Live",
+		"All",
+		`data-state="waiting"`,
+		"1 question waiting",
+		`aria-label="Open plan-trip run-running"`,
 		"$0.32",
-		"Compare cabins using the traveler's latest preferences.",
-		"Sessions",
-		"Turns",
+		"session",
 		"run-ended",
 		"release",
 		"Ended",
 		"7m 30s",
-		"No instruction recorded yet.",
-		"Sep ",
 	} {
-		if !strings.Contains(body, want) {
+		if !strings.Contains(rendered, want) {
 			t.Fatalf("the runs page does not contain %q:\n%s", want, body)
 		}
 	}

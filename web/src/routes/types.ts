@@ -41,6 +41,8 @@ export type ConversationSetup = {
 export type CreateConversation = {
   provider: string;
   model: string;
+  effort: string;
+  file_id: string;
   message: string;
   shared_checkout: boolean;
   branch: string;
@@ -103,6 +105,15 @@ export type LoopMessage = {
 };
 
 /**
+ * RenameConversation changes the saved chat title without changing its session.
+ */
+export type RenameConversation = {
+  project: string;
+  conversation: string;
+  title: string;
+};
+
+/**
  * SendConversationMessage is one visible user turn.
  */
 export type SendConversationMessage = {
@@ -153,4 +164,31 @@ export type Waiting = {
 export type WatchConversation = {
   project: string;
   conversation: string;
+};
+
+export type WorkflowCatalog = {
+  project: string;
+  workflows: Array<WorkflowDetails>;
+};
+
+export type WorkflowDetails = {
+  name: string;
+  summary: string;
+  help: string;
+  fields: Array<WorkflowField>;
+  roles: Array<WorkflowRole>;
+  source_json: string;
+};
+
+export type WorkflowField = {
+  name: string;
+  kind: string;
+  description: string;
+  optional: boolean;
+  nullable: boolean;
+};
+
+export type WorkflowRole = {
+  name: string;
+  default: string;
 };

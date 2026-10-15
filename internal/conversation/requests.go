@@ -21,6 +21,7 @@ type Request struct {
 	Kind    string `json:"kind"`
 	Message string `json:"message"`
 	Target  string `json:"target"`
+	FileID  string `json:"file_id"`
 }
 
 // RequestState is reduced from admission, delivery and completion events.
@@ -63,6 +64,9 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 			}
 			return previous, nil
 		}
+	}
+	if r.FileID != "" && (r.Kind != "prompt" || len(item.Requests) > 0) {
+		return RequestState{}, errors.New("conversation: file context is only available on the first message")
 	}
 	if (item.Status == "unresolved" || item.CleanupPending) && r.Kind == "prompt" {
 		return RequestState{}, errors.New("conversation: the previous request's outcome is unconfirmed; do not start replacement work")
@@ -149,9 +153,18 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 	active.request, active.cancel = r.ID, cancel
 	_ = m.reduce(item, requestEvent{kind: "started", request: r, delivery: "turn"})
 	_ = m.userEvent(item, r, "turn")
-	provider, model, worktree := item.Provider, item.Model, item.Worktree
+	provider, model, worktree, effort := item.Provider, item.Model, item.Worktree, item.Effort
 	m.mu.Unlock()
 	active.steerMu.Unlock()
+	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + r.Message
+	if r.FileID != "" {
+		path, name, err := m.filePath(r.FileID)
+		if err != nil {
+			m.finish(id, r, "failed", err)
+			return
+		}
+		prompt += fmt.Sprintf("\n\nRead the attached project file %s at %s before replying.", name, path)
+	}
 	if active.adapter == nil {
 		resolved, err := m.factory(provider)
 		if err != nil {
@@ -162,7 +175,6 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 		active.adapter = resolved
 		m.mu.Unlock()
 	}
-	_, effort, _ := providerModel(provider, model)
 	if active.resume {
 		resumer, ok := active.adapter.(persistentSessionAdapter)
 		if !ok {
@@ -189,7 +201,6 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 		}
 		m.mu.Unlock()
 	}
-	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + r.Message
 	result, err := active.adapter.RunTurn(ctx, active.session, prompt, nil, func(e gimbal.AgentEvent) error {
 		m.mu.Lock()
 		defer m.mu.Unlock()

@@ -36,6 +36,7 @@ vi.mock("../../../../auth.remote", () => ({
 }));
 
 vi.mock("#lib/runs.remote", () => ({ viewRun: auth.viewRun }));
+vi.mock("#lib/environments.remote", () => ({ environmentSnapshot: () => ({ current: undefined }) }));
 
 class TestEventSource {
   static instances: TestEventSource[] = [];
@@ -172,7 +173,7 @@ test("multiple running agents default to Watchboard and remain visible without a
     .toBeVisible();
 
   await screen.getByRole("button", { name: "Focus interviewer" }).last().click();
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
   await expect
     .element(screen.getByText("No assistant prose recorded for this turn yet."))
     .toBeVisible();
@@ -230,7 +231,7 @@ test("Map runtime selection rebinds across snapshots and clears when its row dis
   const { screen, stream } = await renderRunningPage(implementInterviewFixture);
   await screen.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Select coding" }).click();
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
   await screen.getByRole("button", { name: "Map", exact: true }).click();
   await expect
     .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
@@ -330,7 +331,7 @@ test("Map agent selection opens Focus and remains selected through live snapshot
   const { screen, snapshot } = await renderRunningPage(implementInterviewFixture);
   await screen.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Select coding" }).click();
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 
   const refreshed = structuredClone(snapshot);
   refreshed.position++;
@@ -338,7 +339,7 @@ test("Map agent selection opens Focus and remains selected through live snapshot
   await screen.rerender({
     data: { snapshot: refreshed, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 
   const missing = structuredClone(refreshed);
   missing.position++;
@@ -346,7 +347,7 @@ test("Map agent selection opens Focus and remains selected through live snapshot
   await screen.rerender({
     data: { snapshot: missing, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
-  await expect.element(screen.getByRole("region", { name: "Focus card" })).toBeVisible();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 });
 
 test("live elapsed time advances without events and fixes at the recorded end", async () => {

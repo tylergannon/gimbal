@@ -783,3 +783,17 @@ func TestFoldingAStepTwiceAccountsItOnce(t *testing.T) {
 		t.Fatalf("turn usage = %+v, want %+v", got, want)
 	}
 }
+
+func TestSessionFactsKeepRecordedPlacementAndSteerDelivery(t *testing.T) {
+	store := openStore(t)
+	fold(t, store, json.RawMessage(`{"seq":1,"time":"2026-09-13T00:00:00Z","session":"writer.1","event":{"kind":"session_created","name":"writer","adapter":"claude","model":"haiku","effort":"low","workdir":"/work/tree"}}`))
+	fold(t, store, json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","session":"writer.1","event":{"kind":"steer","target":"writer.1","source":"person","message":"Keep the patch small","landed":true}}`))
+	fold(t, store, json.RawMessage(`{"seq":3,"time":"2026-09-13T00:00:02Z","session":"writer.1","event":{"kind":"steer","target":"writer.1","source":"person","message":"Arrived too late","landed":false}}`))
+	row := store.Snapshot().Sessions["writer.1"]
+	if row.Workdir != "/work/tree" || row.Effort != "low" {
+		t.Fatalf("session facts lost recorded setup: %+v", row)
+	}
+	if len(row.Steers) != 2 || !row.Steers[0].Landed || row.Steers[1].Landed || row.Steers[1].Message != "Arrived too late" {
+		t.Fatalf("steer delivery lost: %+v", row.Steers)
+	}
+}

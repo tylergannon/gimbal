@@ -90,6 +90,16 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
           activeTabTitle: body["activeTabTitle"] as? String,
           canStopResponse: body["canStopResponse"] as? Bool ?? false)
         state.workspace.currentProject = body["project"] as? String ?? ""
+        state.workspace.canRename = body["canRename"] as? Bool ?? false
+        state.workspace.canMove = body["canMove"] as? Bool ?? false
+        state.workspace.tabs = (body["tabs"] as? [[String: String]] ?? []).compactMap { item in
+          guard let id = item["id"], let title = item["title"] else { return nil }
+          return WorkspaceMenuItem(id: id, title: title)
+        }
+        state.workspace.recentSessions = (body["recentSessions"] as? [[String: String]] ?? []).compactMap { item in
+          guard let id = item["id"], let title = item["title"] else { return nil }
+          return WorkspaceMenuItem(id: id, title: title)
+        }
         state.workspace.projectName = body["projectName"] as? String ?? ""
         state.workspace.canOpenTodayTranscript = body["canOpenTodayTranscript"] as? Bool ?? false
         state.workspace.projects = (body["projects"] as? [[String: String]] ?? []).compactMap {

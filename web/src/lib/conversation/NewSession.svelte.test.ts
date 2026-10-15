@@ -1,10 +1,18 @@
 import { beforeEach, expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import NewSession from "./NewSession.svelte";
+import type { Conversation } from "#lib/skgo/conversation/types";
 
 const remote = vi.hoisted(() => ({
   setup: {
-    harnesses: [{ id: "claude", default: "claude-haiku-4-5", models: ["claude-haiku-4-5"] }],
+    harnesses: [
+      {
+        id: "claude",
+        default: "claude-haiku-4-5",
+        models: ["claude-haiku-4-5"],
+        efforts: [] as { model: string; levels: string[] }[],
+      },
+    ],
     directory: "~/project",
     git: true,
     unborn: false,
@@ -14,7 +22,7 @@ const remote = vi.hoisted(() => ({
     environment: "local",
     machine: "This Mac",
     capabilities: { steer: true, fork: true, worktree: true, browse: true, clone: true },
-    harness_states: [],
+    harness_states: [] as { id: string; state: string }[],
   },
   inventory: {
     project: "project",
@@ -92,6 +100,7 @@ const remote = vi.hoisted(() => ({
     ],
   },
   submitted: [] as FormData[],
+  recent: [] as Conversation[],
   fail: false,
 }));
 vi.mock("#lib/environments.remote", () => ({
@@ -108,9 +117,17 @@ vi.mock("../../routes/conversation.remote", () => {
     value: () => "",
   });
   const fields = Object.fromEntries(
-    ["provider", "model", "message", "environment", "shared_checkout", "branch", "base"].map(
-      (name) => [name, field(name)],
-    ),
+    [
+      "provider",
+      "model",
+      "effort",
+      "file_id",
+      "message",
+      "environment",
+      "shared_checkout",
+      "branch",
+      "base",
+    ].map((name) => [name, field(name)]),
   );
   return {
     conversationSetup: ({ environment }: { environment: string }) => ({
@@ -122,7 +139,7 @@ vi.mock("../../routes/conversation.remote", () => {
         environments: remote.inventory,
       },
     }),
-    projectConversations: () => ({ current: [] }),
+    projectConversations: () => ({ current: remote.recent }),
     createConversation: {
       for: () => ({
         pending: 0,
@@ -151,6 +168,11 @@ beforeEach(() => {
   remote.setup.unborn = false;
   remote.submitted = [];
   remote.fail = false;
+  remote.recent = [];
+  remote.setup.harness_states = [];
+  remote.setup.harnesses = [
+    { id: "claude", default: "claude-haiku-4-5", models: ["claude-haiku-4-5"], efforts: [] },
+  ];
 });
 
 test("checkout choices survive popover dismissal and a rejected submission", async () => {
@@ -248,4 +270,120 @@ test("environment selection preserves each checkout draft and does not submit a 
     .element(screen.getByRole("textbox", { name: "First message" }))
     .toHaveValue("Keep the same message");
   expect(remote.submitted).toEqual([]);
+});
+
+test("Discuss adds removable file context without replacing an existing draft", async () => {
+  const oncreated = vi.fn();
+  const oncontextremoved = vi.fn();
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated,
+    oncontextremoved,
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Keep this question");
+  await screen.rerender({
+    project: "project",
+    name: "Project",
+    oncreated,
+    oncontextremoved,
+    fileContext: { id: "file-id", name: "Brief.pdf" },
+  });
+  await expect
+    .element(screen.getByRole("textbox", { name: "First message" }))
+    .toHaveValue("Keep this question");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("file_id")).toBe("file-id");
+  expect(remote.submitted[0].get("message")).toBe("Keep this question");
+  await screen.getByRole("button", { name: "Remove file context" }).click();
+  expect(oncontextremoved).toHaveBeenCalledOnce();
+});
+
+test("unavailable harnesses stay visible with their machine-specific reason", async () => {
+  remote.setup.harnesses.push({
+    id: "codex",
+    default: "gpt-6-luna",
+    models: ["gpt-6-luna"],
+    efforts: [{ model: "gpt-6-luna", levels: ["low", "medium", "high"] }],
+  });
+  remote.setup.harness_states = [{ id: "codex", state: "missing" }];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await expect
+    .element(screen.getByRole("button", { name: /Codex Not installed on This Mac/ }))
+    .toBeDisabled();
+});
+
+test("last session and Start like restore environment and checkout setup", async () => {
+  remote.recent = [
+    {
+      id: "last",
+      title: "Prior setup",
+      provider: "claude",
+      model: "claude-haiku-4-5",
+      effort: "",
+      environment: "build",
+      shared_checkout: true,
+      base: "release",
+    } as Conversation,
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await expect
+    .element(screen.getByRole("button", { name: "Environment" }))
+    .toHaveTextContent("Build box · /srv/project");
+  await expect
+    .element(screen.getByRole("button", { name: "Worktree", exact: true }))
+    .toHaveTextContent("Shared checkout");
+  remote.recent.push({
+    id: "earlier",
+    title: "Local setup",
+    provider: "claude",
+    model: "claude-haiku-4-5",
+    effort: "",
+    environment: "local",
+    shared_checkout: false,
+    base: "main",
+  } as Conversation);
+  await screen.rerender({
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+    startLike: "earlier",
+  });
+  await expect
+    .element(screen.getByRole("button", { name: "Environment" }))
+    .toHaveTextContent("This Mac · ~/project");
+  await expect
+    .element(screen.getByRole("button", { name: "Worktree", exact: true }))
+    .toHaveTextContent("New worktree");
+});
+
+test("explicit effort stays with the submitted session setup", async () => {
+  remote.setup.harnesses = [
+    {
+      id: "codex",
+      default: "gpt-6-luna",
+      models: ["gpt-6-luna"],
+      efforts: [{ model: "gpt-6-luna", levels: ["low", "medium", "high"] }],
+    },
+  ];
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await screen.getByRole("combobox", { name: "Effort" }).selectOptions("high");
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await screen.getByRole("textbox", { name: "First message" }).fill("Use this effort");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("effort")).toBe("high");
 });

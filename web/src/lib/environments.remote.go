@@ -70,6 +70,34 @@ func environmentConfig(ctx context.Context) (environments.ConfigDocument, error)
 
 func sshHosts(ctx context.Context) ([]string, error) { return environments.SSHHosts(ctx) }
 
+func watchMachineConnection(ctx context.Context, id string, yield func(environments.ConnectionProgress) error) error {
+	service, err := environmentService(ctx)
+	if err != nil {
+		return err
+	}
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var previous string
+	for {
+		progress := service.Connection(id)
+		data, err := json.Marshal(progress)
+		if err != nil {
+			return err
+		}
+		if string(data) != previous {
+			if err := yield(progress); err != nil {
+				return err
+			}
+			previous = string(data)
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+		}
+	}
+}
+
 func saveEnvironmentConfig(ctx context.Context, event app.RequestEvent[params.Params], edit environments.ConfigEdit) (environments.ConfigDocument, error) {
 	service, err := environmentService(ctx)
 	if err != nil {
@@ -97,10 +125,10 @@ type MachineForm struct {
 	ConnectAnyway bool   `json:"connect_anyway"`
 }
 
-func saveMachine(ctx context.Context, event app.RequestEvent[params.Params], in MachineForm) (environments.MachineState, error) {
+func saveMachine(ctx context.Context, event app.RequestEvent[params.Params], in MachineForm) (environments.ConnectionProgress, error) {
 	service, err := environmentService(ctx)
 	if err != nil {
-		return environments.MachineState{}, err
+		return environments.ConnectionProgress{}, err
 	}
 	machine := environments.Machine{ID: strings.TrimSpace(in.ID), Name: strings.TrimSpace(in.Name), Kind: in.Kind, Executable: strings.TrimSpace(in.Executable)}
 	switch in.Kind {
@@ -109,9 +137,9 @@ func saveMachine(ctx context.Context, event app.RequestEvent[params.Params], in 
 	case environments.KindAddress:
 		machine.Address = strings.TrimSpace(in.Address)
 	default:
-		return environments.MachineState{}, skgo.Invalidf("kind", "Configure plugin and queue routes in the configuration file.")
+		return environments.ConnectionProgress{}, skgo.Invalidf("kind", "Configure plugin and queue routes in the configuration file.")
 	}
-	out, err := service.SaveMachine(ctx, environments.MachineEdit{Revision: in.Revision, Machine: machine, ConnectAnyway: in.ConnectAnyway})
+	out, err := service.ConnectMachine(ctx, environments.MachineEdit{Revision: in.Revision, Machine: machine, ConnectAnyway: in.ConnectAnyway})
 	if err != nil {
 		return out, skgo.Errorf(400, "%s", err)
 	}
@@ -230,6 +258,7 @@ func cloneEnvironment(ctx context.Context, event app.RequestEvent[params.Params]
 }
 
 var _ = skgo.LiveQuery(watchEnvironments)
+var _ = skgo.LiveQuery(watchMachineConnection)
 var _ = skgo.Query(environmentSnapshot)
 var _ = skgo.Query(environmentConfig)
 var _ = skgo.Query(sshHosts)

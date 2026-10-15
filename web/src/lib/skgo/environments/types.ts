@@ -27,6 +27,30 @@ export type ConfigEdit = {
 };
 
 /**
+ * ConnectionProgress belongs to a draft machine ID, before configuration is saved. CanConnect permits confirmation of nonfatal warnings for that checked machine.
+ */
+export type ConnectionProgress = {
+  id: string;
+  checks: Array<ConnectionCheck>;
+  complete: boolean;
+  can_connect: boolean;
+  saved: boolean;
+};
+
+/**
+ * ConnectionCheck records only work actually attempted by the connect operation. Pending is in progress; a fatal failed check ends the list at that line.
+ */
+export type ConnectionCheck = {
+  id: string;
+  label: string;
+  state: string;
+  cause: string;
+  consequence: string;
+  fix: string;
+  fatal: boolean;
+};
+
+/**
  * Directory distinguishes filesystem/Git facts from the cwd actually used by a task daemon. FixedWorkdir must never silently override a chosen checkout.
  */
 export type Directory = {

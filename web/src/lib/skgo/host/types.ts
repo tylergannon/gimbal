@@ -12,10 +12,17 @@ export type WindowState = {
   project: string;
   path: string;
   tabs: Array<WindowTab>;
+  sidebar: boolean | null;
+  seen: Array<SeenReply>;
 };
 
 export type WindowTab = {
   id: string;
   title: string;
   kind: string;
+};
+
+export type SeenReply = {
+  path: string;
+  request: string;
 };

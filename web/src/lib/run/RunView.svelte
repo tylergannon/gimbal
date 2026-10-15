@@ -30,7 +30,7 @@
   import { watcherRows } from "#lib/run/watchers.js";
   import { cancelRun, stopTurn } from "../../routes/control.remote.js";
   import { answerInterview, type InterviewAnswer } from "../../routes/interview.remote.js";
-  import { steer, steerLoop, type LoopMessage, type Steer } from "../../routes/steer.remote.js";
+  import { steerLoop, type LoopMessage } from "../../routes/steer.remote.js";
 	import { page } from "$app/state";
 
   import { tick, untrack } from "svelte";
@@ -44,7 +44,6 @@
   const graph = $derived<Graph | undefined>(
     data.graph ? (JSON.parse(data.graph) as Graph) : undefined,
   );
-  const steerForm = $derived(steer.for(`workspace-steer-${project}-${data.snapshot.run.id}`));
   const loopForm = $derived(steerLoop.for(`workspace-loop-${project}-${data.snapshot.run.id}`));
   const answerForm = $derived(answerInterview.for(`workspace-answer-${project}-${data.snapshot.run.id}`));
 
@@ -217,26 +216,6 @@
   function clearSelection() {
     selection = undefined;
     reveal = undefined;
-  }
-
-  async function deliverSteer(request: Steer): Promise<ActionFeedback> {
-    try {
-      steerForm.fields.set(request);
-      await tick();
-      const submitted = await steerForm.submit();
-      if (!submitted || !steerForm.result) {
-        return {
-          ok: false,
-          message: issueText(steerForm.fields.allIssues(), "The message was not accepted."),
-        };
-      }
-      return steerForm.result.landed
-        ? { ok: true, message: "Sent into the running turn." }
-        : { ok: false, message: "Not sent: the turn ended before it could receive the message." };
-    } catch (error) {
-      navigateOnUnauthorized(error);
-      return { ok: false, message: error instanceof Error ? error.message : String(error) };
-    }
   }
 
   async function deliverLoop(request: LoopMessage): Promise<ActionFeedback> {
@@ -467,7 +446,6 @@
           {width}
           {maximized}
           {onmaximize}
-          onsteer={deliverSteer}
           onloop={deliverLoop}
           onanswer={deliverAnswer}
           onselectscope={selectScope}
@@ -491,13 +469,13 @@
   {:else if view === "focus" && selectedSessionID}
     <div class="workspace-slot">
       <SessionPage
+        {project}
         {snapshot}
         {observation}
         {revision}
         sessionID={selectedSessionID}
         definition={openSessionCall?.definition}
         watchers={openSessionCall?.watchers}
-        onsteer={deliverSteer}
         onscope={(scopeKey) => {
           closeSession();
           selectScope(scopeKey);
@@ -537,11 +515,6 @@
   oncancel={cancelActiveRun}
 />
 
-<form class="remote-form" {...steerForm} aria-hidden="true">
-  <input {...steerForm.fields.run.as("hidden", steerForm.fields.run.value() ?? "")} />
-  <input {...steerForm.fields.session.as("hidden", steerForm.fields.session.value() ?? "")} />
-  <input {...steerForm.fields.message.as("hidden", steerForm.fields.message.value() ?? "")} />
-</form>
 <form class="remote-form" {...loopForm} aria-hidden="true">
   <input {...loopForm.fields.run.as("hidden", loopForm.fields.run.value() ?? "")} />
   <input {...loopForm.fields.scope.as("hidden", loopForm.fields.scope.value() ?? "")} />

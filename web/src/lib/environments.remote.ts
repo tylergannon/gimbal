@@ -3,6 +3,7 @@ import { command, form, query } from "$app/server";
 import type {
   ConfigDocument,
   ConfigEdit,
+  ConnectionProgress,
   Directory,
   EnvironmentRemoval,
   EnvironmentRow,
@@ -16,6 +17,7 @@ export type {
   CloneEnvironment,
   ConfigDocument,
   ConfigEdit,
+  ConnectionProgress,
   Directory,
   EnvironmentForm,
   EnvironmentLocation,
@@ -71,10 +73,17 @@ export const saveEnvironmentConfig = form("unchecked", (_arg: ConfigEdit): Confi
   unimplemented(),
 );
 
-export const saveMachine = form("unchecked", (_arg: MachineForm): MachineState => unimplemented());
+export const saveMachine = form("unchecked", (_arg: MachineForm): ConnectionProgress =>
+  unimplemented(),
+);
 
 export const sshHosts = query((): Array<string> => unimplemented());
 
 export const watchEnvironments = query.live("unchecked", (_arg: string): AsyncIterable<Snapshot> =>
   unimplemented(),
+);
+
+export const watchMachineConnection = query.live(
+  "unchecked",
+  (_arg: string): AsyncIterable<ConnectionProgress> => unimplemented(),
 );

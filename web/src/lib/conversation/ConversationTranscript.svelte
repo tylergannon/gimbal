@@ -37,7 +37,9 @@
   details { min-width: 0; font-size: 12px; color: var(--muted-foreground); }
   summary { cursor: pointer; }
   .tool summary { display: flex; align-items: center; gap: 8px; }
-  .tool summary::before { content: '›'; }
+  .tool summary::before { content: '›'; flex: none; }
+  .tool summary > span { flex: none; white-space: nowrap; }
+  .tool summary code { flex: 1; min-width: 0; }
   .tool[open] summary::before { content: '⌄'; }
   code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 11px var(--font-mono); }
   .reasoning p { margin-top: 8px; font-size: 13px; }

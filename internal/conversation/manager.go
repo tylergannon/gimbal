@@ -56,6 +56,9 @@ type Conversation struct {
 	Title          string                       `json:"title"`
 	Provider       string                       `json:"provider"`
 	Model          string                       `json:"model"`
+	Effort         string                       `json:"effort"`
+	SharedCheckout bool                         `json:"shared_checkout"`
+	Base           string                       `json:"base"`
 	Branch         string                       `json:"branch"`
 	Worktree       string                       `json:"worktree"`
 	NativeSession  string                       `json:"native_session"`
@@ -96,6 +99,8 @@ type NewConversation struct {
 	Title          string
 	Provider       string
 	Model          string
+	Effort         string
+	FileID         string
 	SharedCheckout bool
 	Branch         string
 	Base           string
@@ -259,10 +264,11 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 // projects default to an isolated worktree; SharedCheckout uses their directory.
 func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation, error) {
 	provider := strings.TrimSpace(in.Provider)
-	model, _, err := providerModel(provider, strings.TrimSpace(in.Model))
+	model, err := selectModel(provider, strings.TrimSpace(in.Model), strings.TrimSpace(in.Effort))
 	if err != nil {
 		return Conversation{}, err
 	}
+	in.Model, in.Effort = model, strings.TrimSpace(in.Effort)
 	if in.Environment != "" && in.Environment != environments.Local {
 		m.mu.RLock()
 		service, projectID := m.environments, m.projectID
@@ -313,7 +319,7 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		title = providerLabel(provider) + " conversation"
 	}
 	item := &Conversation{
-		ID: id, Title: title, Provider: provider, Model: model,
+		ID: id, Title: title, Provider: provider, Model: model, Effort: in.Effort, SharedCheckout: in.SharedCheckout, Base: in.Base,
 		Branch: branch, Worktree: worktree, Live: true, Status: StatusIdle,
 		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{},
 		Environment: environments.Local, Contact: "connected", Capabilities: localCapabilities(),
@@ -336,9 +342,16 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 // Harness is a provider a person can start a conversation with: its cheap
 // default model and the newest model of each family it serves.
 type Harness struct {
-	ID      string   `json:"id"`
-	Default string   `json:"default"`
-	Models  []string `json:"models"`
+	ID      string         `json:"id"`
+	Default string         `json:"default"`
+	Models  []string       `json:"models"`
+	Efforts []ModelEfforts `json:"efforts"`
+}
+
+// ModelEfforts lists explicit choices for one native model. Empty is Default only.
+type ModelEfforts struct {
+	Model  string   `json:"model"`
+	Levels []string `json:"levels"`
 }
 
 // Setup is what a new conversation in this project can choose and where it
@@ -363,7 +376,7 @@ type Setup struct {
 func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 	newest := modelalias.Newest()
 	setup := Setup{Harnesses: []Harness{}, Bases: []string{}}
-	for _, provider := range []string{"claude", "codex", "agy"} {
+	for _, provider := range []string{"claude", "codex", "agy", "opencode", "pi"} {
 		model, _, err := providerModel(provider, "")
 		if err != nil {
 			return Setup{}, err
@@ -372,7 +385,7 @@ func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 		if !slices.Contains(models, model) {
 			models = append([]string{model}, models...)
 		}
-		setup.Harnesses = append(setup.Harnesses, Harness{ID: provider, Default: model, Models: models})
+		setup.Harnesses = append(setup.Harnesses, harnessOptions(provider, model, models))
 	}
 	directory := filepath.Dir(m.projectDir)
 	setup.Directory = directory
@@ -508,6 +521,11 @@ func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (C
 	if strings.TrimSpace(in.Title) == "" {
 		in.Title = titleFrom(text)
 	}
+	if in.FileID != "" {
+		if _, _, err := m.filePath(in.FileID); err != nil {
+			return Conversation{}, err
+		}
+	}
 	item, err := m.Create(ctx, in)
 	if err != nil {
 		return Conversation{}, err
@@ -516,7 +534,7 @@ func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (C
 	if err != nil {
 		return Conversation{}, err
 	}
-	if _, err := m.Submit(item.ID, Request{ID: requestID, Created: time.Now().UnixMilli(), Kind: "prompt", Message: text}); err != nil {
+	if _, err := m.Submit(item.ID, Request{ID: requestID, Created: time.Now().UnixMilli(), Kind: "prompt", Message: text, FileID: in.FileID}); err != nil {
 		return Conversation{}, err
 	}
 	item, _ = m.Get(item.ID)
@@ -618,7 +636,7 @@ func providerModel(provider, model string) (string, string, error) {
 		if !strings.HasPrefix(model, "gpt-") && !strings.HasPrefix(model, "o1") && !strings.HasPrefix(model, "o3") && !strings.HasPrefix(model, "o4") {
 			return "", "", fmt.Errorf("conversation: model %q is not a Codex model", model)
 		}
-		return model, "low", nil
+		return model, "", nil
 	case "claude":
 		if model == "" {
 			model = "claude-haiku-4-5"
@@ -634,13 +652,7 @@ func providerModel(provider, model string) (string, string, error) {
 		if !strings.HasPrefix(model, "gemini-") {
 			return "", "", fmt.Errorf("conversation: model %q is not an agy/Gemini model", model)
 		}
-		effort := ""
-		for _, candidate := range []string{"low", "medium", "high"} {
-			if strings.HasSuffix(model, "-"+candidate) {
-				effort = candidate
-			}
-		}
-		return model, effort, nil
+		return model, "", nil
 	case "opencode":
 		if model == "" {
 			model = "opencode/gpt-5-nano"
@@ -743,3 +755,25 @@ For an ordinary chat request, answer without launching a workflow. When the pers
 Reply in ordinary prose.
 
 Person: `
+
+// Rename changes only the durable presentation of an existing chat.
+func (m *Manager) Rename(id, title string) (Conversation, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Conversation{}, errors.New("Enter a chat name")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	item := m.items[id]
+	if item == nil {
+		return Conversation{}, errors.New("Conversation not found")
+	}
+	before := *item
+	item.Title, item.Updated = title, time.Now().UnixMilli()
+	item.Revision++
+	if err := m.save(item); err != nil {
+		*item = before
+		return Conversation{}, err
+	}
+	return clone(item), nil
+}

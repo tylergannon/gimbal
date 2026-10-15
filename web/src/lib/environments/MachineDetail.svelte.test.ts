@@ -13,6 +13,7 @@ const remote = vi.hoisted(() => ({
 vi.mock("#lib/environments.remote", () => ({
   removeMachine: remote.remove,
   reconnectMachine: remote.reconnect,
+  watchMachineConnection: () => ({ current: undefined, error: undefined, reconnect: vi.fn() }),
 }));
 vi.mock("../../routes/conversation.remote", () => ({ cleanupConversation: remote.cleanup }));
 
@@ -78,4 +79,48 @@ test("removing a machine names owned sessions and retains configuration on uncer
     .element(screen.getByRole("button", { name: "Remove machine", exact: true }))
     .toBeDisabled();
   expect(remote.remove).not.toHaveBeenCalled();
+});
+
+test("a different build names the workflow consequence without disabling session actions", async () => {
+  const capabilities = { steer: true, fork: true, worktree: true, browse: true, clone: true };
+  const machine: MachineState = {
+    id: "build",
+    name: "Build box",
+    kind: "ssh",
+    detail: "",
+    state: "connected",
+    since: 0,
+    latency_ms: 4,
+    build: "older-build",
+    harnesses: [],
+    capabilities,
+    issues: [],
+  };
+  const snapshot: Snapshot = {
+    project: "",
+    config_path: "/catalog/environments.json",
+    revision: "revision",
+    machines: [{ ...machine, id: "local", name: "This Mac", build: "current-build" }, machine],
+    environments: [],
+    sessions: [],
+    issues: [],
+  };
+  const screen = await render(MachineDetail, {
+    machine,
+    snapshot,
+    onchanged: vi.fn(),
+    onedit: vi.fn(),
+    onadd: vi.fn(),
+    oneditenvironment: vi.fn(),
+  });
+  await expect
+    .element(screen.getByText(/Sessions are allowed; native workflow plugins may fail to load/))
+    .toBeVisible();
+  await expect.element(screen.getByText(/Update Gimbal on Build box/)).toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: "Add environment…", exact: true }))
+    .toBeEnabled();
+  await expect
+    .element(screen.getByRole("button", { name: "Reconnect", exact: true }))
+    .toBeEnabled();
 });

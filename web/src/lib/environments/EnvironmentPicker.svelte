@@ -5,6 +5,7 @@
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
   import type { Snapshot } from '#lib/skgo/environments/types';
   import { openMachines, timeLabel } from './navigation';
+  import StateGlyph from './StateGlyph.svelte';
 
   let { snapshot, selected = 'local', directory, machine = 'This Mac', onpick }: {
     snapshot: Snapshot; selected?: string; directory: string; machine?: string; onpick: (id: string) => void;
@@ -25,10 +26,11 @@
   <Popover.Content align="start" collisionPadding={8} class="w-[min(400px,calc(100vw-32px))] gap-1 p-1.5">
     {#each machines as item (item.id)}
       <h3>{item.name}{#if item.id !== 'local'}<small> · {item.kind === 'route' ? 'Queue / plugin' : item.kind === 'ssh' ? 'SSH' : 'Address'}</small>{/if}</h3>
-      {#if item.state !== 'connected'}<p class="state" class:error={item.state === 'unreachable' || item.state === 'error'}>
-        <span aria-hidden="true">{item.state === 'connecting' || item.state === 'starting' ? '◌' : '○'}</span>
+      {#if item.state !== 'connected'}<p class="state" class:error={item.state === 'error'}>
+        <StateGlyph state={item.state} />
         {item.state === 'not-started' ? 'Starts when needed' : `${item.state} since ${timeLabel(item.since)}`}
         {#if item.detail}<small>{item.detail}</small>{/if}
+        {#if item.state === 'error'}<small>Open Machines to reconnect or fix this machine in Terminal.</small>{/if}
       </p>{/if}
       {#each snapshot.environments.filter(row => row.environment.machine === item.id) as row (row.environment.id)}
         <button type="button" class="option" class:selected={selected === row.environment.id}

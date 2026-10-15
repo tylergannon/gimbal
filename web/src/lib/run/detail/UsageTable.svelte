@@ -9,7 +9,7 @@
 		['reasoning', usage.reasoning.toLocaleString()],
 		['cache read', usage.cache_read.toLocaleString()],
 		['cache write', usage.cache_write.toLocaleString()],
-		['cost', `$${usage.stated_cost.toFixed(2)}`]
+		['cost', usage.stated_cost > 0 && usage.stated_cost < .01 ? '<$0.01' : `$${usage.stated_cost.toFixed(2)}`]
 	] as const);
 </script>
 

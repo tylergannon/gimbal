@@ -8,6 +8,9 @@ export type Conversation = {
   title: string;
   provider: string;
   model: string;
+  effort: string;
+  shared_checkout: boolean;
+  base: string;
   branch: string;
   worktree: string;
   native_session: string;
@@ -57,6 +60,7 @@ export type RequestState = {
   kind: string;
   message: string;
   target: string;
+  file_id: string;
   status: string;
   delivery: string;
   error: string;
@@ -71,6 +75,7 @@ export type Request = {
   kind: string;
   message: string;
   target: string;
+  file_id: string;
 };
 
 /**
@@ -137,7 +142,16 @@ export type Harness$6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f
     id: string;
     default: string;
     models: Array<string>;
+    efforts: Array<ModelEfforts>;
   };
+
+/**
+ * ModelEfforts lists explicit choices for one native model. Empty is Default only.
+ */
+export type ModelEfforts = {
+  model: string;
+  levels: Array<string>;
+};
 
 export type Snapshot = {
   project: string;

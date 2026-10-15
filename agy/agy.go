@@ -272,14 +272,20 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 	} else {
 		command.Env = os.Environ()
 	}
-	stdout, err := command.StdoutPipe()
+	stdout, output, err := os.Pipe()
 	if err != nil {
 		return nativeResult{}, nil, fmt.Errorf("agy: stdout: %w", err)
 	}
+	// Own the reader so Cmd.Wait cannot close it before scanning has drained
+	// a process that exits while an observer is handling an earlier event.
+	defer func() { _ = stdout.Close() }()
+	command.Stdout = output
 	var stderr bytes.Buffer
 	command.Stderr = &stderr
-	if err := command.Start(); err != nil {
-		return nativeResult{}, nil, fmt.Errorf("agy: start: %w", err)
+	startErr := command.Start()
+	_ = output.Close()
+	if startErr != nil {
+		return nativeResult{}, nil, fmt.Errorf("agy: start: %w", startErr)
 	}
 	active := &activeTurn{command: command, stdout: stdout}
 	if s != nil {

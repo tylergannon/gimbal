@@ -198,6 +198,27 @@ func TestAdapterAcceptsSuccessfulResultWithUnsettledToolObservation(t *testing.T
 	}
 }
 
+func TestAdapterDrainsResultAfterNativeProcessExit(t *testing.T) {
+	adapter, _ := testAdapter(t)
+	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first := true
+	result, err := adapter.RunTurn(t.Context(), sessionID, "SLOW_OBSERVER", nil, func(gimbal.AgentEvent) error {
+		if first {
+			first = false
+			// Let the native process finish while observation is still consuming
+			// an earlier step. Its final result must remain readable afterward.
+			time.Sleep(200 * time.Millisecond)
+		}
+		return nil
+	})
+	if err != nil || string(result.Output) != `"OK"` {
+		t.Fatalf("result=%s error=%v", result.Output, err)
+	}
+}
+
 func testAdapter(t *testing.T) (*adapter, string) {
 	t.Helper()
 	record := filepath.Join(t.TempDir(), "invocations.jsonl")
@@ -247,6 +268,10 @@ func TestAgyHelperProcess(t *testing.T) {
 		<-interrupt
 		os.Exit(130)
 	}
+	if prompt == "SLOW_OBSERVER" {
+		writeEnvelope(map[string]any{"event": "step_update", "step_update": map[string]any{"conversation_id": conversation, "step_index": 1, "state": "ACTIVE", "step_type": "agent_response"}})
+		time.Sleep(20 * time.Millisecond)
+	}
 	response := "OK"
 	structured := any(nil)
 	if prompt == "STRUCTURED" {
@@ -279,6 +304,9 @@ func TestAgyHelperProcess(t *testing.T) {
 			os.Exit(2)
 		}
 		_ = os.WriteFile(os.Getenv("AGY_HELPER_RECORD")+".child", []byte(strconv.Itoa(child.Process.Pid)), 0o644)
+	}
+	if prompt == "SLOW_OBSERVER" {
+		time.Sleep(20 * time.Millisecond)
 	}
 	writeEnvelope(map[string]any{"event": "result", "result": result})
 	if prompt == "RESULT_THEN_WAIT" {

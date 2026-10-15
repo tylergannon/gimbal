@@ -34,7 +34,7 @@
 </script>
 
 <Dialog.Root open onOpenChange={(open) => { if (!open) onclose(); }}>
-  <Dialog.Content class="max-w-lg max-h-[90vh] overflow-auto">
+  <Dialog.Content style="animation: none" class="max-w-lg max-h-[90vh] overflow-auto">
     <Dialog.Header><Dialog.Title>{showingChecks ? `Connecting to ${form.fields.name.value() || machine?.name || 'machine'}` : machine ? 'Edit machine' : 'Add a machine'}</Dialog.Title><Dialog.Description>{showingChecks ? 'Each line records what Gimbal actually checked. Nothing is saved until the checks pass or you confirm a nonfatal warning.' : 'Gimbal uses your existing network and SSH trust. Harness sign-in belongs to the machine where it runs.'}</Dialog.Description></Dialog.Header>
     <form class="environment-form" oninput={() => (changedAfterCheck = true)} {...form.enhance(async (submitted) => {
       error = '';

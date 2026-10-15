@@ -64,7 +64,7 @@
 </section>
 
 {#if confirm}
-  <Dialog.Root open onOpenChange={(open) => { if (!open) confirm = false; }}><Dialog.Content>
+  <Dialog.Root open onOpenChange={(open) => { if (!open) confirm = false; }}><Dialog.Content style="animation: none">
     <Dialog.Header><Dialog.Title>Remove {machine.name}?</Dialog.Title><Dialog.Description>{sessions.length ? 'These sessions still belong to this machine. End only the sessions you select, and wait for confirmed cleanup before removal.' : 'Saved session history will remain readable. This does not stop the remote daemon.'}</Dialog.Description></Dialog.Header>
     <div class="environment-form">{#each sessions as item (`${item.project}/${item.conversation}`)}<label class="radio"><input type="checkbox" bind:group={selected} value={`${item.project}/${item.conversation}`} disabled={pending} />{item.title || item.conversation} · {item.status}{item.pending ? ' · unconfirmed' : ''}</label>{/each}
     {#if sessions.length}<button onclick={endSelected} disabled={pending || !selected.length}>End selected sessions</button>{/if}
@@ -72,7 +72,7 @@
   </Dialog.Content></Dialog.Root>
 {/if}
 {#if terminal}
-  <Dialog.Root open onOpenChange={(open) => { if (!open) terminal = false; }}><Dialog.Content><Dialog.Header><Dialog.Title>Open this machine in a terminal</Dialog.Title><Dialog.Description>{configuration?.ssh?.host ? `Open Terminal and connect to ${configuration.ssh.host} with SSH to diagnose Gimbal or harness sign-in.` : machine.id === 'local' ? 'Open Terminal on this Mac to inspect local harness installation and sign-in.' : 'This connection has no SSH host. Open a terminal on the machine that runs this daemon or backend worker to inspect its harnesses.'}</Dialog.Description></Dialog.Header><button class="action" onclick={() => (terminal = false)}>Done</button></Dialog.Content></Dialog.Root>
+  <Dialog.Root open onOpenChange={(open) => { if (!open) terminal = false; }}><Dialog.Content style="animation: none"><Dialog.Header><Dialog.Title>Open this machine in a terminal</Dialog.Title><Dialog.Description>{configuration?.ssh?.host ? `Open Terminal and connect to ${configuration.ssh.host} with SSH to diagnose Gimbal or harness sign-in.` : machine.id === 'local' ? 'Open Terminal on this Mac to inspect local harness installation and sign-in.' : 'This connection has no SSH host. Open a terminal on the machine that runs this daemon or backend worker to inspect its harnesses.'}</Dialog.Description></Dialog.Header><button class="action" onclick={() => (terminal = false)}>Done</button></Dialog.Content></Dialog.Root>
 {/if}
 
 <style>

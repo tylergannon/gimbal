@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.29] - 2026-10-15
+
+### Changed
+
+- Fix stage-three CI qualification and route package selection (#564)
+
 ## [0.13.28] - 2026-10-15
 
 ### Changed
@@ -350,7 +356,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.28...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.29...main
+[0.13.29]: https://github.com/tylergannon/gimbal/compare/v0.13.28...v0.13.29
 [0.13.28]: https://github.com/tylergannon/gimbal/compare/v0.13.27...v0.13.28
 [0.13.27]: https://github.com/tylergannon/gimbal/compare/v0.13.26...v0.13.27
 [0.13.26]: https://github.com/tylergannon/gimbal/compare/v0.13.25...v0.13.26

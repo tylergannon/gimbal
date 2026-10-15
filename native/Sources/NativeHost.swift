@@ -16,14 +16,17 @@ import SwiftUI
   private var stopped = false
   init() {
     Self.active = self
+    Diagnostics.record("app", "Starting \(Diagnostics.applicationInfo)")
     guard let pointer = SKGoHostStart() else {
       failure = "The local application server could not start."
+      Diagnostics.record("host", "The local application server could not start.")
       return
     }
     let origin = String(cString: pointer)
     free(pointer)
     guard let url = URL(string: origin), url.host == "127.0.0.1" else {
       failure = "Invalid local application origin."
+      Diagnostics.record("host", "Invalid local application origin.")
       SKGoHostStop()
       return
     }

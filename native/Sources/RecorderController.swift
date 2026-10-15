@@ -47,6 +47,9 @@ struct RecorderTiming {
   private let commands: any RecordingCommands
   private let makeSource: () throws -> any TranscriptSource
   private let timing: RecorderTiming
+  private let diagnostic: (String) -> Void
+  private var loggedState: String?
+  private var loggedError: String?
   private var source: (any TranscriptSource)?
   private var sender: TranscriptSender?
   private var normalizer = TranscriptNormalizer()
@@ -80,11 +83,13 @@ struct RecorderTiming {
 
   init(
     commands: any RecordingCommands, makeSource: @escaping () throws -> any TranscriptSource,
-    sourceName: String = "microphone", timing: RecorderTiming = RecorderTiming()
+    sourceName: String = "microphone", timing: RecorderTiming = RecorderTiming(),
+    diagnostic: @escaping (String) -> Void = { NSLog("%@", $0) }
   ) {
     self.commands = commands
     self.makeSource = makeSource
     self.timing = timing
+    self.diagnostic = diagnostic
     status.source = sourceName
   }
   var canRecord: Bool {
@@ -152,7 +157,7 @@ struct RecorderTiming {
       do {
         try ensureCurrent(token)
         try await bounded(timeout: timing.preparation) { try await newSource.prepare() }
-        NSLog("Transcription readiness: source preparation completed; opening session")
+        diagnostic("Source preparation completed; opening session")
         try ensureCurrent(token)
         pendingSessionID = id
         pendingAppliedSequence = -1
@@ -162,7 +167,7 @@ struct RecorderTiming {
         try await retry {
           try await self.commands.open(sessionID: id, source: status.source, requirements: requirements)
         }
-        NSLog("Transcription readiness: session opened; starting source")
+        diagnostic("Session opened; starting source")
         sessionOpen = true
         try ensureCurrent(token)
         try await bounded {
@@ -171,7 +176,7 @@ struct RecorderTiming {
         }
         try ensureCurrent(token)
         activated = true
-        NSLog("Transcription readiness: source started; activating session")
+        diagnostic("Source started; activating session")
         try await retry { try await self.commands.activate(sessionID: id) }
         try ensureCurrent(token)
         recordingDuration = RecordingDuration()
@@ -203,7 +208,7 @@ struct RecorderTiming {
         stagedTail = []
         if !stopRequested { publish("recording") }
       } catch {
-        NSLog("Transcription readiness: recording setup failed: %@", error.localizedDescription)
+        diagnostic("Recording setup failed: \(error.localizedDescription)")
         newSource.cancel()
         sender?.cancel()
         generation = UUID()
@@ -411,6 +416,7 @@ struct RecorderTiming {
         publish("stopped")
       } catch {
         if delivered && token == generation {
+          diagnostic("Recording save or display confirmation failed: \(error.localizedDescription)")
           saveFailure = "Could not save or confirm the recording. Use Stop to retry before switching projects."
           publish("error")
         } else { fail(error, token: token) }
@@ -427,10 +433,22 @@ struct RecorderTiming {
     next.canStop = canStop && status.state != "stopping" && !projectSwitchPending
     next.switching = projectSwitchPending
     if next != status { status = next }
+    logStatus()
     onStatus?(status)
+  }
+  private func logStatus() {
+    if loggedState != status.state {
+      diagnostic("State \(loggedState ?? "initial") -> \(status.state); session=\(status.sessionID) source=\(status.source) sequence=\(status.sequence)")
+      loggedState = status.state
+    }
+    if loggedError != status.error {
+      diagnostic(status.error.map { "Error: \($0)" } ?? "Previous error cleared")
+      loggedError = status.error
+    }
   }
   func showProjectError(_ message: String) {
     status.error = message
+    logStatus()
     onStatus?(status)
   }
   // A completed close and reconciled display are required, not a Stop request.
@@ -526,6 +544,7 @@ struct RecorderTiming {
     displayAvailable = available
     displayError = available ? nil : error ?? "Transcript display is reconnecting."
     status.error = saveFailure ?? incompleteReason ?? displayError
+    logStatus()
     onStatus?(status)
   }
   private func confirmDisplay() async throws {
@@ -548,6 +567,7 @@ struct RecorderTiming {
   }
   private func fail(_ error: Error, token: UUID) {
     guard token == generation else { return }
+    diagnostic("Recording failed: \(error.localizedDescription)")
     generation = UUID()
     source?.cancel()
     sender?.cancel()
@@ -584,6 +604,7 @@ struct RecorderTiming {
           try await confirmDisplay()
         }
       } catch {
+        diagnostic("Recording cleanup failed: \(error.localizedDescription)")
         incompleteReason =
           "\(incompleteReason ?? "Transcript may be incomplete.") Session or display cleanup is unconfirmed. Use Stop to retry, or relaunch."
       }

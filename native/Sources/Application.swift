@@ -34,6 +34,7 @@ import SwiftUI
       .defaultSize(width: 1000, height: 600)
       .commands {
         GimbalUpdateCommands()
+        DiagnosticCommands()
         WorkspaceMenu(workspace: application.workspace, openMachines: {
           application.requestSettings?("machines", $0)
         })

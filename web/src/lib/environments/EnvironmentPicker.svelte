@@ -21,7 +21,7 @@
   <Popover.Trigger class="chip environment" aria-label="Environment" title={`${machine} · ${directory}`}>
     <Monitor size={14} aria-hidden="true" /><span class="chip-label">{machine} · {directory}</span><ChevronDown size={14} aria-hidden="true" />
   </Popover.Trigger>
-  <Popover.Content align="start" collisionPadding={8} class="w-[min(400px,calc(100vw-32px))] gap-1 p-1.5">
+  {#if open}<Popover.Content align="start" collisionPadding={8} class="w-[min(400px,calc(100vw-32px))] gap-1 p-1.5">
     {#each machines as item (item.id)}
       <h3>{item.name}{#if item.id !== 'local'}<small> · {item.kind === 'route' ? 'Queue / plugin' : item.kind === 'ssh' ? 'SSH' : 'Address'}</small>{/if}</h3>
       {#if item.state !== 'connected'}<p class="state" class:error={item.state === 'unreachable' || item.state === 'error'}>
@@ -41,7 +41,7 @@
     {/each}
     {#each snapshot.issues as issue}<p class="state error">{issue.entry ? `${issue.entry}: ` : ''}{issue.message}</p>{/each}
     <div class="actions"><button type="button" onclick={() => { open = false; openMachines(snapshot.project); }}>Add environment…</button><button type="button" onclick={() => { open = false; openMachines(); }}>Machines…</button></div>
-  </Popover.Content>
+  </Popover.Content>{/if}
 </Popover.Root>
 
 <style>

@@ -598,7 +598,7 @@ test("late defaults cannot overwrite checkout choices made while history loads",
   expect(remote.submitted[0].get("message")).toBe("My chosen setup");
 });
 
-test("setup pickers are mutually exclusive under accessible activation", async () => {
+test("setup pickers switch without waiting for an exit animation", async () => {
   const screen = await render(NewSession, {
     project: "project",
     name: "Project",
@@ -606,9 +606,14 @@ test("setup pickers are mutually exclusive under accessible activation", async (
   });
   await screen.getByRole("button", { name: "Harness and model" }).click();
   await expect.element(screen.getByRole("group", { name: "Harness", exact: true })).toBeVisible();
-  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
-  await expect
-    .element(screen.getByRole("group", { name: "Harness", exact: true }))
-    .not.toBeInTheDocument();
-  await expect.element(screen.getByRole("textbox", { name: "New branch" })).toBeVisible();
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await expect
+      .element(screen.getByRole("group", { name: "Harness", exact: true }))
+      .not.toBeInTheDocument();
+    await expect.element(screen.getByRole("textbox", { name: "New branch" })).toBeInTheDocument();
+  } finally {
+    noFrames.mockRestore();
+  }
 });

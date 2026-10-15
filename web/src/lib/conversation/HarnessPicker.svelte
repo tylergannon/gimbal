@@ -24,7 +24,7 @@
     <span class="chip-label">{harnessName(choice.provider)} · {modelName(choice.model)}{choice.effort ? ` · ${choice.effort}` : ''}</span>
     <ChevronDownIcon size={14} aria-hidden="true" />
   </Popover.Trigger>
-  <Popover.Content align="start" collisionPadding={8} class="w-[min(560px,calc(100vw-32px))] gap-0 p-0">
+  {#if open}<Popover.Content align="start" collisionPadding={8} class="w-[min(560px,calc(100vw-32px))] gap-0 p-0">
     <div class="columns">
       <div class="column" role="group" aria-label="Harness">
         <h3>Harness</h3>
@@ -50,7 +50,7 @@
       </div>{:else}<p class="empty" role="status">No harness availability was reported by {machine}. Choose another environment or inspect Machines.</p>{/if}
     </div>
     <footer><label>Effort <select aria-label="Effort" bind:value={() => choice.effort || '', (effort) => onpick({ ...choice, effort })} disabled={!efforts.length}><option value="">Default</option>{#if choice.effort && !efforts.includes(choice.effort)}<option value={choice.effort} disabled>{choice.effort} — unavailable for this model</option>{/if}{#each efforts as level (level)}<option value={level}>{level.charAt(0).toUpperCase() + level.slice(1)}</option>{/each}</select></label><p>{efforts.length ? 'Applies to every turn in this session.' : 'Effort follows this model.'}</p></footer>
-  </Popover.Content>
+  </Popover.Content>{/if}
 </Popover.Root>
 
 <style>

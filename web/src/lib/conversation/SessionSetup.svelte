@@ -34,7 +34,7 @@
             {#if isolated}<GitBranchIcon size={14} aria-hidden="true" />New worktree{:else}<FolderIcon size={14} aria-hidden="true" />{setup.git ? 'Shared checkout' : 'No worktree'}{/if}
             <ChevronDownIcon size={14} aria-hidden="true" />
           </Popover.Trigger>
-          <Popover.Content align="start" collisionPadding={8} class="w-80 gap-3">
+          {#if picker === 'checkout'}<Popover.Content align="start" collisionPadding={8} class="w-80 gap-3">
             <label class="toggle">Create a worktree <Switch aria-label="Create a worktree" bind:checked={() => isolated, (checked) => onchoose({ shared: !checked })} disabled={!setup.git || !setup.capabilities.worktree || pending} /></label>
             {#if isolated}
               <label class="field"><span>Branch</span><input aria-label="New branch" bind:value={() => branch, (value) => onchoose({ branch: value })} placeholder="Generated when the session starts" disabled={pending} /></label>
@@ -51,7 +51,7 @@
             {:else}
               <p class="note">{setup.directory} is not a Git repository, so this session works in the directory itself. Other sessions there can change the same files.</p>
             {/if}
-          </Popover.Content>
+          </Popover.Content>{/if}
         </Popover.Root>
       {/if}
       <button class="send" aria-label="Start session" disabled={pending || !canStart}><ArrowUpIcon size={16} /></button>

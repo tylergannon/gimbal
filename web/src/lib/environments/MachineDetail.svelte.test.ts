@@ -11,6 +11,8 @@ const remote = vi.hoisted(() => ({
   }),
 }));
 vi.mock("#lib/environments.remote", () => ({
+  watchMachineConnection: () => ({ current: undefined, error: undefined, reconnect: vi.fn() }),
+  closeMachineConnection: vi.fn(async () => true),
   removeMachine: remote.remove,
   reconnectMachine: remote.reconnect,
 }));
@@ -78,4 +80,61 @@ test("removing a machine names owned sessions and retains configuration on uncer
     .element(screen.getByRole("button", { name: "Remove machine", exact: true }))
     .toBeDisabled();
   expect(remote.remove).not.toHaveBeenCalled();
+});
+
+test("harness sign-in facts stay distinct and build mismatch permits sessions", async () => {
+  const capabilities = { steer: false, fork: false, worktree: true, browse: true, clone: true };
+  const machine: MachineState = {
+    id: "build",
+    name: "Build box",
+    kind: "ssh",
+    detail: "Contact lost",
+    state: "unreachable",
+    since: 1,
+    latency_ms: 1,
+    build: "older",
+    capabilities,
+    issues: [],
+    harnesses: [
+      { id: "claude", default: "", models: [], state: "sign-in-required", detail: "Signed out" },
+      {
+        id: "codex",
+        default: "",
+        models: [],
+        state: "unknown",
+        detail: "Sign-in has not been verified",
+      },
+      {
+        id: "pi",
+        default: "",
+        models: [],
+        state: "missing",
+        detail: "Not installed on this machine",
+      },
+    ],
+  };
+  const snapshot: Snapshot = {
+    project: "",
+    revision: "",
+    config_path: "/catalog/environments.json",
+    machines: [machine, { ...machine, id: "local", build: "newer" }],
+    environments: [],
+    sessions: [],
+    issues: [],
+  };
+  const screen = await render(MachineDetail, {
+    machine,
+    snapshot,
+    onchanged: vi.fn(),
+    onedit: vi.fn(),
+    onadd: vi.fn(),
+    oneditenvironment: vi.fn(),
+  });
+  await expect.element(screen.getByText("Sign-in required", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Sign-in unverified", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Not installed", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByText(/Sessions are allowed; native workflow plugins may fail/))
+    .toBeVisible();
+  await expect.element(screen.getByText(/Existing sessions may still be running/)).toBeVisible();
 });

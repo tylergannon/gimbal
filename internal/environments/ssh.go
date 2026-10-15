@@ -48,6 +48,11 @@ func sshArgs(m Machine) []string {
 }
 func shellQuote(v string) string { return "'" + strings.ReplaceAll(v, "'", "'\"'\"'") + "'" }
 func (s *Service) sshEndpoint(ctx context.Context, m Machine, bootstrap bool) (string, error) {
+	return s.sshConnection(ctx, m, bootstrap, nil)
+}
+
+// starting reports an actual bootstrap, not a timer-based progress guess.
+func (s *Service) sshConnection(ctx context.Context, m Machine, bootstrap bool, starting func()) (string, error) {
 	s.sshMu.Lock()
 	defer s.sshMu.Unlock()
 	if m.SSH == nil {
@@ -63,6 +68,9 @@ func (s *Service) sshEndpoint(ctx context.Context, m Machine, bootstrap bool) (s
 		case <-existing.done:
 		default:
 			if bootstrap && health(ctx, existing.endpoint) != nil {
+				if starting != nil {
+					starting()
+				}
 				return s.bootstrapSSH(ctx, m, existing.endpoint)
 			}
 			return existing.endpoint, nil
@@ -111,6 +119,9 @@ func (s *Service) sshEndpoint(ctx context.Context, m Machine, bootstrap bool) (s
 		case <-deadline.C:
 			if !bootstrap {
 				return "", fmt.Errorf("daemon unreachable; reconnect or run ssh %s", m.SSH.Host)
+			}
+			if starting != nil {
+				starting()
 			}
 			return s.bootstrapSSH(ctx, m, t.endpoint)
 		case <-tick.C:

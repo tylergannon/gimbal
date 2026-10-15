@@ -70,6 +70,23 @@ func environmentConfig(ctx context.Context) (environments.ConfigDocument, error)
 
 func sshHosts(ctx context.Context) ([]string, error) { return environments.SSHHosts(ctx) }
 
+func watchMachineConnection(ctx context.Context, in environments.ConnectionSubscription, yield func(environments.ConnectionProgress) error) error {
+	service, err := environmentService(ctx)
+	if err != nil {
+		return err
+	}
+	return service.WatchConnectionView(ctx, in, yield)
+}
+
+func closeMachineConnection(ctx context.Context, event app.RequestEvent[params.Params], view string) (bool, error) {
+	service, err := environmentService(ctx)
+	if err != nil {
+		return false, err
+	}
+	service.CloseConnectionView(view)
+	return true, nil
+}
+
 func saveEnvironmentConfig(ctx context.Context, event app.RequestEvent[params.Params], edit environments.ConfigEdit) (environments.ConfigDocument, error) {
 	service, err := environmentService(ctx)
 	if err != nil {
@@ -84,6 +101,7 @@ func saveEnvironmentConfig(ctx context.Context, event app.RequestEvent[params.Pa
 
 // MachineForm intentionally leaves opaque route/plugin configuration in the file.
 type MachineForm struct {
+	Attempt       string `json:"attempt"`
 	Revision      string `json:"revision"`
 	ID            string `json:"id"`
 	Name          string `json:"name"`
@@ -97,10 +115,10 @@ type MachineForm struct {
 	ConnectAnyway bool   `json:"connect_anyway"`
 }
 
-func saveMachine(ctx context.Context, event app.RequestEvent[params.Params], in MachineForm) (environments.MachineState, error) {
+func saveMachine(ctx context.Context, event app.RequestEvent[params.Params], in MachineForm) (environments.ConnectionProgress, error) {
 	service, err := environmentService(ctx)
 	if err != nil {
-		return environments.MachineState{}, err
+		return environments.ConnectionProgress{}, err
 	}
 	machine := environments.Machine{ID: strings.TrimSpace(in.ID), Name: strings.TrimSpace(in.Name), Kind: in.Kind, Executable: strings.TrimSpace(in.Executable)}
 	switch in.Kind {
@@ -109,9 +127,9 @@ func saveMachine(ctx context.Context, event app.RequestEvent[params.Params], in 
 	case environments.KindAddress:
 		machine.Address = strings.TrimSpace(in.Address)
 	default:
-		return environments.MachineState{}, skgo.Invalidf("kind", "Configure plugin and queue routes in the configuration file.")
+		return environments.ConnectionProgress{}, skgo.Invalidf("kind", "Configure plugin and queue routes in the configuration file.")
 	}
-	out, err := service.SaveMachine(ctx, environments.MachineEdit{Revision: in.Revision, Machine: machine, ConnectAnyway: in.ConnectAnyway})
+	out, err := service.ConnectMachine(ctx, environments.MachineEdit{Revision: in.Revision, Machine: machine, ConnectAnyway: in.ConnectAnyway, Attempt: in.Attempt})
 	if err != nil {
 		return out, skgo.Errorf(400, "%s", err)
 	}
@@ -229,6 +247,8 @@ func cloneEnvironment(ctx context.Context, event app.RequestEvent[params.Params]
 	return out, nil
 }
 
+var _ = skgo.Command(closeMachineConnection)
+var _ = skgo.LiveQuery(watchMachineConnection)
 var _ = skgo.LiveQuery(watchEnvironments)
 var _ = skgo.Query(environmentSnapshot)
 var _ = skgo.Query(environmentConfig)

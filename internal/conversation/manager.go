@@ -93,6 +93,7 @@ type PlacementMachine struct {
 // NewConversation is the provider and optional presentation selected by the
 // person opening a conversation.
 type NewConversation struct {
+	FileID         string
 	Title          string
 	Provider       string
 	Model          string
@@ -508,6 +509,11 @@ func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (C
 	if strings.TrimSpace(in.Title) == "" {
 		in.Title = titleFrom(text)
 	}
+	if in.FileID != "" {
+		if _, _, err := m.filePath(in.FileID); err != nil {
+			return Conversation{}, err
+		}
+	}
 	item, err := m.Create(ctx, in)
 	if err != nil {
 		return Conversation{}, err
@@ -516,7 +522,7 @@ func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (C
 	if err != nil {
 		return Conversation{}, err
 	}
-	if _, err := m.Submit(item.ID, Request{ID: requestID, Created: time.Now().UnixMilli(), Kind: "prompt", Message: text}); err != nil {
+	if _, err := m.Submit(item.ID, Request{ID: requestID, Created: time.Now().UnixMilli(), Kind: "prompt", Message: text, FileID: in.FileID}); err != nil {
 		return Conversation{}, err
 	}
 	item, _ = m.Get(item.ID)

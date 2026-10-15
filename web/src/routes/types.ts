@@ -39,6 +39,7 @@ export type ConversationSetup = {
  * CreateConversation starts a conversation with its first message, which also titles it. Model may be blank to use the provider's cheap default.
  */
 export type CreateConversation = {
+  file_id: string;
   provider: string;
   model: string;
   message: string;

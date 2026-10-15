@@ -108,9 +108,16 @@ vi.mock("../../routes/conversation.remote", () => {
     value: () => "",
   });
   const fields = Object.fromEntries(
-    ["provider", "model", "message", "environment", "shared_checkout", "branch", "base"].map(
-      (name) => [name, field(name)],
-    ),
+    [
+      "file_id",
+      "provider",
+      "model",
+      "message",
+      "environment",
+      "shared_checkout",
+      "branch",
+      "base",
+    ].map((name) => [name, field(name)]),
   );
   return {
     conversationSetup: ({ environment }: { environment: string }) => ({
@@ -248,4 +255,70 @@ test("environment selection preserves each checkout draft and does not submit a 
     .element(screen.getByRole("textbox", { name: "First message" }))
     .toHaveValue("Keep the same message");
   expect(remote.submitted).toEqual([]);
+});
+
+test("Discuss adds removable file context without replacing an existing draft", async () => {
+  const oncreated = vi.fn();
+  const oncontextremoved = vi.fn();
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated,
+    oncontextremoved,
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Keep this question");
+  await screen.rerender({
+    project: "project",
+    name: "Project",
+    oncreated,
+    oncontextremoved,
+    fileContext: { id: "file-id", name: "Brief.pdf" },
+  });
+  await expect
+    .element(screen.getByRole("textbox", { name: "First message" }))
+    .toHaveValue("Keep this question");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("file_id")).toBe("file-id");
+  expect(remote.submitted[0].get("message")).toBe("Keep this question");
+  await screen.getByRole("button", { name: "Remove file context" }).click();
+  expect(oncontextremoved).toHaveBeenCalledOnce();
+});
+
+test("opening a file unmounts setup popups while retaining the draft and choices", async () => {
+  const oncreated = vi.fn();
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated,
+    active: true,
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Read the attached file");
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("textbox", { name: "New branch" }).fill("codex/retained-file-draft");
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    await screen.rerender({ project: "project", name: "Project", oncreated, active: false });
+    await expect
+      .element(screen.getByRole("textbox", { name: "New branch" }))
+      .not.toBeInTheDocument();
+    await screen.rerender({
+      project: "project",
+      name: "Project",
+      oncreated,
+      active: true,
+      fileContext: { id: "file", name: "notes.md" },
+    });
+    await expect
+      .element(screen.getByRole("textbox", { name: "New branch" }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("textbox", { name: "First message" }))
+      .toHaveValue("Read the attached file");
+  } finally {
+    noFrames.mockRestore();
+  }
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await expect
+    .element(screen.getByRole("textbox", { name: "New branch" }))
+    .toHaveValue("codex/retained-file-draft");
 });

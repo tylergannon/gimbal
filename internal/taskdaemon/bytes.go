@@ -95,7 +95,7 @@ func (d *Daemon) writeBytes(v backend.Artifact, r io.Reader) error {
 	if err := d.admit(v.Owner); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp("", "gimbal-task-input-*")
+	file, err := os.CreateTemp("", "gimbal-task-input-*"+filepath.Ext(v.Name))
 	if err != nil {
 		return err
 	}

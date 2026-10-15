@@ -26,6 +26,7 @@ type remoteFixture struct {
 	turns             map[string]backend.Result
 	sessions          int
 	admissions        int
+	receivedTurns     []backend.Turn
 	interruptions     int
 	cleanup           int
 	workdir           string
@@ -88,6 +89,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 		var turn backend.Turn
 		_ = json.NewDecoder(r.Body).Decode(&turn)
 		f.admissions++
+		f.receivedTurns = append(f.receivedTurns, turn)
 		raw, _ := json.Marshal(backend.TurnResult{Output: []byte(`"remote reply"`)})
 		f.turns[turn.Task] = backend.Result{Done: f.autoComplete, Result: raw}
 		encode(backend.Reply{})

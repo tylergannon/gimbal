@@ -14,6 +14,7 @@ test("a stopped partial reply remains marked after the next reply", async () => 
         kind: "prompt",
         message: "Start",
         target: "",
+        file_id: "",
         status: "canceled",
         delivery: "turn",
         error: "",

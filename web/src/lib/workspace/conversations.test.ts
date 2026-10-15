@@ -64,6 +64,7 @@ test("an accepted prompt keeps observation updating before async delivery change
       kind: "prompt",
       message: "Start",
       target: "",
+      file_id: "",
       status: "accepted",
       delivery: "",
       error: "",

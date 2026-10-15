@@ -86,7 +86,8 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 			return RequestState{}, err
 		}
 		if remotePlacement(item) {
-			go m.remoteInterrupt(id, r)
+			m.remoteReaders.Add(1)
+			go func() { defer m.remoteReaders.Done(); m.remoteInterrupt(id, r) }()
 		} else if active.cancel != nil {
 			active.cancel()
 		}
@@ -94,7 +95,8 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 		target := active.request
 		adapter, session := active.adapter, active.session
 		if remotePlacement(item) {
-			go m.deliverRemote(id, r, active, target)
+			m.remoteReaders.Add(1)
+			go func() { defer m.remoteReaders.Done(); m.deliverRemote(id, r, active, target) }()
 		} else {
 			go m.deliver(id, r, active, target, adapter, session)
 		}

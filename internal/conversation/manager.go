@@ -136,15 +136,16 @@ type Manager struct {
 	project     string
 	registry    *observation.Registry
 
-	mu           sync.RWMutex
-	items        map[string]*Conversation
-	active       map[string]*activeConversation
-	projections  map[string]*sessionstate.Projection
-	closing      bool
-	closed       chan struct{}
-	environments *environments.Service
-	projectID    string
-	remoteStates map[string]*remoteState
+	mu            sync.RWMutex
+	items         map[string]*Conversation
+	active        map[string]*activeConversation
+	projections   map[string]*sessionstate.Projection
+	closing       bool
+	closed        chan struct{}
+	environments  *environments.Service
+	projectID     string
+	remoteStates  map[string]*remoteState
+	remoteReaders sync.WaitGroup
 }
 
 type managerKey struct{}
@@ -550,6 +551,7 @@ func (m *Manager) Close() {
 		}
 		conversation.turnMu.Unlock()
 	}
+	m.remoteReaders.Wait()
 }
 
 type conversationRecord struct {

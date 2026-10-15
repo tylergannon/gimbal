@@ -431,7 +431,9 @@ func (m *Manager) reconcileRemote(id string) {
 		return
 	}
 	active.observing = true
+	m.remoteReaders.Add(1)
 	m.mu.Unlock()
+	defer m.remoteReaders.Done()
 	defer func() {
 		m.mu.Lock()
 		active.observing = false

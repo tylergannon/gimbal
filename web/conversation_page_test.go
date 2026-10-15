@@ -166,7 +166,7 @@ func TestNewSessionFormNeedsAFirstMessageAndOffersResolvedDefaults(t *testing.T)
 		t.Fatalf("a blank first message created %d conversations", len(items))
 	}
 
-	setup, err := routes.Skgo_conversationSetup(host.WithOwner(runtime.Context(), runtime.Owner()), runtime.ID())
+	setup, err := routes.Skgo_conversationSetup(host.WithOwner(runtime.Context(), runtime.Owner()), routes.ConversationSetup{Project: runtime.ID()})
 	if err != nil {
 		t.Fatal(err)
 	}

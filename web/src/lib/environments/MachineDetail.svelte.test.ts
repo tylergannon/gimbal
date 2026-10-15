@@ -30,7 +30,10 @@ test("removing a machine names owned sessions and retains configuration on uncer
     since: 1,
     latency_ms: 3,
     build: "test",
-    harnesses: [],
+    harnesses: [
+      { id: "codex", state: "missing", default: "", models: [], detail: "Not installed" },
+      { id: "claude", state: "unknown", default: "", models: [], detail: "Sign-in unverified" },
+    ],
     capabilities,
     issues: [],
   };
@@ -63,6 +66,18 @@ test("removing a machine names owned sessions and retains configuration on uncer
     onadd: vi.fn(),
     oneditenvironment: vi.fn(),
   });
+  await expect
+    .element(screen.getByText("Install codex on Build box in Terminal.", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByText("Verify claude sign-in on Build box in Terminal.", { exact: true }))
+    .toBeVisible();
+  await expect
+    .element(screen.getByRole("button", { name: /^(Install|Verify sign-in) on/ }))
+    .not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole("button", { name: "Open in Terminal", exact: true }))
+    .toBeEnabled();
   await screen.getByRole("button", { name: "Remove…", exact: true }).click();
   await expect
     .element(screen.getByRole("button", { name: "Remove machine", exact: true }))

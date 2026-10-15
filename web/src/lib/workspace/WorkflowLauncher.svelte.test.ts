@@ -84,3 +84,22 @@ test("admitting a run removes the popup before opening its retained view", async
     noFrames.mockRestore();
   }
 });
+
+test("leaving a retained Runs view removes its popup and does not reopen it on return", async () => {
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    const props = { project: "project", onopen: remote.opened, onopenguide: remote.guide };
+    const screen = await render(Launcher, { ...props, active: true });
+    await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
+    await expect.element(screen.getByRole("button", { name: "Read the guide" })).toBeVisible();
+    await screen.rerender({ ...props, active: false });
+    expect(document.querySelector(".workflow-popup")).toBeNull();
+    await screen.rerender({ ...props, active: true });
+    expect(document.querySelector(".workflow-popup")).toBeNull();
+    await expect
+      .element(screen.getByRole("button", { name: "Run a workflow", exact: true }))
+      .toHaveAttribute("aria-expanded", "false");
+  } finally {
+    noFrames.mockRestore();
+  }
+});

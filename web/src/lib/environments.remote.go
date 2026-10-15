@@ -75,27 +75,7 @@ func watchMachineConnection(ctx context.Context, id string, yield func(environme
 	if err != nil {
 		return err
 	}
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	var previous string
-	for {
-		progress := service.Connection(id)
-		data, err := json.Marshal(progress)
-		if err != nil {
-			return err
-		}
-		if string(data) != previous {
-			if err := yield(progress); err != nil {
-				return err
-			}
-			previous = string(data)
-		}
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-ticker.C:
-		}
-	}
+	return service.WatchConnection(ctx, id, yield)
 }
 
 func saveEnvironmentConfig(ctx context.Context, event app.RequestEvent[params.Params], edit environments.ConfigEdit) (environments.ConfigDocument, error) {

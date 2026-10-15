@@ -246,9 +246,9 @@
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
-      {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
+      {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
       {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split('/').at(-1)!)} />
-      {:else if tab.id === root}<ProjectRuns {project} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onopenguide={guide} onstate={value => runTabs = value} />
+      {:else if tab.id === root}<ProjectRuns {project} active={active === tab.id} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onopenguide={guide} onstate={value => runTabs = value} />
       {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} onstate={runState} />
       {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
       {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} nativeStatus={status} />{/if}

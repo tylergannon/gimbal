@@ -54,3 +54,23 @@ test("a failed refresh leaves the document readable and permits retry", async ()
   await expect.element(screen.getByRole("alert")).not.toBeInTheDocument();
   expect(remote.refresh).toHaveBeenCalledTimes(2);
 });
+test("leaving a retained file removes its open menu without an animation frame", async () => {
+  const screen = await render(FileViewer, { project: "project", id: "file-1", active: true });
+  await screen.getByRole("button", { name: "File actions" }).click();
+  await expect
+    .element(screen.getByRole("link", { name: "Open / download", exact: true }))
+    .toBeVisible();
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    await screen.rerender({ project: "project", id: "file-1", active: false });
+    await expect
+      .element(screen.getByRole("link", { name: "Open / download", exact: true }))
+      .not.toBeInTheDocument();
+    await screen.rerender({ project: "project", id: "file-1", active: true });
+    await expect
+      .element(screen.getByRole("link", { name: "Open / download", exact: true }))
+      .not.toBeInTheDocument();
+  } finally {
+    noFrames.mockRestore();
+  }
+});

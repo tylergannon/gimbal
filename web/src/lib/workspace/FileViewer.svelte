@@ -4,8 +4,8 @@
   import { MessageSquare, Ellipsis, ExternalLink, RefreshCw, PanelTop } from '@lucide/svelte';
   import * as Popover from '#lib/components/ui/popover';
   import { viewFile } from '../workspace.remote';
-  let { project, id, ondiscuss, onmove }: {
-    project: string; id: string;
+  let { project, id, active = true, ondiscuss, onmove }: {
+    project: string; id: string; active?: boolean;
     ondiscuss?: (file: { id: string; name: string }) => void;
     onmove?: () => void;
   } = $props();
@@ -13,6 +13,7 @@
   const view = $derived(query.current);
   $effect(() => { if (query.error) navigateOnUnauthorized(query.error); });
   let menu = $state(false);
+  $effect(() => { if (!active) menu = false; });
   let refreshing = $state(false);
   let failure = $state('');
   async function refresh() {
@@ -30,11 +31,11 @@
     <a class="discuss" href={`/projects/${project}/files/${id}/discuss`} onclick={(event) => { if (ondiscuss) { event.preventDefault(); ondiscuss(view.file); } }}><MessageSquare size={14} aria-hidden="true" />Discuss in chat</a>
     <Popover.Root bind:open={menu}>
       <Popover.Trigger class="file-more" aria-label="File actions"><Ellipsis size={18} aria-hidden="true" /></Popover.Trigger>
-      <Popover.Content align="end" class="file-actions w-56 gap-1 p-1">
+      {#if active && menu}<Popover.Content align="end" class="file-actions w-56 gap-1 p-1">
         <a class="file-action" href={view.url} target="_blank" rel="noreferrer" onclick={() => (menu = false)}><ExternalLink size={14} aria-hidden="true" />Open / download</a>
         <button class="file-action" disabled={refreshing} onclick={refresh}><RefreshCw size={14} aria-hidden="true" />{refreshing ? 'Refreshing…' : 'Refresh file'}</button>
         {#if onmove}<button class="file-action" onclick={() => { menu = false; onmove(); }}><PanelTop size={14} aria-hidden="true" />Move tab to new window</button>{/if}
-      </Popover.Content>
+      </Popover.Content>{/if}
     </Popover.Root>
   </header>
   {#if failure}<p class="notice" role="alert">Could not refresh this file: {failure} <button disabled={refreshing} onclick={refresh}>Retry</button></p>{/if}

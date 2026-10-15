@@ -14,19 +14,60 @@ type connectionAttempt struct {
 	machine  Machine
 	progress ConnectionProgress
 	running  bool
+	changed  chan struct{}
 }
 
 // Connection returns a snapshot of the checks for one draft or saved machine.
 func (s *Service) Connection(id string) ConnectionProgress {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p := s.checks[id].progress
+	return connectionSnapshot(id, s.checks[id].progress)
+}
+
+func connectionSnapshot(id string, p ConnectionProgress) ConnectionProgress {
 	p.ID = id
 	p.Checks = slices.Clone(p.Checks)
 	if p.Checks == nil {
 		p.Checks = []ConnectionCheck{}
 	}
 	return p
+}
+
+// WatchConnection sleeps between actual progress changes. The snapshot and its
+// notification channel are captured under one lock, including before any check
+// exists, so a change during yield cannot be missed before the following wait.
+func (s *Service) WatchConnection(ctx context.Context, id string, yield func(ConnectionProgress) error) error {
+	for {
+		s.mu.Lock()
+		attempt := s.checks[id]
+		if attempt.changed == nil {
+			attempt.changed = make(chan struct{})
+			s.checks[id] = attempt
+		}
+		progress := connectionSnapshot(id, attempt.progress)
+		changed := attempt.changed
+		s.mu.Unlock()
+		if err := yield(progress); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-s.ctx.Done():
+			return nil
+		case <-changed:
+		}
+	}
+}
+
+// The caller holds mu. Each watcher keeps the channel that accompanied its last
+// snapshot; close wakes those watchers and the replacement serves the next one.
+func (s *Service) publishConnectionLocked(id string, attempt connectionAttempt) {
+	if changed := s.checks[id].changed; changed != nil {
+		close(changed)
+	}
+	attempt.changed = make(chan struct{})
+	s.checks[id] = attempt
 }
 
 // ConnectMachine is the user-facing checked connection. SaveMachine remains the
@@ -63,7 +104,7 @@ func (s *Service) ConnectMachine(ctx context.Context, in MachineEdit) (Connectio
 	attempt := s.checks[in.Machine.ID]
 	attempt.progress.Saved = true
 	attempt.progress.CanConnect = false
-	s.checks[in.Machine.ID] = attempt
+	s.publishConnectionLocked(in.Machine.ID, attempt)
 	s.mu.Unlock()
 	return s.Connection(in.Machine.ID), nil
 }
@@ -78,7 +119,7 @@ func (s *Service) connectionCheck(id string, check ConnectionCheck) {
 	} else {
 		attempt.progress.Checks[index] = check
 	}
-	s.checks[id] = attempt
+	s.publishConnectionLocked(id, attempt)
 }
 
 func (s *Service) checkConnection(ctx context.Context, m Machine) (retErr error) {
@@ -87,7 +128,7 @@ func (s *Service) checkConnection(ctx context.Context, m Machine) (retErr error)
 		s.mu.Unlock()
 		return fmt.Errorf("connection checks are already running for this machine")
 	}
-	s.checks[m.ID] = connectionAttempt{machine: m, running: true, progress: ConnectionProgress{ID: m.ID, Checks: []ConnectionCheck{}}}
+	s.publishConnectionLocked(m.ID, connectionAttempt{machine: m, running: true, progress: ConnectionProgress{ID: m.ID, Checks: []ConnectionCheck{}}})
 	s.mu.Unlock()
 	defer func() {
 		s.mu.Lock()
@@ -95,7 +136,7 @@ func (s *Service) checkConnection(ctx context.Context, m Machine) (retErr error)
 		attempt.running = false
 		attempt.progress.Complete = true
 		attempt.progress.CanConnect = retErr == nil && slices.ContainsFunc(attempt.progress.Checks, func(check ConnectionCheck) bool { return check.State == "warning" })
-		s.checks[m.ID] = attempt
+		s.publishConnectionLocked(m.ID, attempt)
 		s.mu.Unlock()
 	}()
 	pending := func(id, label string) {

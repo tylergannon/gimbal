@@ -2,15 +2,16 @@
   import * as Popover from '#lib/components/ui/popover';
   import { workflowCatalog } from '../../routes/workflow.remote';
   import WorkflowRun from '#lib/workflow-design/WorkflowRun.svelte';
-  let { project, onopen, onopenguide }: { project: string; onopen: (path: string) => void; onopenguide: (name: string) => void } = $props();
+  let { project, active = true, onopen, onopenguide }: { project: string; active?: boolean; onopen: (path: string) => void; onopenguide: (name: string) => void } = $props();
   const catalog = $derived(workflowCatalog(project));
   let open = $state(false);
   let selected = $state('');
+  $effect(() => { if (!active) open = false; });
   const workflow = $derived(catalog.current?.workflows.find(item => item.name === selected) ?? catalog.current?.workflows[0]);
 </script>
 <Popover.Root bind:open>
   <Popover.Trigger class="launch-trigger">Run a workflow</Popover.Trigger>
-  {#if open}
+  {#if active && open}
   <Popover.Content align="start" class="workflow-popup w-[390px] max-h-[min(80vh,650px)] overflow-auto p-5">
     <h2>Run a workflow</h2>
     {#if catalog.error}<p role="alert">Could not load workflows. <button onclick={() => catalog.refresh()}>Try again</button></p>

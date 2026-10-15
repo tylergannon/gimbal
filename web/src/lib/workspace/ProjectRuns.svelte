@@ -6,7 +6,7 @@
   import { untrack } from "svelte";
   import type { InterviewRow, RunRow } from "#lib/observation";
   import type { WorkspaceTab } from "#lib/shell/types";
-  let { project, initial, onopen, onopenguide, onstate }: { project: string; initial?: { items: RunCardItem[]; attention: InterviewRow[]; now: number }; onopen: (path: string) => void; onopenguide: (name: string) => void; onstate: (tabs: WorkspaceTab[]) => void } = $props();
+  let { project, active = true, initial, onopen, onopenguide, onstate }: { project: string; active?: boolean; initial?: { items: RunCardItem[]; attention: InterviewRow[]; now: number }; onopen: (path: string) => void; onopenguide: (name: string) => void; onstate: (tabs: WorkspaceTab[]) => void } = $props();
   const stream = $derived(watchRuns(project));
   // Retain the route preload while the live query establishes its first update.
   const preload = untrack(() => initial);
@@ -19,7 +19,7 @@
   function open(run: RunRow) { onopen(`/projects/${project}/runs/${encodeURIComponent(run.id)}`); }
 </script>
 <section class="project-runs" aria-label="Project runs">
-  <div class="launch"><WorkflowLauncher {project} {onopen} {onopenguide} /></div>
+  <div class="launch"><WorkflowLauncher {project} {active} {onopen} {onopenguide} /></div>
   {#if stream.error}
     <p role="alert">Could not read runs. <button onclick={() => stream.reconnect()}>Retry</button></p>
   {:else if !data}<p role="status">Loading runs…</p>

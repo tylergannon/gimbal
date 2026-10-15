@@ -164,7 +164,7 @@
 
   $effect(() => { const run = snapshot.run; const count = waiting; untrack(() => onstate?.(run, count)); });
 
-  $effect(() => { if (!active) cancelOpen = false; });
+  $effect(() => { if (!active || view === "focus") cancelOpen = false; });
 
   $effect(() => {
     const next = observation;
@@ -378,6 +378,7 @@
     {project}
     {active}
     run={snapshot.run}
+    agentFocus={view === "focus"}
     {connection}
     {activeTurn}
     {waiting}
@@ -504,7 +505,7 @@
 </div>
 
 <CancelGuard
-  open={active && cancelOpen}
+  open={active && view !== "focus" && cancelOpen}
   run={snapshot.run}
   {activeTurn}
   {openScopes}

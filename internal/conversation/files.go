@@ -22,7 +22,7 @@ func (m *Manager) CacheFile(ctx context.Context, id string) error {
 	if err != nil {
 		return fmt.Errorf("read %s: %w", doc.Name, err)
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 	dir := filepath.Join(m.projectDir, "conversation-files", id)
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -31,7 +31,7 @@ func (m *Manager) CacheFile(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(file.Name())
+	defer func() { _ = os.Remove(file.Name()) }()
 	_, err = io.Copy(file, body)
 	closeErr := file.Close()
 	if err != nil {

@@ -387,3 +387,46 @@ test("explicit effort stays with the submitted session setup", async () => {
   await screen.getByRole("button", { name: "Start session" }).click();
   expect(remote.submitted[0].get("effort")).toBe("high");
 });
+
+test.each(["Harness and model", "Environment", "Worktree"])(
+  "deactivating New session unmounts the open %s picker without an animation frame",
+  async (picker) => {
+    const oncreated = vi.fn();
+    const props = { project: "project", name: "Project", oncreated, active: true };
+    const screen = await render(NewSession, props);
+    await screen
+      .getByRole("textbox", { name: "First message" })
+      .fill("Keep the question while another tab is open");
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await screen.getByRole("textbox", { name: "New branch" }).fill("feature/retained-draft");
+    await screen.getByRole("combobox", { name: "Base branch" }).selectOptions("release");
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await screen.getByRole("button", { name: picker, exact: true }).click();
+    expect(document.querySelectorAll("[data-popover-content][data-state='open']")).toHaveLength(1);
+
+    // WKWebView may stop frame callbacks for an inactive view. Removal must
+    // happen on component teardown, not wait for a close animation frame.
+    const frames = vi.fn(() => 0);
+    vi.stubGlobal("requestAnimationFrame", frames);
+    try {
+      await screen.rerender({ ...props, active: false });
+      expect(document.querySelectorAll("[data-popover-content]")).toHaveLength(0);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+
+    await screen.rerender(props);
+    expect(document.querySelectorAll("[data-popover-content]")).toHaveLength(0);
+    await expect
+      .element(screen.getByRole("textbox", { name: "First message" }))
+      .toHaveValue("Keep the question while another tab is open");
+    await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+    await expect
+      .element(screen.getByRole("textbox", { name: "New branch" }))
+      .toHaveValue("feature/retained-draft");
+    await expect
+      .element(screen.getByRole("combobox", { name: "Base branch" }))
+      .toHaveValue("release");
+    expect(remote.submitted).toEqual([]);
+  },
+);

@@ -131,7 +131,9 @@ func TestFirstTurnFileContextUsesExactPrivateFileAndSurvivesFollowup(t *testing.
 		t.Fatal("followup removed cached context")
 	}
 	// A bad first-turn context must be a definite failure, not uncertainty.
-	os.Remove(path)
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
 	if _, err = m.Submit(unused.ID, Request{ID: "missing", Created: 4, Kind: "prompt", Message: "Read", FileID: fileID}); err != nil {
 		t.Fatal(err)
 	}

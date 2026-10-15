@@ -760,7 +760,7 @@ Person: `
 func (m *Manager) Rename(id, title string) (Conversation, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
-		return Conversation{}, errors.New("Enter a chat name")
+		return Conversation{}, errors.New("enter a chat name")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()

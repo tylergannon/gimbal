@@ -29,7 +29,7 @@ function fixture(t: test.TestContext) {
     'go.mod', 'go.sum', 'web/package.json', 'internal/modelalias', 'internal/envfile',
     'internal/sessionstate', 'internal/pi/model', 'internal/automation/dispatch-release',
     'web/src/lib/workflow-design', 'web/src/lib/sessionstate/fixtures',
-    'scripts/pre-commit.mts', 'scripts/pre-commit.sh', 'scripts/check-staged-content.sh',
+    'lefthook.yml', 'scripts/pre-commit.mts', 'scripts/pre-commit.sh', 'scripts/check-staged-content.sh',
     'scripts/check-staged-format.sh', 'web/tests/workflow/view-state.test.mjs',
   ]) { mkdirSync(dirname(join(repo, path)), { recursive: true }); cpSync(join(root, path), join(repo, path), { recursive: true }); }
   git('add', '.'); git('-c', 'user.name=Hook test', '-c', 'user.email=hook@example.invalid', 'commit', '--quiet', '-m', 'Base fixture');
@@ -58,7 +58,7 @@ test('warmup preserves configured proxy while timed checks disable dependency fe
 test('normal Bash launcher with no arguments executes uncached Go, frontend and dispatch tests', t => {
   const { stage, hook } = fixture(t); stage('fixture.go', 'package fixture\n');
   const result = hook(environment, [], true); assert.equal(result.status, 0, result.stderr);
-  if (result.stdout.includes('cancelled, not passed')) assert.match(result.stdout, /took way too long/);
+  if (result.stderr.includes('cancelled, not passed')) assert.match(result.stderr, /WARNING: commit hook took way too long/);
   else { assert.match(result.stdout, /[1-9]\d* Go test\/subtest runs/); assert.match(result.stdout, /[1-9]\d* frontend tests/); assert.match(result.stdout, /release dispatch [1-9]\d* Go test\/subtest runs/); }
 });
 test('new failing Go test is not hidden by cached results', t => {
@@ -92,7 +92,7 @@ test('slow checks warn, remain unfinished, and release their process groups', t 
   const { repo, stage, hook, fake } = fixture(t); stage('fixture.go', 'package fixture\n');
   const result = hook(fake({ go: 'echo $$ > child.pid\nsleep 10' }));
   assert.equal(result.status, 0, result.stderr); assert.ok(result.duration < 4, String(result.duration));
-  assert.match(result.stdout, /took way too long/); assert.match(result.stdout, /just warm-hook/); assert.match(result.stdout, /cancelled, not passed/); assert.doesNotMatch(result.stdout, /Smoke tests executed/);
+  assert.match(result.stderr, /WARNING: commit hook took way too long/); assert.match(result.stderr, /just warm-hook/); assert.match(result.stderr, /cancelled, not passed/); assert.doesNotMatch(result.stdout, /Smoke tests executed/);
   const report = JSON.parse(readFileSync(join(repo, '.git/gimbal-hook-last.json'), 'utf8'));
   assert.equal(report.budget_exceeded, true); assert.ok(report.incomplete_checks.some((check: string) => check.includes('go test')));
   const pid = Number(readFileSync(join(repo, 'child.pid'), 'utf8')); assert.throws(() => process.kill(pid, 0));
@@ -114,7 +114,7 @@ test('source commits reject unsupported Node as an execution failure', t => {
 test('deadline kills descendant even after its launcher exits', t => {
   const { repo, stage, hook, fake } = fixture(t); stage('fixture.go', 'package fixture\n');
   const result = hook(fake({ go: 'sleep 10 &\necho $! > descendant.pid\nexit 0' }));
-  assert.equal(result.status, 0, result.stderr); assert.ok(result.duration < 4, String(result.duration)); assert.match(result.stdout, /cancelled, not passed/);
+  assert.equal(result.status, 0, result.stderr); assert.ok(result.duration < 4, String(result.duration)); assert.match(result.stderr, /cancelled, not passed/);
   const pid = Number(readFileSync(join(repo, 'descendant.pid'), 'utf8'));
   // Linux can retain an orphan zombie briefly; it must no longer be running.
   const state = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' }).stdout.trim();
@@ -131,11 +131,28 @@ test('benchmark runs the fixed pack with no staged change and reports revision',
   const { repo, hook, git } = fixture(t); const output = join(repo, 'timing.json');
   const result = hook(process.env, ['--benchmark', '--report', output]); assert.equal(result.status, 0, result.stderr);
   const report = JSON.parse(readFileSync(output, 'utf8')); assert.equal(report.sha, git('rev-parse', 'HEAD').toString().trim());
-  if (report.incomplete_checks.length) assert.match(result.stdout, /cancelled, not passed/);
+  if (report.incomplete_checks.length) assert.match(result.stderr, /cancelled, not passed/);
   else { assert.deepEqual(report.incomplete_checks, []); assert.ok(report.checks.includes('Go smoke tests')); }
 });
 test('advisory report failure does not reject a successful docs check', t => {
   const { repo, stage, hook } = fixture(t); stage('README.md', '# Docs\n');
   const path = join(repo, 'file'); writeFileSync(path, 'not a directory');
   const result = hook(process.env, ['--report', join(path, 'report.json')], true); assert.equal(result.status, 0, result.stderr); assert.match(result.stderr, /WARNING/);
+});
+test('real Git commit through Lefthook shows slow-hook instructions and still succeeds', t => {
+  if (spawnSync('lefthook', ['version']).status !== 0) { t.skip('Lefthook is not installed'); return; }
+  const { repo, git, stage, fake } = fixture(t);
+  execFileSync('lefthook', ['install'], { cwd: repo, env: environment });
+  stage('fixture.go', 'package fixture\n');
+  const result = spawnSync('git', ['-c', 'user.name=Hook test', '-c', 'user.email=hook@example.invalid', 'commit', '-m', 'Slow hook remains advisory'], {
+    cwd: repo, env: fake({ go: 'sleep 10' }), encoding: 'utf8', timeout: 15000,
+  });
+  assert.ifError(result.error);
+  const output = result.stdout + result.stderr;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /WARNING: commit hook took way too long/);
+  assert.match(output, /just warm-hook/);
+  assert.match(output, /investigate slow checks before the next commit/);
+  assert.match(output, /cancelled, not passed/);
+  assert.equal(git('log', '-1', '--format=%s').toString().trim(), 'Slow hook remains advisory');
 });

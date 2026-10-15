@@ -153,15 +153,15 @@ async function main(): Promise<number> {
       console.log('Documentation-only commit: staged content, whitespace and formatting checked.');
     }
     const elapsed = (performance.now() - started) / 1000;
-    if (elapsed > budgetSeconds) console.log('** *** took way too long please fix me *** **');
+    if (elapsed > budgetSeconds) console.error('WARNING: commit hook took way too long please fix me. Run `just warm-hook` outside the hook; investigate slow checks before the next commit. This commit may proceed.');
     console.log(`Commit checks completed in ${elapsed.toFixed(3)}s (three-second feedback budget).`);
     return 0;
   } catch (error) {
     if (error instanceof BudgetExceeded) {
       incomplete.push(...error.message.split('\n  ').filter(Boolean));
-      console.log('** *** took way too long please fix me *** **');
-      console.log(`Smoke checks unfinished after ${((performance.now() - started) / 1000).toFixed(3)}s; cancelled, not passed:\n  ${error.message}`);
-      console.log('Commit may proceed. Run `just warm-hook` outside the hook; CI validates the unfinished checks.');
+      console.error('WARNING: commit hook took way too long please fix me (three-second budget).');
+      console.error(`Smoke checks unfinished after ${((performance.now() - started) / 1000).toFixed(3)}s; cancelled, not passed:\n  ${error.message}`);
+      console.error('Commit may proceed. Run `just warm-hook` outside the hook; investigate slow checks before the next commit. CI validates the unfinished checks.');
       return 0;
     }
     console.error(`ERROR: ${(error as Error).message}`);

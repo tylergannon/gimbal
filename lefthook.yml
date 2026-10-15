@@ -4,7 +4,16 @@
 # code - do NOT create config files, add nolint directives, or disable
 # linters to make the check pass. The defaults are the standard.
 
+# Preserve advisory warnings even when the hook exits successfully.
+output:
+  - meta
+  - summary
+  - failure
+  - execution
+  - execution_out
+
 pre-commit:
+  follow: true
   jobs:
     # Mandatory index checks precede uncached Go/frontend/release smoke tests.
     # Slow smoke tests warn and stop; actual failures block. Never auto-stage.

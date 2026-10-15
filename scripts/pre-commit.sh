@@ -56,7 +56,7 @@ elapsed=$(cat "$timing")
 exceeded=false
 if [[ ${elapsed%%.*} -ge 3 ]]; then
 	exceeded=true
-	printf '** *** took way too long please fix me *** **\n'
+	printf 'WARNING: commit hook took way too long please fix me (three-second budget). Investigate slow index checks before the next commit. This commit may proceed.\n' >&2
 fi
 if ((status == 0)); then
 	printf 'Documentation-only commit: staged content, whitespace and formatting checked.\n'

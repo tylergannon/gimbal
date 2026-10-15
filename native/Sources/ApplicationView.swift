@@ -39,7 +39,8 @@ import SwiftUI
           if let error = input.configurationError { throw RecorderError.message(error) }
           if let fixture = input.fixtureURL { return SyntheticSource(fixtureURL: fixture) }
           return MicrophoneSource(selection: input.selection)
-        }, sourceName: input.fixtureURL == nil ? "microphone" : "synthetic")
+        }, sourceName: input.fixtureURL == nil ? "microphone" : "synthetic",
+        diagnostic: { Diagnostics.record("recorder", $0) })
     }
     #if os(macOS)
       if let controller, let commands {

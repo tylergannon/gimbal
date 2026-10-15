@@ -123,6 +123,23 @@ import Foundation
         return controller
     }
     @MainActor static func main() async throws {
+        var diagnostics: [String] = []
+        let diagnosticController = RecorderController(
+            commands: FakeCommands(), makeSource: { throw RecorderError.message("Microphone unavailable") },
+            diagnostic: { diagnostics.append($0) })
+        diagnosticController.displayAvailability(true, error: nil)
+        diagnosticController.displayAvailability(false, error: "Transient display failure")
+        diagnosticController.displayAvailability(true, error: nil)
+        precondition(diagnosticController.status.error == nil)
+        precondition(diagnostics.contains("Error: Transient display failure"))
+        precondition(diagnostics.contains("Previous error cleared"))
+        let stableCount = diagnostics.count
+        diagnosticController.refreshStatus()
+        diagnosticController.displayAvailability(true, error: nil)
+        precondition(diagnostics.count == stableCount) // No heartbeat/timer log flood.
+        diagnosticController.record()
+        precondition(diagnostics.contains("Error: Microphone unavailable"))
+
         var stopwatch = RecordingDuration()
         stopwatch.setRecording(true, now: 100)
         precondition(stopwatch.elapsed(now: 103) == 3)

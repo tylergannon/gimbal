@@ -198,6 +198,10 @@ type record struct {
 	Turn    string    `json:"turn"`
 	Event   struct {
 		Kind        string          `json:"kind"`
+		Effort      string          `json:"effort"`
+		Message     string          `json:"message"`
+		Source      string          `json:"source"`
+		Landed      bool            `json:"landed"`
 		Status      string          `json:"status"`
 		By          string          `json:"by"`
 		Reason      string          `json:"reason"`
@@ -345,10 +349,15 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "session_created":
 		s.sessions[rec.Session] = &SessionRow{
 			Run: s.run.ID, ID: rec.Session, Name: rec.Event.Name,
-			Adapter: rec.Event.Adapter, Model: rec.Event.Model,
+			Adapter: rec.Event.Adapter, Model: rec.Event.Model, Workdir: rec.Event.Workdir, Effort: rec.Event.Effort,
 			Scope: rec.Scope, Parent: rec.Event.Parent, Created: at,
 		}
 		changed = append(changed, change{tableSessions, rec.Session})
+	case "steer":
+		if row := s.sessions[rec.Event.Target]; row != nil {
+			row.Steers = append(row.Steers, steerRecord{Message: rec.Event.Message, Source: rec.Event.Source, Landed: rec.Event.Landed, Created: at})
+			changed = append(changed, change{tableSessions, rec.Event.Target})
+		}
 	case "interview_question_asked":
 		s.interviews[rec.Event.QuestionID] = &InterviewRow{
 			Run: s.run.ID, QuestionID: rec.Event.QuestionID, Name: rec.Event.Name,
@@ -471,7 +480,7 @@ func (s *Store) rowLocked(table, key string) any {
 	case tableScopes:
 		return *s.scopes[key]
 	case tableSessions:
-		return *s.sessions[key]
+		return cloneSession(*s.sessions[key])
 	case tableInterviews:
 		return *s.interviews[key]
 	case tableTurns:
@@ -780,7 +789,7 @@ func (s *Store) snapshotLocked() RunSnapshot {
 		out.Scopes[key] = cloneScope(*row)
 	}
 	for id, row := range s.sessions {
-		out.Sessions[id] = *row
+		out.Sessions[id] = cloneSession(*row)
 	}
 	for id, row := range s.interviews {
 		out.Interviews[id] = *row
@@ -855,5 +864,10 @@ func mustMarshal(value any) json.RawMessage {
 }
 
 func cloneRun(row RunRow) RunRow {
+	return row
+}
+
+func cloneSession(row SessionRow) SessionRow {
+	row.Steers = slices.Clone(row.Steers)
 	return row
 }

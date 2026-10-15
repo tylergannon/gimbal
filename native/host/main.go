@@ -8,7 +8,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -108,16 +107,18 @@ func startBundledServer() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("prepare bundled Gimbal server startup: %w", err)
 	}
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = serverDiagnostics{}
 	if err := cmd.Start(); err != nil {
 		return "", fmt.Errorf("start bundled Gimbal server: %w", err)
 	}
+	writeDiagnostic("server", fmt.Sprintf("Started bundled server pid=%d", cmd.Process.Pid))
 	stopped := make(chan struct{})
 	bundledServer.cmd = cmd
 	bundledServer.stopped = stopped
 	bundledServer.owner = owner
 	go func() {
-		_ = cmd.Wait()
+		err := cmd.Wait()
+		writeDiagnostic("server", fmt.Sprintf("Bundled server pid=%d exited: %v", cmd.Process.Pid, err))
 		close(stopped)
 	}()
 	ready := make(chan string, 1)
@@ -236,9 +237,10 @@ func stopBundledServerLocked() {
 
 //export SKGoHostStart
 func SKGoHostStart() *C.char {
+	writeDiagnostic("host", "Starting desktop host")
 	origin, err := host.Start()
 	if err != nil {
-		log.Print(err)
+		writeDiagnostic("host", "Startup failed: "+err.Error())
 		return nil
 	}
 	return C.CString(origin)
@@ -246,9 +248,11 @@ func SKGoHostStart() *C.char {
 
 //export SKGoHostRecover
 func SKGoHostRecover() C.int {
-	if host.Recover() != nil {
+	if err := host.Recover(); err != nil {
+		writeDiagnostic("host", "Recovery failed: "+err.Error())
 		return 0
 	}
+	writeDiagnostic("host", "Recovery completed")
 	return 1
 }
 
@@ -257,9 +261,34 @@ func SKGoHostServerURL() *C.char { return C.CString(serverOrigin) }
 
 //export SKGoHostStop
 func SKGoHostStop() {
+	writeDiagnostic("host", "Stopping desktop host")
 	_ = host.Stop()
 	bundledServer.Lock()
 	stopBundledServerLocked()
 	bundledServer.Unlock()
+}
+
+//export SKGoHostDiagnostic
+func SKGoHostDiagnostic(component, message *C.char) {
+	writeDiagnostic(C.GoString(component), C.GoString(message))
+}
+
+//export SKGoHostLogsDirectory
+func SKGoHostLogsDirectory() *C.char {
+	d, err := desktopDiagnostics()
+	if err != nil {
+		return nil
+	}
+	return C.CString(d.dir)
+}
+
+//export SKGoHostExportDiagnostics
+func SKGoHostExportDiagnostics(destination *C.char) *C.char {
+	writeDiagnostic("host", "Exporting diagnostics")
+	if err := exportDiagnostics(C.GoString(destination)); err != nil {
+		writeDiagnostic("host", "Diagnostics export failed: "+err.Error())
+		return C.CString(err.Error())
+	}
+	return nil
 }
 func main() {}

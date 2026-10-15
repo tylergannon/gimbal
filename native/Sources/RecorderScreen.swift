@@ -259,14 +259,14 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     #endif
   }
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-    NSLog("Workspace loaded frame=%@", NSStringFromRect(webView.frame))
+      Diagnostics.record("workspace", "Main workspace loaded")
     send(controller.status)
   }
   func webView(
     _ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!,
     withError error: Error
   ) {
-    NSLog("Workspace navigation failed: %@", error.localizedDescription)
+    Diagnostics.record("workspace", "Navigation failed: \(error.localizedDescription)")
   }
   func webView(
     _ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
@@ -407,7 +407,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
       let view = context.coordinator.make()
       // The window opens at its front door, which sends it back to its last project.
       let start = url.appendingPathComponent("window")
-      NSLog("Workspace loading %@", start.absoluteString)
+      Diagnostics.record("workspace", "Loading main workspace")
       view.load(URLRequest(url: start))
       return view
     }

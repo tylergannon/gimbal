@@ -9,4 +9,4 @@
   const query = $derived(watchRuns(page.params.project!));
   const runs = $derived((query.current ?? data) as { items: RunCardItem[]; attention: InterviewRow[]; now: number });
 </script>
-<ProjectRuns data={runs} error={query.error} onretry={() => query.reconnect()} project={page.params.project!} onopen={path => void goto(path)} />
+<ProjectRuns data={runs} error={query.error} onretry={() => query.reconnect()} project={page.params.project!} onopen={path => void goto(path)} onopenguide={name => void goto(`/projects/${page.params.project}/workflows/${encodeURIComponent(name)}`)} />

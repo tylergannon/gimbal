@@ -15,6 +15,7 @@
     run,
     project = page.params.project,
     active = true,
+    agentFocus = false,
     connection,
     activeTurn,
     waiting = 0,
@@ -33,6 +34,7 @@
     run: RunRow;
     project?: string;
     active?: boolean;
+    agentFocus?: boolean;
     connection: ConnectionState;
     activeTurn?: TurnRow;
     waiting?: number;
@@ -207,7 +209,7 @@
       </div>
     {/if}
   </label>
-  {#if !terminal}
+  {#if !terminal && !agentFocus}
     <div class="controls">
       {#if !sessionName}
       <Button
@@ -230,11 +232,11 @@
         <XIcon data-icon="inline-start" size={16} />{cancelling ? "Cancelling" : "Cancel run"}
       </Button>
     </div>
-  {:else}
+  {:else if terminal}
     {#if run.cancellation?.cleanup === "unconfirmed"}
-      <Button variant="outline" size="sm" disabled={cancelling} onclick={oncancel}>
+      {#if !agentFocus}<Button variant="outline" size="sm" disabled={cancelling} onclick={oncancel}>
         {cancelling ? "Retrying cleanup" : "Retry cleanup"}
-      </Button>
+      </Button>{/if}
       <span class="recorded">Workflow ended · resource cleanup is unconfirmed</span>
     {:else}
       <span class="recorded">Recorded run · nothing here is live</span>

@@ -4367,6 +4367,411 @@ func ParseWaiting(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	return decWaiting(parsed, "")
 }
 
+func encWorkflowCatalog(v pkg_onzggl3sn52xizlt.WorkflowCatalog, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.Project)
+	enc1.Set("project", enc2)
+	enc3 := make([]any, 0, len(v.Workflows))
+	for i4, item5 := range v.Workflows {
+		enc6, err := encWorkflowDetails(item5, at+"/workflows"+"/"+strconv.Itoa(i4))
+		if err != nil {
+			return nil, err
+		}
+		enc3 = append(enc3, enc6)
+	}
+	var enc7 any = enc3
+	enc1.Set("workflows", enc7)
+	return enc1, nil
+}
+
+func decWorkflowCatalog(raw any, at string) (pkg_onzggl3sn52xizlt.WorkflowCatalog, error) {
+	var dvZero pkg_onzggl3sn52xizlt.WorkflowCatalog
+	var dec1 pkg_onzggl3sn52xizlt.WorkflowCatalog
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "project", "workflows"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "project", at+"/project")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/project")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Project = dec4
+	raw5, err := dvRequired(obj2, "workflows", at+"/workflows")
+	if err != nil {
+		return dvZero, err
+	}
+	items7, err := dvArray(raw5, at+"/workflows")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6 := make([]pkg_onzggl3sn52xizlt.WorkflowDetails, 0, len(items7))
+	for i8, item9 := range items7 {
+		dec10, err := decWorkflowDetails(item9, at+"/workflows"+"/"+strconv.Itoa(i8))
+		if err != nil {
+			return dvZero, err
+		}
+		dec6 = append(dec6, dec10)
+	}
+	dec1.Workflows = dec6
+	return dec1, nil
+}
+
+// EncodeWorkflowCatalog converts v into the devalue value model.
+func EncodeWorkflowCatalog(v pkg_onzggl3sn52xizlt.WorkflowCatalog) (any, error) {
+	return encWorkflowCatalog(v, "")
+}
+
+// DecodeWorkflowCatalog converts a devalue value model tree into a pkg_onzggl3sn52xizlt.WorkflowCatalog, rejecting any
+// shape the type grammar does not admit.
+func DecodeWorkflowCatalog(raw any) (pkg_onzggl3sn52xizlt.WorkflowCatalog, error) {
+	return decWorkflowCatalog(raw, "")
+}
+
+// StringifyWorkflowCatalog encodes v and serializes it with devalue.
+func StringifyWorkflowCatalog(v pkg_onzggl3sn52xizlt.WorkflowCatalog) (string, error) {
+	encoded, err := encWorkflowCatalog(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseWorkflowCatalog parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.WorkflowCatalog.
+func ParseWorkflowCatalog(s string) (pkg_onzggl3sn52xizlt.WorkflowCatalog, error) {
+	var zero pkg_onzggl3sn52xizlt.WorkflowCatalog
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decWorkflowCatalog(parsed, "")
+}
+
+func encWorkflowDetails(v pkg_onzggl3sn52xizlt.WorkflowDetails, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.Name)
+	enc1.Set("name", enc2)
+	var enc3 any = string(v.Summary)
+	enc1.Set("summary", enc3)
+	var enc4 any = string(v.Help)
+	enc1.Set("help", enc4)
+	enc5 := make([]any, 0, len(v.Fields))
+	for i6, item7 := range v.Fields {
+		enc8, err := encWorkflowField(item7, at+"/fields"+"/"+strconv.Itoa(i6))
+		if err != nil {
+			return nil, err
+		}
+		enc5 = append(enc5, enc8)
+	}
+	var enc9 any = enc5
+	enc1.Set("fields", enc9)
+	enc10 := make([]any, 0, len(v.Roles))
+	for i11, item12 := range v.Roles {
+		enc13, err := encWorkflowRole(item12, at+"/roles"+"/"+strconv.Itoa(i11))
+		if err != nil {
+			return nil, err
+		}
+		enc10 = append(enc10, enc13)
+	}
+	var enc14 any = enc10
+	enc1.Set("roles", enc14)
+	var enc15 any = string(v.SourceJSON)
+	enc1.Set("source_json", enc15)
+	return enc1, nil
+}
+
+func decWorkflowDetails(raw any, at string) (pkg_onzggl3sn52xizlt.WorkflowDetails, error) {
+	var dvZero pkg_onzggl3sn52xizlt.WorkflowDetails
+	var dec1 pkg_onzggl3sn52xizlt.WorkflowDetails
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "name", "summary", "help", "fields", "roles", "source_json"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "name", at+"/name")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/name")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Name = dec4
+	raw5, err := dvRequired(obj2, "summary", at+"/summary")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6, err := dvString(raw5, at+"/summary")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Summary = dec6
+	raw7, err := dvRequired(obj2, "help", at+"/help")
+	if err != nil {
+		return dvZero, err
+	}
+	dec8, err := dvString(raw7, at+"/help")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Help = dec8
+	raw9, err := dvRequired(obj2, "fields", at+"/fields")
+	if err != nil {
+		return dvZero, err
+	}
+	items11, err := dvArray(raw9, at+"/fields")
+	if err != nil {
+		return dvZero, err
+	}
+	dec10 := make([]pkg_onzggl3sn52xizlt.WorkflowField, 0, len(items11))
+	for i12, item13 := range items11 {
+		dec14, err := decWorkflowField(item13, at+"/fields"+"/"+strconv.Itoa(i12))
+		if err != nil {
+			return dvZero, err
+		}
+		dec10 = append(dec10, dec14)
+	}
+	dec1.Fields = dec10
+	raw15, err := dvRequired(obj2, "roles", at+"/roles")
+	if err != nil {
+		return dvZero, err
+	}
+	items17, err := dvArray(raw15, at+"/roles")
+	if err != nil {
+		return dvZero, err
+	}
+	dec16 := make([]pkg_onzggl3sn52xizlt.WorkflowRole, 0, len(items17))
+	for i18, item19 := range items17 {
+		dec20, err := decWorkflowRole(item19, at+"/roles"+"/"+strconv.Itoa(i18))
+		if err != nil {
+			return dvZero, err
+		}
+		dec16 = append(dec16, dec20)
+	}
+	dec1.Roles = dec16
+	raw21, err := dvRequired(obj2, "source_json", at+"/source_json")
+	if err != nil {
+		return dvZero, err
+	}
+	dec22, err := dvString(raw21, at+"/source_json")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.SourceJSON = dec22
+	return dec1, nil
+}
+
+// EncodeWorkflowDetails converts v into the devalue value model.
+func EncodeWorkflowDetails(v pkg_onzggl3sn52xizlt.WorkflowDetails) (any, error) {
+	return encWorkflowDetails(v, "")
+}
+
+// DecodeWorkflowDetails converts a devalue value model tree into a pkg_onzggl3sn52xizlt.WorkflowDetails, rejecting any
+// shape the type grammar does not admit.
+func DecodeWorkflowDetails(raw any) (pkg_onzggl3sn52xizlt.WorkflowDetails, error) {
+	return decWorkflowDetails(raw, "")
+}
+
+// StringifyWorkflowDetails encodes v and serializes it with devalue.
+func StringifyWorkflowDetails(v pkg_onzggl3sn52xizlt.WorkflowDetails) (string, error) {
+	encoded, err := encWorkflowDetails(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseWorkflowDetails parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.WorkflowDetails.
+func ParseWorkflowDetails(s string) (pkg_onzggl3sn52xizlt.WorkflowDetails, error) {
+	var zero pkg_onzggl3sn52xizlt.WorkflowDetails
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decWorkflowDetails(parsed, "")
+}
+
+func encWorkflowField(v pkg_onzggl3sn52xizlt.WorkflowField, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.Name)
+	enc1.Set("name", enc2)
+	var enc3 any = string(v.Kind)
+	enc1.Set("kind", enc3)
+	var enc4 any = string(v.Description)
+	enc1.Set("description", enc4)
+	var enc5 any = bool(v.Optional)
+	enc1.Set("optional", enc5)
+	var enc6 any = bool(v.Nullable)
+	enc1.Set("nullable", enc6)
+	return enc1, nil
+}
+
+func decWorkflowField(raw any, at string) (pkg_onzggl3sn52xizlt.WorkflowField, error) {
+	var dvZero pkg_onzggl3sn52xizlt.WorkflowField
+	var dec1 pkg_onzggl3sn52xizlt.WorkflowField
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "name", "kind", "description", "optional", "nullable"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "name", at+"/name")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/name")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Name = dec4
+	raw5, err := dvRequired(obj2, "kind", at+"/kind")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6, err := dvString(raw5, at+"/kind")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Kind = dec6
+	raw7, err := dvRequired(obj2, "description", at+"/description")
+	if err != nil {
+		return dvZero, err
+	}
+	dec8, err := dvString(raw7, at+"/description")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Description = dec8
+	raw9, err := dvRequired(obj2, "optional", at+"/optional")
+	if err != nil {
+		return dvZero, err
+	}
+	dec10, err := dvBool(raw9, at+"/optional")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Optional = dec10
+	raw11, err := dvRequired(obj2, "nullable", at+"/nullable")
+	if err != nil {
+		return dvZero, err
+	}
+	dec12, err := dvBool(raw11, at+"/nullable")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Nullable = dec12
+	return dec1, nil
+}
+
+// EncodeWorkflowField converts v into the devalue value model.
+func EncodeWorkflowField(v pkg_onzggl3sn52xizlt.WorkflowField) (any, error) {
+	return encWorkflowField(v, "")
+}
+
+// DecodeWorkflowField converts a devalue value model tree into a pkg_onzggl3sn52xizlt.WorkflowField, rejecting any
+// shape the type grammar does not admit.
+func DecodeWorkflowField(raw any) (pkg_onzggl3sn52xizlt.WorkflowField, error) {
+	return decWorkflowField(raw, "")
+}
+
+// StringifyWorkflowField encodes v and serializes it with devalue.
+func StringifyWorkflowField(v pkg_onzggl3sn52xizlt.WorkflowField) (string, error) {
+	encoded, err := encWorkflowField(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseWorkflowField parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.WorkflowField.
+func ParseWorkflowField(s string) (pkg_onzggl3sn52xizlt.WorkflowField, error) {
+	var zero pkg_onzggl3sn52xizlt.WorkflowField
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decWorkflowField(parsed, "")
+}
+
+func encWorkflowRole(v pkg_onzggl3sn52xizlt.WorkflowRole, at string) (any, error) {
+	enc1 := devalue.NewObject()
+	var enc2 any = string(v.Name)
+	enc1.Set("name", enc2)
+	var enc3 any = string(v.Default)
+	enc1.Set("default", enc3)
+	return enc1, nil
+}
+
+func decWorkflowRole(raw any, at string) (pkg_onzggl3sn52xizlt.WorkflowRole, error) {
+	var dvZero pkg_onzggl3sn52xizlt.WorkflowRole
+	var dec1 pkg_onzggl3sn52xizlt.WorkflowRole
+	obj2, err := dvObject(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	if err := dvKnown(obj2, at, "name", "default"); err != nil {
+		return dvZero, err
+	}
+	raw3, err := dvRequired(obj2, "name", at+"/name")
+	if err != nil {
+		return dvZero, err
+	}
+	dec4, err := dvString(raw3, at+"/name")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Name = dec4
+	raw5, err := dvRequired(obj2, "default", at+"/default")
+	if err != nil {
+		return dvZero, err
+	}
+	dec6, err := dvString(raw5, at+"/default")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Default = dec6
+	return dec1, nil
+}
+
+// EncodeWorkflowRole converts v into the devalue value model.
+func EncodeWorkflowRole(v pkg_onzggl3sn52xizlt.WorkflowRole) (any, error) {
+	return encWorkflowRole(v, "")
+}
+
+// DecodeWorkflowRole converts a devalue value model tree into a pkg_onzggl3sn52xizlt.WorkflowRole, rejecting any
+// shape the type grammar does not admit.
+func DecodeWorkflowRole(raw any) (pkg_onzggl3sn52xizlt.WorkflowRole, error) {
+	return decWorkflowRole(raw, "")
+}
+
+// StringifyWorkflowRole encodes v and serializes it with devalue.
+func StringifyWorkflowRole(v pkg_onzggl3sn52xizlt.WorkflowRole) (string, error) {
+	encoded, err := encWorkflowRole(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseWorkflowRole parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.WorkflowRole.
+func ParseWorkflowRole(s string) (pkg_onzggl3sn52xizlt.WorkflowRole, error) {
+	var zero pkg_onzggl3sn52xizlt.WorkflowRole
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decWorkflowRole(parsed, "")
+}
+
 func encRunSnapshot(v pkg_src.RunSnapshot, at string) (any, error) {
 	enc1 := devalue.NewObject()
 	var enc2 any = string(v.JSON)
@@ -10581,7 +10986,93 @@ func ParseRoot52(s string) (pkg_onzggl3sn52xizlt.Waiting, error) {
 	return decRoot52(parsed, "")
 }
 
-func encRoot53(v pkg_src.RunSnapshot, at string) (any, error) {
+func encRoot53(v pkg_onzggl3sn52xizlt.WorkflowCatalog, at string) (any, error) {
+	enc1, err := encWorkflowCatalog(v, at)
+	if err != nil {
+		return nil, err
+	}
+	return enc1, nil
+}
+
+func decRoot53(raw any, at string) (pkg_onzggl3sn52xizlt.WorkflowCatalog, error) {
+	var dvZero pkg_onzggl3sn52xizlt.WorkflowCatalog
+	dec1, err := decWorkflowCatalog(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	return dec1, nil
+}
+
+// EncodeRoot53 converts v into the devalue value model.
+func EncodeRoot53(v pkg_onzggl3sn52xizlt.WorkflowCatalog) (any, error) { return encRoot53(v, "") }
+
+// DecodeRoot53 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.WorkflowCatalog, rejecting any
+// shape the type grammar does not admit.
+func DecodeRoot53(raw any) (pkg_onzggl3sn52xizlt.WorkflowCatalog, error) { return decRoot53(raw, "") }
+
+// StringifyRoot53 encodes v and serializes it with devalue.
+func StringifyRoot53(v pkg_onzggl3sn52xizlt.WorkflowCatalog) (string, error) {
+	encoded, err := encRoot53(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRoot53 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.WorkflowCatalog.
+func ParseRoot53(s string) (pkg_onzggl3sn52xizlt.WorkflowCatalog, error) {
+	var zero pkg_onzggl3sn52xizlt.WorkflowCatalog
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRoot53(parsed, "")
+}
+
+func encRoot54(v pkg_onzggl3sn52xizlt.WorkflowDetails, at string) (any, error) {
+	enc1, err := encWorkflowDetails(v, at)
+	if err != nil {
+		return nil, err
+	}
+	return enc1, nil
+}
+
+func decRoot54(raw any, at string) (pkg_onzggl3sn52xizlt.WorkflowDetails, error) {
+	var dvZero pkg_onzggl3sn52xizlt.WorkflowDetails
+	dec1, err := decWorkflowDetails(raw, at)
+	if err != nil {
+		return dvZero, err
+	}
+	return dec1, nil
+}
+
+// EncodeRoot54 converts v into the devalue value model.
+func EncodeRoot54(v pkg_onzggl3sn52xizlt.WorkflowDetails) (any, error) { return encRoot54(v, "") }
+
+// DecodeRoot54 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.WorkflowDetails, rejecting any
+// shape the type grammar does not admit.
+func DecodeRoot54(raw any) (pkg_onzggl3sn52xizlt.WorkflowDetails, error) { return decRoot54(raw, "") }
+
+// StringifyRoot54 encodes v and serializes it with devalue.
+func StringifyRoot54(v pkg_onzggl3sn52xizlt.WorkflowDetails) (string, error) {
+	encoded, err := encRoot54(v, "")
+	if err != nil {
+		return "", err
+	}
+	return devalue.Stringify(encoded)
+}
+
+// ParseRoot54 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.WorkflowDetails.
+func ParseRoot54(s string) (pkg_onzggl3sn52xizlt.WorkflowDetails, error) {
+	var zero pkg_onzggl3sn52xizlt.WorkflowDetails
+	parsed, err := devalue.Parse(s, nil)
+	if err != nil {
+		return zero, err
+	}
+	return decRoot54(parsed, "")
+}
+
+func encRoot55(v pkg_src.RunSnapshot, at string) (any, error) {
 	enc1, err := encRunSnapshot(v, at)
 	if err != nil {
 		return nil, err
@@ -10589,7 +11080,7 @@ func encRoot53(v pkg_src.RunSnapshot, at string) (any, error) {
 	return enc1, nil
 }
 
-func decRoot53(raw any, at string) (pkg_src.RunSnapshot, error) {
+func decRoot55(raw any, at string) (pkg_src.RunSnapshot, error) {
 	var dvZero pkg_src.RunSnapshot
 	dec1, err := decRunSnapshot(raw, at)
 	if err != nil {
@@ -10598,30 +11089,30 @@ func decRoot53(raw any, at string) (pkg_src.RunSnapshot, error) {
 	return dec1, nil
 }
 
-// EncodeRoot53 converts v into the devalue value model.
-func EncodeRoot53(v pkg_src.RunSnapshot) (any, error) { return encRoot53(v, "") }
+// EncodeRoot55 converts v into the devalue value model.
+func EncodeRoot55(v pkg_src.RunSnapshot) (any, error) { return encRoot55(v, "") }
 
-// DecodeRoot53 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
+// DecodeRoot55 converts a devalue value model tree into a pkg_src.RunSnapshot, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot53(raw any) (pkg_src.RunSnapshot, error) { return decRoot53(raw, "") }
+func DecodeRoot55(raw any) (pkg_src.RunSnapshot, error) { return decRoot55(raw, "") }
 
-// StringifyRoot53 encodes v and serializes it with devalue.
-func StringifyRoot53(v pkg_src.RunSnapshot) (string, error) {
-	encoded, err := encRoot53(v, "")
+// StringifyRoot55 encodes v and serializes it with devalue.
+func StringifyRoot55(v pkg_src.RunSnapshot) (string, error) {
+	encoded, err := encRoot55(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot53 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
-func ParseRoot53(s string) (pkg_src.RunSnapshot, error) {
+// ParseRoot55 parses a devalue document and decodes it into a pkg_src.RunSnapshot.
+func ParseRoot55(s string) (pkg_src.RunSnapshot, error) {
 	var zero pkg_src.RunSnapshot
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decRoot53(parsed, "")
+	return decRoot55(parsed, "")
 }
 
 func skgoCallerMatchers() skgo.CallerMatchers {
@@ -12254,6 +12745,68 @@ func remote_steerLoop(ctx context.Context, call skgo.Call) (any, error) {
 	return EncodeRoot52(out)
 }
 
+// remote_workflowCatalog answers src/routes/workflow.remote.ts#workflowCatalog, a query.
+//
+// The argument is decoded by DecodeRoot1, generated by polytype for workflowCatalog's
+// own parameter type: a shape it does not admit is a 400 naming the path,
+// never a zero value.
+// The result is encoded by EncodeRoot53, generated for its result type.
+func remote_workflowCatalog(ctx context.Context, call skgo.Call) (any, error) {
+	if err := skgo.RequireArgument(call); err != nil {
+		return nil, err
+	}
+	in, err := DecodeRoot1(call.Arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	out, err := pkg_onzggl3sn52xizlt.Skgo_workflowCatalog(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot53(out)
+}
+
+// requestedArg_workflowCatalog decodes one instance's argument for skgo.Requested, with the same
+// decoder remote_workflowCatalog uses.
+func requestedArg_workflowCatalog(arg any) (any, error) {
+	in, err := DecodeRoot1(arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	return in, nil
+}
+
+// remote_workflowGuide answers src/routes/workflow.remote.ts#workflowGuide, a query.
+//
+// The argument is decoded by DecodeRoot1, generated by polytype for workflowGuide's
+// own parameter type: a shape it does not admit is a 400 naming the path,
+// never a zero value.
+// The result is encoded by EncodeRoot54, generated for its result type.
+func remote_workflowGuide(ctx context.Context, call skgo.Call) (any, error) {
+	if err := skgo.RequireArgument(call); err != nil {
+		return nil, err
+	}
+	in, err := DecodeRoot1(call.Arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	out, err := pkg_onzggl3sn52xizlt.Skgo_workflowGuide(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return EncodeRoot54(out)
+}
+
+// requestedArg_workflowGuide decodes one instance's argument for skgo.Requested, with the same
+// decoder remote_workflowGuide uses.
+func requestedArg_workflowGuide(arg any) (any, error) {
+	in, err := DecodeRoot1(arg)
+	if err != nil {
+		return nil, skgo.BadRequest(err)
+	}
+	return in, nil
+}
+
 // Remotes returns every remote function declared in the app, ready to hand
 // to skgo.NewRemotes.
 func Remotes() []*skgo.Remote {
@@ -12739,6 +13292,22 @@ func Remotes() []*skgo.Remote {
 			CallerMatchers: skgoCallerMatchers(),
 			CallerRoutes:   params.SkgoCallerRoutes(),
 			Call:           remote_steerLoop,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:      skgo.KindQuery,
+			Module:    "src/routes/workflow.remote.ts",
+			Name:      "workflowCatalog",
+			Fn:        pkg_onzggl3sn52xizlt.Skgo_workflowCatalog,
+			Call:      remote_workflowCatalog,
+			DecodeArg: requestedArg_workflowCatalog,
+		}),
+		skgo.NewRemote(skgo.RemoteSpec{
+			Kind:      skgo.KindQuery,
+			Module:    "src/routes/workflow.remote.ts",
+			Name:      "workflowGuide",
+			Fn:        pkg_onzggl3sn52xizlt.Skgo_workflowGuide,
+			Call:      remote_workflowGuide,
+			DecodeArg: requestedArg_workflowGuide,
 		}),
 	}
 }

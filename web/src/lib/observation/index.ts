@@ -70,6 +70,9 @@ export type ScopeRow = {
 /** One agent conversation. `scope` is where it was created, which is not
  * where its turns necessarily ran. */
 export type SessionRow = {
+  workdir?: string;
+  effort?: string;
+  steers?: { message: string; source: string; landed: boolean; created: number }[];
   run: string;
   id: string;
   name: string;
@@ -317,6 +320,19 @@ export class RunObservation {
           transcript = { projection: SessionProjection.restore(emptySnapshot()), provenance: {} };
           this.transcripts.set(value.turn, transcript);
         }
+        // Starting another step or ending execution can settle the previous assistant
+        // without naming its message. Invalidate that row as well as the explicit target.
+        if (
+          value.event.type === "session.step.started" ||
+          /^session\.execution\.(succeeded|failed|interrupted)$/.test(value.event.type)
+        ) {
+          const sid = value.event.data?.sessionID;
+          const previous = (transcript.projection.viewState().message[sid] ?? []).findLast(
+            (message) => message.type === "assistant" && !message.time?.completed,
+          );
+          if (previous)
+            this.messageRevisions.set(`${value.turn}\0${previous.id}`, this.revision + 1);
+        }
         transcript.projection.apply(value.event);
         foldProvenance(transcript.provenance, value.event, value.nativeRef);
         break;
@@ -429,10 +445,15 @@ export function usageOf(value: JSONObject | undefined): Usage {
   };
 }
 
+export function statedCostText(cost: number): string {
+  // Zero means the harness stated no cost, not that the turn was free.
+  return cost <= 0 ? "Not reported" : cost < 0.01 ? "<$0.01" : `$${cost.toFixed(2)}`;
+}
+
 /** One line of usage, for a message, a session total or a scope. */
 export const usageText = (usage: Usage): string =>
   `${usage.input} in · ${usage.output} out · ${usage.reasoning} reasoning · ` +
-  `${usage.cache_read} cache read · ${usage.cache_write} cache write · $${usage.stated_cost}`;
+  `${usage.cache_read} cache read · ${usage.cache_write} cache write · ${statedCostText(usage.stated_cost)}`;
 
 const numberOf = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;

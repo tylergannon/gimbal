@@ -34,7 +34,7 @@ unmounts, and WebKit delivers none to a desktop window it considers hidden, so i
 overlay would stay over whatever view the window shows next. -->
 {#if open}
 <AlertDialog.Root open onOpenChange={(next) => onopenchange?.(next)}>
-  <AlertDialog.Content class="cancel-content">
+  <AlertDialog.Content animate={false} class="cancel-content">
     <AlertDialog.Header>
       <AlertDialog.Title>Cancel the whole run?</AlertDialog.Title>
       <AlertDialog.Description>

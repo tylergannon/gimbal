@@ -61,8 +61,17 @@ func TestNativeLaunchFormDecodesIndexedFields(t *testing.T) {
 	if len(action) != 2 {
 		t.Fatalf("missing visible native form: status=%d body=%s", get.Code, get.Body.String())
 	}
-	if html.UnescapeString(action[1]) != "?v=1&/remote="+id {
-		t.Fatalf("native action=%s", action[1])
+	actionURL, err := url.Parse(html.UnescapeString(action[1]))
+	if err != nil {
+		t.Fatalf("native action URL: %v", err)
+	}
+	if actionURL.Query().Get("v") != "1" {
+		t.Fatalf("native action lost page query: %s", action[1])
+	}
+	formKey, ok := strings.CutPrefix(actionURL.Query().Get("/remote"), id+"/")
+	var identity string
+	if !ok || json.Unmarshal([]byte(formKey), &identity) != nil || identity == "" {
+		t.Fatalf("native action does not address an instance of the launch form: %s", action[1])
 	}
 	for _, field := range []string{"workflow/" + id, "inputs[0].name/" + id, "inputs[0].value/" + id, "b:inputs[1].include/" + id} {
 		if !strings.Contains(get.Body.String(), `name="`+field+`"`) {

@@ -17,6 +17,7 @@ import (
 // CreateConversation starts a conversation with its first message, which
 // also titles it. Model may be blank to use the provider's cheap default.
 type CreateConversation struct {
+	FileID         string `json:"file_id"`
 	Provider       string `json:"provider"`
 	Model          string `json:"model"`
 	Message        string `json:"message"`
@@ -46,7 +47,12 @@ func createConversation(ctx context.Context, event app.RequestEvent[params.Param
 	if strings.TrimSpace(arg.Message) == "" {
 		return conversation.Conversation{}, skgo.Invalidf("message", "Describe the work to start the session.")
 	}
-	item, err := manager.Start(ctx, conversation.NewConversation{Provider: arg.Provider, Model: arg.Model, SharedCheckout: arg.SharedCheckout, Branch: arg.Branch, Base: arg.Base, Environment: arg.Environment}, arg.Message)
+	if arg.FileID != "" {
+		if err := manager.CacheFile(ctx, arg.FileID); err != nil {
+			return conversation.Conversation{}, skgo.Invalidf("file_id", "%s", err)
+		}
+	}
+	item, err := manager.Start(ctx, conversation.NewConversation{FileID: arg.FileID, Provider: arg.Provider, Model: arg.Model, SharedCheckout: arg.SharedCheckout, Branch: arg.Branch, Base: arg.Base, Environment: arg.Environment}, arg.Message)
 	if err != nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusBadRequest, "%s", err)
 	}
@@ -65,7 +71,7 @@ func sendConversationMessage(ctx context.Context, event app.RequestEvent[params.
 	if err != nil {
 		return result, skgo.Errorf(400, "%s", err)
 	}
-	return result, nil
+	return result, skgo.RefreshRequested(ctx, projectConversations, 1)
 }
 
 type StopConversationRequest struct {

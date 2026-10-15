@@ -17,6 +17,8 @@ import (
 var (
 	// Skgo_cloneEnvironment is cloneEnvironment, published as src/lib/environments.remote.ts#cloneEnvironment.
 	Skgo_cloneEnvironment = cloneEnvironment
+	// Skgo_closeMachineConnection is closeMachineConnection, published as src/lib/environments.remote.ts#closeMachineConnection.
+	Skgo_closeMachineConnection = closeMachineConnection
 	// Skgo_environmentConfig is environmentConfig, published as src/lib/environments.remote.ts#environmentConfig.
 	Skgo_environmentConfig = environmentConfig
 	// Skgo_environmentSnapshot is environmentSnapshot, published as src/lib/environments.remote.ts#environmentSnapshot.
@@ -41,6 +43,8 @@ var (
 	Skgo_sshHosts = sshHosts
 	// Skgo_watchEnvironments is watchEnvironments, published as src/lib/environments.remote.ts#watchEnvironments.
 	Skgo_watchEnvironments = watchEnvironments
+	// Skgo_watchMachineConnection is watchMachineConnection, published as src/lib/environments.remote.ts#watchMachineConnection.
+	Skgo_watchMachineConnection = watchMachineConnection
 	// Skgo_viewRun is viewRun, published as src/lib/runs.remote.ts#viewRun.
 	Skgo_viewRun = viewRun
 	// Skgo_watchRuns is watchRuns, published as src/lib/runs.remote.ts#watchRuns.
@@ -103,9 +107,11 @@ type (
 	// SkgoArg_saveMachine is the type saveMachine takes.
 	SkgoArg_saveMachine = MachineForm
 	// SkgoOut_saveMachine is the type saveMachine returns.
-	SkgoOut_saveMachine = environments.MachineState
+	SkgoOut_saveMachine = environments.ConnectionProgress
 	// SkgoOut_watchEnvironments is the type watchEnvironments yields.
 	SkgoOut_watchEnvironments = environments.Snapshot
+	// SkgoOut_watchMachineConnection is the type watchMachineConnection yields.
+	SkgoOut_watchMachineConnection = environments.ConnectionProgress
 	// SkgoOut_watchRuns is the type watchRuns yields.
 	SkgoOut_watchRuns = runview.RunsData
 	// SkgoOut_watchRecording is the type watchRecording yields.

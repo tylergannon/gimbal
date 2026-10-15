@@ -47,6 +47,7 @@
   const initialPath = page.url.pathname;
   const initialTab: WorkspaceTab | undefined = initialConversation?.id
     ? { id: `${initialPath.split("/").slice(0, 3).join("/")}/conversations/${initialConversation.id}`, title: initialConversation.title, kind: 'chat' }
+    : initialPath.endsWith('/discuss') ? { id: `${initialPath.split('/').slice(0, 3).join('/')}/conversations/new`, title: 'New session', kind: 'chat' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
     : page.params.workflow ? { id: initialPath, title: `${page.params.workflow} guide`, kind: 'file' }
@@ -96,6 +97,15 @@
   function control(action: 'pause' | 'resume' | 'stop') { if (status) recordingControl(status, action); }
   function chooseProject(event: MouseEvent) { if (native) projectMenu(event); else projectChooser = true; }
   function guide(workflow: string) { select(`${root}/workflows/${encodeURIComponent(workflow)}`); }
+  let fileContext = $state<{ id: string; name: string }>();
+  function discuss(file: { id: string; name: string }) {
+    fileContext = file;
+    select(`${root}/conversations/new`);
+  }
+  function moveFile(path: string) {
+    if (native) { nativeMessage('openFile', { path: `${path}/window` }); close(path); }
+    else window.open(`${path}/window`, '_blank', 'noopener');
+  }
   function visit(path: string) {
     if (page.status >= 400) return;
     const item = items.find(item => item.id === path);
@@ -122,8 +132,13 @@
   function created(conversation: Conversation) {
     chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]);
     started = `${root}/conversations/${conversation.id}`;
+    fileContext = undefined;
   }
   afterNavigate(() => {
+    if (page.url.pathname.endsWith('/discuss') && page.params.fileID) {
+      discuss({ id: page.params.fileID, name: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file' });
+      return;
+    }
     if (page.url.pathname === `${root}/conversations` && initialConversation?.id) select(`${root}/conversations/${initialConversation.id}`);
     else visit(page.url.pathname);
   });
@@ -140,6 +155,7 @@
       if (current?.project && current.sessionID) select(`/projects/${current.project}/recordings/${current.sessionID}`);
     }
     else if (value === 'newSession') select(`${root}/conversations/new`);
+    else if (value === 'moveTab' && active && files.some(file => active === `${root}/files/${file.id}`)) moveFile(active);
     else if (value === 'openFileChooser') fileChooser = true;
     else if (value === 'switchProject') {
       if (targetProject && projects.some(item => item.id === targetProject)) select(`/projects/${targetProject}/recordings`);
@@ -157,7 +173,7 @@
   }
   $effect(() => {
     if (!native) return;
-    nativeMessage('workspaceState', { project, ready: true, sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path, path: item.path })), canOpenTodayTranscript: !!todayRecording });
+    nativeMessage('workspaceState', { project, ready: true, canMove: files.some(file => active === `${root}/files/${file.id}`), sidebarVisible: sidebar, tabCount: tabs.length, activeTabTitle: tabs.find(tab => tab.id === active)?.title, canStopResponse: conversations.some(item => `${root}/conversations/${item.id}` === active && !!item.active_request && item.status !== 'stopping'), projectName: name, projects: projects.map(item => ({ id: item.id, name: item.path.split('/').at(-1) ?? item.path, path: item.path })), canOpenTodayTranscript: !!todayRecording });
   });
   const place = $derived(JSON.stringify({ project, path: page.url.pathname, tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })) }));
   $effect(() => {
@@ -194,11 +210,11 @@
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
-      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} active={active === tab.id} oncreated={created} />
+      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} {fileContext} oncontextremoved={() => fileContext = undefined} active={active === tab.id} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
-      {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} />
+      {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
       {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split("/").at(-1)!)} />
       {:else if tab.id === root}<ProjectRuns {project} active={active === tab.id} onopenguide={guide} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onstate={value => runTabs = value} />
       {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} onstate={runState} />
@@ -209,7 +225,7 @@
   {/snippet}
   {#snippet fallback()}
     {#if page.url.pathname === `${root}/conversations`}
-      <NewSession {project} {name} oncreated={created} />
+      <NewSession {project} {name} {fileContext} oncontextremoved={() => fileContext = undefined} oncreated={created} />
     {:else if page.url.pathname === `${root}/recordings`}
       <section class="welcome"><p class="eyebrow">Project</p><h1>{name}</h1><p>Open a conversation or file from the sidebar, or start a new conversation.</p><button onclick={() => select(`${root}/conversations/new`)}>New conversation</button><p>Record audio from the macOS Recording menu.</p></section>
     {:else}<div class="route-content">{@render children()}</div>{/if}

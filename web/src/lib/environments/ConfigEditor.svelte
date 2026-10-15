@@ -9,7 +9,7 @@
 </script>
 
 <Dialog.Root open onOpenChange={(open) => { if (!open) onclose(); }}>
-  <Dialog.Content class="max-w-3xl max-h-[90vh] overflow-auto">
+  <Dialog.Content style="animation: none" class="max-w-3xl max-h-[90vh] overflow-auto">
     <Dialog.Header><Dialog.Title>Environment configuration</Dialog.Title><Dialog.Description>This is the same file used by Machines and environment setup. Plugin settings remain opaque.</Dialog.Description></Dialog.Header>
     {#if document.current}
       {#key reload}<ConfigForm document={document.current} generation={reload} {onsaved} onreload={async () => { await document.refresh(); reload++; }} />{/key}

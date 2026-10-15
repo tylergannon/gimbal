@@ -141,6 +141,36 @@ type MachineState struct {
 	Issues       []Issue      `json:"issues"`
 }
 
+// ConnectionSubscription identifies one mounted connection/detail view. A new
+// view gets a fresh identity; reconnecting its stream retains that identity.
+type ConnectionSubscription struct {
+	Machine string `json:"machine"`
+	View    string `json:"view"`
+}
+
+// ConnectionCheck records only work actually attempted by the connect operation.
+// Pending is in progress; a fatal failed check ends the list at that line.
+type ConnectionCheck struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	State       string `json:"state"`
+	Cause       string `json:"cause"`
+	Consequence string `json:"consequence"`
+	Fix         string `json:"fix"`
+	Fatal       bool   `json:"fatal"`
+}
+
+// ConnectionProgress belongs to a draft machine ID, before configuration is saved.
+// CanConnect permits confirmation of nonfatal warnings for that checked machine.
+type ConnectionProgress struct {
+	Attempt    string            `json:"attempt"`
+	ID         string            `json:"id"`
+	Checks     []ConnectionCheck `json:"checks"`
+	Complete   bool              `json:"complete"`
+	CanConnect bool              `json:"can_connect"`
+	Saved      bool              `json:"saved"`
+}
+
 // EnvironmentInfo is the directory identity shown in the UI. The editable
 // configuration's opaque properties remain in the configuration document.
 type EnvironmentInfo struct {
@@ -226,6 +256,7 @@ type ConfigEdit struct {
 }
 
 type MachineEdit struct {
+	Attempt       string  `json:"attempt"`
 	Revision      string  `json:"revision"`
 	Machine       Machine `json:"machine"`
 	ConnectAnyway bool    `json:"connect_anyway"`

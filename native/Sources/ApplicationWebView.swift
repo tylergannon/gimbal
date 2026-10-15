@@ -11,12 +11,19 @@ import WebKit
   private var signingIn = false
   var onOpenSession: ((String) -> Void)?
   func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard message.frameInfo.isMainFrame, let url, url.path.hasPrefix("/settings/"),
+    guard message.frameInfo.isMainFrame, let url,
       message.frameInfo.securityOrigin.protocol == url.scheme,
       message.frameInfo.securityOrigin.host == url.host,
       message.frameInfo.securityOrigin.port == url.port,
       let body = message.body as? [String: Any] else { return }
     #if os(macOS)
+      if message.name == "discussProjectFile", url.path.hasSuffix("/window"),
+        let path = body["path"] as? String,
+        path == String(url.path.dropLast("/window".count)) + "/discuss" {
+        onOpenSession?(path)
+        return
+      }
+      guard url.path.hasPrefix("/settings/") else { return }
       if message.name == "openMachineTerminal", body["local"] as? Bool == true,
         let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") {
         NSWorkspace.shared.openApplication(at: terminal, configuration: NSWorkspace.OpenConfiguration())
@@ -115,6 +122,7 @@ import WebKit
     config.websiteDataStore = .nonPersistent()
     config.userContentController.add(self, name: "openMachineTerminal")
     config.userContentController.add(self, name: "openSettingsSession")
+    config.userContentController.add(self, name: "discussProjectFile")
     let view = WKWebView(frame: .zero, configuration: config)
     view.uiDelegate = self
     view.navigationDelegate = self

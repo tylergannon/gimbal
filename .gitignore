@@ -43,3 +43,6 @@ docs-site/src/lib/generated/workflows/*.svg
 /ephemeral/research/issue-149/*
 !/ephemeral/research/issue-149/README.md
 !/ephemeral/research/issue-149/FINDINGS.md
+
+# Project-local frontend build freshness cache.
+.skgo/

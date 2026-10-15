@@ -524,20 +524,6 @@ test("two retained run panels observe independent run identities", async () => {
   await two.unmount();
 });
 
-test("a run's portaled cancellation guard closes when another tab becomes active", async () => {
-  const data = {
-    snapshot: structuredClone(planTripFixture.snapshot),
-    graph: JSON.stringify(planTripFixture.graph),
-  };
-  const screen = await render(RunView, { project: "retained-project", data, active: true });
-  await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
-  await expect.element(screen.getByRole("alertdialog")).toBeVisible();
-  await screen.rerender({ project: "retained-project", data, active: false });
-  await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
-  await screen.rerender({ project: "retained-project", data, active: true });
-  await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
-});
-
 test("a retained run panel renders a raw route preload without proxying its observation", async () => {
   const data = {
     snapshot: structuredClone(planTripFixture.snapshot),

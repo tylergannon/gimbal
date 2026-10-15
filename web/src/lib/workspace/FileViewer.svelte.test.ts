@@ -21,8 +21,21 @@ vi.mock("../workspace.remote", () => ({
   viewFile: () => ({ current: remote.view, refresh: remote.refresh }),
 }));
 beforeEach(() => {
+  remote.view.file.mediaType = "text/markdown";
+  remote.view.html =
+    "<h1>A complete document</h1><p>A retained reading position belongs to the file.</p>";
   remote.refresh.mockReset();
   remote.refresh.mockResolvedValue(undefined);
+});
+test("PDF viewers mount only in the visible tab so native viewers measure a usable viewport", async () => {
+  remote.view.file.mediaType = "application/pdf";
+  remote.view.html = "";
+  const screen = await render(FileViewer, { project: "project", id: "file-1", active: false });
+  await expect.element(screen.getByTitle("reader.md")).not.toBeInTheDocument();
+  await screen.rerender({ project: "project", id: "file-1", active: true });
+  await expect.element(screen.getByTitle("reader.md")).toHaveAttribute("src", "/original-file");
+  await screen.rerender({ project: "project", id: "file-1", active: false });
+  await expect.element(screen.getByTitle("reader.md")).not.toBeInTheDocument();
 });
 test("discussion passes library identity and keeps secondary actions in the menu", async () => {
   const ondiscuss = vi.fn(),

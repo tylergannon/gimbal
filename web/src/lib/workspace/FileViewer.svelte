@@ -43,7 +43,7 @@
     <div class="image"><img src={view.url} alt={view.file.name} onerror={() => { failure = 'The image could not be loaded. Refresh the file to try again.'; }} /></div>
   {:else if view.html}<div class="reading"><article>{@html view.html}</article></div>
   {:else if view.file.mediaType.startsWith('text/')}<div class="reading"><pre>{view.text}</pre></div>
-  {:else if view.file.mediaType === 'application/pdf'}<iframe title={view.file.name} src={view.url}></iframe>
+  {:else if view.file.mediaType === 'application/pdf'}{#if active}<iframe title={view.file.name} src={view.url}></iframe>{/if}
   {:else}<div class="unsupported"><p>This file is available to download.</p><a href={view.url} target="_blank" rel="noreferrer">Open / download {view.file.name}</a></div>{/if}
 </section>
 {:else}

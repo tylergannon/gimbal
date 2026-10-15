@@ -66,7 +66,7 @@
 </section>
 {#if active && cancelling}
 <AlertDialog.Root open onOpenChange={(next) => { if (!next && !busy) cancelling = undefined; }}>
-  <AlertDialog.Content><AlertDialog.Header><AlertDialog.Title>Cancel the whole run?</AlertDialog.Title><AlertDialog.Description>This ends all active work in {cancelling.name}, including its sessions, commands and child scopes. The record so far is kept. The run record will report the outcome.</AlertDialog.Description></AlertDialog.Header>
+  <AlertDialog.Content animate={false}><AlertDialog.Header><AlertDialog.Title>Cancel the whole run?</AlertDialog.Title><AlertDialog.Description>This ends all active work in {cancelling.name}, including its sessions, commands and child scopes. The record so far is kept. The run record will report the outcome.</AlertDialog.Description></AlertDialog.Header>
   {#if feedback}<p role="alert">{feedback}</p>{/if}
   <AlertDialog.Footer><AlertDialog.Cancel disabled={busy}>Keep running</AlertDialog.Cancel><AlertDialog.Action variant="destructive" disabled={busy} onclick={cancel}>{busy ? 'Cancelling…' : 'Cancel run'}</AlertDialog.Action></AlertDialog.Footer></AlertDialog.Content>
 </AlertDialog.Root>

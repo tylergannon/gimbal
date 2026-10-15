@@ -1,5 +1,6 @@
 import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
+import "../../app.css";
 import RunsList from "./RunsList.svelte";
 import { runsListFixture } from "./fixtures/index.js";
 const remote = vi.hoisted(() => ({
@@ -86,4 +87,27 @@ test("inactive Runs removes menus and cancellation dialogs without reviving them
   await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
   await screen.rerender({ ...props, active: true });
   await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+test("run confirmation is opaque even when animation timelines cannot advance", async () => {
+  const paused = document.createElement("style");
+  paused.textContent =
+    "[data-slot=alert-dialog-content], [data-slot=alert-dialog-overlay] { animation-play-state: paused !important; }";
+  document.head.append(paused);
+  try {
+    const screen = await render(RunsList, {
+      items: runsListFixture.items,
+      attention: runsListFixture.attention,
+    });
+    await screen
+      .getByRole("button", { name: "Actions for plan-trip 01M2RWXNFFYQA4HHQWMQ252CYF" })
+      .click();
+    await screen.getByRole("button", { name: "Cancel run…" }).click();
+    const dialog = screen.getByRole("alertdialog").element();
+    expect(getComputedStyle(dialog).opacity).toBe("1");
+    const overlay = document.querySelector('[data-slot="alert-dialog-overlay"]')!;
+    expect(getComputedStyle(overlay).opacity).toBe("1");
+  } finally {
+    paused.remove();
+  }
 });

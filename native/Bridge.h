@@ -5,4 +5,7 @@ char *SKGoHostStart(void);
 char *SKGoHostServerURL(void);
 int SKGoHostRecover(void);
 void SKGoHostStop(void);
+void SKGoHostDiagnostic(const char *component, const char *message);
+char *SKGoHostLogsDirectory(void);
+char *SKGoHostExportDiagnostics(const char *destination);
 #endif

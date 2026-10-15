@@ -64,7 +64,7 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 			return previous, nil
 		}
 	}
-	if item.Status == "unresolved" && r.Kind == "prompt" {
+	if (item.Status == "unresolved" || item.CleanupPending) && r.Kind == "prompt" {
 		return RequestState{}, errors.New("conversation: the previous request's outcome is unconfirmed; do not start replacement work")
 	}
 	active := m.active[id]
@@ -266,6 +266,10 @@ func (m *Manager) assistantReply(item *Conversation, r Request, text string) {
 func (m *Manager) finish(id string, r Request, kind string, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.finishLocked(id, r, kind, err)
+}
+
+func (m *Manager) finishLocked(id string, r Request, kind string, err error) {
 	item := m.items[id]
 	var uncertain *backend.DeliveryUncertain
 	if errors.Is(err, context.Canceled) && !errors.As(err, &uncertain) {

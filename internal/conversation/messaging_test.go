@@ -146,4 +146,35 @@ func TestMessagingConversationQueuesAndStopsByRetainedEnvelopeIdentity(t *testin
 	if err = manager.Cleanup(t.Context(), item.ID); err != nil {
 		t.Fatal(err)
 	}
+	// A fresh cleanup completion cannot substitute for the original turn event.
+	bus.mu.Lock()
+	bus.admissions = 0
+	bus.mu.Unlock()
+	lost, err := manager.Start(t.Context(), NewConversation{Provider: "claude", Environment: "queue-project", SharedCheckout: true}, "Retain missing terminal fact")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline = time.Now().Add(time.Second)
+	for {
+		bus.mu.Lock()
+		started := bus.admissions > 0
+		bus.mu.Unlock()
+		if started {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("queue turn not admitted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	budget, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
+	defer cancel()
+	if err = manager.Cleanup(budget, lost.ID); err == nil {
+		t.Fatal("cleanup event invented original turn cessation")
+	}
+	pending, _ := manager.Get(lost.ID)
+	if !pending.Live || !pending.CleanupPending || pending.ActiveRequest != lost.Requests[0].ID {
+		t.Fatalf("missing original event lost ownership: %+v", pending)
+	}
+
 }

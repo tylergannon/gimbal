@@ -17,15 +17,17 @@ import (
 )
 
 type remoteFixture struct {
-	mu            sync.Mutex
-	processes     map[string][]byte
-	turns         map[string]backend.Result
-	sessions      int
-	admissions    int
-	interruptions int
-	cleanup       int
-	workdir       string
-	autoComplete  bool
+	mu               sync.Mutex
+	processes        map[string][]byte
+	turns            map[string]backend.Result
+	sessions         int
+	admissions       int
+	interruptions    int
+	cleanup          int
+	workdir          string
+	autoComplete     bool
+	forgetOnCleanup  bool
+	cleanupCompletes bool
 }
 
 func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
@@ -96,8 +98,11 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&scope)
 		if scope.Run == scope.Scope {
 			f.cleanup++
+			if f.forgetOnCleanup {
+				f.turns = map[string]backend.Result{}
+			}
 			for id, result := range f.turns {
-				result.Done, result.Interrupted = true, true
+				result.Done, result.Interrupted = true, !f.cleanupCompletes
 				f.turns[id] = result
 			}
 		}
@@ -276,5 +281,101 @@ func TestAlternateLocalEnvironmentUsesLocalHarnessAndSelectedDirectory(t *testin
 	}
 	if len(adapter.workdirs) != 1 || adapter.workdirs[0] != alternate {
 		t.Fatalf("local harness dirs=%v", adapter.workdirs)
+	}
+}
+
+func TestRemoteCleanupCannotSettleOriginalWorkOnRestartedEmptyDaemon(t *testing.T) {
+	fixture := &remoteFixture{forgetOnCleanup: true}
+	manager, _, _ := remoteManager(t, fixture)
+	item, err := manager.Start(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true}, "Keep ownership through lost daemon state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitRemoteAdmission(t, fixture)
+	err = manager.Cleanup(t.Context(), item.ID)
+	if err == nil {
+		t.Fatal("empty daemon's cleanup acknowledged original cessation")
+	}
+	current, _ := manager.Get(item.ID)
+	if !current.Live || !current.CleanupPending || current.ActiveRequest != item.Requests[0].ID || current.Status != "unresolved" {
+		t.Fatalf("lost ownership: %+v", current)
+	}
+	for _, row := range current.Requests {
+		if row.ID == item.Requests[0].ID && (row.Status == "canceled" || row.Status == "completed") {
+			t.Fatalf("invented original settlement: %+v", row)
+		}
+	}
+	fixture.mu.Lock()
+	defer fixture.mu.Unlock()
+	if fixture.admissions != 1 || fixture.sessions != 1 {
+		t.Fatal("cleanup replayed native admission")
+	}
+}
+
+func TestRemoteCleanupConfirmsInterruptionOrCompletionRace(t *testing.T) {
+	for _, completed := range []bool{false, true} {
+		t.Run(map[bool]string{false: "interrupted", true: "completed"}[completed], func(t *testing.T) {
+			fixture := &remoteFixture{cleanupCompletes: completed}
+			manager, _, _ := remoteManager(t, fixture)
+			item, err := manager.Start(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true}, "Observe original outcome")
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitRemoteAdmission(t, fixture)
+			if _, err = manager.Submit(item.ID, Request{ID: "never-start-during-end", Created: time.Now().UnixMilli(), Kind: "prompt", Message: "Queued before End"}); err != nil {
+				t.Fatal(err)
+			}
+			if err = manager.Cleanup(t.Context(), item.ID); err != nil {
+				t.Fatal(err)
+			}
+			current, _ := manager.Get(item.ID)
+			if current.Live || current.CleanupPending || current.ActiveRequest != "" {
+				t.Fatalf("cleanup retained settled work: %+v", current)
+			}
+			want := "canceled"
+			if completed {
+				want = "completed"
+			}
+			fixture.mu.Lock()
+			admitted := fixture.admissions
+			fixture.mu.Unlock()
+			if admitted != 1 {
+				t.Fatalf("End admitted queued native work: %d", admitted)
+			}
+			if current.Requests[1].Status != "canceled" {
+				t.Fatalf("queued request survived End: %+v", current.Requests[1])
+			}
+			if current.Requests[0].Status != want {
+				t.Fatalf("original=%s want %s", current.Requests[0].Status, want)
+			}
+			if completed {
+				count := 0
+				for _, message := range current.Messages {
+					if message.Role == "assistant" {
+						count++
+					}
+				}
+				if count != 1 {
+					t.Fatalf("completion applied %d times", count)
+				}
+			}
+		})
+	}
+}
+
+func waitRemoteAdmission(t *testing.T, fixture *remoteFixture) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for {
+		fixture.mu.Lock()
+		started := fixture.admissions > 0
+		fixture.mu.Unlock()
+		if started {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("remote turn not admitted")
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

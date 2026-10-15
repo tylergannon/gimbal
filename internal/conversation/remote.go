@@ -259,7 +259,7 @@ func (m *Manager) remoteTurn(id string, r Request, active *activeConversation) {
 	defer cancel()
 	m.mu.Lock()
 	item := m.items[id]
-	if m.closing || item.Status == "unresolved" {
+	if m.closing || item.Status == "unresolved" || item.CleanupPending {
 		m.mu.Unlock()
 		return
 	}
@@ -354,10 +354,10 @@ func (m *Manager) observeRemote(ctx context.Context, id string, r Request, bindi
 			return
 		}
 		if errors.Is(err, context.Canceled) {
-			m.finish(id, r, "canceled", nil)
+			m.settleRemote(id, r, "canceled", "", nil)
 			return
 		}
-		m.finish(id, r, "failed", err)
+		m.settleRemote(id, r, "failed", "", err)
 		return
 	}
 	var result backend.TurnResult
@@ -370,13 +370,7 @@ func (m *Manager) observeRemote(ctx context.Context, id string, r Request, bindi
 		m.finish(id, r, "failed", errors.New("provider returned an invalid or empty reply"))
 		return
 	}
-	m.mu.Lock()
-	item := m.items[id]
-	item.Contact = "connected"
-	m.assistantReply(item, r, text)
-	_ = m.save(item)
-	m.mu.Unlock()
-	m.finish(id, r, "completed", nil)
+	m.settleRemote(id, r, "completed", text, nil)
 }
 
 func (m *Manager) remoteActivity(id string, r Request, cursor int, eventID string, raw json.RawMessage) {
@@ -556,11 +550,26 @@ func (m *Manager) deliverRemote(id string, r Request, active *activeConversation
 // Cleanup ends the retained remote scope explicitly. Closing a tab/window never
 // invokes this operation. Failed cleanup remains visible and retryable.
 func (m *Manager) Cleanup(ctx context.Context, id string) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
 	m.mu.Lock()
 	item := m.items[id]
 	if item == nil || !remotePlacement(item) {
 		m.mu.Unlock()
 		return errors.New("conversation: no remote environment to release")
+	}
+	var original Request
+	var envelope backend.MessageRequest
+	if item.ActiveRequest != "" {
+		for _, row := range item.Requests {
+			if row.ID == item.ActiveRequest {
+				original = row.Request
+				break
+			}
+		}
+		if state := m.remoteStates[id]; state != nil {
+			envelope = state.Requests[item.ActiveRequest]
+		}
 	}
 	item.CleanupPending = true
 	item.Revision++
@@ -588,6 +597,9 @@ func (m *Manager) Cleanup(ctx context.Context, id string) error {
 				err = errors.New(reply.Error)
 			}
 		}
+		if err == nil && original.ID != "" {
+			err = m.confirmRemoteOutcome(ctx, id, original, binding, envelope)
+		}
 		if err == nil {
 			err = m.environments.Release(ctx, *binding)
 		}
@@ -600,19 +612,20 @@ func (m *Manager) Cleanup(ctx context.Context, id string) error {
 	if err != nil {
 		item.Error = err.Error()
 		item.Contact = "unreachable"
+		if item.ActiveRequest != "" {
+			item.Status = "unresolved"
+		}
 	} else {
+		for _, row := range item.Requests {
+			if row.Kind == "prompt" && row.Status == "accepted" {
+				_ = m.reduce(item, requestEvent{kind: "canceled", request: row.Request})
+			}
+		}
 		item.Live = false
 		item.NativeSession = ""
 		item.Error = ""
 		item.Contact = "connected"
-		if item.ActiveRequest != "" {
-			for _, row := range item.Requests {
-				if row.ID == item.ActiveRequest {
-					_ = m.reduce(item, requestEvent{kind: "canceled", request: row.Request})
-					break
-				}
-			}
-		}
+
 		if active := m.active[id]; active != nil && active.cancel != nil {
 			active.cancel()
 		}
@@ -627,7 +640,7 @@ func (m *Manager) resumeQueuedRemote(id string) {
 	for {
 		m.mu.Lock()
 		item, active := m.items[id], m.active[id]
-		if item == nil || !item.Live || m.closing || item.ActiveRequest != "" || item.Status == "unresolved" {
+		if item == nil || !item.Live || m.closing || item.ActiveRequest != "" || (item.Status == "unresolved" || item.CleanupPending) {
 			m.mu.Unlock()
 			return
 		}
@@ -681,4 +694,80 @@ func (m *Manager) createLocalEnvironment(ctx context.Context, in NewConversation
 	m.active[id] = &activeConversation{}
 	m.projections[id] = sessionstate.New(sessionstate.NewProjectionState())
 	return clone(item), nil
+}
+
+func (m *Manager) remoteSettled(id string, r Request) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, row := range m.items[id].Requests {
+		if row.ID == r.ID {
+			return row.Status == "completed" || row.Status == "canceled" || row.Status == "failed"
+		}
+	}
+	return false
+}
+
+// Both the ordinary reader and explicit cleanup can observe the same terminal
+// fact. Apply it once, preserving a successful completion that won the Stop race.
+func (m *Manager) settleRemote(id string, r Request, kind, text string, err error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	item := m.items[id]
+	for _, row := range item.Requests {
+		if row.ID == r.ID && (row.Status == "completed" || row.Status == "canceled" || row.Status == "failed") {
+			return
+		}
+	}
+	item.Contact = "connected"
+	if kind == "completed" {
+		m.assistantReply(item, r, text)
+	}
+	m.finishLocked(id, r, kind, err)
+}
+
+func (m *Manager) confirmRemoteOutcome(ctx context.Context, id string, r Request, binding *environments.Binding, envelope backend.MessageRequest) error {
+	if m.remoteSettled(id, r) {
+		return nil
+	}
+	if envelope.ID == "" {
+		return &backend.DeliveryUncertain{RequestID: r.ID, Err: errors.New("original request envelope is missing; cleanup cannot establish its outcome")}
+	}
+	ctx = effects.ObserveDetached(m.remoteContext(ctx, binding, envelope.Owner))
+	var raw json.RawMessage
+	var err error
+	if binding.Connection.Messages != nil {
+		var event backend.MessageEvent
+		event, err = effects.Await(ctx, envelope, "completed", nil)
+		if event.Result != nil {
+			raw, _ = json.Marshal(backend.TurnResult{Output: event.Result.Output, Usage: event.Result.Usage})
+		}
+	} else {
+		raw, err = effects.Wait(ctx, "backend", backend.Target{Run: id, ID: r.ID}, nil)
+	}
+	if err != nil {
+		if m.remoteSettled(id, r) {
+			return nil
+		}
+		var uncertain *backend.DeliveryUncertain
+		if errors.As(err, &uncertain) {
+			return err
+		}
+		if errors.Is(err, context.Canceled) {
+			m.settleRemote(id, r, "canceled", "", nil)
+		} else {
+			m.settleRemote(id, r, "failed", "", err)
+		}
+		return nil
+	}
+	var result backend.TurnResult
+	if err = json.Unmarshal(raw, &result); err != nil {
+		return &backend.DeliveryUncertain{RequestID: r.ID, Err: err}
+	}
+	var text string
+	if err = json.Unmarshal(result.Output, &text); err != nil || strings.TrimSpace(text) == "" {
+		m.settleRemote(id, r, "failed", "", errors.New("provider returned an invalid or empty reply"))
+		return nil
+	}
+	m.settleRemote(id, r, "completed", text, nil)
+	return nil
 }

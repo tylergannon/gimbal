@@ -25,6 +25,8 @@ type remoteState struct {
 	PrepareAttempted bool                              `json:"prepare_attempted"`
 	SessionAttempted bool                              `json:"session_attempted"`
 	SessionCreated   bool                              `json:"session_created"`
+	CleanupFailed    bool                              `json:"cleanup_failed,omitempty"`
+	TurnAttempted    map[string]bool                   `json:"turn_attempted,omitempty"`
 	Requests         map[string]backend.MessageRequest `json:"requests"`
 	Cursors          map[string]int                    `json:"cursors"`
 	Seen             map[string]bool                   `json:"seen"`
@@ -51,7 +53,7 @@ func (m *Manager) SetEnvironments(service *environments.Service, projectID strin
 	}
 	m.mu.Unlock()
 	for _, id := range restore {
-		go func(id string) { m.reconcileRemote(id); m.resumeQueuedRemote(id) }(id)
+		m.background(func() { m.reconcileRemote(id); m.resumeQueuedRemote(id) })
 	}
 }
 
@@ -168,12 +170,7 @@ func (m *Manager) remoteContext(ctx context.Context, binding *environments.Bindi
 
 func (m *Manager) bindRemote(ctx context.Context, id string) (*environments.Binding, error) {
 	m.mu.RLock()
-	active, item, service := m.active[id], m.items[id], m.environments
-	if active != nil && active.remote != nil {
-		binding := active.remote
-		m.mu.RUnlock()
-		return binding, nil
-	}
+	item, service := m.items[id], m.environments
 	if item == nil || !remotePlacement(item) || service == nil {
 		m.mu.RUnlock()
 		return nil, errors.New("conversation: retained placement unavailable")
@@ -194,9 +191,9 @@ func (m *Manager) bindRemote(ctx context.Context, id string) (*environments.Bind
 	if m.active[id] == nil {
 		m.active[id] = &activeConversation{}
 	}
-	if m.active[id].remote == nil {
-		m.active[id].remote = &binding
-	}
+	// Reacquire the saved target: an SSH tunnel can now have a new local port.
+	// Replacing the binding never closes the service-owned shared connection.
+	m.active[id].remote = &binding
 	return m.active[id].remote, err
 }
 
@@ -275,30 +272,76 @@ func (m *Manager) remoteTurn(id string, r Request, active *activeConversation) {
 		return
 	}
 	active.request, active.cancel = r.ID, cancel
-	_ = m.reduce(item, requestEvent{kind: "started", request: r, delivery: "turn"})
-	_ = m.userEvent(item, r, "turn")
+	if err := m.reduce(item, requestEvent{kind: "started", request: r, delivery: "turn"}); err != nil {
+		m.mu.Unlock()
+		m.finish(id, r, "failed", err)
+		return
+	}
+	if err := m.userEvent(item, r, "turn"); err != nil {
+		m.mu.Unlock()
+		m.finish(id, r, "failed", err)
+		return
+	}
 	owner := backend.Owner{Run: id, Scope: id, Task: r.ID}
 	prompt := fmt.Sprintf("You are the agent in a Gimbal conversation on %s. Work in %s and reply to the person's message. Do not use local desktop paths or claim a workflow is centrally owned unless its admission is actually associated with this conversation. If integrated workflow admission is unavailable here, explain that limitation instead of launching unassociated work. Reply in ordinary prose.\n\nPerson: ", item.Placement.Value.Machine.Name, item.Worktree) + r.Message
 	envelope := backend.MessageRequest{ID: ulid.Make().String(), Created: time.UnixMilli(r.Created), Owner: owner, SessionID: "session", Kind: "turn", Turn: &backend.Turn{Owner: owner, Session: "session", Prompt: prompt}}
 	state := m.remoteStates[id]
 	state.Requests[r.ID] = envelope
-	_ = m.save(item)
+	journalErr := m.save(item)
 	m.mu.Unlock()
+	if journalErr != nil {
+		m.finish(id, r, "failed", journalErr)
+		return
+	}
+	// End-session sets CleanupPending before waiting for this short admission
+	// section, so cleanup cannot miss a session/turn delivered concurrently.
+	active.admitMu.Lock()
+	m.mu.RLock()
+	ending := item.CleanupPending || !item.Live || m.closing
+	m.mu.RUnlock()
+	if ending {
+		active.admitMu.Unlock()
+		return
+	}
 	binding, err := m.bindRemote(ctx, id)
 	if err == nil {
 		err = m.remoteSession(ctx, id, binding)
 	}
 	if err == nil {
-		callCtx := m.remoteContext(ctx, binding, owner)
-		if binding.Connection.Messages != nil {
-			err = effects.Submit(callCtx, envelope)
-		} else {
-			err = binding.Connection.Execution.Turn(callCtx, *envelope.Turn)
+		m.mu.RLock()
+		ending = item.CleanupPending || !item.Live || m.closing
+		m.mu.RUnlock()
+		if ending {
+			active.admitMu.Unlock()
+			return
 		}
 	}
+	if err == nil {
+		// Session admission can fail before this prompt is ever submitted.
+		// Persist the distinction before a possibly delivered native turn.
+		m.mu.Lock()
+		if state.TurnAttempted == nil {
+			state.TurnAttempted = map[string]bool{}
+		}
+		state.TurnAttempted[r.ID] = true
+		err = m.save(item)
+		if err != nil {
+			state.TurnAttempted[r.ID] = false
+		}
+		m.mu.Unlock()
+		if err == nil {
+			callCtx := m.remoteContext(ctx, binding, owner)
+			if binding.Connection.Messages != nil {
+				err = effects.Submit(callCtx, envelope)
+			} else {
+				err = binding.Connection.Execution.Turn(callCtx, *envelope.Turn)
+			}
+		}
+	}
+	active.admitMu.Unlock()
 	if err != nil {
 		m.remoteUncertain(id, r, err)
-		go m.reconcileRemote(id)
+		m.background(func() { m.reconcileRemote(id) })
 		return
 	}
 	m.mu.Lock()
@@ -310,7 +353,7 @@ func (m *Manager) remoteTurn(id string, r Request, active *activeConversation) {
 	pending := m.items[id].ActiveRequest != ""
 	m.mu.Unlock()
 	if pending && ctx.Err() == nil {
-		go m.reconcileRemote(id)
+		m.background(func() { m.reconcileRemote(id) })
 	}
 }
 
@@ -349,7 +392,7 @@ func (m *Manager) observeRemote(ctx context.Context, id string, r Request, bindi
 		if errors.As(err, &uncertain) {
 			m.remoteUncertain(id, r, err)
 			if ctx.Err() == nil {
-				go m.reconcileRemote(id)
+				m.background(func() { m.reconcileRemote(id) })
 			}
 			return
 		}
@@ -425,16 +468,14 @@ func (m *Manager) reconcileRemote(id string) {
 		return
 	}
 	active.observing = true
-	m.remoteReaders.Add(1)
 	m.mu.Unlock()
-	defer m.remoteReaders.Done()
 	defer func() {
 		m.mu.Lock()
 		active.observing = false
 		pending := m.items[id] != nil && m.items[id].ActiveRequest == "" && !m.closing
 		m.mu.Unlock()
 		if pending {
-			go m.resumeQueuedRemote(id)
+			m.background(func() { m.resumeQueuedRemote(id) })
 		}
 	}()
 	for m.ctx.Err() == nil {
@@ -458,12 +499,18 @@ func (m *Manager) reconcileRemote(id string) {
 			}
 		}
 		closing := m.closing
+		attempted := state != nil && state.TurnAttempted[rid]
 		m.mu.RUnlock()
-		if closing || envelope.ID == "" {
+		if closing || envelope.ID == "" || !attempted {
 			return
 		}
 		ctx, cancel := context.WithCancel(m.ctx)
 		m.mu.Lock()
+		if m.closing {
+			m.mu.Unlock()
+			cancel()
+			return
+		}
 		active.request, active.cancel = rid, cancel
 		m.mu.Unlock()
 		binding, err := m.bindRemote(ctx, id)
@@ -494,8 +541,12 @@ func (m *Manager) remoteInterrupt(id string, r Request) {
 	envelope := backend.MessageRequest{ID: ulid.Make().String(), Created: time.UnixMilli(r.Created), Owner: owner, Kind: "interrupt", Target: &backend.Target{Run: id, ID: r.Target}}
 	m.mu.Lock()
 	m.remoteStates[id].Requests[r.ID] = envelope
-	_ = m.save(m.items[id])
+	journalErr := m.save(m.items[id])
 	m.mu.Unlock()
+	if journalErr != nil {
+		m.finish(id, r, "failed", journalErr)
+		return
+	}
 	binding, err := m.bindRemote(ctx, id)
 	if err == nil {
 		ctx = m.remoteContext(ctx, binding, owner)
@@ -513,18 +564,26 @@ func (m *Manager) remoteInterrupt(id string, r Request) {
 		_ = m.save(m.items[id])
 		m.mu.Unlock()
 	}
-	go m.reconcileRemote(id)
+	m.background(func() { m.reconcileRemote(id) })
 }
 
 func (m *Manager) deliverRemote(id string, r Request, active *activeConversation, target string) {
 	m.mu.RLock()
 	canSteer := m.items[id].Capabilities.Steer && target != "" && active.request == target
-	binding := active.remote
 	m.mu.RUnlock()
+	var binding *environments.Binding
+	if canSteer {
+		var err error
+		binding, err = m.bindRemote(m.ctx, id)
+		if err != nil {
+			m.finish(id, r, "unresolved", &backend.DeliveryUncertain{RequestID: r.ID, Err: err})
+			return
+		}
+	}
 	if canSteer && binding != nil && binding.Connection.Execution != nil {
 		active.steerMu.Lock()
 		m.mu.RLock()
-		still := active.request == target
+		still := active.request == target && !m.items[id].CleanupPending && m.items[id].Live
 		m.mu.RUnlock()
 		if still {
 			landed, err := binding.Connection.Execution.Steer(m.ctx, backend.Target{Run: id, ID: "session", Message: r.Message})
@@ -559,6 +618,7 @@ func (m *Manager) Cleanup(ctx context.Context, id string) error {
 		return errors.New("conversation: no remote environment to release")
 	}
 	var original Request
+	var originalAttempted bool
 	var envelope backend.MessageRequest
 	if item.ActiveRequest != "" {
 		for _, row := range item.Requests {
@@ -569,27 +629,56 @@ func (m *Manager) Cleanup(ctx context.Context, id string) error {
 		}
 		if state := m.remoteStates[id]; state != nil {
 			envelope = state.Requests[item.ActiveRequest]
+			originalAttempted = state.TurnAttempted[item.ActiveRequest]
 		}
 	}
 	item.CleanupPending = true
 	item.Revision++
-	_ = m.save(item)
+	journalErr := m.save(item)
 	m.mu.Unlock()
+	if journalErr != nil {
+		return journalErr
+	}
+	m.mu.RLock()
+	active := m.active[id]
+	m.mu.RUnlock()
+	if active != nil {
+		active.admitMu.Lock()
+		defer active.admitMu.Unlock()
+	}
+	m.mu.RLock()
+	if state := m.remoteStates[id]; state != nil && original.ID != "" {
+		envelope = state.Requests[original.ID]
+		originalAttempted = state.TurnAttempted[original.ID]
+	}
+	m.mu.RUnlock()
 	binding, err := m.bindRemote(ctx, id)
 	if binding != nil {
 		callCtx := m.remoteContext(ctx, binding, backend.Owner{Run: id, Scope: id, Task: "cleanup"})
-		// Cleanup has a stable envelope across attempts, like prompt/control effects.
+		// Uncertain cleanup delivery retains its envelope. An authoritative failed
+		// control result permits the person's next explicit attempt to use a new ID.
 		if binding.Connection.Messages != nil {
 			m.mu.Lock()
 			state := m.remoteStates[id]
 			envelope, ok := state.Requests["cleanup"]
-			if !ok {
+			if !ok || state.CleanupFailed {
+				state.CleanupFailed = false
 				envelope = backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now().UTC(), Owner: backend.Owner{Run: id, Scope: id, Task: "cleanup"}, Kind: "cleanup", ScopeTarget: &backend.Scope{Run: id, Scope: id}}
 				state.Requests["cleanup"] = envelope
-				_ = m.save(item)
+				journalErr = m.save(item)
 			}
 			m.mu.Unlock()
-			_, err = effects.MessageCall(callCtx, envelope)
+			if journalErr != nil {
+				return journalErr
+			}
+			var completed backend.MessageEvent
+			completed, err = effects.MessageCall(callCtx, envelope)
+			if err != nil && completed.Kind == "completed" && completed.Result != nil {
+				m.mu.Lock()
+				state.CleanupFailed = true
+				_ = m.save(item)
+				m.mu.Unlock()
+			}
 		} else {
 			var reply backend.Reply
 			err = effects.Call(callCtx, "backend", "cleanup", backend.Scope{Run: id, Scope: id}, &reply)
@@ -598,7 +687,13 @@ func (m *Manager) Cleanup(ctx context.Context, id string) error {
 			}
 		}
 		if err == nil && original.ID != "" {
-			err = m.confirmRemoteOutcome(ctx, id, original, binding, envelope)
+			if originalAttempted {
+				err = m.confirmRemoteOutcome(ctx, id, original, binding, envelope)
+			} else {
+				// Scope cleanup confirms session resources were released. This
+				// prompt was never submitted, so no native turn fact can exist.
+				m.settleRemote(id, original, "canceled", "", nil)
+			}
 		}
 		if err == nil {
 			err = m.environments.Release(ctx, *binding)

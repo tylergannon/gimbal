@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimbal"
 )
@@ -155,5 +156,33 @@ func TestSessionDoesNotSilentlyShareAfterGitHistoryDisappears(t *testing.T) {
 	defer m.Close()
 	if _, err := m.Start(t.Context(), NewConversation{Provider: "claude", Base: "main"}, "Keep isolation"); err == nil {
 		t.Fatal("silently fell back to shared checkout")
+	}
+}
+
+func TestCloseJoinsAdmittedLocalDeliveryBeforeStoreRemoval(t *testing.T) {
+	for range 20 {
+		project := t.TempDir()
+		a := &chatAdapter{sessions: make(map[string][]string)}
+		m, err := New(t.Context(), filepath.Join(project, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return a, nil }, "/bin/gimbal", "/instance", project, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		item, err := m.Start(t.Context(), NewConversation{Provider: "claude"}, "Acknowledge")
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.Close()
+		closed, _ := m.Get(item.ID)
+		if err := os.RemoveAll(filepath.Join(project, ".gimbal")); err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond)
+		after, _ := m.Get(item.ID)
+		if after.Revision != closed.Revision {
+			t.Fatal("delivery continued after manager Close")
+		}
+		if _, err := os.Stat(filepath.Join(project, ".gimbal")); !os.IsNotExist(err) {
+			t.Fatalf("delivery recreated removed store after Close: %v", err)
+		}
 	}
 }

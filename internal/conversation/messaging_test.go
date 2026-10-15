@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,10 +19,12 @@ import (
 
 type conversationBus struct {
 	*messagefiles.Store
-	mu         sync.Mutex
-	requests   map[string]backend.MessageRequest
-	turns      map[string]backend.MessageRequest
-	admissions int
+	mu                         sync.Mutex
+	requests                   map[string]backend.MessageRequest
+	turns                      map[string]backend.MessageRequest
+	admissions                 int
+	cleanupFailures            int
+	cleanupPublicationFailures int
 }
 
 func (b *conversationBus) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
@@ -33,6 +36,10 @@ func (b *conversationBus) PublishRequest(ctx context.Context, r backend.MessageR
 	}
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if r.Kind == "cleanup" && b.cleanupPublicationFailures > 0 {
+		b.cleanupPublicationFailures--
+		return errors.New("publication reply lost")
+	}
 	if _, ok := b.requests[r.ID]; ok {
 		return nil
 	}
@@ -63,6 +70,10 @@ func (b *conversationBus) PublishRequest(ctx context.Context, r backend.MessageR
 		}
 		return emit(r, &backend.MessageResult{})
 	case "cleanup":
+		if b.cleanupFailures > 0 {
+			b.cleanupFailures--
+			return emit(r, &backend.MessageResult{Unresolved: true, Error: "native Close failed"})
+		}
 		return emit(r, &backend.MessageResult{})
 	}
 	return nil
@@ -177,4 +188,88 @@ func TestMessagingConversationQueuesAndStopsByRetainedEnvelopeIdentity(t *testin
 		t.Fatalf("missing original event lost ownership: %+v", pending)
 	}
 
+	// A completed cleanup control failure is retryable with a fresh control ID;
+	// republishing its old ID would replay that retained failure forever.
+	idle, err := manager.Create(t.Context(), NewConversation{Provider: "claude", Environment: "queue-project", SharedCheckout: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bus.mu.Lock()
+	bus.cleanupFailures = 1
+	bus.mu.Unlock()
+	if err = manager.Cleanup(t.Context(), idle.ID); err == nil {
+		t.Fatal("cleanup failure lost")
+	}
+	manager.mu.RLock()
+	failedID := manager.remoteStates[idle.ID].Requests["cleanup"].ID
+	manager.mu.RUnlock()
+	if err = manager.Cleanup(t.Context(), idle.ID); err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.RLock()
+	retriedID := manager.remoteStates[idle.ID].Requests["cleanup"].ID
+	manager.mu.RUnlock()
+	closed, _ := manager.Get(idle.ID)
+	if failedID == retriedID || closed.Live || closed.CleanupPending {
+		t.Fatalf("failed cleanup could not be retried: %s %s %+v", failedID, retriedID, closed)
+	}
+
+	uncertain, err := manager.Create(t.Context(), NewConversation{Provider: "claude", Environment: "queue-project", SharedCheckout: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bus.mu.Lock()
+	bus.cleanupPublicationFailures = 1
+	bus.mu.Unlock()
+	if err = manager.Cleanup(t.Context(), uncertain.ID); err == nil {
+		t.Fatal("uncertain publication lost")
+	}
+	manager.mu.RLock()
+	originalCleanupID := manager.remoteStates[uncertain.ID].Requests["cleanup"].ID
+	manager.mu.RUnlock()
+	if err = manager.Cleanup(t.Context(), uncertain.ID); err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.RLock()
+	resumedCleanupID := manager.remoteStates[uncertain.ID].Requests["cleanup"].ID
+	manager.mu.RUnlock()
+	if resumedCleanupID != originalCleanupID {
+		t.Fatal("uncertain cleanup publication replaced retained identity")
+	}
+
+}
+
+// Stop reconciliation and the original reader may see one retained completion
+// concurrently; it must produce one visible reply, not merely one request row.
+func TestConcurrentRemoteSettlementAppendsOneNativeReply(t *testing.T) {
+	m, item := managerWithControl(t, &controlledChat{})
+	r := request("one-native-result", "One request")
+	m.mu.Lock()
+	m.active[item.ID].request = r.ID
+	if err := m.reduce(m.items[item.ID], requestEvent{kind: "accepted", request: r}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.reduce(m.items[item.ID], requestEvent{kind: "started", request: r, delivery: "turn"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.userEvent(m.items[item.ID], r, "turn"); err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Unlock()
+	start := make(chan struct{})
+	var readers sync.WaitGroup
+	for range 16 {
+		readers.Add(1)
+		go func() {
+			defer readers.Done()
+			<-start
+			m.settleRemote(item.ID, r, "completed", "Single native reply", nil)
+		}()
+	}
+	close(start)
+	readers.Wait()
+	got, _ := m.Get(item.ID)
+	if len(got.Messages) != 2 || got.Messages[1].Text != "Single native reply" || len(got.Requests) != 1 || got.Requests[0].Status != "completed" || got.ActiveRequest != "" {
+		t.Fatalf("duplicate settlement: %+v", got)
+	}
 }

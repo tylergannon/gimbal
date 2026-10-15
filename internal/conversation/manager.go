@@ -107,6 +107,7 @@ type AdapterFactory func(string) (gimbal.HarnessAdapter, error)
 
 type activeConversation struct {
 	turnMu    sync.Mutex
+	admitMu   sync.Mutex
 	steerMu   sync.Mutex
 	adapter   gimbal.HarnessAdapter
 	session   string
@@ -538,6 +539,8 @@ func (m *Manager) Close() {
 		active = append(active, conversation)
 	}
 	m.mu.Unlock()
+	// Join even admitted operations that have not acquired turnMu yet.
+	m.remoteReaders.Wait()
 	for _, conversation := range active {
 		conversation.turnMu.Lock()
 		if conversation.remote != nil {
@@ -551,7 +554,18 @@ func (m *Manager) Close() {
 		}
 		conversation.turnMu.Unlock()
 	}
-	m.remoteReaders.Wait()
+}
+
+// background registers before spawning so Close cannot miss a not-yet-started
+// observer or queue continuation. Call without holding m.mu.
+func (m *Manager) background(fn func()) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing {
+		return
+	}
+	m.remoteReaders.Add(1)
+	go func() { defer m.remoteReaders.Done(); fn() }()
 }
 
 type conversationRecord struct {

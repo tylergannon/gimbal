@@ -98,7 +98,8 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 			m.remoteReaders.Add(1)
 			go func() { defer m.remoteReaders.Done(); m.deliverRemote(id, r, active, target) }()
 		} else {
-			go m.deliver(id, r, active, target, adapter, session)
+			m.remoteReaders.Add(1)
+			go func() { defer m.remoteReaders.Done(); m.deliver(id, r, active, target, adapter, session) }()
 		}
 	}
 	return item.Requests[len(item.Requests)-1], nil
@@ -332,6 +333,8 @@ func (m *Manager) reduce(item *Conversation, e requestEvent) error {
 		}
 		if e.err != nil {
 			row.Error = e.err.Error()
+		} else if e.kind == "completed" || e.kind == "canceled" {
+			row.Error = ""
 		}
 		if item.ActiveRequest == row.ID {
 			if e.kind != "unresolved" {

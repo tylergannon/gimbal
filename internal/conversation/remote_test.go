@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -26,6 +27,9 @@ type remoteFixture struct {
 	cleanup          int
 	workdir          string
 	autoComplete     bool
+	sessionReplyLost bool
+	sessionStarted   chan struct{}
+	sessionRelease   chan struct{}
 	forgetOnCleanup  bool
 	cleanupCompletes bool
 }
@@ -61,7 +65,15 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 		var s backend.Session
 		_ = json.NewDecoder(r.Body).Decode(&s)
 		f.sessions++
+		if f.sessionStarted != nil {
+			close(f.sessionStarted)
+			<-f.sessionRelease
+		}
 		f.workdir = s.Workdir
+		if f.sessionReplyLost {
+			http.Error(w, "lost session admission reply", 503)
+			return
+		}
 		encode(backend.Reply{ID: s.Task})
 	case "/tasks/turn":
 		var turn backend.Turn
@@ -377,5 +389,185 @@ func waitRemoteAdmission(t *testing.T, fixture *remoteFixture) {
 			t.Fatal("remote turn not admitted")
 		}
 		time.Sleep(time.Millisecond)
+	}
+}
+
+func TestRetainedConversationRebindsExpiredConnectionForStopAndCleanup(t *testing.T) {
+	f := &remoteFixture{}
+	m, service, _ := remoteManager(t, f)
+	item, err := m.Start(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true}, "Keep this request identity")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for {
+		f.mu.Lock()
+		admitted := f.admissions == 1
+		f.mu.Unlock()
+		if admitted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("turn not admitted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	// A dead SSH tunnel leaves a cached HTTP binding at its former local port.
+	// Keep the durable target intact; only the derived connection has expired.
+	stale := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "expired tunnel", 503) }))
+	stale.Close()
+	m.mu.RLock()
+	target := m.remoteStates[item.ID].Target
+	m.mu.RUnlock()
+	expired := target
+	expired.Machine.Kind = environments.KindAddress
+	expired.Machine.Address = stale.URL
+	expired.Route = backend.Route{}
+	binding, err := service.Acquire(t.Context(), expired, backend.Owner{Run: item.ID, Scope: item.ID, Task: "session"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.mu.Lock()
+	m.active[item.ID].remote = &binding
+	m.mu.Unlock()
+	if _, err = m.Submit(item.ID, Request{ID: "reconnected-stop", Created: time.Now().UnixMilli(), Kind: "interrupt", Target: item.Requests[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	waitRequest(t, m, item.ID, item.Requests[0].ID, "canceled")
+	waitRequest(t, m, item.ID, "reconnected-stop", "completed")
+	m.mu.Lock()
+	m.active[item.ID].remote = &binding
+	m.mu.Unlock()
+	budget, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if err = m.Cleanup(budget, item.ID); err != nil {
+		t.Fatal(err)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.admissions != 1 || f.sessions != 1 || f.interruptions != 1 || f.cleanup != 1 {
+		t.Fatalf("reconnect replayed or lost original control: %+v", f)
+	}
+}
+
+func TestCleanupAfterLostSessionAdmissionDoesNotRequireNeverSubmittedTurn(t *testing.T) {
+	f := &remoteFixture{sessionReplyLost: true}
+	m, _, _ := remoteManager(t, f)
+	item, err := m.Start(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true}, "Session admission reply may be lost")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitRequest(t, m, item.ID, item.Requests[0].ID, "unresolved")
+	budget, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	if err = m.Cleanup(budget, item.ID); err != nil {
+		t.Fatal(err)
+	}
+	closed, _ := m.Get(item.ID)
+	if closed.Live || closed.CleanupPending || closed.ActiveRequest != "" || closed.Requests[0].Status != "canceled" {
+		t.Fatalf("never-submitted prompt retained forever: %+v", closed)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessions != 1 || f.admissions != 0 || f.cleanup != 1 {
+		t.Fatalf("wrong admission/control: %+v", f)
+	}
+}
+
+func TestRemoteEffectsRequireIdentityJournal(t *testing.T) {
+	for _, operation := range []string{"prompt", "interrupt", "cleanup"} {
+		t.Run(operation, func(t *testing.T) {
+			f := &remoteFixture{}
+			m, _, _ := remoteManager(t, f)
+			item, err := m.Create(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := request("journal-guard", "Persist before delivery")
+			if operation == "interrupt" {
+				r.Kind = "interrupt"
+				r.Target = "original"
+			}
+			m.mu.Lock()
+			active := m.active[item.ID]
+			if operation != "cleanup" {
+				if err = m.reduce(m.items[item.ID], requestEvent{kind: "accepted", request: r}); err != nil {
+					m.mu.Unlock()
+					t.Fatal(err)
+				}
+			}
+			m.mu.Unlock()
+			// Atomic replacement cannot overwrite a directory: admission above was
+			// durable, but the effect's later identity journal must now fail.
+			path := filepath.Join(m.projectDir, "conversations", item.ID+".json")
+			if err = os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err = os.Mkdir(path, 0700); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = os.RemoveAll(path); m.mu.Lock(); _ = m.save(m.items[item.ID]); m.mu.Unlock() })
+			switch operation {
+			case "prompt":
+				m.remoteTurn(item.ID, r, active)
+			case "interrupt":
+				m.remoteInterrupt(item.ID, r)
+			case "cleanup":
+				if err = m.Cleanup(t.Context(), item.ID); err == nil {
+					t.Fatal("cleanup ignored failed journal")
+				}
+			}
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			if f.sessions != 0 || f.admissions != 0 || f.interruptions != 0 || f.cleanup != 0 {
+				t.Fatalf("effect escaped failed journal: %+v", f)
+			}
+		})
+	}
+}
+
+func TestCleanupWaitsForSessionAdmissionAndPreventsFollowingTurn(t *testing.T) {
+	f := &remoteFixture{sessionStarted: make(chan struct{}), sessionRelease: make(chan struct{})}
+	m, _, _ := remoteManager(t, f)
+	item, err := m.Start(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true}, "End during session admission")
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-f.sessionStarted:
+	case <-time.After(time.Second):
+		t.Fatal("session not admitted")
+	}
+	done := make(chan error, 1)
+	go func() { done <- m.Cleanup(t.Context(), item.ID) }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		current, _ := m.Get(item.ID)
+		if current.CleanupPending {
+			break
+		}
+		if time.Now().After(deadline) {
+			close(f.sessionRelease)
+			t.Fatal("cleanup not pending")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(f.sessionRelease)
+	select {
+	case err = <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cleanup did not finish")
+	}
+	closed, _ := m.Get(item.ID)
+	if closed.Live || closed.CleanupPending || closed.ActiveRequest != "" {
+		t.Fatalf("cleanup lost admission race: %+v", closed)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessions != 1 || f.admissions != 0 || f.cleanup != 1 {
+		t.Fatalf("turn began after End: %+v", f)
 	}
 }

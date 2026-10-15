@@ -67,7 +67,7 @@
       {#if showingChecks}<ConnectionChecks {progress} />{/if}
       {#if connection?.error}<p class="error" role="alert">Connection check updates were lost. <button type="button" class="text-button" onclick={() => connection?.reconnect()}>Reconnect updates</button></p>{/if}
       {#if error}<p role="alert" class="error">{error}</p>{/if}
-      {#if progress?.checks.some(check => check.state === 'warning' || check.fatal)}<button type="button" class="text-button" onclick={openTerminal}>Open in Terminal</button>{/if}
+      {#if progress?.checks.some(check => check.state === 'warning' || check.fatal)}<button type="button" class="text-button" onclick={openTerminal}>{kind === 'ssh' ? 'Open in Terminal' : 'Terminal instructions'}</button>{/if}
       {#if showingChecks}<button type="button" class="text-button" onclick={onconfig}>Open configuration</button>{/if}
       {#if terminal}<p role="status">{kind === 'ssh' ? `Open Terminal and connect to ${form.fields.host.value() ?? machine?.ssh?.host ?? ''} with SSH to inspect Gimbal and harness sign-in.` : 'Open a terminal on the machine running the daemon to inspect Gimbal and harness sign-in.'}</p>{/if}
       {#each form.fields.allIssues() ?? [] as issue}<p role="alert" class="error">{issue.message}</p>{/each}

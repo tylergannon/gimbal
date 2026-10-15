@@ -374,6 +374,17 @@ func (m *Manager) remoteTurn(id string, r Request, active *activeConversation) {
 		m.finish(id, r, "failed", journalErr)
 		return
 	}
+	// Keep the saved envelope byte-free. Exact bytes exist only in this outgoing
+	// copy and the private cache, read before any native turn is attempted.
+	files, err := m.outgoingFiles(r.FileID)
+	if err != nil {
+		m.finish(id, r, "failed", err)
+		return
+	}
+	outgoing := envelope
+	turn := *envelope.Turn
+	turn.Files = files
+	outgoing.Turn = &turn
 	// End-session sets CleanupPending before waiting for this short admission
 	// section, so cleanup cannot miss a session/turn delivered concurrently.
 	active.admitMu.Lock()
@@ -413,9 +424,9 @@ func (m *Manager) remoteTurn(id string, r Request, active *activeConversation) {
 		if err == nil {
 			callCtx := m.remoteContext(ctx, binding, owner)
 			if binding.Connection.Messages != nil {
-				err = effects.Submit(callCtx, envelope)
+				err = effects.Submit(callCtx, outgoing)
 			} else {
-				err = binding.Connection.Execution.Turn(callCtx, *envelope.Turn)
+				err = binding.Connection.Execution.Turn(callCtx, *outgoing.Turn)
 			}
 		}
 	}

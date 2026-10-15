@@ -89,6 +89,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
           ready: ready, sidebarVisible: visible, tabCount: count,
           activeTabTitle: body["activeTabTitle"] as? String,
           canStopResponse: body["canStopResponse"] as? Bool ?? false)
+        state.workspace.canMove = body["canMove"] as? Bool ?? false
         state.workspace.currentProject = body["project"] as? String ?? ""
         state.workspace.projectName = body["projectName"] as? String ?? ""
         state.workspace.canOpenTodayTranscript = body["canOpenTodayTranscript"] as? Bool ?? false

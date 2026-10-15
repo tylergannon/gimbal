@@ -57,6 +57,7 @@ export type RequestState = {
   kind: string;
   message: string;
   target: string;
+  file_id: string;
   status: string;
   delivery: string;
   error: string;
@@ -71,6 +72,7 @@ export type Request = {
   kind: string;
   message: string;
   target: string;
+  file_id: string;
 };
 
 /**

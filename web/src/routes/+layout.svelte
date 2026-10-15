@@ -16,6 +16,7 @@
     document.documentElement.classList.toggle("dark", darkAppearance.current);
   });
   const project = $derived(page.params.project);
+  const readerWindow = $derived(page.route.id === '/projects/[project]/files/[fileID]/window');
   const root = $derived(`/projects/${project}`);
   const loadingRuns = $derived(
     navigating.to?.url.pathname === root &&
@@ -79,7 +80,7 @@
   <div class="flex min-w-0 flex-1 flex-col">
     {#if data.user}<Account name={data.user.name} />{/if}
     <main class="min-h-0 flex-1 overflow-auto">
-      {#if project}
+      {#if project && !readerWindow}
         {#key project}<ProjectWorkspace
             {project}
             name={data.workspaceProjects

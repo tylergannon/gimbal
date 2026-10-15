@@ -107,7 +107,13 @@ import SwiftUI
       window.title = "Gimbal document"
       window.isReleasedWhenClosed = false
       window.contentViewController = NSHostingController(
-        rootView: ApplicationWebView(url: url, recoveryRevision: 0))
+        rootView: ApplicationWebView(url: url, recoveryRevision: 0, onOpenSession: { [weak self] path in
+          guard let workspace = self?.workspace, let main = workspace.webView?.window else { return }
+          main.deminiaturize(nil)
+          main.makeKeyAndOrderFront(nil)
+          NSApp.activate(ignoringOtherApps: true)
+          workspace.navigate(path)
+        }))
       viewers.append(window)
       window.center()
       window.makeKeyAndOrderFront(nil)

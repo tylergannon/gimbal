@@ -21,6 +21,7 @@ type Request struct {
 	Kind    string `json:"kind"`
 	Message string `json:"message"`
 	Target  string `json:"target"`
+	FileID  string `json:"file_id"`
 }
 
 // RequestState is reduced from admission, delivery and completion events.
@@ -63,6 +64,9 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 			}
 			return previous, nil
 		}
+	}
+	if r.FileID != "" && (r.Kind != "prompt" || len(item.Requests) > 0) {
+		return RequestState{}, errors.New("conversation: file context is only available on the first message")
 	}
 	if (item.Status == "unresolved" || item.CleanupPending) && r.Kind == "prompt" {
 		return RequestState{}, errors.New("conversation: the previous request's outcome is unconfirmed; do not start replacement work")
@@ -152,6 +156,15 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 	provider, model, worktree := item.Provider, item.Model, item.Worktree
 	m.mu.Unlock()
 	active.steerMu.Unlock()
+	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + r.Message
+	if r.FileID != "" {
+		path, name, err := m.filePath(r.FileID)
+		if err != nil {
+			m.finish(id, r, "failed", err)
+			return
+		}
+		prompt += fmt.Sprintf("\n\nRead the attached project file %q at %q before replying. If your harness cannot read this format, explain that limitation.", name, path)
+	}
 	if active.adapter == nil {
 		resolved, err := m.factory(provider)
 		if err != nil {
@@ -189,7 +202,6 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 		}
 		m.mu.Unlock()
 	}
-	prompt := fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, worktree, id) + r.Message
 	result, err := active.adapter.RunTurn(ctx, active.session, prompt, nil, func(e gimbal.AgentEvent) error {
 		m.mu.Lock()
 		defer m.mu.Unlock()

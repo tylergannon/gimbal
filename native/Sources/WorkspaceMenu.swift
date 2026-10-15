@@ -10,6 +10,7 @@
     @Published var hasActiveTab = false
     @Published var windowIsKey = false
     @Published var canStopResponse = false
+    @Published var canMove = false
     @Published var projects: [WorkspaceProject] = []
     @Published var projectName = ""
     var currentProject = ""
@@ -95,6 +96,9 @@
         Button("Machines…") { openMachines("") }
       }
       CommandMenu("Chat") {
+        Button("Move Tab to New Window") { workspace.send("moveTab") }
+          .disabled(!workspace.enabled || !workspace.canMove)
+        Divider()
         Button("Stop Response") { workspace.send("stopResponse") }
           .keyboardShortcut(".", modifiers: [.command])
           .disabled(!workspace.enabled || !workspace.canStopResponse)

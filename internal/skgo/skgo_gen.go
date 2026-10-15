@@ -3373,12 +3373,14 @@ func encRequestState(v pkg_conversation.RequestState, at string) (any, error) {
 	enc1.Set("message", enc5)
 	var enc6 any = string(v.Target)
 	enc1.Set("target", enc6)
-	var enc7 any = string(v.Status)
-	enc1.Set("status", enc7)
-	var enc8 any = string(v.Delivery)
-	enc1.Set("delivery", enc8)
-	var enc9 any = string(v.Error)
-	enc1.Set("error", enc9)
+	var enc7 any = string(v.FileID)
+	enc1.Set("file_id", enc7)
+	var enc8 any = string(v.Status)
+	enc1.Set("status", enc8)
+	var enc9 any = string(v.Delivery)
+	enc1.Set("delivery", enc9)
+	var enc10 any = string(v.Error)
+	enc1.Set("error", enc10)
 	return enc1, nil
 }
 
@@ -3389,7 +3391,7 @@ func decRequestState(raw any, at string) (pkg_conversation.RequestState, error) 
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "created", "kind", "message", "target", "status", "delivery", "error"); err != nil {
+	if err := dvKnown(obj2, at, "id", "created", "kind", "message", "target", "file_id", "status", "delivery", "error"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "id", at+"/id")
@@ -3438,33 +3440,42 @@ func decRequestState(raw any, at string) (pkg_conversation.RequestState, error) 
 		return dvZero, err
 	}
 	dec1.Target = dec13
-	raw14, err := dvRequired(obj2, "status", at+"/status")
+	raw14, err := dvRequired(obj2, "file_id", at+"/file_id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec15, err := dvString(raw14, at+"/status")
+	dec15, err := dvString(raw14, at+"/file_id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Status = dec15
-	raw16, err := dvRequired(obj2, "delivery", at+"/delivery")
+	dec1.FileID = dec15
+	raw16, err := dvRequired(obj2, "status", at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec17, err := dvString(raw16, at+"/delivery")
+	dec17, err := dvString(raw16, at+"/status")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Delivery = dec17
-	raw18, err := dvRequired(obj2, "error", at+"/error")
+	dec1.Status = dec17
+	raw18, err := dvRequired(obj2, "delivery", at+"/delivery")
 	if err != nil {
 		return dvZero, err
 	}
-	dec19, err := dvString(raw18, at+"/error")
+	dec19, err := dvString(raw18, at+"/delivery")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Error = dec19
+	dec1.Delivery = dec19
+	raw20, err := dvRequired(obj2, "error", at+"/error")
+	if err != nil {
+		return dvZero, err
+	}
+	dec21, err := dvString(raw20, at+"/error")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Error = dec21
 	return dec1, nil
 }
 
@@ -3508,6 +3519,8 @@ func encRequest(v pkg_conversation.Request, at string) (any, error) {
 	enc1.Set("message", enc5)
 	var enc6 any = string(v.Target)
 	enc1.Set("target", enc6)
+	var enc7 any = string(v.FileID)
+	enc1.Set("file_id", enc7)
 	return enc1, nil
 }
 
@@ -3518,7 +3531,7 @@ func decRequest(raw any, at string) (pkg_conversation.Request, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "id", "created", "kind", "message", "target"); err != nil {
+	if err := dvKnown(obj2, at, "id", "created", "kind", "message", "target", "file_id"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "id", at+"/id")
@@ -3567,6 +3580,15 @@ func decRequest(raw any, at string) (pkg_conversation.Request, error) {
 		return dvZero, err
 	}
 	dec1.Target = dec13
+	raw14, err := dvRequired(obj2, "file_id", at+"/file_id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec15, err := dvString(raw14, at+"/file_id")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.FileID = dec15
 	return dec1, nil
 }
 

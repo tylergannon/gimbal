@@ -108,9 +108,16 @@ vi.mock("../../routes/conversation.remote", () => {
     value: () => "",
   });
   const fields = Object.fromEntries(
-    ["provider", "model", "message", "environment", "shared_checkout", "branch", "base"].map(
-      (name) => [name, field(name)],
-    ),
+    [
+      "file_id",
+      "provider",
+      "model",
+      "message",
+      "environment",
+      "shared_checkout",
+      "branch",
+      "base",
+    ].map((name) => [name, field(name)]),
   );
   return {
     conversationSetup: ({ environment }: { environment: string }) => ({
@@ -248,4 +255,31 @@ test("environment selection preserves each checkout draft and does not submit a 
     .element(screen.getByRole("textbox", { name: "First message" }))
     .toHaveValue("Keep the same message");
   expect(remote.submitted).toEqual([]);
+});
+
+test("Discuss adds removable file context without replacing an existing draft", async () => {
+  const oncreated = vi.fn();
+  const oncontextremoved = vi.fn();
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated,
+    oncontextremoved,
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Keep this question");
+  await screen.rerender({
+    project: "project",
+    name: "Project",
+    oncreated,
+    oncontextremoved,
+    fileContext: { id: "file-id", name: "Brief.pdf" },
+  });
+  await expect
+    .element(screen.getByRole("textbox", { name: "First message" }))
+    .toHaveValue("Keep this question");
+  await screen.getByRole("button", { name: "Start session" }).click();
+  expect(remote.submitted[0].get("file_id")).toBe("file-id");
+  expect(remote.submitted[0].get("message")).toBe("Keep this question");
+  await screen.getByRole("button", { name: "Remove file context" }).click();
+  expect(oncontextremoved).toHaveBeenCalledOnce();
 });

@@ -1,5 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import FileTextIcon from '@lucide/svelte/icons/file-text';
+  import XIcon from '@lucide/svelte/icons/x';
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
   import { errorMessage } from '#lib/errors';
   import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
@@ -16,7 +18,7 @@
   import { environmentSnapshot } from '#lib/environments.remote';
   import EnvironmentPicker from '#lib/environments/EnvironmentPicker.svelte';
 
-  let { project, name, active = true, oncreated }: { project: string; name: string; active?: boolean; oncreated: (conversation: Conversation) => void } = $props();
+  let { project, name, active = true, oncreated, fileContext, oncontextremoved }: { project: string; name: string; active?: boolean; fileContext?: { id: string; name: string }; oncontextremoved?: () => void; oncreated: (conversation: Conversation) => void } = $props();
   const form = $derived(createConversation.for(project));
   let environment = $state('local');
   const setupQuery = $derived(conversationSetup({ project, environment }));
@@ -69,10 +71,12 @@
       <input {...form.fields.provider.as('hidden', choice.provider)} />
       <input {...form.fields.model.as('hidden', choice.model)} />
     {/if}
+    <input {...form.fields.file_id.as('hidden', fileContext?.id ?? '')} />
     <input {...form.fields.environment.as('hidden', environment)} />
     <input {...form.fields.shared_checkout.as('hidden', !isolated)} />
     <input {...form.fields.branch.as('hidden', isolated ? branch : '')} />
     <input {...form.fields.base.as('hidden', isolated ? base : '')} />
+    {#if fileContext}<div class="file-context"><FileTextIcon size={14} aria-hidden="true" /><span>{fileContext.name}</span><button type="button" aria-label="Remove file context" onclick={oncontextremoved} disabled={!!form.pending}><XIcon size={12} /></button></div>{/if}
     <textarea {...form.fields.message.as('text')} rows={3} aria-label="First message" disabled={!!form.pending}
       placeholder="Describe the work. Your first message starts the session."
       onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}></textarea>
@@ -137,6 +141,9 @@
   .choices :global(.chip svg) { flex: none; color: var(--muted-foreground); }
   .choices :global(.chip.environment) { flex: 0 1 auto; }
   .choices :global(.chip-label) { overflow: hidden; text-overflow: ellipsis; }
+  .file-context { display: flex; align-items: center; gap: 7px; width: fit-content; max-width: calc(100% - 28px); margin: 12px 14px 0; padding: 5px 7px; background: var(--muted); border-radius: 6px; font-size: 12px; }
+  .file-context span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-context button { display: flex; padding: 2px; border: 0; background: none; color: var(--muted-foreground); cursor: pointer; }
   .send { display: grid; flex: none; place-items: center; width: 28px; height: 28px; margin-left: auto; border: 0; border-radius: 999px; color: var(--primary-foreground); background: var(--primary); cursor: pointer; }
   .send:disabled { color: var(--muted-foreground); background: var(--muted); cursor: default; }
   .note { margin: 0; padding: 0 2px; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }

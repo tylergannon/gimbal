@@ -29,7 +29,11 @@
   const shortID = $derived(run.id.split(".")[0]?.slice(-8) || run.id);
 </script>
 
-<AlertDialog.Root {open} onOpenChange={(next) => onopenchange?.(next)}>
+<!-- Mounted only while open: a closing dialog waits for an animation frame before it
+unmounts, and WebKit delivers none to a desktop window it considers hidden, so its
+overlay would stay over whatever view the window shows next. -->
+{#if open}
+<AlertDialog.Root open onOpenChange={(next) => onopenchange?.(next)}>
   <AlertDialog.Content class="cancel-content">
     <AlertDialog.Header>
       <AlertDialog.Title>Cancel the whole run?</AlertDialog.Title>
@@ -72,6 +76,7 @@
     </AlertDialog.Footer>
   </AlertDialog.Content>
 </AlertDialog.Root>
+{/if}
 
 <style>
   :global(.cancel-content) {

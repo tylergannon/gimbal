@@ -29,6 +29,9 @@ export type CreateConversation = {
   provider: string;
   model: string;
   message: string;
+  shared_checkout: boolean;
+  branch: string;
+  base: string;
 };
 
 export type CurrentUser = {

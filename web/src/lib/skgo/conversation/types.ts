@@ -74,13 +74,16 @@ export type Request = {
 export type JSONText = string;
 
 /**
- * Setup is what a new conversation in this project can choose and where it will work. Every conversation runs on this machine; with a Git HEAD it gets its own worktree branched from HEAD, and otherwise it shares Directory.
+ * Setup is what a new conversation in this project can choose and where it will work. Bases are locally available branches; no discovery fetches Git. Git means this admitted directory has usable committed history.
  */
 export type Setup = {
   harnesses: Array<Harness>;
   directory: string;
   git: boolean;
   branch: string;
+  unborn: boolean;
+  bases: Array<string>;
+  base: string;
 };
 
 /**

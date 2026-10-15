@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.38] - 2026-10-15
+
+### Changed
+
+- fix: drain Antigravity output after process exit (#589)
+
 ## [0.13.37] - 2026-10-15
 
 ### Changed
@@ -404,7 +410,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.37...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.38...main
+[0.13.38]: https://github.com/tylergannon/gimbal/compare/v0.13.37...v0.13.38
 [0.13.37]: https://github.com/tylergannon/gimbal/compare/v0.13.36...v0.13.37
 [0.13.36]: https://github.com/tylergannon/gimbal/compare/v0.13.35...v0.13.36
 [0.13.35]: https://github.com/tylergannon/gimbal/compare/v0.13.34...v0.13.35

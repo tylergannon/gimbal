@@ -22,6 +22,7 @@ import (
 type remoteState struct {
 	Target           environments.Target               `json:"target"`
 	Session          backend.MessageRequest            `json:"session"`
+	Preparation      *NewConversation                  `json:"preparation,omitempty"`
 	PrepareAttempted bool                              `json:"prepare_attempted"`
 	SessionAttempted bool                              `json:"session_attempted"`
 	SessionCreated   bool                              `json:"session_created"`
@@ -64,29 +65,68 @@ func (m *Manager) createRemote(ctx context.Context, in NewConversation, provider
 	if service == nil {
 		return Conversation{}, errors.New("conversation: environment service unavailable")
 	}
-	target, err := service.Resolve(ctx, projectID, in.Environment)
-	if err != nil {
-		return Conversation{}, err
+	normalized := in
+	normalized.Provider = provider
+	normalized.Model = model
+	normalized.Title = strings.TrimSpace(in.Title)
+	var item *Conversation
+	var state *remoteState
+	id := m.pendingRemotePreparation(in, provider, model)
+	var err error
+	if id != "" {
+		m.mu.RLock()
+		item = m.items[id]
+		state = m.remoteStates[id]
+		m.mu.RUnlock()
+	} else {
+		target, resolveErr := service.Resolve(ctx, projectID, in.Environment)
+		if resolveErr != nil {
+			return Conversation{}, resolveErr
+		}
+		id, err = randomID()
+		if err != nil {
+			return Conversation{}, err
+		}
+		now := time.Now().UnixMilli()
+		item = &Conversation{ID: id, Title: normalized.Title, Provider: provider, Model: model, Environment: in.Environment, Placement: polytype.Nullable[Placement]{Present: true, Value: Placement{Machine: PlacementMachine{ID: target.Machine.ID, Name: target.Machine.Name, Kind: target.Machine.Kind}, Environment: environments.DescribeEnvironment(target.Environment), Directory: target.Directory}}, Contact: "unknown", Capabilities: target.Capabilities, CleanupPending: true, Status: "preparing", Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{}}
+		if item.Title == "" {
+			item.Title = providerLabel(provider) + " conversation"
+		}
+		state = &remoteState{Target: target, Preparation: &normalized, Requests: map[string]backend.MessageRequest{}, Cursors: map[string]int{}, Seen: map[string]bool{}}
+		m.mu.Lock()
+		m.items[id] = item
+		m.remoteStates[id] = state
+		m.active[id] = &activeConversation{}
+		m.projections[id] = sessionstate.New(sessionstate.NewProjectionState())
+		err = m.save(item)
+		m.mu.Unlock()
+		if err != nil {
+			return Conversation{}, err
+		}
 	}
-	id, err := randomID()
-	if err != nil {
-		return Conversation{}, err
+	target := state.Target
+	now := item.Created
+	m.mu.RLock()
+	admission := m.active[id]
+	m.mu.RUnlock()
+	if admission == nil {
+		m.mu.Lock()
+		admission = &activeConversation{}
+		m.active[id] = admission
+		m.mu.Unlock()
 	}
-	now := time.Now().UnixMilli()
-	item := &Conversation{ID: id, Title: strings.TrimSpace(in.Title), Provider: provider, Model: model, Environment: in.Environment, Placement: polytype.Nullable[Placement]{Present: true, Value: Placement{Machine: PlacementMachine{ID: target.Machine.ID, Name: target.Machine.Name, Kind: target.Machine.Kind}, Environment: environments.DescribeEnvironment(target.Environment), Directory: target.Directory}}, Contact: "unknown", Capabilities: target.Capabilities, CleanupPending: true, Status: "preparing", Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{}}
-	if item.Title == "" {
-		item.Title = providerLabel(provider) + " conversation"
+	admission.admitMu.Lock()
+	defer admission.admitMu.Unlock()
+	m.mu.RLock()
+	if state.Session.ID != "" {
+		snapshot := clone(m.items[id])
+		m.mu.RUnlock()
+		return snapshot, nil
 	}
-	state := &remoteState{Target: target, Requests: map[string]backend.MessageRequest{}, Cursors: map[string]int{}, Seen: map[string]bool{}}
-	m.mu.Lock()
-	m.items[id] = item
-	m.remoteStates[id] = state
-	m.active[id] = &activeConversation{}
-	m.projections[id] = sessionstate.New(sessionstate.NewProjectionState())
-	err = m.save(item)
-	m.mu.Unlock()
-	if err != nil {
-		return Conversation{}, err
+	unavailable := m.closing || (item.Status != "preparing" && item.Status != "unresolved")
+	m.mu.RUnlock()
+	if unavailable {
+		return Conversation{}, errors.New("conversation: retained preparation is no longer available")
 	}
 	owner := backend.Owner{Run: id, Scope: id, Task: "session"}
 	binding, err := service.Acquire(ctx, target, owner)
@@ -103,7 +143,14 @@ func (m *Manager) createRemote(ctx context.Context, in NewConversation, provider
 		return Conversation{}, err
 	}
 	branch := in.Branch
-	prepared, err := service.Prepare(ctx, target, environments.Checkout{SharedCheckout: in.SharedCheckout, Branch: branch, Base: in.Base}, id)
+	choice := environments.Checkout{SharedCheckout: in.SharedCheckout, Branch: branch, Base: in.Base}
+	prepared, err := service.Prepare(ctx, target, choice, id)
+	var uncertain *backend.DeliveryUncertain
+	if errors.As(err, &uncertain) && ctx.Err() == nil {
+		// Re-read the persisted helper request once. Service.Prepare preserves its
+		// envelope and never replays an attempted mutation to recover a lost result.
+		prepared, err = service.Prepare(ctx, target, choice, id)
+	}
 	if err != nil {
 		m.remotePreparationFailed(id, err, &binding)
 		return Conversation{}, err
@@ -114,6 +161,8 @@ func (m *Manager) createRemote(ctx context.Context, in NewConversation, provider
 	item = m.items[id]
 	item.Worktree, item.Branch = prepared.Directory, prepared.Branch
 	item.Placement.Value.Directory = prepared.Directory
+	item.Error = ""
+	item.Revision++
 	item.Status, item.Contact, item.CleanupPending = StatusIdle, "connected", false
 	item.Live = true
 	item.Capabilities = prepared.Target.Capabilities
@@ -126,7 +175,39 @@ func (m *Manager) createRemote(ctx context.Context, in NewConversation, provider
 	return snapshot, err
 }
 
+// Retrying an explicitly submitted setup reconciles its retained preparation;
+// it does not mint another checkout identity after a lost helper result.
+func (m *Manager) pendingRemotePreparation(in NewConversation, provider, model string) string {
+	in.Provider = provider
+	in.Model = model
+	in.Title = strings.TrimSpace(in.Title)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for id, state := range m.remoteStates {
+		item := m.items[id]
+		if item != nil && item.Status == "unresolved" && item.CleanupPending && state.Session.ID == "" && state.Preparation != nil && *state.Preparation == in {
+			return id
+		}
+	}
+	return ""
+}
+
 func (m *Manager) remotePreparationFailed(id string, cause error, binding *environments.Binding) {
+	var uncertain *backend.DeliveryUncertain
+	if errors.As(cause, &uncertain) {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		item := m.items[id]
+		if binding != nil {
+			m.active[id].remote = binding
+		}
+		item.Status, item.Contact, item.CleanupPending, item.Live = "unresolved", "unreachable", true, true
+		item.Error = fmt.Sprintf("Preparation for conversation %s is unconfirmed. Retry the same session setup to reconcile it, or end this session to release ownership: %v", id, cause)
+		item.Revision++
+		_ = m.save(item)
+		return
+	}
+
 	cleanupErr := error(nil)
 	if binding != nil {
 		m.mu.Lock()

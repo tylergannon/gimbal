@@ -270,6 +270,9 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		if service == nil {
 			return Conversation{}, errors.New("conversation: environment service unavailable")
 		}
+		if m.pendingRemotePreparation(in, provider, model) != "" {
+			return m.createRemote(ctx, in, provider, model)
+		}
 		target, err := service.Resolve(ctx, projectID, in.Environment)
 		if err != nil {
 			return Conversation{}, err

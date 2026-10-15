@@ -3,6 +3,7 @@ package conversation
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,20 +19,22 @@ import (
 )
 
 type remoteFixture struct {
-	mu               sync.Mutex
-	processes        map[string][]byte
-	turns            map[string]backend.Result
-	sessions         int
-	admissions       int
-	interruptions    int
-	cleanup          int
-	workdir          string
-	autoComplete     bool
-	sessionReplyLost bool
-	sessionStarted   chan struct{}
-	sessionRelease   chan struct{}
-	forgetOnCleanup  bool
-	cleanupCompletes bool
+	mu                sync.Mutex
+	processes         map[string][]byte
+	processAdmissions int
+	artifactFailures  int
+	turns             map[string]backend.Result
+	sessions          int
+	admissions        int
+	interruptions     int
+	cleanup           int
+	workdir           string
+	autoComplete      bool
+	sessionReplyLost  bool
+	sessionStarted    chan struct{}
+	sessionRelease    chan struct{}
+	forgetOnCleanup   bool
+	cleanupCompletes  bool
 }
 
 func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +45,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 	case "/health":
 		w.WriteHeader(200)
 	case "/tasks/process":
+		f.processAdmissions++
 		var p backend.Process
 		_ = json.NewDecoder(r.Body).Decode(&p)
 		var in environments.HelperRequest
@@ -58,6 +62,11 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 		f.processes[p.Run+"/"+p.Task], _ = json.Marshal(result)
 		encode(backend.Reply{})
 	case "/tasks/bytes":
+		if f.artifactFailures > 0 {
+			f.artifactFailures--
+			http.Error(w, "temporary stdout outage", 503)
+			return
+		}
 		var a backend.Artifact
 		_ = json.NewDecoder(r.Body).Decode(&a)
 		_, _ = w.Write(f.processes[a.Run+"/"+a.Task])
@@ -569,5 +578,61 @@ func TestCleanupWaitsForSessionAdmissionAndPreventsFollowingTurn(t *testing.T) {
 	defer f.mu.Unlock()
 	if f.sessions != 1 || f.admissions != 0 || f.cleanup != 1 {
 		t.Fatalf("turn began after End: %+v", f)
+	}
+}
+
+func TestRemotePreparationRetryRetainsOriginalCheckoutIdentity(t *testing.T) {
+	f := &remoteFixture{artifactFailures: 2}
+	m, service, project := remoteManager(t, f)
+	in := NewConversation{Provider: "claude", Title: "Retained setup", Environment: "remote-project", Branch: "feature/retained", Base: "main"}
+	_, err := m.Create(t.Context(), in)
+	var uncertain *backend.DeliveryUncertain
+	if !errors.As(err, &uncertain) {
+		t.Fatalf("lost Prepare stdout was not retained as uncertain: %v", err)
+	}
+	pending := m.List()
+	if len(pending) != 1 || pending[0].Status != "unresolved" || !pending[0].CleanupPending {
+		t.Fatalf("unconfirmed preparation disappeared: %+v", pending)
+	}
+	original := pending[0].ID
+	f.mu.Lock()
+	admissions, cleanup := f.processAdmissions, f.cleanup
+	f.mu.Unlock()
+	if admissions != 1 || cleanup != 0 {
+		t.Fatalf("uncertain preparation was replayed or cleaned before result reconciliation: admissions=%d cleanup=%d", admissions, cleanup)
+	}
+	m.Close()
+	doc, err := service.Config(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.SaveConfig(t.Context(), environments.ConfigEdit{Revision: doc.Revision, Text: `{"version":1,"machines":[],"environments":[]}`}); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := New(t.Context(), filepath.Join(project, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) {
+		t.Fatal("remote retry used local adapter")
+		return nil, nil
+	}, "/local/gimbal", m.instanceDir, project, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	restored.SetEnvironments(service, "project")
+
+	item, err := restored.Create(t.Context(), in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.ID != original || !strings.Contains(item.Worktree, original) || item.Status != StatusIdle || item.Error != "" {
+		t.Fatalf("retry replaced its original preparation: %+v", item)
+	}
+	f.mu.Lock()
+	admissions = f.processAdmissions
+	f.mu.Unlock()
+	if admissions != 1 {
+		t.Fatalf("explicit retry executed another checkout mutation: %d", admissions)
+	}
+	if err = restored.Cleanup(t.Context(), item.ID); err != nil {
+		t.Fatal(err)
 	}
 }

@@ -83,9 +83,11 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 	journal := filepath.Join(s.options.InstanceDir, "environment-operations", in.Operation+"-"+id+".json")
 	if mutation {
 		if b, e := os.ReadFile(journal); e == nil {
-			if e = json.Unmarshal(b, &record); e != nil {
+			var saved operation
+			if e = json.Unmarshal(b, &saved); e != nil {
 				return HelperResult{}, e
 			}
+			record = saved
 			a, _ := json.Marshal(record.Input)
 			b, _ := json.Marshal(in)
 			ta, _ := json.Marshal(record.Target)
@@ -100,7 +102,7 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 						e = s.cleanupBinding(ctx, b)
 					}
 					if e != nil {
-						return HelperResult{}, e
+						return HelperResult{}, &backend.DeliveryUncertain{RequestID: record.Request.ID, Err: e}
 					}
 					record.CleanupPending = false
 					_ = writeReceipt(journal, record)
@@ -151,16 +153,20 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 		}
 		return e
 	}
-	settled := false
+	helperFailed := false
 	if !mutation {
 		defer func() { retErr = errors.Join(retErr, cleanup()) }()
 	} else {
 		defer func() {
 			if retErr != nil {
-				if settled {
+				if helperFailed {
 					record.Error = retErr.Error()
 					retErr = errors.Join(retErr, cleanup())
 				} else {
+					var uncertain *backend.DeliveryUncertain
+					if !errors.As(retErr, &uncertain) {
+						retErr = &backend.DeliveryUncertain{RequestID: record.Request.ID, Err: retErr}
+					}
 					record.CleanupPending = true
 					_ = writeReceipt(journal, record)
 				}
@@ -182,13 +188,14 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 		}
 		event, e := effects.Await(requestCtx, record.Request, "completed", nil)
 		if e != nil {
+			helperFailed = event.Result != nil && !event.Result.Unresolved && event.Result.Error != ""
 			return HelperResult{}, e
 		}
-		settled = true
 		if event.Result == nil || event.Result.Process == nil {
 			return HelperResult{}, fmt.Errorf("helper completion has no process result")
 		}
 		if p := event.Result.Process; p.ExitCode != 0 || p.Error != "" || p.Interrupted {
+			helperFailed = true
 			return HelperResult{}, fmt.Errorf("desktop helper unavailable or failed; upgrade Gimbal on %s: %s %s", t.Machine.Name, p.Error, event.Result.Stderr)
 		}
 		stdout = event.Result.Stdout
@@ -211,10 +218,20 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 		if e != nil {
 			return HelperResult{}, e
 		}
-		settled = true
 		var pr backend.ProcessResult
 		if e = json.Unmarshal(result, &pr); e != nil {
 			return HelperResult{}, e
+		}
+		if pr.ExitCode != 0 || pr.Interrupted || pr.Error != "" {
+			helperFailed = true
+			er, e := b.Connection.Execution.ReadBytes(ctx, backend.Artifact{Owner: p.Owner, Name: "stderr"})
+			detail := pr.Error
+			if e == nil {
+				bytes, _ := io.ReadAll(io.LimitReader(er, 8192))
+				_ = er.Close()
+				detail += " " + string(bytes)
+			}
+			return HelperResult{}, fmt.Errorf("desktop helper unavailable or failed; upgrade Gimbal on %s: %s", t.Machine.Name, detail)
 		}
 		reader, e := b.Connection.Execution.ReadBytes(ctx, backend.Artifact{Owner: p.Owner, Name: "stdout"})
 		if e != nil {
@@ -224,16 +241,6 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 		e = errors.Join(e, reader.Close())
 		if e != nil {
 			return HelperResult{}, e
-		}
-		if pr.ExitCode != 0 || pr.Interrupted || pr.Error != "" {
-			er, e := b.Connection.Execution.ReadBytes(ctx, backend.Artifact{Owner: p.Owner, Name: "stderr"})
-			detail := pr.Error
-			if e == nil {
-				bytes, _ := io.ReadAll(io.LimitReader(er, 8192))
-				_ = er.Close()
-				detail += " " + string(bytes)
-			}
-			return HelperResult{}, fmt.Errorf("desktop helper unavailable or failed; upgrade Gimbal on %s: %s", t.Machine.Name, detail)
 		}
 	}
 	var result HelperResult

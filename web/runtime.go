@@ -266,7 +266,7 @@ func (i *Instance) Address() string {
 func (i *Instance) projectRequest(next http.Handler) http.Handler {
 	sharedRemotes := map[string]bool{}
 	for _, remote := range generated.Remotes() {
-		if remote.Module() == "src/routes/auth.remote.ts" || remote.Module() == "src/routes/launch.remote.ts" || remote.Module() == "src/lib/transcript.remote.ts" || remote.Module() == "src/lib/workspace.remote.ts" || remote.Module() == "src/lib/window.remote.ts" || remote.Module() == "src/lib/runs.remote.ts" {
+		if remote.Module() == "src/routes/auth.remote.ts" || remote.Module() == "src/routes/launch.remote.ts" || remote.Module() == "src/lib/transcript.remote.ts" || remote.Module() == "src/lib/workspace.remote.ts" || remote.Module() == "src/lib/window.remote.ts" || remote.Module() == "src/lib/runs.remote.ts" || remote.Module() == "src/lib/environments.remote.ts" || (remote.Module() == "src/routes/conversation.remote.ts" && remote.Name() == "cleanupConversation") {
 			sharedRemotes["/_app/remote/"+remote.ID()] = true
 		}
 	}

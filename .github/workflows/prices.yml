@@ -45,7 +45,7 @@ jobs:
       - name: Open catalog refresh for model review
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.doppler.outputs.GIMBAL_PR_CREATION_TOKEN }}
         run: |
           set -euo pipefail
 

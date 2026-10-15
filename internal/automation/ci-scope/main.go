@@ -44,7 +44,13 @@ func plan(paths []string) selection {
 			result.Web = true
 		}
 		if strings.HasSuffix(name, ".go") && !strings.HasPrefix(name, ".agents/skills/") {
-			result.Packages = append(result.Packages, "./"+filepath.ToSlash(filepath.Dir(name)))
+			// SKGO compiles route Go through generated links; bracketed route
+			// directories are not directly importable Go packages.
+			if strings.HasPrefix(name, "web/src/routes/") {
+				result.Packages = append(result.Packages, "./internal/skgo/...", "./web/...")
+			} else {
+				result.Packages = append(result.Packages, "./"+filepath.ToSlash(filepath.Dir(name)))
+			}
 		}
 	}
 	if slices.Contains(paths, "go.mod") || slices.Contains(paths, "go.sum") {
@@ -148,7 +154,7 @@ func execute(args []string) error {
 		}
 		packages := []string{}
 		for _, p := range selected.Packages {
-			info, err := os.Stat(p)
+			info, err := os.Stat(strings.TrimSuffix(p, "/..."))
 			if p == "./..." || (err == nil && info.IsDir()) {
 				packages = append(packages, p)
 			}

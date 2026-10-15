@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -211,5 +212,52 @@ func TestPrivateContextSurvivesNativeSessionResumption(t *testing.T) {
 	got, err := os.ReadFile(path)
 	if err != nil || !bytes.Equal(got, data) {
 		t.Fatal("resumption lost private context")
+	}
+}
+
+func TestAttachmentToolResultsStayOutOfConversationJournal(t *testing.T) {
+	for _, path := range []string{"/project/.gimbal/conversation-files/0123456789abcdef0123456789abcdef/context.pdf", "/tmp/gimbal-task-input-1234.pdf"} {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			a := &controlledChat{started: make(chan string, 1), release: make(chan struct{})}
+			m, item := managerWithControl(t, a)
+			id := cacheFixture(t, m, []byte("private attachment bytes"))
+			m.mu.Lock()
+			item = *m.items[item.ID]
+			item.Requests = []RequestState{{Request: Request{ID: "first", FileID: id}}}
+			m.items[item.ID] = &item
+			events := []struct{ kind, data string }{
+				{"session.step.started", `{"assistantMessageID":"reply"}`},
+				{"session.tool.input.started", `{"assistantMessageID":"reply","id":"read","name":"Read"}`},
+				{"session.tool.called", `{"assistantMessageID":"reply","id":"read","input":{"file_path":` + strconv.Quote(path) + `}}`},
+				{"session.tool.success", `{"assistantMessageID":"reply","id":"read","content":[{"type":"text","text":"private attachment bytes"}],"resultState":{"raw":"private attachment bytes"}}`},
+				{"session.tool.input.started", `{"assistantMessageID":"reply","id":"failed","name":"Bash"}`},
+				{"session.tool.called", `{"assistantMessageID":"reply","id":"failed","input":{"command":` + strconv.Quote("cat "+path+"; exit 1") + `}}`},
+				{"session.tool.failed", `{"assistantMessageID":"reply","id":"failed","content":[{"type":"text","text":"private attachment bytes"}],"error":{"message":"private attachment bytes"},"resultState":{"raw":"private attachment bytes"}}`},
+				{"session.tool.input.started", `{"assistantMessageID":"reply","id":"ordinary","name":"Read"}`},
+				{"session.tool.called", `{"assistantMessageID":"reply","id":"ordinary","input":{"file_path":"/project/README.md"}}`},
+				{"session.tool.success", `{"assistantMessageID":"reply","id":"ordinary","content":[{"type":"text","text":"ordinary tool output"}]}`},
+			}
+			for _, event := range events {
+				var data map[string]any
+				_ = json.Unmarshal([]byte(event.data), &data)
+				data["sessionID"] = item.ID
+				raw, _ := json.Marshal(data)
+				if err := m.activity(&item, gimbal.AgentEvent{Type: event.kind, Data: raw}); err != nil {
+					m.mu.Unlock()
+					t.Fatal(err)
+				}
+			}
+			m.mu.Unlock()
+			raw, err := os.ReadFile(filepath.Join(m.projectDir, "conversations", item.ID+".json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if bytes.Contains(raw, []byte("private attachment bytes")) {
+				t.Fatal("raw file contents leaked into observation journal")
+			}
+			if !bytes.Contains(raw, []byte("ordinary tool output")) {
+				t.Fatal("unrelated tool result was removed")
+			}
+		})
 	}
 }

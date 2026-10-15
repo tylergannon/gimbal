@@ -50,3 +50,17 @@ func TestConnectionExecutesWithIndependentEventsAndExplicitNativeFiles(t *testin
 		t.Fatal(err)
 	}
 }
+
+func TestMaterializedTaskFileKeepsFormatExtension(t *testing.T) {
+	d := New()
+	owner := backend.Owner{Run: "format", Scope: "format", Task: "read"}
+	file := backend.Artifact{Owner: owner, Name: "report.pdf"}
+	if err := d.writeBytes(file, strings.NewReader("%PDF-1.4\n")); err != nil {
+		t.Fatal(err)
+	}
+	path := d.files[file]
+	defer os.Remove(path)
+	if !strings.HasSuffix(path, ".pdf") {
+		t.Fatalf("PDF path lost its format: %q", path)
+	}
+}

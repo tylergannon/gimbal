@@ -403,7 +403,7 @@ func (m *Manager) activity(item *Conversation, e gimbal.AgentEvent) error {
 		return err
 	}
 	m.projections[item.ID].Apply(&event)
-	state, err := json.Marshal(m.projections[item.ID].Snapshot().State)
+	state, err := json.Marshal(fileJournal(item, m.projections[item.ID].Snapshot().State))
 	if err != nil {
 		return err
 	}

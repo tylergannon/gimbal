@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.36] - 2026-10-15
+
+### Changed
+
+- Finish workflow launch, Runs and live agent focus (#577)
+
 ## [0.13.35] - 2026-10-15
 
 ### Changed
@@ -392,7 +398,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.35...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.36...main
+[0.13.36]: https://github.com/tylergannon/gimbal/compare/v0.13.35...v0.13.36
 [0.13.35]: https://github.com/tylergannon/gimbal/compare/v0.13.34...v0.13.35
 [0.13.34]: https://github.com/tylergannon/gimbal/compare/v0.13.33...v0.13.34
 [0.13.33]: https://github.com/tylergannon/gimbal/compare/v0.13.32...v0.13.33

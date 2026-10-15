@@ -23,6 +23,7 @@ type CreateConversation struct {
 	SharedCheckout bool   `json:"shared_checkout"`
 	Branch         string `json:"branch"`
 	Base           string `json:"base"`
+	Environment    string `json:"environment"`
 }
 
 // SendConversationMessage is one visible user turn.
@@ -45,7 +46,7 @@ func createConversation(ctx context.Context, event app.RequestEvent[params.Param
 	if strings.TrimSpace(arg.Message) == "" {
 		return conversation.Conversation{}, skgo.Invalidf("message", "Describe the work to start the session.")
 	}
-	item, err := manager.Start(ctx, conversation.NewConversation{Provider: arg.Provider, Model: arg.Model, SharedCheckout: arg.SharedCheckout, Branch: arg.Branch, Base: arg.Base}, arg.Message)
+	item, err := manager.Start(ctx, conversation.NewConversation{Provider: arg.Provider, Model: arg.Model, SharedCheckout: arg.SharedCheckout, Branch: arg.Branch, Base: arg.Base, Environment: arg.Environment}, arg.Message)
 	if err != nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusBadRequest, "%s", err)
 	}
@@ -145,13 +146,36 @@ func projectConversations(ctx context.Context, project string) ([]conversation.C
 }
 
 // conversationSetup is what the new session composer offers in a project.
-func conversationSetup(ctx context.Context, project string) (conversation.Setup, error) {
-	manager, err := projectManager(ctx, project)
+type ConversationSetup struct {
+	Project     string `json:"project"`
+	Environment string `json:"environment"`
+}
+
+func conversationSetup(ctx context.Context, arg ConversationSetup) (conversation.Setup, error) {
+	manager, err := projectManager(ctx, arg.Project)
 	if err != nil {
 		return conversation.Setup{}, err
 	}
-	return manager.Setup(ctx)
+	return manager.SetupEnvironment(ctx, arg.Environment)
 }
+
+type CleanupConversation struct {
+	Project      string `json:"project"`
+	Conversation string `json:"conversation"`
+}
+
+func cleanupConversation(ctx context.Context, event app.RequestEvent[params.Params], arg CleanupConversation) (bool, error) {
+	manager, err := projectManager(ctx, arg.Project)
+	if err != nil {
+		return false, err
+	}
+	if err := manager.Cleanup(ctx, arg.Conversation); err != nil {
+		return false, skgo.Errorf(400, "%s", err)
+	}
+	return true, nil
+}
+
+var _ = skgo.Command(cleanupConversation)
 
 func projectManager(ctx context.Context, project string) (*conversation.Manager, error) {
 	if owner := host.OwnerFrom(ctx); owner != nil {

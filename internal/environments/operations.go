@@ -272,7 +272,7 @@ func (s *Service) recordFacts(t Target, r HelperResult, err error) {
 	state.Detail = "Connected"
 	s.states[t.Machine.ID] = state
 	if t.Environment.ID != "" {
-		s.facts[t.Environment.Project+"\x00"+t.Environment.ID] = EnvironmentRow{Environment: t.Environment, Directory: r.Directory, Capabilities: state.Capabilities, Observed: time.Now().UnixMilli(), Issues: []Issue{}}
+		s.facts[t.Environment.Project+"\x00"+t.Environment.ID] = EnvironmentRow{Environment: DescribeEnvironment(t.Environment), Directory: r.Directory, Capabilities: state.Capabilities, Observed: time.Now().UnixMilli(), Issues: []Issue{}}
 	}
 }
 

@@ -3,6 +3,7 @@
 package workspace
 
 import (
+	environments "github.com/tylergannon/gimbal/internal/environments"
 	host "github.com/tylergannon/gimbal/internal/host"
 	projectfiles "github.com/tylergannon/gimbal/internal/projectfiles"
 	promises "github.com/tylergannon/gimbal/internal/promises"
@@ -14,6 +15,30 @@ import (
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
+	// Skgo_cloneEnvironment is cloneEnvironment, published as src/lib/environments.remote.ts#cloneEnvironment.
+	Skgo_cloneEnvironment = cloneEnvironment
+	// Skgo_environmentConfig is environmentConfig, published as src/lib/environments.remote.ts#environmentConfig.
+	Skgo_environmentConfig = environmentConfig
+	// Skgo_inspectEnvironment is inspectEnvironment, published as src/lib/environments.remote.ts#inspectEnvironment.
+	Skgo_inspectEnvironment = inspectEnvironment
+	// Skgo_listEnvironmentDirectories is listEnvironmentDirectories, published as src/lib/environments.remote.ts#listEnvironmentDirectories.
+	Skgo_listEnvironmentDirectories = listEnvironmentDirectories
+	// Skgo_reconnectMachine is reconnectMachine, published as src/lib/environments.remote.ts#reconnectMachine.
+	Skgo_reconnectMachine = reconnectMachine
+	// Skgo_removeEnvironment is removeEnvironment, published as src/lib/environments.remote.ts#removeEnvironment.
+	Skgo_removeEnvironment = removeEnvironment
+	// Skgo_removeMachine is removeMachine, published as src/lib/environments.remote.ts#removeMachine.
+	Skgo_removeMachine = removeMachine
+	// Skgo_saveEnvironment is saveEnvironment, published as src/lib/environments.remote.ts#saveEnvironment.
+	Skgo_saveEnvironment = saveEnvironment
+	// Skgo_saveEnvironmentConfig is saveEnvironmentConfig, published as src/lib/environments.remote.ts#saveEnvironmentConfig.
+	Skgo_saveEnvironmentConfig = saveEnvironmentConfig
+	// Skgo_saveMachine is saveMachine, published as src/lib/environments.remote.ts#saveMachine.
+	Skgo_saveMachine = saveMachine
+	// Skgo_sshHosts is sshHosts, published as src/lib/environments.remote.ts#sshHosts.
+	Skgo_sshHosts = sshHosts
+	// Skgo_watchEnvironments is watchEnvironments, published as src/lib/environments.remote.ts#watchEnvironments.
+	Skgo_watchEnvironments = watchEnvironments
 	// Skgo_viewRun is viewRun, published as src/lib/runs.remote.ts#viewRun.
 	Skgo_viewRun = viewRun
 	// Skgo_watchRuns is watchRuns, published as src/lib/runs.remote.ts#watchRuns.
@@ -59,6 +84,24 @@ var (
 )
 
 type (
+	// SkgoArg_cloneEnvironment is the type cloneEnvironment takes.
+	SkgoArg_cloneEnvironment = CloneEnvironment
+	// SkgoOut_cloneEnvironment is the type cloneEnvironment returns.
+	SkgoOut_cloneEnvironment = environments.Directory
+	// SkgoArg_saveEnvironment is the type saveEnvironment takes.
+	SkgoArg_saveEnvironment = EnvironmentForm
+	// SkgoOut_saveEnvironment is the type saveEnvironment returns.
+	SkgoOut_saveEnvironment = environments.EnvironmentRow
+	// SkgoArg_saveEnvironmentConfig is the type saveEnvironmentConfig takes.
+	SkgoArg_saveEnvironmentConfig = environments.ConfigEdit
+	// SkgoOut_saveEnvironmentConfig is the type saveEnvironmentConfig returns.
+	SkgoOut_saveEnvironmentConfig = environments.ConfigDocument
+	// SkgoArg_saveMachine is the type saveMachine takes.
+	SkgoArg_saveMachine = MachineForm
+	// SkgoOut_saveMachine is the type saveMachine returns.
+	SkgoOut_saveMachine = environments.MachineState
+	// SkgoOut_watchEnvironments is the type watchEnvironments yields.
+	SkgoOut_watchEnvironments = environments.Snapshot
 	// SkgoOut_watchRuns is the type watchRuns yields.
 	SkgoOut_watchRuns = runview.RunsData
 	// SkgoOut_watchRecording is the type watchRecording yields.

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/conversation"
+	"github.com/tylergannon/gimbal/internal/environments"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -27,15 +29,18 @@ import (
 )
 
 type Owner struct {
-	ctx        context.Context
-	dir        string
-	mu         sync.RWMutex
-	projects   map[string]*Project
-	order      []string // project paths in the order people arranged them
-	activeRuns sync.WaitGroup
-	controlID  string
-	socket     string
-	pluginDirs []string
+	ctx              context.Context
+	dir              string
+	mu               sync.RWMutex
+	projects         map[string]*Project
+	order            []string // project paths in the order people arranged them
+	activeRuns       sync.WaitGroup
+	controlID        string
+	socket           string
+	pluginDirs       []string
+	environmentsOnce sync.Once
+	environments     *environments.Service
+	environmentsErr  error
 }
 
 type Project struct {
@@ -90,6 +95,10 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	if err := os.MkdirAll(state, 0o755); err != nil {
 		return nil, err
 	}
+	placements, err := o.Environments()
+	if err != nil {
+		return nil, err
+	}
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	if o.ctx.Err() != nil {
@@ -134,6 +143,11 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.conversations = conversations
+	if err := placements.RegisterProject(p.id, path); err != nil {
+		conversations.Close()
+		return nil, err
+	}
+	conversations.SetEnvironments(placements, p.id)
 	p.recordings, err = transcript.NewDurable(state)
 	if err != nil {
 		conversations.Close()
@@ -232,6 +246,12 @@ func (o *Owner) Close() {
 		p.conversations.Close()
 		_ = os.Remove(filepath.Join(p.dir, "control", o.controlID+".json"))
 		_ = p.ownerLock.Close()
+	}
+	o.environmentsOnce.Do(func() { o.environmentsErr = errors.New("gimbal: instance is closed") })
+	if o.environments != nil {
+		if err := o.environments.Close(); err != nil {
+			log.Printf("gimbal: close environment connections: %v", err)
+		}
 	}
 }
 

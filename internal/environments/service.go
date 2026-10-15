@@ -204,7 +204,7 @@ func (s *Service) SaveEnvironment(ctx context.Context, in EnvironmentEdit) (Envi
 		return EnvironmentRow{}, fmt.Errorf("directory does not exist; clone explicitly before adding")
 	}
 	v.Directory = d.Path
-	row := EnvironmentRow{Environment: v, Directory: d, Observed: time.Now().UnixMilli(), Capabilities: capabilities(m, d)}
+	row := EnvironmentRow{Environment: DescribeEnvironment(v), Directory: d, Observed: time.Now().UnixMilli(), Capabilities: capabilities(m, d)}
 	s.mu.Lock()
 	e = s.editLocked(in.Revision, "environments", v.ID, v, false)
 	if e == nil {
@@ -278,7 +278,7 @@ func (s *Service) Snapshot(ctx context.Context, project string) (Snapshot, error
 			continue
 		}
 		d, e := inspectLocal(ctx, path, false)
-		row := EnvironmentRow{LastUsed: recents[id+"\x00"+Local], Environment: Environment{ID: Local, Project: id, Machine: Local, Directory: path}, Directory: d, Observed: time.Now().UnixMilli(), Capabilities: capabilities(Machine{}, d), Issues: []Issue{}}
+		row := EnvironmentRow{LastUsed: recents[id+"\x00"+Local], Environment: EnvironmentInfo{ID: Local, Project: id, Machine: Local, Directory: path}, Directory: d, Observed: time.Now().UnixMilli(), Capabilities: capabilities(Machine{}, d), Issues: []Issue{}}
 		if e != nil {
 			row.Issues = append(row.Issues, Issue{Entry: Local, Index: -1, Message: e.Error()})
 		}
@@ -290,7 +290,7 @@ func (s *Service) Snapshot(ctx context.Context, project string) (Snapshot, error
 		}
 		row, ok := facts[v.Project+"\x00"+v.ID]
 		if !ok || row.Environment.Directory != v.Directory || row.Environment.Machine != v.Machine {
-			row = EnvironmentRow{Environment: v, Directory: Directory{Path: v.Directory, Bases: []string{}, Entries: []DirectoryEntry{}}, Issues: []Issue{}}
+			row = EnvironmentRow{Environment: DescribeEnvironment(v), Directory: Directory{Path: v.Directory, Bases: []string{}, Entries: []DirectoryEntry{}}, Issues: []Issue{}}
 		}
 		row.LastUsed = recents[v.Project+"\x00"+v.ID]
 		out.Environments = append(out.Environments, row)

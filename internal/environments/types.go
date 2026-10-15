@@ -70,7 +70,7 @@ type Environment struct {
 type Issue struct {
 	Entry   string `json:"entry"`
 	Index   int    `json:"index"`
-	Line    int    `json:"line,omitempty"`
+	Line    int    `json:"line"`
 	Message string `json:"message"`
 }
 
@@ -141,14 +141,27 @@ type MachineState struct {
 	Issues       []Issue      `json:"issues"`
 }
 
+// EnvironmentInfo is the directory identity shown in the UI. The editable
+// configuration's opaque properties remain in the configuration document.
+type EnvironmentInfo struct {
+	ID        string `json:"id"`
+	Project   string `json:"project"`
+	Machine   string `json:"machine"`
+	Directory string `json:"directory"`
+}
+
+func DescribeEnvironment(environment Environment) EnvironmentInfo {
+	return EnvironmentInfo{ID: environment.ID, Project: environment.Project, Machine: environment.Machine, Directory: environment.Directory}
+}
+
 type EnvironmentRow struct {
-	Environment  Environment  `json:"environment"`
-	Directory    Directory    `json:"directory"`
-	Capabilities Capabilities `json:"capabilities"`
-	Observed     int64        `json:"observed"`
-	LastUsed     int64        `json:"last_used"`
-	LiveSessions int          `json:"live_sessions"`
-	Issues       []Issue      `json:"issues"`
+	Environment  EnvironmentInfo `json:"environment"`
+	Directory    Directory       `json:"directory"`
+	Capabilities Capabilities    `json:"capabilities"`
+	Observed     int64           `json:"observed"`
+	LastUsed     int64           `json:"last_used"`
+	LiveSessions int             `json:"live_sessions"`
+	Issues       []Issue         `json:"issues"`
 }
 
 type Snapshot struct {

@@ -94,9 +94,11 @@ func startBundledServer() (string, error) {
 	if err != nil || strings.TrimSpace(home) == "" {
 		return "", fmt.Errorf("locate the user's home directory for Gimbal state")
 	}
-	cmd := exec.Command(path,
-		"--instance-dir", instanceDir(home),
-		"--no-project", "--port", "0", "--ready", "--owned-by-stdin")
+	args, err := bundledServerArguments(instanceDir(home))
+	if err != nil {
+		return "", err
+	}
+	cmd := exec.Command(path, args...)
 	cmd.Env = serverEnvironment(home)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -152,6 +154,22 @@ func startBundledServer() (string, error) {
 		stopBundledServerLocked()
 		return "", fmt.Errorf("bundled Gimbal server did not become ready within 20 seconds")
 	}
+}
+
+// bundledServerArguments loads compatible plugins installed for this catalog.
+// An isolated catalog never inherits plugins from the personal desktop catalog.
+func bundledServerArguments(directory string) ([]string, error) {
+	args := []string{"--instance-dir", directory, "--no-project", "--port", "0", "--ready", "--owned-by-stdin"}
+	plugins := filepath.Join(directory, "plugins")
+	if info, err := os.Stat(plugins); err == nil {
+		if !info.IsDir() {
+			return nil, fmt.Errorf("Gimbal plugin location is not a directory: %s", plugins)
+		}
+		args = append(args, "--plugin-dir", plugins)
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("read Gimbal plugin directory: %w", err)
+	}
+	return args, nil
 }
 
 // instanceDir is the bundled server's state directory: GIMBAL_INSTANCE_DIR when set, so one app

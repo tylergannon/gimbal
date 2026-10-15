@@ -21,6 +21,11 @@ const chat = (id: string, updated: number): Conversation => ({
   active_request: "",
   state: "",
   revision: 0,
+  environment: "local",
+  placement: null,
+  contact: "connected",
+  capabilities: { steer: true, fork: true, worktree: true, browse: true, clone: true },
+  cleanup_pending: false,
 });
 
 test("a newly routed chat remains available while inventory refresh lags", () => {

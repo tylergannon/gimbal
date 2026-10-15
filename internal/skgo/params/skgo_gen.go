@@ -136,6 +136,12 @@ func SkgoCallerRoutes() skgo.CallerRoutes {
 		"/projects/[project]/runs/[runID]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}, {Name: "runID", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
 			return SkgoParams("/projects/[project]/runs/[runID]", values)
 		}},
+		"/settings":                   {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/settings", values) }},
+		"/settings/machines":          {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/settings/machines", values) }},
+		"/settings/machines/projects": {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/settings/machines/projects", values) }},
+		"/settings/machines/projects/[project]": {Params: []skgo.ManifestParam{{Name: "project", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) {
+			return SkgoParams("/settings/machines/projects/[project]", values)
+		}},
 		"/window":               {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/window", values) }},
 		"/workflows":            {Params: []skgo.ManifestParam{}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/workflows", values) }},
 		"/workflows/[workflow]": {Params: []skgo.ManifestParam{{Name: "workflow", Matcher: "", Optional: false, Rest: false, Chained: false}}, NewParams: func(values map[string]any) (any, error) { return SkgoParams("/workflows/[workflow]", values) }},
@@ -295,6 +301,17 @@ func SkgoParams(routeID string, values map[string]any) (Params, error) {
 				return Params{}, fmt.Errorf("skgo: caller /projects/[project]/runs/[runID] param runID: %w", err)
 			}
 			p.value_72756e4944 = RunID_K72756e4944Param_String{Value: value}
+		}
+	case "/settings":
+	case "/settings/machines":
+	case "/settings/machines/projects":
+	case "/settings/machines/projects/[project]":
+		if raw, present := values["project"]; present {
+			value, err := skgoSharedValue[string](raw)
+			if err != nil {
+				return Params{}, fmt.Errorf("skgo: caller /settings/machines/projects/[project] param project: %w", err)
+			}
+			p.value_70726f6a656374 = ProjectParam_String{Value: value}
 		}
 	case "/window":
 	case "/workflows":

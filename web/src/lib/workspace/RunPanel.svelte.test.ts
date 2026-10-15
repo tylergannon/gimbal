@@ -18,13 +18,21 @@ vi.mock("../../routes/control.remote.js", () => remote);
 vi.mock("#lib/runs.remote", () => ({ viewRun: () => ({ current: undefined, error: undefined }) }));
 
 class SilentEventSource {
+  static instances: SilentEventSource[] = [];
+  closed = false;
+  constructor(readonly url: string) {
+    SilentEventSource.instances.push(this);
+  }
   addEventListener() {}
-  close() {}
+  close() {
+    this.closed = true;
+  }
 }
 const originalEventSource = globalThis.EventSource;
 
 beforeEach(() => {
   remote.cancelRun.mockClear();
+  SilentEventSource.instances = [];
   globalThis.EventSource = SilentEventSource as unknown as typeof EventSource;
   // WebKit delivers no animation frames to a desktop window it considers hidden,
   // such as one behind another window. The guard must not wait for one to close.
@@ -101,4 +109,42 @@ test("closing the run's tab removes its guard without cancelling the run", async
   expect(overlay()).toBeNull();
   await expect.element(screen.getByRole("textbox", { name: "Draft" })).toBeVisible();
   expect(remote.cancelRun).not.toHaveBeenCalled();
+});
+
+test("eight retained live runs use one observation stream and cancellation still targets the active run", async () => {
+  const runs = Object.fromEntries(
+    Array.from({ length: 8 }, (_, index) => {
+      const snapshot = structuredClone(planTripFixture.snapshot);
+      snapshot.run.id = `retained-${index}`;
+      return [`run-${index}`, { snapshot, graph: JSON.stringify(planTripFixture.graph) }];
+    }),
+  );
+  const ids = Object.keys(runs);
+  const props = { project: "retained-project", run: runs[ids[0]], runs, shown: [...ids, "draft"] };
+  const screen = await render(RetainedRunTabs, { ...props, selected: ids[0] });
+  await expect
+    .poll(() => SilentEventSource.instances.filter((item) => !item.closed).length)
+    .toBe(1);
+  for (const id of ids.slice(1)) {
+    await screen.rerender({ ...props, selected: id });
+    await expect
+      .poll(() => SilentEventSource.instances.filter((item) => !item.closed).length)
+      .toBe(1);
+    expect(SilentEventSource.instances.at(-1)?.url).toContain(runs[id].snapshot.run.id);
+  }
+  await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
+  await guard().getByRole("button", { name: "Cancel run", exact: true }).click();
+  expect(remote.cancelRun.mock.calls).toEqual([[{ run: runs[ids.at(-1)!].snapshot.run.id }]]);
+  await screen.rerender({ ...props, selected: "draft" });
+  await expect
+    .poll(() => SilentEventSource.instances.filter((item) => !item.closed).length)
+    .toBe(0);
+  const draft = screen.getByRole("textbox", { name: "Draft" });
+  await draft.fill("Keep this draft");
+  await screen.rerender({ ...props, selected: ids[0] });
+  await expect
+    .poll(() => SilentEventSource.instances.filter((item) => !item.closed).length)
+    .toBe(1);
+  await screen.rerender({ ...props, selected: "draft" });
+  await expect.element(draft).toHaveValue("Keep this draft");
 });

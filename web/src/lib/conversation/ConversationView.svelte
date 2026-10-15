@@ -1,20 +1,20 @@
 <script lang="ts">
-  import { onMount, untrack } from 'svelte';
+  import { onMount } from 'svelte';
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
   import { errorMessage } from '#lib/errors';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
   import Square from '@lucide/svelte/icons/square';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import * as Dialog from '#lib/components/ui/dialog';
-  import { sendConversationMessage, stopConversationRequest, watchConversation, cleanupConversation } from '../../routes/conversation.remote';
+  import { sendConversationMessage, stopConversationRequest, projectConversations, cleanupConversation } from '../../routes/conversation.remote';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import type { ProjectionState } from '#lib/sessionstate';
   import ConversationTranscript from './ConversationTranscript.svelte';
   import { harnessName, modelName } from './names';
 
-  let { project, current, active = true, onstate }: { project: string; current: Conversation; active?: boolean; onstate?: (item: Conversation) => void } = $props();
-  const stream = $derived(watchConversation({ project, conversation: current.id }));
-  const record = $derived(stream.current ?? current);
+  let { project, current, active = true }: { project: string; current: Conversation; active?: boolean } = $props();
+  const inventory = $derived(projectConversations(project));
+  const record = $derived(current);
   const form = $derived(sendConversationMessage.for(`${project}/${current.id}`));
   const projection = $derived(record.state ? JSON.parse(record.state) as ProjectionState : undefined);
   const messages = $derived(projection?.message[record.id] ?? []);
@@ -37,16 +37,12 @@
 
   async function endSession() {
     ending = true; actionError = '';
-    try { await cleanupConversation({ project, conversation: record.id }); confirmEnd = false; }
+    try { await cleanupConversation({ project, conversation: record.id }); await inventory.refresh(); confirmEnd = false; }
     catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
     finally { ending = false; }
   }
 
-  $effect(() => {
-    const item = stream.current;
-    if (item) untrack(() => onstate?.(item));
-    if (stream.error) void stream.catch(navigateOnUnauthorized);
-  });
+  $effect(() => { if (inventory.error) void inventory.catch(navigateOnUnauthorized); });
   $effect(() => { record.revision; scroller?.scrollTo({ top: scroller.scrollHeight }); });
 
   async function stop() {
@@ -55,6 +51,7 @@
     actionError = '';
     try {
       await stopConversationRequest({ conversation: record.id, id: crypto.randomUUID(), created: Date.now(), target: record.active_request });
+      await inventory.refresh();
     } catch (error) {
       if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);
     } finally { stopPending = false; }
@@ -102,14 +99,14 @@
       {:else if request.error && request.id !== record.active_request}<p class="notice" role="alert">{request.error}</p>{/if}
     {/each}
     {#if !record.live}<p class="notice">Saved history. Start a new conversation to continue.</p>{/if}
-    {#if stream.current && !stream.connected}<p class="notice" role="status">Server disconnected. The request may still be running. <button onclick={() => stream.reconnect()}>Reconnect</button></p>{/if}
+    {#if inventory.error}<p class="notice" role="status">Server disconnected. The request may still be running. <button onclick={() => inventory.refresh()}>Reconnect</button></p>{/if}
   </div>
 
   <form class="composer" {...form.enhance(async (submitted) => {
     actionError = '';
     submitted.fields.created.set(Date.now());
     try {
-      if (await submitted.submit()) { submitted.element.reset(); requestID = crypto.randomUUID(); created = Date.now(); }
+      if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); requestID = crypto.randomUUID(); created = Date.now(); }
     } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
   })}>
     <input {...form.fields.conversation.as('hidden', record.id)} />

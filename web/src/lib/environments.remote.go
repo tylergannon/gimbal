@@ -21,6 +21,14 @@ func environmentService(ctx context.Context) (*environments.Service, error) {
 	return owner.Environments()
 }
 
+func environmentSnapshot(ctx context.Context, projectID string) (environments.Snapshot, error) {
+	service, err := environmentService(ctx)
+	if err != nil {
+		return environments.Snapshot{}, err
+	}
+	return service.Snapshot(ctx, projectID)
+}
+
 func watchEnvironments(ctx context.Context, projectID string, yield func(environments.Snapshot) error) error {
 	service, err := environmentService(ctx)
 	if err != nil {
@@ -222,6 +230,7 @@ func cloneEnvironment(ctx context.Context, event app.RequestEvent[params.Params]
 }
 
 var _ = skgo.LiveQuery(watchEnvironments)
+var _ = skgo.Query(environmentSnapshot)
 var _ = skgo.Query(environmentConfig)
 var _ = skgo.Query(sshHosts)
 var _ = skgo.Form(saveEnvironmentConfig)

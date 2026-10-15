@@ -479,48 +479,55 @@ test("a finished session probe cannot restart a stream after page teardown", asy
   expect(TestEventSource.instances).toHaveLength(1);
 });
 
-test("retained run panels keep their explicit project identity and release only observation on close", async () => {
+test("retained run panels close observation while inactive and preserve their selected view", async () => {
   const snapshot = structuredClone(planTripFixture.snapshot);
-  const screen = await render(RunView, {
+  const props = {
     project: "owner-project",
-    active: false,
     data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
-  });
-  await expect.poll(() => TestEventSource.instances.length).toBe(1);
-  const stream = TestEventSource.instances[0];
-  expect(stream.url).toContain(`/projects/owner-project/api/runs/${snapshot.run.id}/events`);
+  };
+  const screen = await render(RunView, { ...props, active: false });
+  expect(TestEventSource.instances).toHaveLength(0);
   expect(auth.page.params.project).toBe("test-project");
   await screen.getByRole("button", { name: "Map", exact: true }).click();
   const event = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
   window.dispatchEvent(event);
   expect(event.defaultPrevented).toBe(false);
-  const paneKey = new KeyboardEvent("keydown", { key: "\\", bubbles: true, cancelable: true });
-  window.dispatchEvent(paneKey);
-  expect(paneKey.defaultPrevented).toBe(false);
-  expect(stream.closed).toBe(false);
-  await screen.unmount();
+  await screen.rerender({ ...props, active: true });
+  await expect.poll(() => TestEventSource.instances.length).toBe(1);
+  const stream = TestEventSource.instances[0];
+  expect(stream.url).toContain(`/projects/owner-project/api/runs/${snapshot.run.id}/events`);
+  await screen.rerender({ ...props, active: false });
   expect(stream.closed).toBe(true);
+  await screen.rerender({ ...props, active: true });
+  await expect.poll(() => TestEventSource.instances.length).toBe(2);
+  expect(TestEventSource.instances[1].closed).toBe(false);
+  await expect.element(screen.getByRole("region", { name: /workflow map/ })).toBeVisible();
+  await screen.unmount();
+  expect(TestEventSource.instances[1].closed).toBe(true);
 });
 
-test("two retained run panels observe independent run identities", async () => {
+test("switching between retained run panels observes the selected run identity", async () => {
   const first = structuredClone(planTripFixture.snapshot);
   const second = structuredClone(implementInterviewFixture.snapshot);
-  const one = await render(RunView, {
+  const firstProps = {
     project: "retained-project",
-    active: false,
     data: { snapshot: first, graph: JSON.stringify(planTripFixture.graph) },
-  });
-  const two = await render(RunView, {
+  };
+  const secondProps = {
     project: "retained-project",
-    active: true,
     data: { snapshot: second, graph: JSON.stringify(implementInterviewFixture.graph) },
-  });
+  };
+  const one = await render(RunView, { ...firstProps, active: false });
+  const two = await render(RunView, { ...secondProps, active: true });
+  await expect.poll(() => TestEventSource.instances.length).toBe(1);
+  expect(TestEventSource.instances[0].url).toContain(encodeURIComponent(second.run.id));
+  await two.rerender({ ...secondProps, active: false });
+  await one.rerender({ ...firstProps, active: true });
   await expect.poll(() => TestEventSource.instances.length).toBe(2);
-  expect(TestEventSource.instances[0].url).toContain(encodeURIComponent(first.run.id));
-  expect(TestEventSource.instances[1].url).toContain(encodeURIComponent(second.run.id));
-  await one.unmount();
   expect(TestEventSource.instances[0].closed).toBe(true);
-  expect(TestEventSource.instances[1].closed).toBe(false);
+  expect(TestEventSource.instances[1].url).toContain(encodeURIComponent(first.run.id));
+  await one.unmount();
+  expect(TestEventSource.instances[1].closed).toBe(true);
   await two.unmount();
 });
 

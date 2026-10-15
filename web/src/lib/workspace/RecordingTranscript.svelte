@@ -3,21 +3,33 @@
   import { errorMessage } from "#lib/errors";
   import RecordingControls from "./RecordingControls.svelte";
   import { List } from "@lucide/svelte";
-  import { markRequirements, watchRecording } from "../transcript.remote";
-  let { project, id }: { project: string; id: string } = $props();
-  const stream = $derived(watchRecording({ project, id }));
-  const record = $derived(stream.current);
+  import { untrack } from 'svelte';
+  import { markRequirements, recordingSnapshot } from "../transcript.remote";
+  let { project, id, active = true }: { project: string; id: string; active?: boolean } = $props();
+  const query = $derived(recordingSnapshot({ project, id }));
+  const record = $derived(query.current);
+  $effect(() => {
+    if (!active) return;
+    const current = query;
+    if (untrack(() => current.ready)) void current.refresh().catch(navigateOnUnauthorized);
+  });
+  $effect(() => {
+    if (!active) return;
+    const current = query;
+    const timer = setInterval(() => { void current.refresh().catch(navigateOnUnauthorized); }, 1000);
+    return () => clearInterval(timer);
+  });
   let marking = $state(false);
   let markError = $state("");
   async function mark() {
     marking = true;
     markError = "";
-    try { await markRequirements({ project, id }); }
+    try { await markRequirements({ project, id }); await query.refresh(); }
     catch (error) { if (!navigateOnUnauthorized(error)) markError = errorMessage(error); }
     finally { marking = false; }
   }
   $effect(() => {
-    if (stream.error) void stream.catch(navigateOnUnauthorized);
+    if (query.error) void query.catch(navigateOnUnauthorized);
   });
 </script>
 
@@ -32,9 +44,9 @@
       {#if markError}<p class="error" role="alert">{markError}</p>{/if}
     {/if}
     <p class="saving">
-      {stream.connected
-        ? "Saved on server"
-        : "Server disconnected · showing last saved text"}
+      {query.error
+        ? "Server disconnected · showing last saved text"
+        : "Saved on server"}
     </p>
     {#each [...record.finalized, ...record.provisional] as chunk, i (`${chunk.startMs}-${i}`)}<p
         class="chunk"
@@ -45,11 +57,11 @@
         Waiting for speech…
       </p>{/if}
   {:else}<p>
-      {stream.error
+      {query.error
         ? "Could not load recording. Reconnect to the server."
         : "Loading transcript…"}
     </p>{/if}
-  {#if !stream.connected}<button onclick={() => stream.reconnect()}
+  {#if query.error}<button onclick={() => query.refresh()}
       >Reconnect</button
     >{/if}
   <RecordingControls {project} {id} />

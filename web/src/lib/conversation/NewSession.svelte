@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte';
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
   import { errorMessage } from '#lib/errors';
   import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
@@ -12,14 +13,21 @@
   import { conversationSetup, createConversation, projectConversations } from '../../routes/conversation.remote';
   import HarnessPicker from './HarnessPicker.svelte';
   import { harnessName } from './names';
-  import { watchEnvironments } from '#lib/environments.remote';
+  import { environmentSnapshot } from '#lib/environments.remote';
   import EnvironmentPicker from '#lib/environments/EnvironmentPicker.svelte';
 
-  let { project, name, oncreated }: { project: string; name: string; oncreated: (conversation: Conversation) => void } = $props();
+  let { project, name, active = true, oncreated }: { project: string; name: string; active?: boolean; oncreated: (conversation: Conversation) => void } = $props();
   const form = $derived(createConversation.for(project));
   let environment = $state('local');
   const setupQuery = $derived(conversationSetup({ project, environment }));
-  const inventory = $derived(watchEnvironments(project));
+  const inventory = $derived(environmentSnapshot(project));
+  $effect(() => {
+    if (!active) return;
+    const query = inventory;
+    if (untrack(() => query.ready)) void query.refresh().catch(navigateOnUnauthorized);
+    const timer = setInterval(() => { void query.refresh().catch(navigateOnUnauthorized); }, 2000);
+    return () => clearInterval(timer);
+  });
   const conversationsQuery = $derived(projectConversations(project));
   const setup = $derived(setupQuery.current);
   const recent = $derived(conversationsQuery.current ?? []);

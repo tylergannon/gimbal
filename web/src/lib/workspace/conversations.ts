@@ -1,5 +1,14 @@
 import type { Conversation } from "#lib/skgo/conversation/types";
 
+/** Accepted prompts can still be waiting for async delivery while the chat is idle. */
+export function conversationNeedsUpdates(item: Conversation): boolean {
+  return (
+    ["working", "stopping", "unresolved"].includes(item.status) ||
+    item.requests.some((request) => request.status === "accepted") ||
+    item.runs.some((run) => run.status === "running")
+  );
+}
+
 /** Route loads and query refreshes are both factual; keep the newest record. */
 export function conversationsForWorkspace(
   inventory: Conversation[],

@@ -106,12 +106,25 @@ func watchRecording(ctx context.Context, r RecordingRequest, yield func(transcri
 		if e = yield(v); e != nil {
 			return e
 		}
+		// The native receipt bridge needs the saved terminal snapshot, then its
+		// connection can finish. Historical recordings never hold an SSE slot.
+		if v.Status == "stopped" || v.Status == "interrupted" {
+			return nil
+		}
 		select {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
 		}
 	}
+}
+
+func recordingSnapshot(ctx context.Context, r RecordingRequest) (transcript.Recording, error) {
+	s, err := store(ctx, r.Project)
+	if err != nil {
+		return transcript.Recording{}, err
+	}
+	return s.Get(r.ID)
 }
 
 func markRequirements(ctx context.Context, event app.RequestEvent[params.Params], r RecordingRequest) (transcript.Header, error) {
@@ -131,6 +144,7 @@ var _ = skgo.Command(touchSession)
 var _ = skgo.Command(markRequirements)
 var _ = skgo.Query(recordingHistory)
 var _ = skgo.LiveQuery(watchRecording)
+var _ = skgo.Query(recordingSnapshot)
 
 // Read persisted mode for a handoff, including marking during live capture.
 func recordingHeader(ctx context.Context, r RecordingRequest) (transcript.Header, error) {

@@ -95,7 +95,7 @@ const remote = vi.hoisted(() => ({
   fail: false,
 }));
 vi.mock("#lib/environments.remote", () => ({
-  watchEnvironments: () => ({ current: remote.inventory }),
+  environmentSnapshot: () => ({ current: remote.inventory, ready: false, refresh: async () => {} }),
 }));
 vi.mock("$app/navigation", () => ({ goto: vi.fn() }));
 vi.mock("../../routes/conversation.remote", () => {

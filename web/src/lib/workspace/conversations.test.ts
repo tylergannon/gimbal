@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 import type { Conversation } from "#lib/skgo/conversation/types";
-import { conversationsForWorkspace } from "./conversations";
+import { conversationsForWorkspace, conversationNeedsUpdates } from "./conversations";
 
 const chat = (id: string, updated: number): Conversation => ({
   id,
@@ -53,4 +53,27 @@ test("query progress and freshly loaded route messages each retain the newer dat
     messages: [...working.messages, { role: "assistant", text: "Done", created: 3 }],
   };
   expect(conversationsForWorkspace([working], [completed], completed)[0]).toBe(completed);
+});
+
+test("an accepted prompt keeps observation updating before async delivery changes idle state", () => {
+  const accepted = chat("accepted-before-delivery", 2);
+  accepted.requests = [
+    {
+      id: "request",
+      created: 2,
+      kind: "prompt",
+      message: "Start",
+      target: "",
+      status: "accepted",
+      delivery: "",
+      error: "",
+    },
+  ];
+  expect(accepted.status).toBe("idle");
+  expect(accepted.active_request).toBe("");
+  expect(conversationNeedsUpdates(accepted)).toBe(true);
+  accepted.requests[0].delivery = "queued";
+  expect(conversationNeedsUpdates(accepted)).toBe(true);
+  accepted.requests[0].status = "completed";
+  expect(conversationNeedsUpdates(accepted)).toBe(false);
 });

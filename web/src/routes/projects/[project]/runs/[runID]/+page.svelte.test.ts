@@ -5,10 +5,13 @@ import { implementInterviewFixture, planTripFixture } from "#lib/run/fixtures/in
 import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
 import type { Graph } from "#lib/workflow/types.js";
 import Page from "./+page.svelte";
+import RunView from "#lib/run/RunView.svelte";
+import RunPanel from "#lib/workspace/RunPanel.svelte";
 
 const auth = vi.hoisted(() => ({
   page: { params: { project: "test-project" }, data: { authEnabled: false } },
   currentUser: vi.fn(),
+  viewRun: vi.fn(),
   goto: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("$app/state", () => ({ page: auth.page }));
@@ -32,6 +35,8 @@ vi.mock("../../../../auth.remote", () => ({
   beginLogin: vi.fn(),
 }));
 
+vi.mock("#lib/runs.remote", () => ({ viewRun: auth.viewRun }));
+
 class TestEventSource {
   static instances: TestEventSource[] = [];
 
@@ -51,7 +56,10 @@ class TestEventSource {
     this.listeners.set(type, listeners);
   }
 
-  close() {}
+  closed = false;
+  close() {
+    this.closed = true;
+  }
 
   open() {
     this.onopen?.(new Event("open"));
@@ -73,6 +81,7 @@ beforeEach(() => {
   TestEventSource.instances = [];
   auth.page.data.authEnabled = false;
   auth.currentUser.mockReset();
+  auth.viewRun.mockReturnValue({ current: undefined, error: undefined });
   auth.goto.mockClear();
   globalThis.EventSource = TestEventSource as unknown as typeof EventSource;
 });
@@ -468,4 +477,122 @@ test("a finished session probe cannot restart a stream after page teardown", asy
   accept();
   await new Promise((resolve) => setTimeout(resolve, 400));
   expect(TestEventSource.instances).toHaveLength(1);
+});
+
+test("retained run panels keep their explicit project identity and release only observation on close", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const screen = await render(RunView, {
+    project: "owner-project",
+    active: false,
+    data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
+  });
+  await expect.poll(() => TestEventSource.instances.length).toBe(1);
+  const stream = TestEventSource.instances[0];
+  expect(stream.url).toContain(`/projects/owner-project/api/runs/${snapshot.run.id}/events`);
+  expect(auth.page.params.project).toBe("test-project");
+  await screen.getByRole("button", { name: "Map", exact: true }).click();
+  const event = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
+  window.dispatchEvent(event);
+  expect(event.defaultPrevented).toBe(false);
+  const paneKey = new KeyboardEvent("keydown", { key: "\\", bubbles: true, cancelable: true });
+  window.dispatchEvent(paneKey);
+  expect(paneKey.defaultPrevented).toBe(false);
+  expect(stream.closed).toBe(false);
+  await screen.unmount();
+  expect(stream.closed).toBe(true);
+});
+
+test("two retained run panels observe independent run identities", async () => {
+  const first = structuredClone(planTripFixture.snapshot);
+  const second = structuredClone(implementInterviewFixture.snapshot);
+  const one = await render(RunView, {
+    project: "retained-project",
+    active: false,
+    data: { snapshot: first, graph: JSON.stringify(planTripFixture.graph) },
+  });
+  const two = await render(RunView, {
+    project: "retained-project",
+    active: true,
+    data: { snapshot: second, graph: JSON.stringify(implementInterviewFixture.graph) },
+  });
+  await expect.poll(() => TestEventSource.instances.length).toBe(2);
+  expect(TestEventSource.instances[0].url).toContain(encodeURIComponent(first.run.id));
+  expect(TestEventSource.instances[1].url).toContain(encodeURIComponent(second.run.id));
+  await one.unmount();
+  expect(TestEventSource.instances[0].closed).toBe(true);
+  expect(TestEventSource.instances[1].closed).toBe(false);
+  await two.unmount();
+});
+
+test("a run's portaled cancellation guard closes when another tab becomes active", async () => {
+  const data = {
+    snapshot: structuredClone(planTripFixture.snapshot),
+    graph: JSON.stringify(planTripFixture.graph),
+  };
+  const screen = await render(RunView, { project: "retained-project", data, active: true });
+  await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
+  await expect.element(screen.getByRole("alertdialog")).toBeVisible();
+  await screen.rerender({ project: "retained-project", data, active: false });
+  await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
+  await screen.rerender({ project: "retained-project", data, active: true });
+  await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
+});
+
+test("a retained run panel renders a raw route preload without proxying its observation", async () => {
+  const data = {
+    snapshot: structuredClone(planTripFixture.snapshot),
+    graph: JSON.stringify(planTripFixture.graph),
+  };
+  const onstate = vi.fn();
+  const screen = await render(RunPanel, {
+    project: "retained-project",
+    id: data.snapshot.run.id,
+    initial: data,
+    active: true,
+    onstate,
+  });
+  await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
+  await expect.poll(() => onstate.mock.calls.length).toBeGreaterThan(0);
+  await screen.getByRole("button", { name: "Watchboard", exact: true }).click();
+  await screen.rerender({
+    project: "retained-project",
+    id: data.snapshot.run.id,
+    initial: {
+      snapshot: structuredClone(implementInterviewFixture.snapshot),
+      graph: JSON.stringify(implementInterviewFixture.graph),
+    },
+    active: false,
+    onstate,
+  });
+  await screen.rerender({
+    project: "retained-project",
+    id: data.snapshot.run.id,
+    initial: data,
+    active: true,
+    onstate,
+  });
+  await expect
+    .element(
+      screen
+        .getByRole("navigation", { name: "Run views" })
+        .getByRole("button", { name: "Watchboard" }),
+    )
+    .toHaveAttribute("aria-current", "page");
+});
+
+test("an unseeded retained run panel renders the query result", async () => {
+  const data = {
+    snapshot: structuredClone(planTripFixture.snapshot),
+    graph: JSON.stringify(planTripFixture.graph),
+  };
+  auth.viewRun.mockReturnValue({ current: data, error: undefined });
+  const onstate = vi.fn();
+  const screen = await render(RunPanel, {
+    project: "retained-project",
+    id: data.snapshot.run.id,
+    active: true,
+    onstate,
+  });
+  await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
+  await expect.poll(() => onstate.mock.calls.length).toBeGreaterThan(0);
 });

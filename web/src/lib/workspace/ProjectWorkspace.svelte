@@ -1,5 +1,6 @@
 <script lang="ts">
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
+  import { APP_NAME } from "#lib/app";
   import { errorMessage } from "#lib/errors";
   import { onMount, untrack, type Snippet } from 'svelte';
   import { MediaQuery } from 'svelte/reactivity';
@@ -19,6 +20,10 @@
   import RecordingTranscript from './RecordingTranscript.svelte';
   import FileViewer from './FileViewer.svelte';
   import PromiseLedger from './PromiseLedger.svelte';
+  import ProjectRuns from './ProjectRuns.svelte';
+  import type { RunCardItem } from '#lib/run/RunsList.svelte';
+  import RunPanel from './RunPanel.svelte';
+  import type { RunRow, RunSnapshot, InterviewRow } from '#lib/observation';
   import { nativeMessage, projectMenu, recordingControl, recordingTime, type NativeStatus } from './native';
   import { conversationsForWorkspace } from './conversations';
   import OpenFolder from './OpenFolder.svelte';
@@ -44,24 +49,31 @@
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
     : initialPath.endsWith('/promises') ? { id: initialPath, title: 'Promises', kind: 'file' }
+    : initialPath === initialPath.split("/").slice(0, 3).join("/") ? { id: initialPath, title: 'Runs', kind: 'run' }
+    : page.params.runID && (page.data as { snapshot?: RunSnapshot }).snapshot ? { id: initialPath, title: (page.data as { snapshot?: { run: { name: string } } }).snapshot?.run.name ?? 'Run', kind: 'run' }
     : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New session', kind: 'chat' } : undefined;
   const upload = $derived(uploadFile.for(project));
   // Keyed by project, so the desktop window's last tabs seed this mount only.
-  const reopened = untrack(() => restored).map(tab => ({ ...tab, kind: tab.kind === 'file' ? 'file' as const : 'chat' as const }));
+  const reopened = untrack(() => restored).map(tab => ({ ...tab, kind: tab.kind === 'run' ? 'run' as const : tab.kind === 'file' ? 'file' as const : 'chat' as const }));
   let open = $state<WorkspaceTab[]>([...reopened, ...(initialTab && !reopened.some(tab => tab.id === initialTab.id) ? [initialTab] : [])]);
   // The desktop window opens at 1000 px, so its server render starts without the sidebar.
   const wide = new MediaQuery('min-width: 1100px', !(page.data as { desktop?: boolean }).desktop);
   let sidebar = $derived(wide.current);
   let native = $state(false);
   let status = $state<NativeStatus>();
-  const active = $derived(open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));
+  const active = $derived(page.status >= 400 ? undefined : open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));
   const items = $derived<WorkspaceTab[]>([
     ...conversations.map(item => ({ id: `${root}/conversations/${item.id}`, title: item.title,
       kind: 'chat' as const, detail: item.provider === 'codex' ? 'Codex' : item.provider === 'agy' ? 'agy / Gemini' : 'Claude',
       status: ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running') ? 'working' as const : item.error ? 'attention' as const : undefined })),
     ...files.map(file => ({ id: `${root}/files/${file.id}`, title: file.name, kind: 'file' as const })),
   ]);
-  const tabs = $derived(open.map(tab => items.find(item => item.id === tab.id) ?? tab));
+  let runTabs = $state<WorkspaceTab[]>([]);
+  const tabs = $derived(open.map(tab => items.find(item => item.id === tab.id) ?? runTabs.find(item => item.id === tab.id) ?? tab));
+  function runState(run: RunRow, waiting: number) {
+    const id = `${root}/runs/${encodeURIComponent(run.id)}`;
+    runTabs = [...runTabs.filter(tab => tab.id !== id), { id, title: run.name, kind: 'run', status: waiting ? 'attention' : run.status === 'running' ? 'working' : undefined }];
+  }
   const recording = $derived.by((): RecordingDisplay | undefined => {
     if (!status?.sessionID || ['idle', 'stopped'].includes(status.state)) return;
     const state = status.state === 'paused' ? 'paused' : status.state === 'recording' ? 'recording' : status.state === 'error' ? 'error' : 'saving';
@@ -82,9 +94,12 @@
   function control(action: 'pause' | 'resume' | 'stop') { if (status) recordingControl(status, action); }
   function chooseProject(event: MouseEvent) { if (native) projectMenu(event); else projectChooser = true; }
   function visit(path: string) {
+    if (page.status >= 400) return;
     const item = items.find(item => item.id === path);
     const recordingID = page.params.recordingID;
-    const tab = item ?? (path === `${root}/conversations/new`
+    const tab = item ?? (path === root ? { id: path, title: 'Runs', kind: 'run' as const }
+      : page.params.runID && path.startsWith(`${root}/runs/`) ? { id: path, title: (page.data as { snapshot?: { run: { name: string } } }).snapshot?.run.name ?? 'Run', kind: 'run' as const }
+      : path === `${root}/conversations/new`
       ? { id: path, title: 'New session', kind: 'chat' as const }
       : path === `${root}/promises` ? { id: path, title: 'Promises', kind: 'file' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
@@ -169,6 +184,8 @@
   });
 </script>
 
+<svelte:head><title>{tabs.find(tab => tab.id === active)?.title ?? name} · {APP_NAME}</title></svelte:head>
+
 <WorkspaceShell project={name} {items} {tabs} {active} bind:sidebar {recording} {native}
   onproject={chooseProject} onrecording={openRecording} oncontrol={control}
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
@@ -179,6 +196,8 @@
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} active={active === tab.id} onstate={updated} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} />
+      {:else if tab.id === root}<ProjectRuns {project} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onstate={value => runTabs = value} />
+      {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} onstate={runState} />
       {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
       {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} />{/if}
       {#snippet failed(error, reset)}<p class="notice" role="alert">Could not load this view. <button onclick={reset}>Retry</button></p>{/snippet}

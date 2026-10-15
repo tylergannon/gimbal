@@ -13,7 +13,7 @@
 
   const NARROW_BREAKPOINT = 1024;
 
-  let {
+  let { active = true,
     map,
     pane,
     open = false,
@@ -21,6 +21,7 @@
     initialWidth,
     initialMaximized,
   }: {
+    active?: boolean;
     /** The map, rendered as-is; Workspace only hides it with CSS while maximized. */
     map: Snippet;
     /** The detail pane. Receives the current width, maximized flag, and the maximize toggle. */
@@ -78,7 +79,7 @@
   }
 
   function handleKeydown(event: KeyboardEvent) {
-    if (isEditable(event.target) || dialogOpen()) return;
+    if (!active || isEditable(event.target) || dialogOpen()) return;
     if (event.key === "\\") {
       event.preventDefault();
       toggleMaximize();

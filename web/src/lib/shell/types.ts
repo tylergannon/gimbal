@@ -2,7 +2,7 @@
 export interface WorkspaceTab {
   id: string;
   title: string;
-  kind: "chat" | "file";
+  kind: "chat" | "file" | "run";
   status?: "working" | "attention" | "unread";
   detail?: string;
 }

@@ -55,6 +55,10 @@ export const recordingHistory = query("unchecked", (_arg: HistoryRequest): Histo
   unimplemented(),
 );
 
+export const recordingSnapshot = query("unchecked", (_arg: RecordingRequest): Recording =>
+  unimplemented(),
+);
+
 export const touchSession = command("unchecked", (_arg: StateRequest): Ack => unimplemented());
 
 export const watchRecording = query.live(

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"testing/synctest"
 
 	"github.com/tylergannon/gimbal/internal/pi/model"
 )
@@ -239,27 +240,29 @@ func TestBashCommandPrefix(t *testing.T) {
 }
 
 func TestBashCoalescesStreamingUpdates(t *testing.T) {
-	ops := BashOperations{Exec: func(_ context.Context, _ string, _ string, options BashExecOptions) (*int, error) {
-		for i := range 5000 {
-			options.OnData([]byte("line " + strconv.Itoa(i) + "\n"))
+	synctest.Test(t, func(t *testing.T) {
+		ops := BashOperations{Exec: func(_ context.Context, _ string, _ string, options BashExecOptions) (*int, error) {
+			for i := range 5000 {
+				options.OnData([]byte("line " + strconv.Itoa(i) + "\n"))
+			}
+			zero := 0
+			return &zero, nil
+		}}
+		tool := CreateBashTool(t.TempDir(), &BashToolOptions{Operations: &ops})
+		updates := 0
+		result, err := tool.Execute(context.Background(), "test-call", map[string]any{"command": "chatty"}, func(model.AgentToolResult) {
+			updates++
+		})
+		if err != nil {
+			t.Fatal(err)
 		}
-		zero := 0
-		return &zero, nil
-	}}
-	tool := CreateBashTool(t.TempDir(), &BashToolOptions{Operations: &ops})
-	updates := 0
-	result, err := tool.Execute(context.Background(), "test-call", map[string]any{"command": "chatty"}, func(model.AgentToolResult) {
-		updates++
+		if updates != 3 {
+			t.Fatalf("updates = %d, want initial, leading and trailing updates", updates)
+		}
+		if got := resultText(result); !strings.Contains(got, "line 4999") {
+			t.Fatalf("output does not contain the last line: %q", got)
+		}
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if updates >= 25 {
-		t.Fatalf("updates = %d, want fewer than 25", updates)
-	}
-	if got := resultText(result); !strings.Contains(got, "line 4999") {
-		t.Fatalf("output does not contain the last line: %q", got)
-	}
 }
 
 func TestBashTrailingNewlineLineCount(t *testing.T) {

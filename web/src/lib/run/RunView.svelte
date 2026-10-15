@@ -326,6 +326,7 @@
   }
 
   $effect(() => {
+    if (!active) return;
     const authEnabled = page.data.authEnabled;
     const generation = observation.beginConnection();
     let stream: EventSource | undefined;

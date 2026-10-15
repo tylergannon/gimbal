@@ -14,6 +14,13 @@ import SwiftUI
   let input: RecordingInput
   let controller: RecorderController?
   let commands: GeneratedCommands?
+  let origin: URL?
+  #if os(macOS)
+    @Published var settingsPane = "recording"
+    @Published var settingsProject = ""
+    @Published var settingsPresentation = 0
+    var requestSettings: ((String, String) -> Void)?
+  #endif
   private var heartbeat: Task<Void, Never>?
   #if os(macOS)
     private var viewers: [NSWindow] = []
@@ -22,6 +29,7 @@ import SwiftUI
   init(host: NativeHost) {
     let input = RecordingInput()
     self.input = input
+    origin = host.url
     let commands = host.url.map { GeneratedCommands(baseURL: $0) }
     self.commands = commands
     controller = commands.map { commands in
@@ -111,11 +119,26 @@ struct ApplicationView: View {
   @ObservedObject var state: ApplicationState
   let url: URL
   let recoveryRevision: Int
+  #if os(macOS)
+    @Environment(\.openSettings) private var openSettings
+  #endif
   var body: some View {
     if let controller = state.controller {
       RecorderScreen(
         controller: controller, input: state.input, state: state, url: url,
         recoveryRevision: recoveryRevision)
+        #if os(macOS)
+          .onAppear {
+            state.requestSettings = { pane, project in
+              state.settingsPane = pane
+              state.settingsProject = project
+              // Add Environment is a repeatable action even when its route
+              // is unchanged. Ordinary Settings presentation retains its view.
+              if pane == "machines" && !project.isEmpty { state.settingsPresentation += 1 }
+              openSettings()
+            }
+          }
+        #endif
     } else {
       Text("The recorder could not connect to the local application server.").padding()
     }
@@ -126,7 +149,24 @@ struct ApplicationView: View {
   struct ApplicationSettingsView: View {
     @ObservedObject var state: ApplicationState
     var body: some View {
-      RecordingSettings(input: state.input, controller: state.controller)
+      TabView(selection: $state.settingsPane) {
+        RecordingSettings(input: state.input, controller: state.controller)
+          .tabItem { Label("Recording", systemImage: "mic") }.tag("recording")
+        Group {
+          if let origin = state.origin {
+            let path = state.settingsProject.isEmpty
+              ? "/settings/machines" : "/settings/machines/projects/\(state.settingsProject)"
+            if let url = URL(string: path, relativeTo: origin)?.absoluteURL {
+              ApplicationWebView(url: url, recoveryRevision: state.settingsPresentation, onOpenSession: { path in
+                state.workspace.requestProject?(path)
+                state.workspace.webView?.window?.makeKeyAndOrderFront(nil)
+              })
+            }
+          } else { Text("The local application server is unavailable.").padding() }
+        }
+        .tabItem { Label("Machines", systemImage: "desktopcomputer") }.tag("machines")
+      }
+      .frame(minWidth: 760, minHeight: 560)
     }
   }
 #endif

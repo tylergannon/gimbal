@@ -71,6 +71,9 @@ func (d *Daemon) process(req effects.Process) error {
 	cmd := exec.Command(req.Command, req.Args...)
 	cmd.Dir = d.workdir(req.Workdir)
 	cmd.Env = os.Environ()
+	// Inspection helpers must distinguish requested directories from a daemon
+	// that overrides every task cwd. This contains no provider credentials.
+	cmd.Env = append(cmd.Env, "GIMBAL_DESKTOP_FIXED_WORKDIR="+d.Workdir)
 	for name, value := range req.Environment {
 		cmd.Env = append(cmd.Env, name+"="+value)
 	}

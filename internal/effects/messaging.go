@@ -60,8 +60,13 @@ func Await(ctx context.Context, r backend.MessageRequest, until string, onActivi
 				observeResource(use)
 			}
 		}
-		if e.Kind == "activity" && len(e.Activity) > 0 && onActivity != nil {
-			onActivity(e.Activity)
+		if e.Kind == "activity" && len(e.Activity) > 0 {
+			observer, _ := ctx.Value(observationKey{}).(observationOptions)
+			if observer.message != nil {
+				observer.message(e)
+			} else if onActivity != nil {
+				onActivity(e.Activity)
+			}
 		}
 		if e.Kind == until || e.Kind == "completed" {
 			got = e

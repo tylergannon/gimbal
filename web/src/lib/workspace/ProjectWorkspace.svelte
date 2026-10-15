@@ -25,7 +25,7 @@
   import RunPanel from './RunPanel.svelte';
   import type { RunRow, RunSnapshot, InterviewRow } from '#lib/observation';
   import { nativeMessage, projectMenu, recordingControl, recordingTime, type NativeStatus } from './native';
-  import { conversationsForWorkspace } from './conversations';
+  import { conversationsForWorkspace, conversationNeedsUpdates } from './conversations';
   import OpenFolder from './OpenFolder.svelte';
 
   let { project, name, projects, restored = [], children }: {
@@ -115,7 +115,6 @@
   let projectChooser = $state(false);
   const todayRecording = $derived(newest.current?.items.find(item => new Date(item.created).toDateString() === new Date().toDateString()));
   let started: string | undefined;
-  function updated(conversation: Conversation) { chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]); }
   function created(conversation: Conversation) {
     chats.set([conversation, ...conversations.filter(item => item.id !== conversation.id)]);
     started = `${root}/conversations/${conversation.id}`;
@@ -162,7 +161,7 @@
     if (native) untrack(() => void rememberWindow(value).catch(() => {}));
   });
   $effect(() => {
-    if (!conversations.some(item => ['working', 'stopping', 'unresolved'].includes(item.status) || item.runs.some(run => run.status === 'running'))) return;
+    if (!conversations.some(conversationNeedsUpdates)) return;
     const timer = setInterval(() => { void projectConversations(project).refresh().catch(navigateOnUnauthorized); }, 1000);
     return () => clearInterval(timer);
   });
@@ -191,15 +190,15 @@
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
   {#snippet content(tab)}
     <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
-      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} oncreated={created} />
+      {#if tab.id === `${root}/conversations/new`}<NewSession {project} {name} active={active === tab.id} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
-        {#if current}<ConversationView {project} {current} active={active === tab.id} onstate={updated} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
+        {#if current}<ConversationView {project} {current} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} />
       {:else if tab.id === root}<ProjectRuns {project} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onstate={value => runTabs = value} />
       {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} onstate={runState} />
       {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
-      {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} />{/if}
+      {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} />{/if}
       {#snippet failed(error, reset)}<p class="notice" role="alert">Could not load this view. <button onclick={reset}>Retry</button></p>{/snippet}
     </svelte:boundary>
   {/snippet}

@@ -15,11 +15,24 @@ export type CancelRun = {
   run: string;
 };
 
+export type CleanupConversation = {
+  project: string;
+  conversation: string;
+};
+
 /**
  * ControlAccepted says the live runtime accepted an operator control. The observation stream remains the authority for the resulting terminal state.
  */
 export type ControlAccepted = {
   accepted: boolean;
+};
+
+/**
+ * conversationSetup is what the new session composer offers in a project.
+ */
+export type ConversationSetup = {
+  project: string;
+  environment: string;
 };
 
 /**
@@ -29,6 +42,10 @@ export type CreateConversation = {
   provider: string;
   model: string;
   message: string;
+  shared_checkout: boolean;
+  branch: string;
+  base: string;
+  environment: string;
 };
 
 export type CurrentUser = {

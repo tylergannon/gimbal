@@ -56,6 +56,7 @@
 
   struct WorkspaceMenu: Commands {
     @ObservedObject var workspace: WorkspaceState
+    let openMachines: (String) -> Void
 
     var body: some Commands {
       CommandGroup(replacing: .newItem) {}
@@ -88,6 +89,10 @@
         Button("Show Runs") { workspace.send("showRuns") }
           .keyboardShortcut("u", modifiers: [.command, .shift])
           .disabled(!workspace.enabled)
+        Divider()
+        Button("Add Environment…") { openMachines(workspace.currentProject) }
+          .disabled(!workspace.enabled || workspace.currentProject.isEmpty)
+        Button("Machines…") { openMachines("") }
       }
       CommandMenu("Chat") {
         Button("Stop Response") { workspace.send("stopResponse") }

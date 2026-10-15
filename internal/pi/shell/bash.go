@@ -237,10 +237,11 @@ type bashUpdater struct {
 	acc      *OutputAccumulator
 	// accepting guards against output callbacks that arrive after the
 	// operation resolved (pi#5208).
-	accepting  bool
-	dirty      bool
-	lastUpdate time.Time
-	timer      *time.Timer
+	accepting       bool
+	dirty           bool
+	lastUpdate      time.Time
+	timer           *time.Timer
+	timerGeneration uint64
 }
 
 func newBashUpdater(onUpdate model.ToolUpdateFunc, acc *OutputAccumulator) *bashUpdater {
@@ -310,19 +311,29 @@ func (u *bashUpdater) scheduleLocked() {
 		return
 	}
 	if u.timer == nil {
-		u.timer = time.AfterFunc(delay, func() {
-			u.mu.Lock()
-			defer u.mu.Unlock()
-			u.timer = nil
-			u.emitLocked()
-		})
+		u.timerGeneration++
+		generation := u.timerGeneration
+		u.timer = time.AfterFunc(delay, func() { u.flushTimer(generation) })
 	}
+}
+
+func (u *bashUpdater) flushTimer(generation uint64) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	// Stop cannot retract an AfterFunc callback that has already started and
+	// is waiting on mu. It must not flush or clear a newer timer's update.
+	if u.timer == nil || u.timerGeneration != generation {
+		return
+	}
+	u.timer = nil
+	u.emitLocked()
 }
 
 func (u *bashUpdater) clearTimerLocked() {
 	if u.timer != nil {
 		u.timer.Stop()
 		u.timer = nil
+		u.timerGeneration++
 	}
 }
 

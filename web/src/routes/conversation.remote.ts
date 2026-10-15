@@ -2,6 +2,8 @@
 import { command, form, query } from "$app/server";
 import type { Conversation, RequestState, Setup } from "../lib/skgo/conversation/types";
 import type {
+  CleanupConversation,
+  ConversationSetup,
   CreateConversation,
   SendConversationMessage,
   StopConversationRequest,
@@ -9,7 +11,9 @@ import type {
 } from "./types";
 
 export type {
+  CleanupConversation,
   Conversation,
+  ConversationSetup,
   CreateConversation,
   RequestState,
   SendConversationMessage,
@@ -25,7 +29,13 @@ const unimplemented = (): never => {
   throw new Error("skgo: implemented in Go");
 };
 
-export const conversationSetup = query("unchecked", (_arg: string): Setup => unimplemented());
+export const cleanupConversation = command("unchecked", (_arg: CleanupConversation): boolean =>
+  unimplemented(),
+);
+
+export const conversationSetup = query("unchecked", (_arg: ConversationSetup): Setup =>
+  unimplemented(),
+);
 
 export const createConversation = form("unchecked", (_arg: CreateConversation): Conversation =>
   unimplemented(),

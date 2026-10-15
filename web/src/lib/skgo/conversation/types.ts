@@ -22,6 +22,11 @@ export type Conversation = {
   active_request: string;
   state: JSONText;
   revision: number;
+  environment: string;
+  placement: Placement | null;
+  contact: string;
+  capabilities: Capabilities;
+  cleanup_pending: boolean;
 };
 
 /**
@@ -74,20 +79,156 @@ export type Request = {
 export type JSONText = string;
 
 /**
- * Setup is what a new conversation in this project can choose and where it will work. Every conversation runs on this machine; with a Git HEAD it gets its own worktree branched from HEAD, and otherwise it shares Directory.
+ * Placement exposes display facts, while transport configuration remains in the private durable Transport snapshot and is never projected into browser state.
+ */
+export type Placement = {
+  machine: PlacementMachine;
+  environment: EnvironmentInfo;
+  directory: string;
+};
+
+export type PlacementMachine = {
+  id: string;
+  name: string;
+  kind: string;
+};
+
+/**
+ * EnvironmentInfo is the directory identity shown in the UI. The editable configuration's opaque properties remain in the configuration document.
+ */
+export type EnvironmentInfo = {
+  id: string;
+  project: string;
+  machine: string;
+  directory: string;
+};
+
+export type Capabilities = {
+  steer: boolean;
+  fork: boolean;
+  worktree: boolean;
+  browse: boolean;
+  clone: boolean;
+};
+
+/**
+ * Setup is what a new conversation in this project can choose and where it will work. Bases are locally available branches; no discovery fetches Git. Git means this admitted directory has usable committed history.
  */
 export type Setup = {
-  harnesses: Array<Harness>;
+  harnesses: Array<Harness$6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e7465726e616c2f636f6e766572736174696f6e004861726e657373>;
   directory: string;
   git: boolean;
   branch: string;
+  unborn: boolean;
+  bases: Array<string>;
+  base: string;
+  environment: string;
+  machine: string;
+  capabilities: Capabilities;
+  environments: Snapshot;
+  harness_states: Array<Harness$6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e7465726e616c2f656e7669726f6e6d656e7473004861726e657373>;
 };
 
 /**
  * Harness is a provider a person can start a conversation with: its cheap default model and the newest model of each family it serves.
  */
-export type Harness = {
+export type Harness$6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e7465726e616c2f636f6e766572736174696f6e004861726e657373 =
+  {
+    id: string;
+    default: string;
+    models: Array<string>;
+  };
+
+export type Snapshot = {
+  project: string;
+  config_path: string;
+  revision: string;
+  machines: Array<MachineState>;
+  environments: Array<EnvironmentRow>;
+  sessions: Array<SessionUsage>;
+  issues: Array<Issue>;
+};
+
+/**
+ * Since and Observed are Unix milliseconds. Empty Build is unknown, not a match.
+ */
+export type MachineState = {
   id: string;
-  default: string;
-  models: Array<string>;
+  name: string;
+  kind: string;
+  detail: string;
+  state: string;
+  since: number;
+  latency_ms: number;
+  build: string;
+  harnesses: Array<Harness$6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e7465726e616c2f656e7669726f6e6d656e7473004861726e657373>;
+  capabilities: Capabilities;
+  issues: Array<Issue>;
+};
+
+export type Harness$6769746875622e636f6d2f74796c657267616e6e6f6e2f67696d62616c2f696e7465726e616c2f656e7669726f6e6d656e7473004861726e657373 =
+  {
+    id: string;
+    default: string;
+    models: Array<string>;
+    state: string;
+    detail: string;
+  };
+
+/**
+ * Issue.Index is zero-based within machines/environments; -1 means the document.
+ */
+export type Issue = {
+  entry: string;
+  index: number;
+  line: number;
+  message: string;
+};
+
+export type EnvironmentRow = {
+  environment: EnvironmentInfo;
+  directory: Directory;
+  capabilities: Capabilities;
+  observed: number;
+  last_used: number;
+  live_sessions: number;
+  issues: Array<Issue>;
+};
+
+/**
+ * Directory distinguishes filesystem/Git facts from the cwd actually used by a task daemon. FixedWorkdir must never silently override a chosen checkout.
+ */
+export type Directory = {
+  path: string;
+  exists: boolean;
+  empty: boolean;
+  git: boolean;
+  unborn: boolean;
+  branch: string;
+  base: string;
+  bases: Array<string>;
+  origin: string;
+  execution_directory: string;
+  fixed_workdir: string;
+  entries: Array<DirectoryEntry>;
+};
+
+export type DirectoryEntry = {
+  name: string;
+  path: string;
+};
+
+/**
+ * SessionUsage is supplied by the host, not discovered by scanning OS processes. Pending includes owned work with an unconfirmed outcome or cleanup.
+ */
+export type SessionUsage = {
+  project: string;
+  conversation: string;
+  title: string;
+  machine: string;
+  environment: string;
+  directory: string;
+  status: string;
+  active: boolean;
+  pending: boolean;
 };

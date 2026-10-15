@@ -53,7 +53,7 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	item := m.items[id]
-	if item == nil || m.closing {
+	if item == nil || m.closing || (remotePlacement(item) && !item.Live) {
 		return RequestState{}, errors.New("conversation: unavailable")
 	}
 	for _, previous := range item.Requests {
@@ -64,11 +64,11 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 			return previous, nil
 		}
 	}
-	if item.Status == "unresolved" {
+	if (item.Status == "unresolved" || item.CleanupPending) && r.Kind == "prompt" {
 		return RequestState{}, errors.New("conversation: the previous request's outcome is unconfirmed; do not start replacement work")
 	}
 	active := m.active[id]
-	if active == nil && item.NativeSession != "" {
+	if active == nil && (item.NativeSession != "" || remotePlacement(item)) {
 		active = &activeConversation{session: item.NativeSession, resume: true}
 		m.active[id] = active
 	}
@@ -85,11 +85,22 @@ func (m *Manager) Submit(id string, r Request) (RequestState, error) {
 		if err := m.reduce(item, requestEvent{kind: "stopping", request: r}); err != nil {
 			return RequestState{}, err
 		}
-		active.cancel()
+		if remotePlacement(item) {
+			m.remoteReaders.Add(1)
+			go func() { defer m.remoteReaders.Done(); m.remoteInterrupt(id, r) }()
+		} else if active.cancel != nil {
+			active.cancel()
+		}
 	} else {
 		target := active.request
 		adapter, session := active.adapter, active.session
-		go m.deliver(id, r, active, target, adapter, session)
+		if remotePlacement(item) {
+			m.remoteReaders.Add(1)
+			go func() { defer m.remoteReaders.Done(); m.deliverRemote(id, r, active, target) }()
+		} else {
+			m.remoteReaders.Add(1)
+			go func() { defer m.remoteReaders.Done(); m.deliver(id, r, active, target, adapter, session) }()
+		}
 	}
 	return item.Requests[len(item.Requests)-1], nil
 }
@@ -213,6 +224,13 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 		return
 	}
 	m.mu.Lock()
+	m.assistantReply(item, r, text)
+	m.mu.Unlock()
+	m.finish(id, r, "completed", nil)
+}
+
+func (m *Manager) assistantReply(item *Conversation, r Request, text string) {
+	id := item.ID
 	// Some harnesses return a final answer without streaming it. Preserve that answer.
 	state := m.projections[id].Snapshot().State
 	hasText := false
@@ -244,13 +262,15 @@ func (m *Manager) deliver(id string, r Request, active *activeConversation, targ
 		}
 	}
 	item.Messages = append(item.Messages, Message{Role: "assistant", Text: text, Created: time.Now().UnixMilli()})
-	m.mu.Unlock()
-	m.finish(id, r, "completed", nil)
 }
 
 func (m *Manager) finish(id string, r Request, kind string, err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	m.finishLocked(id, r, kind, err)
+}
+
+func (m *Manager) finishLocked(id string, r Request, kind string, err error) {
 	item := m.items[id]
 	var uncertain *backend.DeliveryUncertain
 	if errors.Is(err, context.Canceled) && !errors.As(err, &uncertain) {
@@ -258,12 +278,18 @@ func (m *Manager) finish(id string, r Request, kind string, err error) {
 	}
 	_ = m.reduce(item, requestEvent{kind: kind, request: r, err: err})
 	active := m.active[id]
+	if active == nil {
+		return
+	}
+	if kind == "unresolved" && remotePlacement(item) {
+		return
+	}
 	if active.request != r.ID {
 		return
 	}
 	active.request, active.cancel = "", nil
 	for _, control := range item.Requests {
-		if control.Kind == "interrupt" && control.Target == r.ID && control.Status == "accepted" {
+		if control.Kind == "interrupt" && control.Target == r.ID && (control.Status == "accepted" || control.Status == "unresolved") {
 			result := "completed"
 			if kind == "unresolved" {
 				result = "unresolved"
@@ -307,6 +333,8 @@ func (m *Manager) reduce(item *Conversation, e requestEvent) error {
 		}
 		if e.err != nil {
 			row.Error = e.err.Error()
+		} else if e.kind == "completed" || e.kind == "canceled" {
+			row.Error = ""
 		}
 		if item.ActiveRequest == row.ID {
 			if e.kind != "unresolved" {

@@ -166,12 +166,23 @@ func TestNewSessionFormNeedsAFirstMessageAndOffersResolvedDefaults(t *testing.T)
 		t.Fatalf("a blank first message created %d conversations", len(items))
 	}
 
-	setup, err := routes.Skgo_conversationSetup(host.WithOwner(runtime.Context(), runtime.Owner()), runtime.ID())
+	setup, err := routes.Skgo_conversationSetup(host.WithOwner(runtime.Context(), runtime.Owner()), routes.ConversationSetup{Project: runtime.ID()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !setup.Git || setup.Branch != "main" || setup.Directory == "" {
+	if !setup.Git || setup.Branch != "main" || setup.Base != "main" || !slices.Contains(setup.Bases, "main") || setup.Directory == "" {
 		t.Fatalf("setup environment = %+v", setup)
+	}
+	for _, choice := range []routes.CreateConversation{
+		{Provider: "claude", Message: "Keep the draft", Branch: "main", Base: "main"},
+		{Provider: "claude", Message: "Keep the draft", Branch: "new-branch", Base: "missing-base"},
+	} {
+		if _, err := routes.Skgo_createConversation(runtime.Context(), app.RequestEvent[params.Params]{}, choice); err == nil {
+			t.Fatalf("invalid checkout admitted: %+v", choice)
+		}
+	}
+	if len(runtime.Conversations().List()) != 0 {
+		t.Fatal("invalid form choices admitted a conversation")
 	}
 	for _, harness := range setup.Harnesses {
 		if harness.Default == "" || !slices.Contains(harness.Models, harness.Default) {

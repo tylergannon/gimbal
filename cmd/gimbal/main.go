@@ -181,7 +181,7 @@ Only provisioned users may sign in when authentication is selected. The optional
 		DisableFlagParsing: true,
 		RunE:               func(_ *cobra.Command, args []string) error { return runPrompt(args, stdout, stderr, getenv) },
 	})
-	root.AddCommand(newMessagingWorkerCommand(), newMessagingWatchCommand(), newGenerateCommand(), newDaemonCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv), newUserCommand())
+	root.AddCommand(newMessagingWorkerCommand(), newMessagingWatchCommand(), newGenerateCommand(), newDaemonCommand(), newDesktopEnvironmentCommand(), newRunsCommand(), newWatchCommand(), newSteerCommand(), newCancelCommand(), newCountTokensCommand(), newAuditIndexCommand(stdout), newOpenCodeCommand(stdout, getenv), newUserCommand())
 	return root
 }
 

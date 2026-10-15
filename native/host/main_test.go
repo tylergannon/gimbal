@@ -1,9 +1,37 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
+
+func TestBundledServerLoadsOnlyThisCatalogsPlugins(t *testing.T) {
+	directory := t.TempDir()
+	args, err := bundledServerArguments(directory)
+	if err != nil || slices.Contains(args, "--plugin-dir") {
+		t.Fatalf("empty catalog arguments = %v, %v", args, err)
+	}
+	plugins := filepath.Join(directory, "plugins")
+	if err := os.Mkdir(plugins, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	args, err = bundledServerArguments(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := slices.Index(args, "--plugin-dir")
+	if index < 0 || index+1 >= len(args) || args[index+1] != plugins {
+		t.Fatalf("catalog plugin arguments = %v", args)
+	}
+	other := t.TempDir()
+	args, err = bundledServerArguments(other)
+	if err != nil || slices.Contains(args, "--plugin-dir") {
+		t.Fatalf("another catalog inherited plugins: %v, %v", args, err)
+	}
+}
 
 func TestExplicitServerURLDoesNotLaunchOrManageBundledServer(t *testing.T) {
 	t.Setenv("GIMBAL_SERVER_URL", "http://127.0.0.1:9187")

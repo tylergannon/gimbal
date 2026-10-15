@@ -5,10 +5,39 @@ import WebKit
   import AppKit
 #endif
 
-@MainActor final class ApplicationWebCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+@MainActor final class ApplicationWebCoordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
   var url: URL?
   var revision = 0
   private var signingIn = false
+  var onOpenSession: ((String) -> Void)?
+  func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+    guard message.frameInfo.isMainFrame, let url, url.path.hasPrefix("/settings/"),
+      message.frameInfo.securityOrigin.protocol == url.scheme,
+      message.frameInfo.securityOrigin.host == url.host,
+      message.frameInfo.securityOrigin.port == url.port,
+      let body = message.body as? [String: Any] else { return }
+    #if os(macOS)
+      if message.name == "openMachineTerminal", body["local"] as? Bool == true,
+        let terminal = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") {
+        NSWorkspace.shared.openApplication(at: terminal, configuration: NSWorkspace.OpenConfiguration())
+        return
+      }
+      if message.name == "openMachineTerminal", let host = body["host"] as? String,
+        !host.isEmpty, !host.hasPrefix("-"), !host.contains(where: { $0.isWhitespace }) {
+        var components = URLComponents()
+        components.scheme = "ssh"
+        let parts = host.split(separator: "@", maxSplits: 1)
+        if parts.count == 2 { components.user = String(parts[0]) }
+        components.host = String(parts.last ?? "")
+        if let port = body["port"] as? Int, port > 0 { components.port = port }
+        if let target = components.url { NSWorkspace.shared.open(target) }
+      }
+      if message.name == "openSettingsSession", let path = body["path"] as? String,
+        path.hasPrefix("/projects/"), !path.contains(".."), !path.contains("?") {
+        onOpenSession?(path)
+      }
+    #endif
+  }
   func update(_ view: WKWebView, url: URL, revision: Int) {
     if self.url != url || self.revision != revision {
       self.url = url
@@ -84,6 +113,8 @@ import WebKit
   func make() -> WKWebView {
     let config = WKWebViewConfiguration()
     config.websiteDataStore = .nonPersistent()
+    config.userContentController.add(self, name: "openMachineTerminal")
+    config.userContentController.add(self, name: "openSettingsSession")
     let view = WKWebView(frame: .zero, configuration: config)
     view.uiDelegate = self
     view.navigationDelegate = self
@@ -94,9 +125,11 @@ import WebKit
   struct ApplicationWebView: NSViewRepresentable {
     let url: URL
     let recoveryRevision: Int
+    var onOpenSession: ((String) -> Void)? = nil
     func makeCoordinator() -> ApplicationWebCoordinator { ApplicationWebCoordinator() }
     func makeNSView(context: Context) -> WKWebView { context.coordinator.make() }
     func updateNSView(_ view: WKWebView, context: Context) {
+      context.coordinator.onOpenSession = onOpenSession
       context.coordinator.update(view, url: url, revision: recoveryRevision)
     }
   }

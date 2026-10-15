@@ -19,7 +19,7 @@
   let native = $state(false);
   let stream = $state<ReturnType<typeof watchRecording>>();
   const current = $derived(stream?.current);
-  const available = $derived(!stream || (!!current && stream.connected && current.sequence >= status.sequence));
+  const available = $derived(!stream || (!!current && current.id === status.sessionID && (stream.connected || (stream.done && ['stopped', 'interrupted'].includes(current.status))) && current.sequence >= status.sequence));
   let approvedPath: string | undefined;
   let arrival = $state<string>();
   beforeNavigate((navigation) => {
@@ -118,11 +118,11 @@
     <span
       >{status.pending
         ? "Pending · waiting for server"
-        : stream?.connected && current && current.sequence >= status.sequence
+        : (stream?.connected || (stream?.done && current && ['stopped', 'interrupted'].includes(current.status))) && current && current.id === status.sessionID && current.sequence >= status.sequence
           ? "Saved on server"
           : "Server disconnected · showing last saved text"}</span
     >
-    {#if stream && !stream.connected}<button
+    {#if stream && !stream.connected && !stream.done}<button
         onclick={() => nativeMessage("reconnect", {})}>Reconnect</button
       >{/if}
     {#if status.error}<p role="alert">{status.error}</p>{/if}

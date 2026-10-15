@@ -2,9 +2,10 @@
   import CheckIcon from '@lucide/svelte/icons/check';
   import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
   import * as Popover from '#lib/components/ui/popover';
-  import type { Harness } from '#lib/skgo/conversation/types';
+  import type { Setup } from '#lib/skgo/conversation/types';
   import { harnessMark, harnessName, modelName } from './names';
 
+  type Harness = Setup['harnesses'][number];
   type Choice = { provider: string; model: string };
   let { harnesses, choice, onpick }: { harnesses: Harness[]; choice: Choice; onpick: (choice: Choice) => void } = $props();
   let open = $state(false);

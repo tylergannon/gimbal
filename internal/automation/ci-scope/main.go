@@ -154,7 +154,7 @@ func execute(args []string) error {
 		}
 		packages := []string{}
 		for _, p := range selected.Packages {
-			info, err := os.Stat(p)
+			info, err := os.Stat(strings.TrimSuffix(p, "/..."))
 			if p == "./..." || (err == nil && info.IsDir()) {
 				packages = append(packages, p)
 			}

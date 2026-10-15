@@ -90,3 +90,40 @@ func TestWebPrerequisitesIncludeTestImports(t *testing.T) {
 		}
 	}
 }
+
+func TestRecursiveRouteScopeReachesExecution(t *testing.T) {
+	root := t.TempDir()
+	write := func(name, text string) {
+		t.Helper()
+		full := filepath.Join(root, name)
+		if err := os.MkdirAll(filepath.Dir(full), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(text), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("go.mod", "module github.com/tylergannon/gimbal\n\ngo 1.27\n")
+	write("web/main.go", "package web\n")
+	write("web/route_test.go", "package web\nimport \"testing\"\nfunc TestRoute(t *testing.T) { t.Fatal(\"route check executed\") }\n")
+	write("internal/skgo/main.go", "package skgo\n")
+	write("scope.json", `{"go_packages":["./internal/skgo/...","./web/..."]}`)
+	t.Chdir(root)
+	raw, err := output(root, "go", "list", "./web/...")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if raw == "" {
+		t.Fatal("fixture has no web package")
+	}
+	if err := execute([]string{"--go-prerequisites", "--plan", "scope.json"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := execute([]string{"--run-go", "--plan", "scope.json"}); err == nil {
+		t.Fatal("recursive scope skipped the failing route test")
+	}
+	needed, err := needsWebAssets(root, []string{"./internal/skgo/...", "./web/..."})
+	if err != nil || !needed {
+		t.Fatalf("recursive web prerequisite = %t, %v", needed, err)
+	}
+}

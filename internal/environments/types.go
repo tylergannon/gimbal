@@ -273,10 +273,13 @@ type Options struct {
 // Resolve consults current configuration and verifies project membership. Acquire
 // instead resolves the supplied saved Target without requiring its entry to
 // still exist, reconnects SSH as needed, and returns its backend connection. It
-// must not acquire an orchestrated resource merely to connect. Admission through
-// effects.Submit acquires that resource using the same Owner. A probe uses a
-// distinct owner, cleans its native scope, then releases it; active conversation
-// ownership is never borrowed for setup. Release calls only the bound route's
+// explicitly acquires an orchestrated resource under Owner when configured.
+// Persist the conversation owner and Acquire it BEFORE Prepare; keep that lease
+// through session execution so finishing a setup probe cannot stop the worker
+// between checkout preparation and session admission. effects.Submit may acquire
+// the same owner again; backend ownership deduplicates it. Resolve and machine
+// listing never Acquire. A probe uses a distinct owner, cleans only its native
+// scope, then releases it; it never releases the conversation owner. Release calls only the bound route's
 // orchestrator release after the caller confirms native cleanup. Failure keeps
 // the caller's persisted pending ownership, and Close never releases active
 // conversation resources or stops a remote daemon.

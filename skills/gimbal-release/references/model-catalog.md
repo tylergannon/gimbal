@@ -14,10 +14,12 @@ fetched there). The hand-kept exception is Gemini `flash`, in
 
 The scheduled `Refresh model catalog` Actions job runs the same command daily
 and can be started manually (`workflow_dispatch`). It reads `DIFFUSION_API_KEY`
-from Doppler `gimbal/stg` through the main-only preparation environment, then
-opens a PR for the generated files; it does not publish a release. The
-repository's Actions setting permits bot-created PRs; the job grants only
-contents and pull-request write access.
+and `GIMBAL_PR_CREATION_TOKEN` from Doppler `gimbal/stg` through the main-only
+preparation environment, then opens a PR for the generated files; it does not
+publish a release. Branch pushes use the checkout's default GitHub token;
+`gh pr create` uses the dedicated `GIMBAL_PR_CREATION_TOKEN`, restricted to this
+repository with Pull requests read/write and mandatory Metadata read-only. PR
+creation with that token allows the PR event to trigger downstream Actions.
 
 Review new and removed model IDs before merging. Aliases follow the catalog, but
 built-in role defaults in `internal/builtin/defaults.json` and other configured

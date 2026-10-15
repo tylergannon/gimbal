@@ -81,7 +81,8 @@ such as DOM integration, never for copying or synchronizing application state.
   staged Go formatting, and uncached smoke tests for model aliases, environment
   files, session state, Pi model codecs, frontend URL state, and release dispatch.
   Documentation-only commits run index checks. Hooks never rewrite or auto-stage.
-- A cold/slow smoke check stops and prints `** *** took way too long please fix me *** **`;
+- A cold/slow smoke check stops and prints a visible warning with instructions
+  through Lefthook to the committing agent;
   it does not reject a commit merely for elapsed time. Unfinished checks are not
   passes; run `just warm-hook` outside the hook and let CI validate them.
   Actual failures and mandatory index/content checks still block commits.

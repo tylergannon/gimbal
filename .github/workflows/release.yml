@@ -284,6 +284,7 @@ jobs:
     environment: release
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -341,3 +342,9 @@ jobs:
           app_sha="$(awk '/Gimbal-.*-macos-arm64\.dmg$/ {print $1}' dist/checksums.txt)"
           test -n "$cli_sha" && test -n "$app_sha"
           scripts/update-homebrew-casks.sh homebrew-tap "$version" "$cli_sha" "$app_sha" "$TAG"
+      - name: Report tagged release elapsed time
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release-timing.sh

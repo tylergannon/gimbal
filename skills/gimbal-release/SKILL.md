@@ -17,8 +17,9 @@ for executable checks and publication. This skill explains which path to use.
 Use `just dev` for the edit loop. Run affected tests and observe the requested
 behavior before proposing a merge. Commit hooks run staged-file checks and a
 small, uncached unit-test pack; their target is one second and budget is three.
-An overrun prints a warning and records unfinished checks rather than blocking
-shipping. Actual correctness failures still need attention. `just warm-hook`
+An overrun prints a visible warning through Lefthook to the agent making the
+commit, with instructions to fix it, and records unfinished checks. It permits
+the commit. Actual correctness failures still block. `just warm-hook`
 prepares compiler caches outside the commit path. Generators, installation,
 repository-wide analysis and browser builds stay outside hooks.
 
@@ -53,12 +54,12 @@ Verify the published version and channel; a merged PR or queued run is not
 published delivery. Reuse the pipeline's exact-source checks rather than adding
 another local build after merge or tag creation.
 
-Timing policy lives in `scripts/release-performance.json`: five minutes is the
-main-to-publication goal, ten minutes the maximum. Queue/retry time counts;
-active stage timings are also reported without adding parallel jobs together.
-**Release performance** observes runs and opens issues for overruns. It does not
-fail application tests or stop publication. Use its reports to improve the slow
-stage; do not relax budgets just to make a report green.
+The release workflows report their own elapsed time in their logs and job
+summaries, including queueing. Automatic release covers main through the tagged
+publication wait; Release covers the tagged build through feed/Homebrew updates.
+Five minutes is the goal and ten minutes the maximum. The workflow emits a
+warning when either is exceeded; timing never blocks publication. Inspect that
+run for the slow stage. There is no separate timing workflow or issue scanner.
 
 For failed publication, rerun the failed tagged **Release** job, or dispatch
 **Automatic release** on main to reuse its existing tag. Inspect the failed stage

@@ -152,3 +152,9 @@ jobs:
           RELEASE_SHA: ${{ steps.version.outputs.sha }}
           REPOSITORY: ${{ github.repository }}
         run: go run ./internal/automation/dispatch-release "$TAG" "$RELEASE_SHA" "$REPOSITORY"
+      - name: Report main-to-release elapsed time
+        if: always() && steps.version.outputs.tag != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/release-timing.sh

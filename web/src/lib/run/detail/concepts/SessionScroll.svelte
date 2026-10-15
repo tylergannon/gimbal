@@ -223,7 +223,7 @@
 		</details>
 	</div>
 
-	{#if turn}<SteerBox {onsteer} {ended} />{/if}
+	{#if turn}<SteerBox run={snapshot.run.id} session={turn.session} {ended} />{/if}
 </div>
 
 <style>

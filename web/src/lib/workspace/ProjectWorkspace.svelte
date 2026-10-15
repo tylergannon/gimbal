@@ -21,6 +21,7 @@
   import FileViewer from './FileViewer.svelte';
   import PromiseLedger from './PromiseLedger.svelte';
   import ProjectRuns from './ProjectRuns.svelte';
+  import WorkflowGuide from './WorkflowGuide.svelte';
   import type { RunCardItem } from '#lib/run/RunsList.svelte';
   import RunPanel from './RunPanel.svelte';
   import type { RunRow, RunSnapshot, InterviewRow } from '#lib/observation';
@@ -49,6 +50,7 @@
     : initialPath.endsWith('/discuss') ? { id: `${initialPath.split('/').slice(0, 3).join('/')}/conversations/new`, title: 'New session', kind: 'chat' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
+    : page.params.workflow ? { id: initialPath, title: `${page.params.workflow} guide`, kind: 'file' }
     : initialPath.endsWith('/promises') ? { id: initialPath, title: 'Promises', kind: 'file' }
     : initialPath === initialPath.split("/").slice(0, 3).join("/") ? { id: initialPath, title: 'Runs', kind: 'run' }
     : page.params.runID && (page.data as { snapshot?: RunSnapshot }).snapshot ? { id: initialPath, title: (page.data as { snapshot?: { run: { name: string } } }).snapshot?.run.name ?? 'Run', kind: 'run' }
@@ -94,6 +96,7 @@
   }
   function control(action: 'pause' | 'resume' | 'stop') { if (status) recordingControl(status, action); }
   function chooseProject(event: MouseEvent) { if (native) projectMenu(event); else projectChooser = true; }
+  function guide(workflow: string) { select(`${root}/workflows/${encodeURIComponent(workflow)}`); }
   let fileContext = $state<{ id: string; name: string }>();
   function discuss(file: { id: string; name: string }) {
     fileContext = file;
@@ -111,6 +114,7 @@
       : page.params.runID && path.startsWith(`${root}/runs/`) ? { id: path, title: (page.data as { snapshot?: { run: { name: string } } }).snapshot?.run.name ?? 'Run', kind: 'run' as const }
       : path === `${root}/conversations/new`
       ? { id: path, title: 'New session', kind: 'chat' as const }
+      : path.startsWith(`${root}/workflows/`) ? { id: path, title: `${decodeURIComponent(path.split('/').at(-1)!)} guide`, kind: 'file' as const }
       : path === `${root}/promises` ? { id: path, title: 'Promises', kind: 'file' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
       : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
@@ -211,7 +215,8 @@
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
-      {:else if tab.id === root}<ProjectRuns {project} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onstate={value => runTabs = value} />
+      {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split("/").at(-1)!)} />
+      {:else if tab.id === root}<ProjectRuns {project} active={active === tab.id} onopenguide={guide} initial={page.url.pathname === root ? page.data as { items: RunCardItem[]; attention: InterviewRow[]; now: number } : undefined} onopen={select} onstate={value => runTabs = value} />
       {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} onstate={runState} />
       {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
       {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} />{/if}

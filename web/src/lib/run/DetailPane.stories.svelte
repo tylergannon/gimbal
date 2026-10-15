@@ -59,7 +59,6 @@
         operation: codingNode,
         runtime: implementInterviewFixture.snapshot.turns["coding.1/turn.3"],
       }}
-      onsteer={async () => ({ ok: true, message: "Sent into the running turn." })}
     />
   </div>
 </Story>

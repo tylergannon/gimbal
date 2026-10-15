@@ -1,97 +1,33 @@
 <script lang="ts">
-	// Fixed footer: steer the turn this pane is showing. Closes itself
-	// once the turn has ended — steering a finished turn is not a thing.
-	import { Button } from '#lib/components/ui/button/index.js';
-	import { Textarea } from '#lib/components/ui/textarea/index.js';
-	import type { ActionFeedback } from '../DetailPane.svelte';
-
-	let {
-		onsteer,
-		disabled = false,
-		ended = false
-	}: {
-		onsteer: (message: string) => Promise<ActionFeedback>;
-		disabled?: boolean;
-		ended?: boolean;
-	} = $props();
-
-	let message = $state('');
-	let pending = $state(false);
-	let feedback = $state<ActionFeedback>();
-
-	async function run(action: () => Promise<ActionFeedback>, clear?: () => void) {
-		pending = true;
-		feedback = undefined;
-		try {
-			feedback = await action();
-			if (feedback.ok) clear?.();
-		} catch (error) {
-			feedback = { ok: false, message: error instanceof Error ? error.message : String(error) };
-		} finally {
-			pending = false;
-		}
-	}
+ import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
+ import { steer } from '../../../routes/steer.remote';
+ import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
+ import { errorMessage } from '#lib/errors';
+ let { run, session, disabled = false, ended = false, reason = '' }: { run: string; session: string; disabled?: boolean; ended?: boolean; reason?: string } = $props();
+ const instance = $props.id();
+ const form = $derived(steer.for(`agent-steer-${run}-${session}-${instance}`));
+ const message = $derived(form.fields.message.value() ?? '');
+ const unavailable = $derived(disabled || ended);
+ const explanation = $derived(reason || (ended ? 'This turn has ended. Steering is closed.' : 'Read at the next model call. Dropped if the turn ends first.'));
+ let feedback = $state('');
 </script>
-
-{#if ended}
-	<footer class="steer-box ended">
-		<p>This turn has ended. Steering is closed.</p>
-	</footer>
-{:else}
-	<footer class="steer-box">
-		<Textarea rows={2} bind:value={message} placeholder="Steer this turn…" disabled={disabled || pending} />
-		<div class="row">
-			<span class="help">Lands before the next model call. Dropped if the turn ends first.</span>
-			<Button
-				size="sm"
-				disabled={disabled || pending || !message.trim()}
-				onclick={() => run(() => onsteer(message), () => (message = ''))}
-			>
-				Steer
-			</Button>
-		</div>
-		{#if feedback}
-			<p class="feedback" class:error={!feedback.ok} role="status">{feedback.message}</p>
-		{/if}
-	</footer>
-{/if}
-
+<footer class="steer-box">
+ <form {...form.enhance(async (submitted) => {
+   if (unavailable) return;
+   feedback = '';
+   try { await submitted.submit(); if (submitted.result) { feedback = submitted.result.landed ? 'Steer landed.' : 'The turn ended before this steer landed. It was dropped.'; submitted.element.reset(); } }
+   catch (error) { if (!navigateOnUnauthorized(error)) feedback = errorMessage(error); }
+ })}>
+  <input {...form.fields.run.as('hidden', run)} /><input {...form.fields.session.as('hidden', session)} />
+  <div class="compose"><textarea {...form.fields.message.as('text')} rows={2} placeholder="Steer this turn…" aria-label="Steer this turn" disabled={unavailable || !!form.pending} onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); if (!unavailable && !form.pending && message.trim()) event.currentTarget.form?.requestSubmit(); } }}></textarea>
+  <button type="submit" class="send" aria-label="Send steer" title={unavailable ? explanation : 'Send steer'} disabled={unavailable || !!form.pending || !message.trim()}><ArrowUpIcon size={17} /></button></div>
+  <p class="help">{explanation}</p>
+  {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p class="feedback" role="alert">{issue.message}</p>{/each}
+  {#if feedback}<p class="feedback" role="status">{feedback}</p>{/if}
+ </form>
+</footer>
 <style>
-	.steer-box {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		padding: 12px 16px;
-		background: color-mix(in oklch, var(--muted) 60%, var(--card));
-		border-top: 1px solid var(--border);
-	}
-	.steer-box.ended p {
-		margin: 0;
-		color: var(--status-muted);
-		font-size: 13px;
-		line-height: 18px;
-	}
-	.row {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-	}
-	.help {
-		flex: 1;
-		color: var(--status-muted);
-		font-size: 13px;
-		line-height: 18px;
-	}
-	.feedback {
-		margin: 0;
-		padding: 7px 9px;
-		color: var(--foreground);
-		font-size: 13px;
-		background: var(--map-live-soft);
-		border-radius: 6px;
-	}
-	.feedback.error {
-		color: var(--destructive);
-		background: color-mix(in oklch, var(--destructive) 10%, transparent);
-	}
+ .steer-box { padding: 12px 20px 16px; flex: none; } form { max-width: 680px; margin: 0 auto; } .compose { position: relative; border: 1px solid var(--border); border-radius: 14px; padding: 11px 45px 11px 13px; background: var(--background); }
+ textarea { display: block; width: 100%; box-sizing: border-box; resize: vertical; min-height: 38px; padding: 0; color: var(--foreground); background: transparent; font: 13px/1.6 var(--font-sans); border: 0; outline: 0; } textarea:disabled { opacity: .55; } .compose:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+ .send { position: absolute; right: 10px; bottom: 10px; display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; color: var(--background); background: var(--foreground); cursor: pointer; } .send:disabled { opacity: .25; cursor: default; } .help { margin: 7px 0 0; color: var(--muted-foreground); font-size: 10px; line-height: 1.5; } .feedback { margin: 7px 0 0; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
 </style>

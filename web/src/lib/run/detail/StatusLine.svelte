@@ -3,6 +3,7 @@
 </script>
 
 <script lang="ts">
+	import { statedCostText } from '../../observation/index.js';
 	// One line: state, elapsed/duration, model, call count, cost. All plain
 	// values — the caller derives them from the snapshot, this component never
 	// reads TurnRow/SessionRow itself.
@@ -30,7 +31,7 @@
 	<span class="dot">·</span>
 	<span>{calls} model {calls === 1 ? 'call' : 'calls'}</span>
 	<span class="dot">·</span>
-	<span class="mono">${cost.toFixed(2)}</span>
+	<span class="mono">{statedCostText(cost)}</span>
 </div>
 
 <style>

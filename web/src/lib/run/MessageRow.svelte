@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import type { JSONObject } from '../sessionstate/index.js';
-	import { usageOf, usageText } from '../observation/index.js';
+	import { statedCostText, usageOf, usageText } from '../observation/index.js';
 	import Payload from './detail/Payload.svelte';
 	import ToolCall from './detail/ToolCall.svelte';
 
@@ -26,7 +26,7 @@
 	);
 	const shortUsage = $derived.by(() => {
 		const usage = usageOf(row);
-		return `${usage.output} out · $${usage.stated_cost.toFixed(2)}`;
+		return `${usage.output} out · ${statedCostText(usage.stated_cost)}`;
 	});
 
 	let collapsed = $state(false);

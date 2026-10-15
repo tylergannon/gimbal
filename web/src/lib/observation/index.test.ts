@@ -392,11 +392,10 @@ test("usage is five zero-filled token counts and a stated cost, whatever the har
     }),
     { input: 10, cache_read: 4, cache_write: 5, output: 2, reasoning: 3, stated_cost: 0.25 },
   );
-  // A field the harness never reported reads as the number zero, with no
-  // wording about availability anywhere in the line.
+  // Token counts stay numeric; an unstated charge must not look free.
   assert.equal(
     usageText(usageOf({ tokens: { input: 7 } })),
-    "7 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0",
+    "7 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · Not reported",
   );
 });
 
@@ -468,4 +467,42 @@ test("a delta advances the cursor only after its complete frame group applies", 
     observation.applyDelta({ stream: "stale", position: 2, frames: [] }, connection),
     false,
   );
+});
+
+test("implicit assistant settlement invalidates the previous message without invalidating other history", () => {
+  const value = snapshot();
+  value.transcripts.turn.snapshot.state.message.ses = [
+    { id: "old", type: "assistant", time: { created: 1, completed: 2 }, content: [] },
+    {
+      id: "current",
+      type: "assistant",
+      time: { created: 3 },
+      content: [],
+      retry: { error: "Backoff" },
+    },
+  ];
+  const observation = new RunObservation(value);
+  const generation = observation.beginConnection();
+  const oldRevision = observation.messageRevision("turn", "old");
+  const currentRevision = observation.messageRevision("turn", "current");
+  observation.apply(
+    {
+      type: "event",
+      data: {
+        session: "ses",
+        scope: "",
+        turn: "turn",
+        event: {
+          id: "end",
+          type: "session.execution.succeeded",
+          created: 4,
+          data: { sessionID: "ses" },
+        },
+      },
+    },
+    generation,
+  );
+  assert.equal(observation.messageRevision("turn", "old"), oldRevision);
+  assert.ok(observation.messageRevision("turn", "current") > currentRevision);
+  assert.equal(observation.state("turn")?.message.ses[1].retry, undefined);
 });

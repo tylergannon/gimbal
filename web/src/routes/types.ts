@@ -155,3 +155,30 @@ export type WatchConversation = {
   project: string;
   conversation: string;
 };
+
+export type WorkflowCatalog = {
+  project: string;
+  workflows: Array<WorkflowDetails>;
+};
+
+export type WorkflowDetails = {
+  name: string;
+  summary: string;
+  help: string;
+  fields: Array<WorkflowField>;
+  roles: Array<WorkflowRole>;
+  source_json: string;
+};
+
+export type WorkflowField = {
+  name: string;
+  kind: string;
+  description: string;
+  optional: boolean;
+  nullable: boolean;
+};
+
+export type WorkflowRole = {
+  name: string;
+  default: string;
+};

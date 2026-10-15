@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { Usage } from '../../observation/index.js';
+	import { statedCostText, type Usage } from '../../observation/index.js';
 
 	let { usage, title }: { usage: Usage; title?: string } = $props();
 
@@ -9,7 +9,7 @@
 		['reasoning', usage.reasoning.toLocaleString()],
 		['cache read', usage.cache_read.toLocaleString()],
 		['cache write', usage.cache_write.toLocaleString()],
-		['cost', `$${usage.stated_cost.toFixed(2)}`]
+		['cost', statedCostText(usage.stated_cost)]
 	] as const);
 </script>
 

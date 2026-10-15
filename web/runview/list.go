@@ -139,12 +139,15 @@ func formatCost(snapshot observation.RunSnapshot) string {
 		return "—"
 	}
 	if cost > 0 && cost < 0.01 {
-		return fmt.Sprintf("$%.4f", cost)
+		return "<$0.01"
 	}
 	return fmt.Sprintf("$%.2f", cost)
 }
 
 func pendingInterviews(snapshot observation.RunSnapshot) []observation.InterviewRow {
+	if snapshot.Run.Status != observation.StatusRunning {
+		return nil
+	}
 	pending := make([]observation.InterviewRow, 0, len(snapshot.Interviews))
 	for _, interview := range snapshot.Interviews {
 		if interview.Status == observation.InterviewStatusPending {

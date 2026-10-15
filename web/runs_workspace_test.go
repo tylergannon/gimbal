@@ -29,7 +29,7 @@ func TestRetainedRunQueryUsesExplicitProjectWithoutReferer(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := openTestRun(t, a.Registry(), a.Dir(), "owned-run", "review")
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Lifecycle(json.RawMessage(`{"seq":1,"time":"2026-10-14T12:00:00Z","scope":"","event":{"kind":"run_started","name":"review"}}`)); err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestRetainedRunQueryUsesExplicitProjectWithoutReferer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer response.Body.Close()
+			defer func() { _ = response.Body.Close() }()
 			body, err := io.ReadAll(response.Body)
 			if err != nil {
 				t.Fatal(err)

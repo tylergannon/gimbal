@@ -29,7 +29,7 @@ func TestRunReadsUseTheirExplicitProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	defer func() { _ = store.Close() }()
 	if err := store.Lifecycle(json.RawMessage(`{"seq":1,"time":"2026-10-14T12:00:00Z","scope":"","event":{"kind":"run_started","name":"review"}}`)); err != nil {
 		t.Fatal(err)
 	}

@@ -106,7 +106,7 @@ import SwiftUI
         defer: false)
       window.title = "Gimbal document"
       window.isReleasedWhenClosed = false
-      window.contentViewController = NSHostingController(
+      let controller = NSHostingController(
         rootView: ApplicationWebView(url: url, recoveryRevision: 0, onOpenSession: { [weak self] path in
           guard let workspace = self?.workspace, let main = workspace.webView?.window else { return }
           main.deminiaturize(nil)
@@ -114,6 +114,11 @@ import SwiftUI
           NSApp.activate(ignoringOtherApps: true)
           workspace.navigate(path)
         }))
+      // Web content has no intrinsic size; AppKit owns the reader's geometry.
+      controller.sizingOptions = []
+      window.contentViewController = controller
+      window.contentMinSize = NSSize(width: 800, height: 500)
+      window.setContentSize(NSSize(width: 800, height: 650))
       viewers.append(window)
       window.center()
       window.makeKeyAndOrderFront(nil)

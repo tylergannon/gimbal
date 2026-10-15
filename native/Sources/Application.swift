@@ -34,11 +34,14 @@ import SwiftUI
       .defaultSize(width: 1000, height: 600)
       .commands {
         GimbalUpdateCommands()
-        WorkspaceMenu(workspace: application.workspace)
+        WorkspaceMenu(workspace: application.workspace, openMachines: {
+          application.requestSettings?("machines", $0)
+        })
         if let controller = application.controller {
           RecordingMenu(
             controller: controller, input: application.input,
-            showControls: application.showRecordingControls, workspace: application.workspace)
+            showControls: application.showRecordingControls, workspace: application.workspace,
+            showSettings: { application.requestSettings?("recording", "") })
         }
       }
     #endif
@@ -73,6 +76,7 @@ import SwiftUI
     @ObservedObject var input: RecordingInput
     let showControls: () -> Void
     @ObservedObject var workspace: WorkspaceState
+    let showSettings: () -> Void
     var body: some Commands {
       CommandMenu("Recording") {
         Button("Recording Controls…", action: showControls)
@@ -107,7 +111,7 @@ import SwiftUI
         Button("Show Today's Transcript") { workspace.send("openTodayTranscript") }
           .keyboardShortcut("t", modifiers: [.command])
           .disabled(!workspace.enabled || !workspace.canOpenTodayTranscript)
-        SettingsLink { Text("Recording Settings…") }
+        Button("Recording Settings…", action: showSettings)
       }
     }
   }

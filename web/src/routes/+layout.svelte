@@ -28,6 +28,11 @@
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
 {#if data.authEnabled && !data.user}
   {@render children()}
+{:else if page.url.pathname.startsWith('/settings/')}
+  <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
+    {@render children()}
+    {#snippet failed(error, reset)}<p role="alert" class="p-6">Could not load settings. <button onclick={reset}>Retry</button></p>{/snippet}
+  </svelte:boundary>
 {:else}
 <svelte:boundary onerror={(error) => { navigateOnUnauthorized(error); }}>
 <div class="flex h-screen">

@@ -103,6 +103,21 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
         chooseProjectFolder()
         return
       }
+      if message.name == "openSettings" {
+        state.requestSettings?("machines", body["project"] as? String ?? "")
+        return
+      }
+      if message.name == "openMachineTerminal", let host = body["host"] as? String,
+        !host.isEmpty, !host.hasPrefix("-"), !host.contains(where: { $0.isWhitespace }) {
+        var components = URLComponents()
+        components.scheme = "ssh"
+        let hostParts = host.split(separator: "@", maxSplits: 1)
+        if hostParts.count == 2 { components.user = String(hostParts[0]) }
+        components.host = String(hostParts.last ?? "")
+        if let port = body["port"] as? Int, port > 0 { components.port = port }
+        if let target = components.url { NSWorkspace.shared.open(target) }
+        return
+      }
       if message.name == "workspaceDrag", let event = NSApp.currentEvent,
         event.type == .leftMouseDown
       {
@@ -345,7 +360,7 @@ final class WebCoordinator: NSObject, WKScriptMessageHandler, WKNavigationDelega
     config.userContentController.add(self, name: "selectProject")
     config.userContentController.add(self, name: "openFile")
     #if os(macOS)
-      for name in ["projectAdmissionError", "projectMenu", "requestProject", "projectNavigationComplete", "recordingControl"] {
+      for name in ["projectAdmissionError", "projectMenu", "requestProject", "projectNavigationComplete", "recordingControl", "openSettings", "openMachineTerminal"] {
         config.userContentController.add(self, name: name)
       }
       config.userContentController.add(self, name: "workspaceState")

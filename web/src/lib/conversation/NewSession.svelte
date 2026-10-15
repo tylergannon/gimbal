@@ -2,11 +2,9 @@
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
   import { errorMessage } from '#lib/errors';
   import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
-  import CheckIcon from '@lucide/svelte/icons/check';
   import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
   import FolderIcon from '@lucide/svelte/icons/folder';
   import GitBranchIcon from '@lucide/svelte/icons/git-branch';
-  import MonitorIcon from '@lucide/svelte/icons/monitor';
   import * as Popover from '#lib/components/ui/popover';
   import { Switch } from '#lib/components/ui/switch';
   import type { Conversation } from '#lib/skgo/conversation/types';
@@ -14,27 +12,34 @@
   import { conversationSetup, createConversation, projectConversations } from '../../routes/conversation.remote';
   import HarnessPicker from './HarnessPicker.svelte';
   import { harnessName } from './names';
+  import { watchEnvironments } from '#lib/environments.remote';
+  import EnvironmentPicker from '#lib/environments/EnvironmentPicker.svelte';
 
   let { project, name, oncreated }: { project: string; name: string; oncreated: (conversation: Conversation) => void } = $props();
   const form = $derived(createConversation.for(project));
-  const setupQuery = $derived(conversationSetup(project));
+  let environment = $state('local');
+  const setupQuery = $derived(conversationSetup({ project, environment }));
+  const inventory = $derived(watchEnvironments(project));
   const conversationsQuery = $derived(projectConversations(project));
   const setup = $derived(setupQuery.current);
   const recent = $derived(conversationsQuery.current ?? []);
   let actionError = $state('');
-  let picked = $state<{ provider: string; model: string }>();
-  let sharedCheckout = $state(false);
-  let editedBranch = $state<string>();
-  let pickedBase = $state<string>();
-  const isolated = $derived(!!setup?.git && !sharedCheckout);
+  type Choices = { shared?: boolean; branch?: string; base?: string; harness?: { provider: string; model: string } };
+  let choices = $state<Record<string, Choices>>({});
+  const selected = $derived(choices[environment] ?? {});
+  function choose(patch: Partial<Choices>) { choices[environment] = { ...selected, ...patch }; }
+  const sharedCheckout = $derived(selected.shared ?? false);
+  const isolated = $derived(!!setup?.git && setup.capabilities.worktree && !sharedCheckout);
   const suggestedBranch = $derived((form.fields.message.value() ?? '').split('\n')[0]
     .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48).replace(/-$/, ''));
-  const branch = $derived(editedBranch ?? (suggestedBranch ? `gimbal/${suggestedBranch}` : ''));
-  const base = $derived(pickedBase ?? setup?.base ?? '');
+  const branch = $derived(selected.branch ?? (suggestedBranch ? `gimbal/${suggestedBranch}` : ''));
+  const base = $derived(selected.base ?? setup?.base ?? '');
+  const harnesses = $derived(setup?.harnesses.filter(item => !setup.harness_states.some(state => state.id === item.id && (state.state === 'missing' || state.state === 'sign-in-required'))) ?? []);
+  const lastSession = $derived(recent.find(item => (item.environment || 'local') === environment));
   // Defaults follow this project's last session, then the first harness's cheap model.
-  const choice = $derived(picked
-    ?? (recent[0] ? { provider: recent[0].provider, model: recent[0].model }
-    : setup?.harnesses[0] && { provider: setup.harnesses[0].id, model: setup.harnesses[0].default }));
+  const choice = $derived(selected.harness
+    ?? (lastSession && harnesses.some(item => item.id === lastSession.provider) ? { provider: lastSession.provider, model: lastSession.model }
+    : harnesses[0] && { provider: harnesses[0].id, model: harnesses[0].default }));
   const starts = $derived(recent.filter((item, index) =>
     recent.findIndex(other => other.provider === item.provider && other.model === item.model) === index).slice(0, 2));
 </script>
@@ -56,41 +61,34 @@
       <input {...form.fields.provider.as('hidden', choice.provider)} />
       <input {...form.fields.model.as('hidden', choice.model)} />
     {/if}
-    <input {...form.fields.shared_checkout.as('hidden', sharedCheckout)} />
+    <input {...form.fields.environment.as('hidden', environment)} />
+    <input {...form.fields.shared_checkout.as('hidden', !isolated)} />
     <input {...form.fields.branch.as('hidden', isolated ? branch : '')} />
     <input {...form.fields.base.as('hidden', isolated ? base : '')} />
     <textarea {...form.fields.message.as('text')} rows={3} aria-label="First message" disabled={!!form.pending}
       placeholder="Describe the work. Your first message starts the session."
       onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}></textarea>
     <div class="choices">
-      {#if setup && choice}
-        <HarnessPicker harnesses={setup.harnesses} {choice} onpick={(next) => (picked = next)} />
-        <Popover.Root>
-          <Popover.Trigger class="chip environment" aria-label="Environment" title={setup.directory}>
-            <MonitorIcon size={14} aria-hidden="true" /><span class="chip-label">This Mac · {setup.directory}</span><ChevronDownIcon size={14} aria-hidden="true" />
-          </Popover.Trigger>
-          <Popover.Content align="start" collisionPadding={8} class="w-72 gap-1 p-1.5">
-            <h3>This Mac</h3>
-            <div class="option selected">
-              <span class="label">{setup.directory}<small>{setup.git ? `Git · ${setup.branch}` : setup.unborn ? 'Git · No commits yet' : 'Not a Git repository'}</small></span>
-              <CheckIcon size={14} aria-hidden="true" />
-            </div>
-            <p class="note">Sessions run on this Mac. The worktree choice determines their checkout.</p>
-          </Popover.Content>
-        </Popover.Root>
+      {#if setup && choice}<HarnessPicker {harnesses} {choice} onpick={(next) => choose({ harness: next })} />{/if}
+      {#if inventory.current || setup}
+        <EnvironmentPicker snapshot={(inventory.current ?? setup!.environments)} selected={environment} directory={setup?.directory ?? inventory.current?.environments.find(row => row.environment.id === environment)?.environment.directory ?? ''} machine={setup?.machine ?? inventory.current?.machines.find(item => item.id === inventory.current?.environments.find(row => row.environment.id === environment)?.environment.machine)?.name ?? 'Environment'} onpick={(id) => (environment = id)} />
+      {/if}
+      {#if setup}
         <Popover.Root>
           <Popover.Trigger class="chip" aria-label="Worktree">
             {#if isolated}<GitBranchIcon size={14} aria-hidden="true" />New worktree{:else}<FolderIcon size={14} aria-hidden="true" />{setup.git ? 'Shared checkout' : 'No worktree'}{/if}
             <ChevronDownIcon size={14} aria-hidden="true" />
           </Popover.Trigger>
           <Popover.Content align="start" collisionPadding={8} class="w-80 gap-3">
-            <label class="toggle">Create a worktree <Switch aria-label="Create a worktree" bind:checked={() => isolated, (checked) => (sharedCheckout = !checked)} disabled={!setup.git || !!form.pending} /></label>
+            <label class="toggle">Create a worktree <Switch aria-label="Create a worktree" bind:checked={() => isolated, (checked) => choose({ shared: !checked })} disabled={!setup.git || !setup.capabilities.worktree || !!form.pending} /></label>
             {#if isolated}
-              <label class="field"><span>Branch</span><input aria-label="New branch" bind:value={() => branch, (value) => (editedBranch = value)} placeholder="Generated when the session starts" disabled={!!form.pending} /></label>
-              <label class="field"><span>From</span><select aria-label="Base branch" bind:value={() => base, (value) => (pickedBase = value)} disabled={!!form.pending}>
+              <label class="field"><span>Branch</span><input aria-label="New branch" bind:value={() => branch, (value) => choose({ branch: value })} placeholder="Generated when the session starts" disabled={!!form.pending} /></label>
+              <label class="field"><span>From</span><select aria-label="Base branch" bind:value={() => base, (value) => choose({ base: value })} disabled={!!form.pending}>
                 {#each setup.bases as ref (ref)}<option value={ref}>{ref}</option>{/each}
               </select></label>
-              <p class="note">A separate checkout on This Mac. Other sessions can't change its files. You merge the branch when you're done.</p>
+              <p class="note">A separate checkout on {setup.machine}. Other sessions can't change its files. You merge the branch when you're done.</p>
+            {:else if setup.git && !setup.capabilities.worktree}
+              <p class="note">{setup.machine} requires its configured working directory{setup.directory ? ` (${setup.directory})` : ''}. A separate worktree is unavailable; sessions share those files.</p>
             {:else if setup.git}
               <p class="note">This session works in {setup.directory}, in the existing checkout. You and other sessions there can change the same files.</p>
             {:else if setup.unborn}
@@ -101,16 +99,19 @@
           </Popover.Content>
         </Popover.Root>
       {/if}
-      <button class="send" aria-label="Start session" disabled={!!form.pending || !choice}><ArrowUpIcon size={16} /></button>
+      <button class="send" aria-label="Start session" disabled={!!form.pending || !choice || !setup || !!setupQuery.error}><ArrowUpIcon size={16} /></button>
     </div>
   </form>
+  {#if setupQuery.error}<p class="issue" role="alert">{errorMessage(setupQuery.error)} <button type="button" onclick={() => setupQuery.refresh()}>Retry setup</button></p>{/if}
+  {#if setup && !choice}<p class="issue" role="status">No usable harness is available on {setup.machine}. Open Machines to inspect sign-in and installation details.</p>{/if}
+  {#if setup?.harness_states.some(item => item.id === choice?.provider && item.state === 'unknown')}<p class="note">Harness sign-in on {setup.machine} is unverified. The first request will report any sign-in needed there.</p>{/if}
   {#if actionError}<p class="issue" role="alert">{actionError}</p>{/if}
   {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p class="issue" role="alert">{issue.message}</p>{/each}
   {#if starts.length > 0}
     <div class="start-like">
       <span>Start like</span>
       {#each starts as item (item.id)}
-        <button type="button" onclick={() => (picked = { provider: item.provider, model: item.model })}>{item.title} · {harnessName(item.provider)} on This Mac</button>
+        <button type="button" onclick={() => { environment = item.environment || 'local'; choose({ harness: { provider: item.provider, model: item.model } }); }}>{item.title} · {harnessName(item.provider)} on {item.placement?.machine.name ?? 'This Mac'}</button>
       {/each}
     </div>
   {/if}
@@ -130,11 +131,6 @@
   .choices :global(.chip-label) { overflow: hidden; text-overflow: ellipsis; }
   .send { display: grid; flex: none; place-items: center; width: 28px; height: 28px; margin-left: auto; border: 0; border-radius: 999px; color: var(--primary-foreground); background: var(--primary); cursor: pointer; }
   .send:disabled { color: var(--muted-foreground); background: var(--muted); cursor: default; }
-  h3 { margin: 4px 6px 2px; color: var(--muted-foreground); font-size: 12px; font-weight: 400; }
-  .option { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 6px; font-size: 13px; }
-  .option.selected { background: var(--muted); }
-  .label { display: grid; flex: 1; min-width: 0; overflow-wrap: anywhere; }
-  small { color: var(--muted-foreground); font-size: 11px; }
   .note { margin: 0; padding: 0 2px; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
   .toggle { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; }
   .field { display: grid; gap: 6px; font-size: 13px; }

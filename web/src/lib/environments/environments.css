@@ -1,0 +1,97 @@
+.environment-form {
+  display: grid;
+  gap: 14px;
+  font-size: 13px;
+}
+.environment-form label {
+  display: grid;
+  gap: 6px;
+}
+.environment-form input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]),
+.environment-form select,
+.environment-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+}
+.environment-form textarea {
+  resize: vertical;
+}
+.environment-form input:focus-visible,
+.environment-form select:focus-visible,
+.environment-form textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+.environment-form p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.environment-form fieldset {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.environment-form .radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.environment-form .radio span {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+.environment-form .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.environment-form footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+.environment-form button:not(.text-button),
+.machine-settings .action {
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--background);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.environment-form button.primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.environment-form button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.environment-form .text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.environment-form .error {
+  color: var(--destructive);
+}

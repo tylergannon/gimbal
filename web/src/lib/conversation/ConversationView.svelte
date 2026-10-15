@@ -5,7 +5,8 @@
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
   import Square from '@lucide/svelte/icons/square';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
-  import { sendConversationMessage, stopConversationRequest, watchConversation } from '../../routes/conversation.remote';
+  import * as Dialog from '#lib/components/ui/dialog';
+  import { sendConversationMessage, stopConversationRequest, watchConversation, cleanupConversation } from '../../routes/conversation.remote';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import type { ProjectionState } from '#lib/sessionstate';
   import ConversationTranscript from './ConversationTranscript.svelte';
@@ -21,13 +22,25 @@
   const stopping = $derived(record.status === 'stopping');
   const draft = $derived(form.fields.message.value() ?? '');
   const hasMessage = $derived(!!draft.trim());
-  const canStop = $derived(working && !stopping && record.status !== 'unresolved');
+  const canStop = $derived(working && !stopping);
+  const machine = $derived(record.placement?.machine.name ?? 'This Mac');
+  const uncertain = $derived(record.status === 'unresolved' || record.contact === 'unreachable');
+  const canSteer = $derived(record.capabilities?.steer ?? !record.placement);
   const provider = $derived(harnessName(record.provider));
   let actionError = $state('');
   let stopPending = $state(false);
   let requestID = $state('');
   let created = $state(0);
   let scroller = $state<HTMLDivElement>();
+  let ending = $state(false);
+  let confirmEnd = $state(false);
+
+  async function endSession() {
+    ending = true; actionError = '';
+    try { await cleanupConversation({ project, conversation: record.id }); confirmEnd = false; }
+    catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
+    finally { ending = false; }
+  }
 
   $effect(() => {
     const item = stream.current;
@@ -67,20 +80,22 @@
 
 <section class="chat" aria-label={record.title}>
   <div class="transcript" bind:this={scroller}>
+    <div class="placement"><span title={record.worktree}>{machine} · {record.worktree}{record.branch ? ` · ${record.branch}` : ''}</span>{#if record.placement && record.placement.machine.id !== 'local' && (record.live || record.cleanup_pending)}<button type="button" onclick={() => (confirmEnd = true)}>{record.cleanup_pending ? 'Retry cleanup…' : 'End session…'}</button>{/if}</div>
     {#if record.runs.length}
       <section class="runs" aria-label="Workflow runs"><span class="muted">Workflow runs</span>
         {#each record.runs as run (run.id)}<a href={`/projects/${project}/runs/${encodeURIComponent(run.id)}`}>{run.workflow} · {run.status}</a>{/each}
       </section>
     {/if}
     {#if messages.length}
-      <ConversationTranscript {messages} requests={record.requests} {provider} model={modelName(record.model)} location={record.branch || 'This Mac'} />
+      <ConversationTranscript {messages} requests={record.requests} {provider} model={modelName(record.model)} location={`${record.branch || record.worktree} · ${machine}`} />
     {:else if record.messages.length}
       {#each record.messages as message, i (i)}<article class:user={message.role === 'user'}><p>{message.text}</p></article>{/each}
     {:else}
       <div class="empty"><h2>{record.title}</h2><p>Message {provider} to get started.</p></div>
     {/if}
-    {#if working}<p class="activity" role="status">{record.status === 'unresolved' ? 'Stop not confirmed. The request may still be running.' : stopping ? 'Stopping…' : `${provider} is working…`}</p>
+    {#if working}<p class="activity" role="status">{uncertain ? 'Contact lost. The request may still be running; Stop is still available.' : stopping ? 'Stopping…' : `${provider} is working…`}</p>
     {:else if record.status === 'canceled' && !messages.length}<p class="activity" role="status">Stopped</p>{/if}
+    {#if record.cleanup_pending}<p class="notice" role="status">Cleanup is not confirmed. Gimbal retains ownership; use Retry cleanup to confirm it.</p>{/if}
     {#if record.error}<p class="notice" role="alert">{record.error}</p>{/if}
     {#each record.requests ?? [] as request (request.id)}
       {#if request.kind === 'prompt' && request.status === 'accepted'}<p class="activity">Queued · {request.message}</p>
@@ -100,20 +115,31 @@
     <input {...form.fields.conversation.as('hidden', record.id)} />
     <input {...form.fields.id.as('hidden', requestID)} />
     <input {...form.fields.created.as('hidden', created)} />
-    <textarea {...form.fields.message.as('text')} rows={2} onkeydown={keydown} placeholder={`Message ${provider}…`} aria-label={`Message ${record.title}`} disabled={!record.live || !!form.pending || stopping || record.status === 'unresolved'}></textarea>
-    <div class="composer-meta"><span title={record.model}>{provider} · {modelName(record.model)}</span><code title={record.worktree}>{record.branch || record.worktree} · This Mac</code>{#if working && hasMessage}<span>↩ sends now · esc stops</span>{/if}</div>
-    {#if working && !hasMessage}
+    <textarea {...form.fields.message.as('text')} rows={2} onkeydown={keydown} placeholder={`Message ${provider}…`} aria-label={`Message ${record.title}`} disabled={!record.live || !!form.pending || stopping || uncertain}></textarea>
+    <div class="composer-meta"><span title={record.model}>{provider} · {modelName(record.model)}</span><code title={record.worktree}>{record.branch || record.worktree} · {machine}</code>{#if working && hasMessage}<span>{canSteer ? '↩ sends now · esc stops' : '↩ queues until this turn ends · esc stops'}</span>{/if}</div>
+    {#if working && (!hasMessage || uncertain)}
       <button type="button" class="send" aria-label="Stop response" onclick={stop} disabled={!canStop || stopPending}>{#if stopping || stopPending}<LoaderCircle size={16} class="spin" />{:else}<Square size={12} fill="currentColor" />{/if}</button>
     {:else}
-      <button type="submit" class="send" aria-label="Send message" disabled={!record.live || !hasMessage || !!form.pending || stopping || record.status === 'unresolved'}><ArrowUp size={18} /></button>
+      <button type="submit" class="send" aria-label="Send message" disabled={!record.live || !hasMessage || !!form.pending || stopping || uncertain}><ArrowUp size={18} /></button>
     {/if}
     {#each form.fields.allIssues() ?? [] as issue}<p class="notice" role="alert">{issue.message}</p>{/each}
     {#if actionError}<p class="notice" role="alert">{actionError}</p>{/if}
   </form>
 </section>
 
+{#if confirmEnd && active}
+  <Dialog.Root open onOpenChange={(open) => { if (!open) confirmEnd = false; }}><Dialog.Content>
+    <Dialog.Header><Dialog.Title>End {record.title}?</Dialog.Title><Dialog.Description>This ends only this session on {machine}, including any active request, and releases its owned resources after cleanup is confirmed. Saved history and its checkout remain.</Dialog.Description></Dialog.Header>
+    {#if actionError}<p role="alert">{actionError}</p>{/if}
+    <Dialog.Footer><button type="button" disabled={ending} onclick={() => (confirmEnd = false)}>Keep session</button><button type="button" disabled={ending} onclick={endSession}>{ending ? 'Confirming cleanup…' : 'End session'}</button></Dialog.Footer>
+  </Dialog.Content></Dialog.Root>
+{/if}
+
 <style>
   .chat { height: 100%; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .placement { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 11px; color: var(--muted-foreground); }
+  .placement span { overflow-wrap: anywhere; }
+  .placement button { flex: none; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
   .transcript { flex: 1; min-height: 0; overflow: auto; overflow-wrap: anywhere; padding: 28px max(24px, calc((100% - 720px) / 2)); display: flex; flex-direction: column; gap: 22px; }
   p, h2 { margin: 0; }
   article p { white-space: pre-wrap; line-height: 1.65; }

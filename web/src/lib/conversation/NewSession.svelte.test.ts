@@ -11,9 +11,91 @@ const remote = vi.hoisted(() => ({
     branch: "working",
     base: "main",
     bases: ["main", "release"],
+    environment: "local",
+    machine: "This Mac",
+    capabilities: { steer: true, fork: true, worktree: true, browse: true, clone: true },
+    harness_states: [],
+  },
+  inventory: {
+    project: "project",
+    config_path: "/catalog/environments.json",
+    revision: "1",
+    issues: [],
+    sessions: [],
+    machines: [
+      {
+        id: "local",
+        name: "This Mac",
+        kind: "local",
+        state: "connected",
+        since: 0,
+        detail: "",
+        issues: [],
+      },
+      {
+        id: "remote",
+        name: "Build box",
+        kind: "ssh",
+        state: "connected",
+        since: 0,
+        detail: "",
+        issues: [],
+      },
+      {
+        id: "offline",
+        name: "Offline box",
+        kind: "address",
+        state: "unreachable",
+        since: 1,
+        detail: "No response",
+        issues: [],
+      },
+    ],
+    environments: [
+      {
+        environment: { id: "local", project: "project", machine: "local", directory: "~/project" },
+        directory: { git: true, branch: "working" },
+        capabilities: { steer: true },
+        last_used: 0,
+        observed: 1,
+        live_sessions: 0,
+        issues: [],
+      },
+      {
+        environment: {
+          id: "build",
+          project: "project",
+          machine: "remote",
+          directory: "/srv/project",
+        },
+        directory: { git: true, branch: "main" },
+        capabilities: { steer: false },
+        last_used: 1,
+        observed: 1,
+        live_sessions: 2,
+        issues: [],
+      },
+      {
+        environment: {
+          id: "offline-env",
+          project: "project",
+          machine: "offline",
+          directory: "/offline/project",
+        },
+        directory: { git: true, branch: "main" },
+        capabilities: { steer: false },
+        last_used: 0,
+        observed: 1,
+        live_sessions: 0,
+        issues: [],
+      },
+    ],
   },
   submitted: [] as FormData[],
   fail: false,
+}));
+vi.mock("#lib/environments.remote", () => ({
+  watchEnvironments: () => ({ current: remote.inventory }),
 }));
 vi.mock("$app/navigation", () => ({ goto: vi.fn() }));
 vi.mock("../../routes/conversation.remote", () => {
@@ -26,13 +108,20 @@ vi.mock("../../routes/conversation.remote", () => {
     value: () => "",
   });
   const fields = Object.fromEntries(
-    ["provider", "model", "message", "shared_checkout", "branch", "base"].map((name) => [
-      name,
-      field(name),
-    ]),
+    ["provider", "model", "message", "environment", "shared_checkout", "branch", "base"].map(
+      (name) => [name, field(name)],
+    ),
   );
   return {
-    conversationSetup: () => ({ current: remote.setup }),
+    conversationSetup: ({ environment }: { environment: string }) => ({
+      current: {
+        ...remote.setup,
+        environment,
+        machine: environment === "build" ? "Build box" : "This Mac",
+        directory: environment === "build" ? "/srv/project" : remote.setup.directory,
+        environments: remote.inventory,
+      },
+    }),
     projectConversations: () => ({ current: [] }),
     createConversation: {
       for: () => ({
@@ -121,4 +210,42 @@ test("unborn repository explains why worktrees are unavailable", async () => {
   await screen.getByRole("button", { name: "Worktree", exact: true }).click();
   await expect.element(screen.getByRole("switch", { name: "Create a worktree" })).toBeDisabled();
   await expect.element(screen.getByText("has no Git commit yet", { exact: false })).toBeVisible();
+});
+
+test("environment selection preserves each checkout draft and does not submit a session", async () => {
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated: vi.fn(),
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Keep the same message");
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("textbox", { name: "New branch" }).fill("feature/local");
+  await screen.getByRole("combobox", { name: "Base branch" }).selectOptions("release");
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("button", { name: "Environment", exact: true }).click();
+  await expect.element(screen.getByRole("button", { name: /\/offline\/project/ })).toBeDisabled();
+  await screen.getByRole("button", { name: /\/srv\/project/ }).click();
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("textbox", { name: "New branch" }).fill("feature/remote");
+  await screen.getByRole("switch", { name: "Create a worktree" }).click();
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("button", { name: "Environment", exact: true }).click();
+  await screen.getByRole("button", { name: /~\/project/ }).click();
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await expect
+    .element(screen.getByRole("textbox", { name: "New branch" }))
+    .toHaveValue("feature/local");
+  await expect
+    .element(screen.getByRole("combobox", { name: "Base branch" }))
+    .toHaveValue("release");
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("button", { name: "Environment", exact: true }).click();
+  await screen.getByRole("button", { name: /\/srv\/project/ }).click();
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await expect.element(screen.getByRole("switch", { name: "Create a worktree" })).not.toBeChecked();
+  await expect
+    .element(screen.getByRole("textbox", { name: "First message" }))
+    .toHaveValue("Keep the same message");
+  expect(remote.submitted).toEqual([]);
 });

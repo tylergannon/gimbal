@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.34] - 2026-10-15
+
+### Changed
+
+- fix: clear file reader release lint failures (#581)
+
 ## [0.13.33] - 2026-10-15
 
 ### Changed
@@ -380,7 +386,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.33...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.34...main
+[0.13.34]: https://github.com/tylergannon/gimbal/compare/v0.13.33...v0.13.34
 [0.13.33]: https://github.com/tylergannon/gimbal/compare/v0.13.32...v0.13.33
 [0.13.32]: https://github.com/tylergannon/gimbal/compare/v0.13.31...v0.13.32
 [0.13.31]: https://github.com/tylergannon/gimbal/compare/v0.13.30...v0.13.31

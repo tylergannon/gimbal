@@ -1024,6 +1024,17 @@ func encSetup(v pkg_conversation.Setup, at string) (any, error) {
 	enc1.Set("git", enc8)
 	var enc9 any = string(v.Branch)
 	enc1.Set("branch", enc9)
+	var enc10 any = bool(v.Unborn)
+	enc1.Set("unborn", enc10)
+	enc11 := make([]any, 0, len(v.Bases))
+	for _, item13 := range v.Bases {
+		var enc14 any = string(item13)
+		enc11 = append(enc11, enc14)
+	}
+	var enc15 any = enc11
+	enc1.Set("bases", enc15)
+	var enc16 any = string(v.Base)
+	enc1.Set("base", enc16)
 	return enc1, nil
 }
 
@@ -1034,7 +1045,7 @@ func decSetup(raw any, at string) (pkg_conversation.Setup, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "harnesses", "directory", "git", "branch"); err != nil {
+	if err := dvKnown(obj2, at, "harnesses", "directory", "git", "branch", "unborn", "bases", "base"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "harnesses", at+"/harnesses")
@@ -1081,6 +1092,41 @@ func decSetup(raw any, at string) (pkg_conversation.Setup, error) {
 		return dvZero, err
 	}
 	dec1.Branch = dec14
+	raw15, err := dvRequired(obj2, "unborn", at+"/unborn")
+	if err != nil {
+		return dvZero, err
+	}
+	dec16, err := dvBool(raw15, at+"/unborn")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Unborn = dec16
+	raw17, err := dvRequired(obj2, "bases", at+"/bases")
+	if err != nil {
+		return dvZero, err
+	}
+	items19, err := dvArray(raw17, at+"/bases")
+	if err != nil {
+		return dvZero, err
+	}
+	dec18 := make([]string, 0, len(items19))
+	for i20, item21 := range items19 {
+		dec22, err := dvString(item21, at+"/bases"+"/"+strconv.Itoa(i20))
+		if err != nil {
+			return dvZero, err
+		}
+		dec18 = append(dec18, dec22)
+	}
+	dec1.Bases = dec18
+	raw23, err := dvRequired(obj2, "base", at+"/base")
+	if err != nil {
+		return dvZero, err
+	}
+	dec24, err := dvString(raw23, at+"/base")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Base = dec24
 	return dec1, nil
 }
 

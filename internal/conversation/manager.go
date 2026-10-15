@@ -73,9 +73,12 @@ type Conversation struct {
 // NewConversation is the provider and optional presentation selected by the
 // person opening a conversation.
 type NewConversation struct {
-	Title    string
-	Provider string
-	Model    string
+	Title          string
+	Provider       string
+	Model          string
+	SharedCheckout bool
+	Branch         string
+	Base           string
 }
 
 // AdapterFactory resolves a provider name to its existing Gimbal harness.
@@ -205,36 +208,36 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	return manager, nil
 }
 
-// Create gives Git projects with commits a distinct branch and worktree. Other
-// projects share their existing directory between conversations.
+// Create prepares the selected checkout before admitting a conversation. Git
+// projects default to an isolated worktree; SharedCheckout uses their directory.
 func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation, error) {
 	provider := strings.TrimSpace(in.Provider)
 	model, _, err := providerModel(provider, strings.TrimSpace(in.Model))
 	if err != nil {
 		return Conversation{}, err
 	}
+	checkout, err := m.prepareCheckout(ctx, in)
+	if err != nil {
+		return Conversation{}, err
+	}
 	if _, err := m.factory(provider); err != nil {
 		return Conversation{}, fmt.Errorf("conversation: provider %s: %w", provider, err)
-	}
-	repo, err := conversationRepository(ctx, filepath.Dir(m.projectDir))
-	if err != nil {
-		return Conversation{}, fmt.Errorf("conversation: find repository: %w", err)
 	}
 	id, err := randomID()
 	if err != nil {
 		return Conversation{}, fmt.Errorf("conversation: create id: %w", err)
 	}
-	branch := ""
-	worktree := filepath.Dir(m.projectDir)
-	if repo != "" {
-		branch = "gimbal/conversation-" + id[:12]
+	branch, worktree := checkout.branch, filepath.Dir(m.projectDir)
+	if checkout.repo != "" && !in.SharedCheckout {
+		if branch == "" {
+			branch = "gimbal/conversation-" + id[:12]
+		}
 		worktree = filepath.Join(m.projectDir, "conversation-worktrees", id)
 		if err := os.MkdirAll(filepath.Dir(worktree), 0o755); err != nil {
 			return Conversation{}, fmt.Errorf("conversation: create worktree directory: %w", err)
 		}
-		command := exec.CommandContext(ctx, "git", "-C", repo, "worktree", "add", "-b", branch, worktree, "HEAD")
-		if output, err := command.CombinedOutput(); err != nil {
-			return Conversation{}, fmt.Errorf("conversation: create worktree: %w: %s", err, strings.TrimSpace(string(output)))
+		if _, err := gitOutput(ctx, checkout.repo, "worktree", "add", "-b", branch, worktree, checkout.commit); err != nil {
+			return Conversation{}, fmt.Errorf("conversation: create worktree: %w", err)
 		}
 	}
 
@@ -272,19 +275,22 @@ type Harness struct {
 }
 
 // Setup is what a new conversation in this project can choose and where it
-// will work. Every conversation runs on this machine; with a Git HEAD it gets
-// its own worktree branched from HEAD, and otherwise it shares Directory.
+// will work. Bases are locally available branches; no discovery fetches Git.
+// Git means this admitted directory has usable committed history.
 type Setup struct {
 	Harnesses []Harness `json:"harnesses"`
 	Directory string    `json:"directory"`
 	Git       bool      `json:"git"`
 	Branch    string    `json:"branch"`
+	Unborn    bool      `json:"unborn"`
+	Bases     []string  `json:"bases"`
+	Base      string    `json:"base"`
 }
 
 // Setup reports the choices and the fixed environment for a new conversation.
 func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 	newest := modelalias.Newest()
-	setup := Setup{Harnesses: []Harness{}}
+	setup := Setup{Harnesses: []Harness{}, Bases: []string{}}
 	for _, provider := range []string{"claude", "codex", "agy"} {
 		model, _, err := providerModel(provider, "")
 		if err != nil {
@@ -308,10 +314,12 @@ func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 		return Setup{}, fmt.Errorf("conversation: find repository: %w", err)
 	}
 	if setup.Git = repo != ""; setup.Git {
-		setup.Branch, _ = gitOutput(ctx, directory, "branch", "--show-current")
-		if setup.Branch == "" {
-			setup.Branch = "HEAD"
+		setup.Branch, setup.Bases, setup.Base, err = checkoutBases(ctx, repo)
+		if err != nil {
+			return Setup{}, err
 		}
+	} else if _, err := os.Stat(filepath.Join(directory, ".git")); err == nil {
+		setup.Unborn = true
 	}
 	return setup, nil
 }

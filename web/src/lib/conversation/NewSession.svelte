@@ -23,6 +23,14 @@
   const recent = $derived(conversationsQuery.current ?? []);
   let actionError = $state('');
   let picked = $state<{ provider: string; model: string }>();
+  let sharedCheckout = $state(false);
+  let editedBranch = $state<string>();
+  let pickedBase = $state<string>();
+  const isolated = $derived(!!setup?.git && !sharedCheckout);
+  const suggestedBranch = $derived((form.fields.message.value() ?? '').split('\n')[0]
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48).replace(/-$/, ''));
+  const branch = $derived(editedBranch ?? (suggestedBranch ? `gimbal/${suggestedBranch}` : ''));
+  const base = $derived(pickedBase ?? setup?.base ?? '');
   // Defaults follow this project's last session, then the first harness's cheap model.
   const choice = $derived(picked
     ?? (recent[0] ? { provider: recent[0].provider, model: recent[0].model }
@@ -48,6 +56,9 @@
       <input {...form.fields.provider.as('hidden', choice.provider)} />
       <input {...form.fields.model.as('hidden', choice.model)} />
     {/if}
+    <input {...form.fields.shared_checkout.as('hidden', sharedCheckout)} />
+    <input {...form.fields.branch.as('hidden', isolated ? branch : '')} />
+    <input {...form.fields.base.as('hidden', isolated ? base : '')} />
     <textarea {...form.fields.message.as('text')} rows={3} aria-label="First message" disabled={!!form.pending}
       placeholder="Describe the work. Your first message starts the session."
       onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}></textarea>
@@ -61,23 +72,29 @@
           <Popover.Content align="start" collisionPadding={8} class="w-72 gap-1 p-1.5">
             <h3>This Mac</h3>
             <div class="option selected">
-              <span class="label">{setup.directory}<small>{setup.git ? `Git · ${setup.branch}` : 'Not a Git repository'}</small></span>
+              <span class="label">{setup.directory}<small>{setup.git ? `Git · ${setup.branch}` : setup.unborn ? 'Git · No commits yet' : 'Not a Git repository'}</small></span>
               <CheckIcon size={14} aria-hidden="true" />
             </div>
-            <p class="note">Sessions run on this Mac, in this project's directory.</p>
+            <p class="note">Sessions run on this Mac. The worktree choice determines their checkout.</p>
           </Popover.Content>
         </Popover.Root>
         <Popover.Root>
           <Popover.Trigger class="chip" aria-label="Worktree">
-            {#if setup.git}<GitBranchIcon size={14} aria-hidden="true" />New worktree{:else}<FolderIcon size={14} aria-hidden="true" />No worktree{/if}
+            {#if isolated}<GitBranchIcon size={14} aria-hidden="true" />New worktree{:else}<FolderIcon size={14} aria-hidden="true" />{setup.git ? 'Shared checkout' : 'No worktree'}{/if}
             <ChevronDownIcon size={14} aria-hidden="true" />
           </Popover.Trigger>
           <Popover.Content align="start" collisionPadding={8} class="w-80 gap-3">
-            <label class="toggle">Create a worktree <Switch checked={setup.git} disabled /></label>
-            {#if setup.git}
-              <div class="field"><span>Branch</span><code>gimbal/conversation-…</code></div>
-              <div class="field"><span>From</span><code><GitBranchIcon size={13} aria-hidden="true" />{setup.branch}</code></div>
+            <label class="toggle">Create a worktree <Switch aria-label="Create a worktree" bind:checked={() => isolated, (checked) => (sharedCheckout = !checked)} disabled={!setup.git || !!form.pending} /></label>
+            {#if isolated}
+              <label class="field"><span>Branch</span><input aria-label="New branch" bind:value={() => branch, (value) => (editedBranch = value)} placeholder="Generated when the session starts" disabled={!!form.pending} /></label>
+              <label class="field"><span>From</span><select aria-label="Base branch" bind:value={() => base, (value) => (pickedBase = value)} disabled={!!form.pending}>
+                {#each setup.bases as ref (ref)}<option value={ref}>{ref}</option>{/each}
+              </select></label>
               <p class="note">A separate checkout on This Mac. Other sessions can't change its files. You merge the branch when you're done.</p>
+            {:else if setup.git}
+              <p class="note">This session works in {setup.directory}, in the existing checkout. You and other sessions there can change the same files.</p>
+            {:else if setup.unborn}
+              <p class="note">{setup.directory} has no Git commit yet, so this session works in the directory itself. Other sessions there can change the same files.</p>
             {:else}
               <p class="note">{setup.directory} is not a Git repository, so this session works in the directory itself. Other sessions there can change the same files.</p>
             {/if}
@@ -121,7 +138,7 @@
   .note { margin: 0; padding: 0 2px; color: var(--muted-foreground); font-size: 12px; line-height: 1.5; }
   .toggle { display: flex; align-items: center; justify-content: space-between; font-size: 13px; font-weight: 500; }
   .field { display: grid; gap: 6px; font-size: 13px; }
-  .field code { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted-foreground); font-family: var(--font-sans); font-size: 13px; }
+  .field input, .field select { box-sizing: border-box; width: 100%; min-width: 0; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--foreground); background: var(--background); font: inherit; }
   .issue { margin: 8px 2px 0; color: var(--destructive); font-size: 12px; }
   .start-like { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin-top: 12px; padding: 0 2px; color: var(--muted-foreground); font-size: 12px; }
   .start-like button { padding: 0; border: 0; color: var(--foreground); opacity: .75; background: none; font: inherit; cursor: pointer; }

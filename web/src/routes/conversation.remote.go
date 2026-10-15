@@ -17,9 +17,12 @@ import (
 // CreateConversation starts a conversation with its first message, which
 // also titles it. Model may be blank to use the provider's cheap default.
 type CreateConversation struct {
-	Provider string `json:"provider"`
-	Model    string `json:"model"`
-	Message  string `json:"message"`
+	Provider       string `json:"provider"`
+	Model          string `json:"model"`
+	Message        string `json:"message"`
+	SharedCheckout bool   `json:"shared_checkout"`
+	Branch         string `json:"branch"`
+	Base           string `json:"base"`
 }
 
 // SendConversationMessage is one visible user turn.
@@ -42,7 +45,7 @@ func createConversation(ctx context.Context, event app.RequestEvent[params.Param
 	if strings.TrimSpace(arg.Message) == "" {
 		return conversation.Conversation{}, skgo.Invalidf("message", "Describe the work to start the session.")
 	}
-	item, err := manager.Start(ctx, conversation.NewConversation{Provider: arg.Provider, Model: arg.Model}, arg.Message)
+	item, err := manager.Start(ctx, conversation.NewConversation{Provider: arg.Provider, Model: arg.Model, SharedCheckout: arg.SharedCheckout, Branch: arg.Branch, Base: arg.Base}, arg.Message)
 	if err != nil {
 		return conversation.Conversation{}, skgo.Errorf(http.StatusBadRequest, "%s", err)
 	}

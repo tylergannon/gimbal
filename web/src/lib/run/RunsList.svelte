@@ -5,6 +5,7 @@
   export type RunsListProps = { items: RunCardItem[]; attention: InterviewRow[]; now?: number; active?: boolean; onopenrun?: (run: RunRow) => void };
 </script>
 <script lang="ts">
+  import { afterNavigate } from '$app/navigation';
   import SearchIcon from '@lucide/svelte/icons/search';
   import EllipsisIcon from '@lucide/svelte/icons/ellipsis';
   import * as Popover from '#lib/components/ui/popover';
@@ -22,7 +23,7 @@
   let busy = $state(false);
   let menuRun = $state('');
   let feedback = $state('');
-  $effect(() => { if (!active) { menuRun = ''; cancelling = undefined; feedback = ''; } });
+  afterNavigate(() => { menuRun = ''; cancelling = undefined; feedback = ''; });
   const pending = $derived(new Set(attention.filter(item => item.status === 'pending').map(item => item.run)));
   const filters = [{ value: 'live', label: 'Live' }, { value: 'needs-you', label: 'Needs you' }, { value: 'ended', label: 'Ended' }, { value: 'all', label: 'All' }] as const;
   const shown = $derived(items.filter(item => {

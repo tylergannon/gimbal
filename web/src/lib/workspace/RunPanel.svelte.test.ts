@@ -4,6 +4,13 @@ import { render } from "vitest-browser-svelte";
 import { planTripFixture } from "#lib/run/fixtures/index.js";
 import RetainedRunTabs from "./RetainedRunTabs.svelte";
 
+const navigation = vi.hoisted(() => ({ callbacks: [] as (() => void)[] }));
+vi.mock("$app/navigation", () => ({
+  goto: vi.fn(async () => {}),
+  afterNavigate: (callback: () => void) => {
+    navigation.callbacks.push(callback);
+  },
+}));
 const remote = vi.hoisted(() => ({
   cancelRun: vi.fn(async (_: { run: string }) => ({ accepted: true })),
   stopTurn: vi.fn(async () => ({ accepted: true })),
@@ -31,6 +38,7 @@ class SilentEventSource {
 const originalEventSource = globalThis.EventSource;
 
 beforeEach(() => {
+  navigation.callbacks = [];
   remote.cancelRun.mockClear();
   SilentEventSource.instances = [];
   globalThis.EventSource = SilentEventSource as unknown as typeof EventSource;
@@ -64,6 +72,7 @@ test("switching away from a run removes its cancellation guard and leaves the de
   const { screen, run, openGuard } = await openRunTabs();
   await openGuard();
   await screen.rerender({ project: "retained-project", run, selected: "draft" });
+  navigation.callbacks.forEach((callback) => callback());
   await expect.element(guard()).not.toBeInTheDocument();
   expect(overlay()).toBeNull();
   const draft = screen.getByRole("textbox", { name: "Draft" });

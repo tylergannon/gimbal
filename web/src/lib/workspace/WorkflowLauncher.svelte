@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { afterNavigate } from '$app/navigation';
   import * as Popover from '#lib/components/ui/popover';
   import { Popover as PopoverPrimitive } from 'bits-ui';
   import { workflowCatalog } from '../../routes/workflow.remote';
@@ -7,7 +8,7 @@
   const catalog = $derived(workflowCatalog(project));
   let open = $state(false);
   let selected = $state('');
-  $effect(() => { if (!active) open = false; });
+  afterNavigate(() => { open = false; });
   const workflow = $derived(catalog.current?.workflows.find(item => item.name === selected) ?? catalog.current?.workflows[0]);
 </script>
 <div class="launcher">

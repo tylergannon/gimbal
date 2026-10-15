@@ -20,6 +20,10 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	if len(os.Args) > 1 && os.Args[1] == "--test-ssh-tunnel" {
+		runTunnelFixture(os.Args[2:])
+		os.Exit(0)
+	}
 	if len(os.Args) == 3 && os.Args[1] == "desktop-environment" {
 		var request HelperRequest
 		if e := json.Unmarshal([]byte(os.Args[2]), &request); e != nil {

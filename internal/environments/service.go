@@ -408,7 +408,11 @@ func (s *Service) binding(ctx context.Context, t Target, owner backend.Owner, ac
 		t.Route = route
 		b := Binding{Target: t, Owner: owner, Connection: c}
 		if acquire && c.Orchestrator != nil {
-			_, e := c.Orchestrator.AcquireEnvironment(ctx, owner, route.Environment)
+			env, e := c.Orchestrator.AcquireEnvironment(ctx, owner, route.Environment)
+			b.environmentID = env.ID
+			if e == nil {
+				s.updateProvisionedState(ctx, b)
+			}
 			return b, e
 		}
 		return b, nil
@@ -430,13 +434,22 @@ func (s *Service) binding(ctx context.Context, t Target, owner backend.Owner, ac
 	t.Route = route
 	b := Binding{Target: t, Owner: owner, Connection: c}
 	if acquire && c.Orchestrator != nil {
-		_, e = c.Orchestrator.AcquireEnvironment(ctx, owner, route.Environment)
+		env, err := c.Orchestrator.AcquireEnvironment(ctx, owner, route.Environment)
+		b.environmentID = env.ID
+		e = err
+		if e == nil {
+			s.updateProvisionedState(ctx, b)
+		}
 	}
 	return b, e
 }
 func (s *Service) Release(ctx context.Context, b Binding) error {
 	if b.Connection.Orchestrator != nil {
-		return b.Connection.Orchestrator.Release(ctx, backend.Scope{Run: b.Owner.Run, Scope: b.Owner.Scope})
+		e := b.Connection.Orchestrator.Release(ctx, backend.Scope{Run: b.Owner.Run, Scope: b.Owner.Scope})
+		if e == nil {
+			s.updateProvisionedState(ctx, b)
+		}
+		return e
 	}
 	return nil
 }

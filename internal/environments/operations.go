@@ -240,6 +240,7 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 	if e = json.Unmarshal(stdout, &result); e != nil {
 		return result, fmt.Errorf("desktop helper returned invalid JSON; check remote Gimbal build: %w", e)
 	}
+	s.recordFacts(t, result, nil)
 	if mutation {
 		record.Result = &result
 		if e = writeReceipt(journal, record); e != nil {
@@ -249,7 +250,6 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 			return result, e
 		}
 	}
-	s.recordFacts(t, result, nil)
 	return result, nil
 }
 func (s *Service) recordFacts(t Target, r HelperResult, err error) {
@@ -280,7 +280,19 @@ func (s *Service) cleanupBinding(ctx context.Context, b Binding) error {
 	c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
 	cc := effects.WithEnvironment(effects.WithConnection(c, b.Connection), b.Target.Route.Environment)
-	return effects.Cleanup(cc, "backend", b.Owner.Run, b.Owner.Scope)
+	if b.environmentID == "" {
+		if routing, ok := b.Connection.Orchestrator.(backend.EnvironmentRouting); ok {
+			ds, err := routing.Destinations(c, backend.MessageRequest{Owner: b.Owner, Kind: "process", Process: &backend.Process{Owner: b.Owner}})
+			if err == nil && len(ds) == 1 {
+				b.environmentID = ds[0].ID
+			}
+		}
+	}
+	e := effects.Cleanup(cc, "backend", b.Owner.Run, b.Owner.Scope)
+	if e == nil {
+		s.updateProvisionedState(c, b)
+	}
+	return e
 }
 func (s *Service) retryProbeCleanup() {
 	entries, _ := os.ReadDir(filepath.Join(s.options.InstanceDir, "environment-operations"))
@@ -326,4 +338,52 @@ func (s *Service) pendingIssues() []Issue {
 		}
 	}
 	return out
+}
+
+// Readiness belongs to the orchestrator. Finishing a metadata probe may release
+// the last worker, while another conversation's owner may keep it ready.
+func (s *Service) updateProvisionedState(ctx context.Context, b Binding) {
+	if b.Target.Machine.Kind != KindRoute || b.Target.Route.Environment == "" || b.Connection.Orchestrator == nil {
+		return
+	}
+	routing, ok := b.Connection.Orchestrator.(backend.EnvironmentRouting)
+	if !ok {
+		return
+	}
+	destinations, err := routing.ActiveEnvironments(ctx)
+	state, detail := StateNotStarted, "Starts when needed"
+	if err != nil {
+		state = StateUnreachable
+		detail = "Environment readiness is unavailable: " + err.Error()
+	} else if b.environmentID == "" && len(destinations) > 0 {
+		state = StateConnecting
+		detail = "Checking environment readiness"
+	} else {
+		for _, d := range destinations {
+			if d.ID == b.environmentID {
+				state = StateConnected
+				detail = "Connected"
+				break
+			}
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if current, found := s.machineLocked(b.Target.Machine.ID); found {
+		a, _ := json.Marshal(current)
+		v, _ := json.Marshal(b.Target.Machine)
+		if string(a) != string(v) {
+			return
+		}
+	}
+	st := s.states[b.Target.Machine.ID]
+	st.ID = b.Target.Machine.ID
+	st.Name = b.Target.Machine.Name
+	st.Kind = b.Target.Machine.Kind
+	if st.State != state {
+		st.Since = time.Now().UnixMilli()
+	}
+	st.State = state
+	st.Detail = detail
+	s.states[st.ID] = st
 }

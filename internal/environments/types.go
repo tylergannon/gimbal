@@ -205,6 +205,8 @@ type Binding struct {
 	Target     Target
 	Owner      backend.Owner
 	Connection backend.Connection
+	// environmentID is the backend readiness identity, not the configured display name.
+	environmentID string
 }
 
 // ConfigDocument.Revision is a hash of the exact current file bytes; empty means

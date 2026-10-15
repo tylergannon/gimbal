@@ -392,11 +392,10 @@ test("usage is five zero-filled token counts and a stated cost, whatever the har
     }),
     { input: 10, cache_read: 4, cache_write: 5, output: 2, reasoning: 3, stated_cost: 0.25 },
   );
-  // A field the harness never reported reads as the number zero, with no
-  // wording about availability anywhere in the line.
+  // Token counts stay numeric; an unstated charge must not look free.
   assert.equal(
     usageText(usageOf({ tokens: { input: 7 } })),
-    "7 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · $0",
+    "7 in · 0 out · 0 reasoning · 0 cache read · 0 cache write · Not reported",
   );
 });
 

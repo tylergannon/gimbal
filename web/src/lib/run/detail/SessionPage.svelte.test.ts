@@ -120,6 +120,22 @@ test("agent focus reads like chat and preserves prompt, usage, tools and steer f
     .element(screen.getByText(snapshot.turns[turnID].prompt, { exact: true }))
     .toBeVisible();
 });
+test.each([
+  [0, "Not reported"],
+  [0.004, "<$0.01"],
+  [0.12, "$0.12"],
+])("session cost %s preserves an unknown or nonzero charge", async (cost, label) => {
+  const snapshot = record();
+  snapshot.totals.sessions[sessionID].all.stated_cost = cost as number;
+  const screen = await render(Page, {
+    project: "project",
+    snapshot,
+    observation: new RunObservation(snapshot),
+    sessionID,
+  });
+  await expect.element(screen.getByText(label as string, { exact: true }).first()).toBeVisible();
+  await expect.element(screen.getByText("$0.00", { exact: true })).not.toBeInTheDocument();
+});
 test("steer submit targets the current session even while viewing an earlier turn", async () => {
   remote.sent.mockClear();
   const snapshot = record();

@@ -445,10 +445,15 @@ export function usageOf(value: JSONObject | undefined): Usage {
   };
 }
 
+export function statedCostText(cost: number): string {
+  // Zero means the harness stated no cost, not that the turn was free.
+  return cost <= 0 ? "Not reported" : cost < 0.01 ? "<$0.01" : `$${cost.toFixed(2)}`;
+}
+
 /** One line of usage, for a message, a session total or a scope. */
 export const usageText = (usage: Usage): string =>
   `${usage.input} in · ${usage.output} out · ${usage.reasoning} reasoning · ` +
-  `${usage.cache_read} cache read · ${usage.cache_write} cache write · $${usage.stated_cost}`;
+  `${usage.cache_read} cache read · ${usage.cache_write} cache write · ${statedCostText(usage.stated_cost)}`;
 
 const numberOf = (value: unknown): number =>
   typeof value === "number" && Number.isFinite(value) ? value : 0;

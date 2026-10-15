@@ -24,7 +24,7 @@ func assetFixture(t *testing.T) string {
 			t.Fatalf("%v: %v %s", args, err, raw)
 		}
 	}
-	writeAsset(t, root, ".gitignore", "web/build/\ndist/\n")
+	writeAsset(t, root, ".gitignore", "web/build/\ndist/\n.skgo/\nnative/Generated.swift\n")
 	writeAsset(t, root, "obsolete.go", "old generated code")
 	writeAsset(t, root, "binding.go", "old binding")
 	run("init", "-q")
@@ -93,6 +93,35 @@ func TestRestoresPreparedFrontendAndChangedNewDeletedSource(t *testing.T) {
 		t.Fatal("metadata left in checkout")
 	}
 }
+func TestTransfersBuildReceiptForAutomaticAdoption(t *testing.T) {
+	root := assetFixture(t)
+	receipt := `{"Source":"producer-source","Outputs":"producer-output"}`
+	writeAsset(t, root, ".skgo/build.json", receipt)
+	writeAsset(t, root, "native/Generated.swift", "producer Swift projection")
+	archive := filepath.Join(root, "dist/inputs.tar.gz")
+	if err := pack(root, archive); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(root, "native/Generated.swift")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(root, ".skgo")); err != nil {
+		t.Fatal(err)
+	}
+	if err := restore(root, archive); err != nil {
+		t.Fatal(err)
+	}
+	if readAsset(t, root, "native/Generated.swift") != "producer Swift projection" {
+		t.Fatal("ignored Swift projection lost in release handoff")
+	}
+	if readAsset(t, root, ".skgo/import.json") != receipt {
+		t.Fatal("producer receipt lost in release handoff")
+	}
+	if _, err := os.Stat(filepath.Join(root, ".skgo/build.json")); !os.IsNotExist(err) {
+		t.Fatal("producer local environment stamp was installed directly")
+	}
+}
+
 func TestWrongRevisionRejectedBeforeWriting(t *testing.T) {
 	root := assetFixture(t)
 	writeAsset(t, root, "binding.go", "candidate binding")

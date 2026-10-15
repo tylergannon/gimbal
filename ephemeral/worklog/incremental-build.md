@@ -1,0 +1,4 @@
+correction: Every ordinary build must reuse current outputs automatically. There is no fast/slow choice. Explicit clean removes project caches; callers do not decide whether cached outputs are safe.
+friction: just app compiled the frontend before native build compiled it again; native SDK preparation deleted compiler caches and rewrote unchanged inputs.
+decision: Release assets transfer the build's source/output digest as a one-time import receipt. The receiving ordinary build verifies both digests and binds the resulting local cache to its full environment; no caller-controlled reuse bypass is exposed.
+friction: Build freshness must exclude .gimbal runtime state, worktree .git pointers, and the bundled CLI copied after frontend preparation; otherwise unrelated activity invalidates builds.

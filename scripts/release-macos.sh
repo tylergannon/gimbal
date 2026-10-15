@@ -174,6 +174,11 @@ if [[ "$MODE" == "release" ]]; then
 	fi
 fi
 
+if ((!SKIP_BUILD)); then
+    # Validate/adopt restored frontend outputs before compiling either Go host.
+    (cd "$ROOT" && go tool skgo build)
+fi
+
 if ((!SKIP_BUILD)) && [[ "${RELEASE_PREPARED_INPUTS:-}" != 1 ]]; then
 	printf 'Building the exact-version bundled Gimbal CLI for macOS arm64...\n'
 	GIT_COMMIT="$(git -C "$ROOT" rev-parse --short HEAD)"
@@ -207,7 +212,7 @@ else
 		[[ -d "$PROJECT" ]] || die "--skip-generate requires an existing Xcode project: $PROJECT"
 	else
 		printf 'Preparing native libraries and app project without a Debug build...\n'
-		(cd "$ROOT" && go tool skgo native build --platform macos --prepare-only --reuse-web-build --jobs "${GIMBAL_BUILD_JOBS:-4}")
+		(cd "$ROOT" && go tool skgo native build --platform macos --prepare-only --jobs "${GIMBAL_BUILD_JOBS:-4}")
 	fi
 	[[ -d "$PROJECT" ]] || die "generated Xcode project not found: $PROJECT"
 	printf 'Building unsigned Release app with Xcode...\n'

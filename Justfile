@@ -3,27 +3,24 @@ origin := env("ORIGIN", "http://127.0.0.1:8080")
 build: build-assets
     go build -o bin/gimbal ./cmd/gimbal
 
-# Portable generated source and frontend: prepared once for a release.
-# Invoke vp directly; Vite+ manages the package-manager version.
+# Reuse current dependency, generation and frontend outputs automatically.
 build-assets:
-    go mod tidy
-    cd web && vp install
-    go generate ./...
-    cd web && vp fmt
-    cd web && vp build
-    test -s web/build/skgo.manifest.json
+    go tool skgo build
+
+# Explicitly discard project build caches; ordinary builds always reuse them.
+clean:
+    rm -rf .skgo bin native/build web/.svelte-kit
+    find web/build -mindepth 1 ! -name .gitkeep -delete
+    rm -f native/Resources/gimbal
 
 dev:
     go run ./internal/generate/appgen dev
 
-# Build the Debug macOS app around a fresh CLI. Native generation republishes SKGO outputs;
-# restore Gimbal's separate observation and workflow projections afterward.
+# Build the Debug macOS app around its matching CLI, reusing current outputs.
 app: build
     mkdir -p native/Resources
-    install -m 755 bin/gimbal native/Resources/gimbal
+    cmp -s bin/gimbal native/Resources/gimbal || install -m 755 bin/gimbal native/Resources/gimbal
     go tool skgo native build --platform macos
-    go generate ./internal/skgo ./workflow
-    cd web && vp fmt
 
 # Real microphone validation needs a stable identity so macOS permissions survive
 # rebuilds. Ordinary source builds remain usable without a signing certificate.

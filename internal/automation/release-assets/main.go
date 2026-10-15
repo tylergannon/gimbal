@@ -82,6 +82,13 @@ func pack(root, archive string) error {
 			return err
 		}
 		names := append([]string{"web/build"}, changed...)
+		for _, name := range []string{".skgo/build.json", "native/Generated.swift"} {
+			if _, err := os.Stat(filepath.Join(root, name)); err == nil {
+				names = append(names, name)
+			} else if !os.IsNotExist(err) {
+				return err
+			}
+		}
 		slices.Sort(names)
 		names = slices.Compact(names)
 		seen := map[string]bool{}
@@ -115,6 +122,9 @@ func pack(root, archive string) error {
 					return err
 				}
 				header.Name = relative
+				if relative == ".skgo/build.json" {
+					header.Name = ".skgo/import.json"
+				}
 				if err := writer.WriteHeader(header); err != nil {
 					return err
 				}

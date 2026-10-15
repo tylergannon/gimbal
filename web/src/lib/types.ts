@@ -45,6 +45,11 @@ export type RecordingRequest = {
   id: string;
 };
 
+export type RunRequest = {
+  project: string;
+  id: string;
+};
+
 export type StateRequest = {
   durationMs: number | null;
   project: string;

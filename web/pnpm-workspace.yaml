@@ -29,3 +29,6 @@ peerDependencyRules:
   allowedVersions:
     vite: "*"
     vitest: "*"
+
+patchedDependencies:
+  "@sveltejs/kit@3.0.1": patches/@sveltejs__kit@3.0.1.patch

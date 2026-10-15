@@ -38,3 +38,28 @@ export type CancellationState = {
   cleanup: string;
   cleanup_error: string;
 };
+
+/**
+ * RunsData is the complete server snapshot needed by RunsList.
+ */
+export type RunsData = {
+  items: Array<RunItem>;
+  attention: Array<InterviewRow>;
+  now: number;
+};
+
+/**
+ * InterviewRow is one question an interview asked. An accepted answer updates the same row from pending to answered; an empty answer means the person ended the interview.
+ */
+export type InterviewRow = {
+  run: string;
+  question_id: string;
+  name: string;
+  scope: string;
+  session: string;
+  question: string;
+  status: string;
+  answer: string;
+  asked: number;
+  answered: number;
+};

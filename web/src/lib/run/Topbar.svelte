@@ -13,6 +13,8 @@
 
   let {
     run,
+    project = page.params.project,
+    active = true,
     connection,
     activeTurn,
     waiting = 0,
@@ -29,6 +31,8 @@
     onclosesession,
   }: {
     run: RunRow;
+    project?: string;
+    active?: boolean;
     connection: ConnectionState;
     activeTurn?: TurnRow;
     waiting?: number;
@@ -121,7 +125,7 @@
   }
 
   function shortcut(event: KeyboardEvent) {
-    if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!active || event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey) return;
     const target = event.target as HTMLElement;
     if (target.closest("input, textarea, [contenteditable=true]")) return;
     event.preventDefault();
@@ -134,7 +138,7 @@
 
 <header class="topbar">
   <nav aria-label="Breadcrumb" class="breadcrumb">
-	<a href={`/projects/${page.params.project}`}>Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
+	<a href={`/projects/${project}`}>Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
     ><span class="run-separator" aria-hidden="true">›</span><code>{run.id.split(".")[0]?.slice(-8) || run.id}</code
     >{#if sessionName}<span aria-hidden="true">›</span><strong>{sessionName}</strong>{/if}
   </nav>

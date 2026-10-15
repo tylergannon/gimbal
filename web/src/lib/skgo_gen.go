@@ -7,12 +7,17 @@ import (
 	projectfiles "github.com/tylergannon/gimbal/internal/projectfiles"
 	promises "github.com/tylergannon/gimbal/internal/promises"
 	transcript "github.com/tylergannon/gimbal/internal/transcript"
+	runview "github.com/tylergannon/gimbal/web/runview"
 )
 
 // The functions this package declares, published under names the generated
 // bindings package can spell. Each is the function itself and not a wrapper:
 // skgo.Refresh finds a query by the code pointer of the function it names.
 var (
+	// Skgo_viewRun is viewRun, published as src/lib/runs.remote.ts#viewRun.
+	Skgo_viewRun = viewRun
+	// Skgo_watchRuns is watchRuns, published as src/lib/runs.remote.ts#watchRuns.
+	Skgo_watchRuns = watchRuns
 	// Skgo_abortSession is abortSession, published as src/lib/transcript.remote.ts#abortSession.
 	Skgo_abortSession = abortSession
 	// Skgo_acceptTranscript is acceptTranscript, published as src/lib/transcript.remote.ts#acceptTranscript.
@@ -54,6 +59,8 @@ var (
 )
 
 type (
+	// SkgoOut_watchRuns is the type watchRuns yields.
+	SkgoOut_watchRuns = runview.RunsData
 	// SkgoOut_watchRecording is the type watchRecording yields.
 	SkgoOut_watchRecording = transcript.Recording
 	// SkgoArg_createProject is the type createProject takes.

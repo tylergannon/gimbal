@@ -80,6 +80,7 @@
     <textarea {...form.fields.message.as('text')} rows={3} aria-label="First message" disabled={!!form.pending}
       placeholder="Describe the work. Your first message starts the session."
       onkeydown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}></textarea>
+    {#if active}
     <div class="choices">
       {#if setup && choice}<HarnessPicker {harnesses} {choice} onpick={(next) => choose({ harness: next })} />{/if}
       {#if inventory.current || setup}
@@ -113,6 +114,7 @@
       {/if}
       <button class="send" aria-label="Start session" disabled={!!form.pending || !choice || !setup || !!setupQuery.error}><ArrowUpIcon size={16} /></button>
     </div>
+    {/if}
   </form>
   {#if setupQuery.error}<p class="issue" role="alert">{errorMessage(setupQuery.error)} <button type="button" onclick={() => setupQuery.refresh()}>Retry setup</button></p>{/if}
   {#if setup && !choice}<p class="issue" role="status">No usable harness is available on {setup.machine}. Open Machines to inspect sign-in and installation details.</p>{/if}

@@ -283,3 +283,42 @@ test("Discuss adds removable file context without replacing an existing draft", 
   await screen.getByRole("button", { name: "Remove file context" }).click();
   expect(oncontextremoved).toHaveBeenCalledOnce();
 });
+
+test("opening a file unmounts setup popups while retaining the draft and choices", async () => {
+  const oncreated = vi.fn();
+  const screen = await render(NewSession, {
+    project: "project",
+    name: "Project",
+    oncreated,
+    active: true,
+  });
+  await screen.getByRole("textbox", { name: "First message" }).fill("Read the attached file");
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await screen.getByRole("textbox", { name: "New branch" }).fill("codex/retained-file-draft");
+  const noFrames = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 0);
+  try {
+    await screen.rerender({ project: "project", name: "Project", oncreated, active: false });
+    await expect
+      .element(screen.getByRole("textbox", { name: "New branch" }))
+      .not.toBeInTheDocument();
+    await screen.rerender({
+      project: "project",
+      name: "Project",
+      oncreated,
+      active: true,
+      fileContext: { id: "file", name: "notes.md" },
+    });
+    await expect
+      .element(screen.getByRole("textbox", { name: "New branch" }))
+      .not.toBeInTheDocument();
+    await expect
+      .element(screen.getByRole("textbox", { name: "First message" }))
+      .toHaveValue("Read the attached file");
+  } finally {
+    noFrames.mockRestore();
+  }
+  await screen.getByRole("button", { name: "Worktree", exact: true }).click();
+  await expect
+    .element(screen.getByRole("textbox", { name: "New branch" }))
+    .toHaveValue("codex/retained-file-draft");
+});

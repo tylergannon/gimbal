@@ -19,6 +19,8 @@ var (
 	Skgo_cloneEnvironment = cloneEnvironment
 	// Skgo_environmentConfig is environmentConfig, published as src/lib/environments.remote.ts#environmentConfig.
 	Skgo_environmentConfig = environmentConfig
+	// Skgo_environmentSnapshot is environmentSnapshot, published as src/lib/environments.remote.ts#environmentSnapshot.
+	Skgo_environmentSnapshot = environmentSnapshot
 	// Skgo_inspectEnvironment is inspectEnvironment, published as src/lib/environments.remote.ts#inspectEnvironment.
 	Skgo_inspectEnvironment = inspectEnvironment
 	// Skgo_listEnvironmentDirectories is listEnvironmentDirectories, published as src/lib/environments.remote.ts#listEnvironmentDirectories.
@@ -59,6 +61,8 @@ var (
 	Skgo_recordingHeader = recordingHeader
 	// Skgo_recordingHistory is recordingHistory, published as src/lib/transcript.remote.ts#recordingHistory.
 	Skgo_recordingHistory = recordingHistory
+	// Skgo_recordingSnapshot is recordingSnapshot, published as src/lib/transcript.remote.ts#recordingSnapshot.
+	Skgo_recordingSnapshot = recordingSnapshot
 	// Skgo_touchSession is touchSession, published as src/lib/transcript.remote.ts#touchSession.
 	Skgo_touchSession = touchSession
 	// Skgo_watchRecording is watchRecording, published as src/lib/transcript.remote.ts#watchRecording.

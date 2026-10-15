@@ -40,6 +40,8 @@ export const cloneEnvironment = form("unchecked", (_arg: CloneEnvironment): Dire
 
 export const environmentConfig = query((): ConfigDocument => unimplemented());
 
+export const environmentSnapshot = query("unchecked", (_arg: string): Snapshot => unimplemented());
+
 export const inspectEnvironment = query("unchecked", (_arg: EnvironmentLocation): Directory =>
   unimplemented(),
 );

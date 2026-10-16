@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.1] - 2026-10-16
+
+### Changed
+
+- fix: keep backend Go edits out of Tailwind reloads (#606)
+
 ## [0.15.0] - 2026-10-16
 
 ### Changed
@@ -464,7 +470,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.15.0...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.15.1...main
+[0.15.1]: https://github.com/tylergannon/gimbal/compare/v0.15.0...v0.15.1
 [0.15.0]: https://github.com/tylergannon/gimbal/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/tylergannon/gimbal/compare/v0.13.45...v0.14.0
 [0.13.45]: https://github.com/tylergannon/gimbal/compare/v0.13.44...v0.13.45

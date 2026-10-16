@@ -62,7 +62,8 @@ async function openRunTabs() {
   };
   const screen = await render(RetainedRunTabs, { project: "retained-project", run });
   const openGuard = async () => {
-    await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
+    await screen.getByRole("button", { name: "More run actions" }).click();
+    await screen.getByRole("button", { name: "Cancel run…", exact: true }).click();
     await expect.element(guard()).toBeVisible();
   };
   return { screen, run, openGuard };
@@ -81,9 +82,11 @@ test("switching away from a run removes its cancellation guard and leaves the de
   await expect.element(draft).toHaveValue("still typing");
 
   await screen.rerender({ project: "retained-project", run, selected: "run" });
+  await screen.getByRole("button", { name: "More run actions" }).click();
   await expect
-    .element(screen.getByRole("button", { name: "Cancel run", exact: true }))
+    .element(screen.getByRole("button", { name: "Cancel run…", exact: true }))
     .toBeVisible();
+  await screen.getByRole("button", { name: "More run actions" }).click();
   await expect.element(guard()).not.toBeInTheDocument();
   expect(remote.cancelRun).not.toHaveBeenCalled();
 });
@@ -141,7 +144,8 @@ test("eight retained live runs use one observation stream and cancellation still
       .toBe(1);
     expect(SilentEventSource.instances.at(-1)?.url).toContain(runs[id].snapshot.run.id);
   }
-  await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
+  await screen.getByRole("button", { name: "More run actions" }).click();
+  await screen.getByRole("button", { name: "Cancel run…", exact: true }).click();
   await guard().getByRole("button", { name: "Cancel run", exact: true }).click();
   expect(remote.cancelRun.mock.calls).toEqual([[{ run: runs[ids.at(-1)!].snapshot.run.id }]]);
   await screen.rerender({ ...props, selected: "draft" });

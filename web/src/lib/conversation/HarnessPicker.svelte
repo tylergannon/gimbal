@@ -42,7 +42,7 @@
         <h3>{harnessName(shown.id)} models</h3>
         {#each models as model (model)}
           <button type="button" class={["option", { selected: model === choice.model }]} disabled={!!unavailable(shown.id)}
-            onclick={() => { onpick({ provider: shown.id, model, effort: '' }); open = false; }}>
+            onclick={() => { if (shown.id !== choice.provider || model !== choice.model) onpick({ provider: shown.id, model, effort: '' }); open = false; }}>
             <span class="label">{modelName(model)}<code>{model}</code></span>
             {#if model === choice.model}<CheckIcon size={14} aria-hidden="true" />{/if}
           </button>

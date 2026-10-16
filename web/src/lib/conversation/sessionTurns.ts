@@ -27,3 +27,12 @@ export function runEvents(message: JSONObject, record: Pick<Conversation,'id'|'r
   if (!request || !String(message.id).startsWith(`${request.id}/`)) return {};
   return Object.fromEntries((message.content ?? []).map((part:JSONObject,index:number) => [index,launchedRuns(part,record)]));
 }
+
+/** Execution begins at the recorded user delivery, not when an idle draft was opened. */
+export function sessionTurnSeconds(turn: SessionTurn, now?: number): number | undefined {
+  const start = turn.messages.find(message => message.type === 'user' && message.requestID === turn.request.id)?.time?.created;
+  if (typeof start !== 'number' || start <= 0) return undefined;
+  const completed = turn.messages.map(message => message.time?.completed).filter(value => typeof value === 'number');
+  const end = now ?? (completed.length ? Math.max(...completed) : undefined);
+  return typeof end === 'number' ? Math.max(0,Math.floor((end-start)/1000)) : undefined;
+}

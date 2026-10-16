@@ -3,13 +3,14 @@
   import { answerInterview } from '../../routes/interview.remote';
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
   import { errorMessage } from '#lib/errors';
-  let { run, question }: { run: string; question: InterviewRow } = $props();
-  const form = $derived(answerInterview.for(`run-question-${run}-${question.question_id}`));
+  let { run, question, composer = false, target }: { run: string; question: InterviewRow; composer?: boolean; target?: string } = $props();
+  const instance = $props.id();
+  const form = $derived(answerInterview.for(`run-question-${run}-${question.question_id}-${instance}`));
   let feedback = $state('');
 </script>
 <section aria-label="Waiting question" class="question">
-  <p class="label">Needs you · {question.scope || 'root'}</p>
-  <h2>{question.question}</h2>
+  <p class="label">{composer ? `Answer ${target || question.name}` : `Needs you · ${question.scope || 'root'}`}</p>
+  {#if !composer}<h2>{question.question}</h2>{/if}
   <form {...form.enhance(async submitted => {
     feedback = '';
     try {
@@ -19,7 +20,7 @@
   })}>
     <input {...form.fields.run.as('hidden', run)} />
     <input {...form.fields.question_id.as('hidden', question.question_id)} />
-    <textarea {...form.fields.answer.as('text')} aria-label="Answer the waiting question" rows={2} required disabled={!!form.pending}></textarea>
+    <textarea {...form.fields.answer.as('text')} aria-label="Answer the waiting question" placeholder="Answer the question above…" rows={2} required disabled={!!form.pending}></textarea>
     <button type="submit" disabled={!!form.pending}>{form.pending ? 'Sending…' : 'Send answer'}</button>
     {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p role="alert">{issue.message}</p>{/each}
     {#if feedback}<p role="status">{feedback}</p>{/if}

@@ -1,0 +1,10 @@
+# UI four slices
+
+decision: User requests four feature areas, sequentially: run conversation, reliable tab state/grouping, project home/sidebar, session parity. One PR after all four; promises backend excluded. Per-slice focused checks and runtime visuals, not repeated full suites.
+decision: Exact live Designer workspace b518e1ca-35ae-4919-b742-bd1d47becea1 cards run-tab 84f832d10742, run-tab-answer 8e79e6accdf0, tab-groups 25ba5754517e, project-home 59085ba15033, project-switch 2c1b72ba7841, session 937d4fa416b8. Local source/render bundle /tmp/gimbal-ui-design-reference; ACCEPTANCE.md distinguishes UI from missing backend provenance. No source copies or screenshots committed.
+decision: Run transcripts reuse actual observation state and shared conversation event rendering. Missing invocation starter, source turn, private context and steer author are omitted rather than inferred.
+friction: Dev startup generator reformats generated TypeScript despite no input changes. Restore unrelated generated files after generation; no manual edits to generated output.
+decision: Session.Steer explicitly drops messages to idle sessions (session.go), while steerLoop queues for a live loop planner's next decision. Transcript offers this queued mode only for a uniquely matched actual planner/loop; idle ordinary sessions honestly wait for a turn instead of claiming delivery.
+friction: Keeping both Transcript and Map mounted exposed SvelteKit remote_form_multiple_elements for the shared interview form key. Each RunQuestions component now has its own $props.id-based instance, so retained views can coexist safely; run-page browser tests caught the real regression.
+decision: Provider transcripts may emit interim schema-shaped JSON drafts before final structured output. Run turns keep drafts in one expandable event section and show the actual final result once; prose stays readable without dropping recorded evidence.
+decision: Map mounts on first explicit use, then remains retained. Mounting it under display:none produced an invalid initial fit; lazy first mount fixes measured geometry while preserving later pan/expanded state.

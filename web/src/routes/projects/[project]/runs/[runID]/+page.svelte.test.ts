@@ -103,6 +103,7 @@ async function renderRunningPage(
   const screen = await render(Page, {
     data: { snapshot, graph: JSON.stringify(fixture.graph) },
   });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect.poll(() => TestEventSource.instances.length).toBe(1);
   return { screen, snapshot, stream: TestEventSource.instances[0] };
 }
@@ -179,17 +180,48 @@ function openSelectedSession() {
   );
 }
 
-test("a run opens on its workflow map, drawn with the designer's shapes", async () => {
+test("a run opens as a transcript and retains its workflow map, drawn with the designer's shapes", async () => {
   const snapshot = multiAgentSnapshot();
   const screen = await render(Page, {
     data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
   });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect.element(mapRegion(screen)).toBeVisible();
   expect(document.querySelector('nav[aria-label="Run views"]')).toBeNull();
   const preferences = await stepButton("preferences");
   expect(preferences.closest(".node")?.getAttribute("data-selection-key")).toContain(
     "research.1/lodging.1",
   );
+});
+
+test("transcript opens the waiting session, shows actual invocation and answers inline", async () => {
+  const snapshot = multiAgentSnapshot();
+  const session = Object.values(snapshot.sessions)[0];
+  const question = Object.values(snapshot.interviews).find((row) => row.status === "pending")!;
+  question.session = session.id;
+  snapshot.scopes[""].values.goal = { value: "Choose a quiet cabin with reliable Wi-Fi." };
+  session.steers = [
+    {
+      message: "Keep the cabin comparison focused.",
+      source: "person",
+      landed: true,
+      created: snapshot.run.started + 1,
+    },
+  ];
+  const screen = await render(Page, {
+    data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
+  });
+  await expect.element(screen.getByRole("region", { name: "Invocation" })).toBeVisible();
+  await expect.element(screen.getByText("Choose a quiet cabin with reliable Wi-Fi.")).toBeVisible();
+  await expect.element(screen.getByText(`Answer ${session.name}`, { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByRole("textbox", { name: "Answer the waiting question" }))
+    .toBeVisible();
+  expect(document.querySelector('.switcher button[aria-pressed="true"]')?.textContent).toContain(
+    session.name,
+  );
+  expect(document.body.textContent).toContain("Keep the cabin comparison focused.");
+  expect(document.body.textContent).not.toContain("*claude.adapter");
 });
 
 test("a saved source page draws the designer's titles over the run", async () => {
@@ -200,6 +232,7 @@ test("a saved source page draws the designer's titles over the run", async () =>
   const screen = await render(Page, {
     data: { snapshot, graph: JSON.stringify(implementInterviewFixture.graph), source: coding },
   });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect.element(mapRegion(screen)).toBeVisible();
   const button = await stepButton("Implement the task");
   button.click();
@@ -242,6 +275,7 @@ test("a missing saved graph reports the missing run data", async () => {
   const snapshot = structuredClone(planTripFixture.snapshot);
   const screen = await render(Page, { data: { snapshot, graph: "" } });
 
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect.element(screen.getByText("Workflow graph required", { exact: true })).toBeVisible();
   await expect
     .element(screen.getByText(`No workflow graph was saved for ${snapshot.run.name}`))
@@ -259,6 +293,7 @@ test("an incompatible saved graph reports the mismatch", async () => {
     data: { snapshot, graph: JSON.stringify(implementInterviewFixture.graph) },
   });
 
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect
     .element(screen.getByText("The saved graph does not match this run", { exact: true }))
     .toBeVisible();
@@ -472,6 +507,7 @@ test("retained run panels close observation while inactive and preserve their se
     data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
   };
   const screen = await render(RunView, { ...props, active: false });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   expect(TestEventSource.instances).toHaveLength(0);
   expect(auth.page.params.project).toBe("test-project");
   const event = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
@@ -527,6 +563,7 @@ test("a retained run panel renders a raw route preload without proxying its obse
     initial: data,
     active: true,
   });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect.element(mapRegion(screen)).toBeVisible();
   await screen.rerender({
     project: "retained-project",
@@ -557,6 +594,7 @@ test("an unseeded retained run panel renders the query result", async () => {
     id: data.snapshot.run.id,
     active: true,
   });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect.element(mapRegion(screen)).toBeVisible();
 });
 
@@ -590,6 +628,7 @@ test("an open session leaves unconfirmed run cleanup controls in the run view", 
   const screen = await render(Page, {
     data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
   });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect
     .element(screen.getByRole("button", { name: "Retry cleanup", exact: true }))
     .toBeVisible();
@@ -607,6 +646,7 @@ test("navigation closes a retained run confirmation without changing its view", 
     data: { snapshot: multiAgentSnapshot(), graph: JSON.stringify(planTripFixture.graph) },
   };
   const screen = await render(RunView, { ...props, active: true });
+  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
   await expect.element(screen.getByRole("alertdialog")).toBeVisible();
   await screen.rerender({ ...props, active: false });

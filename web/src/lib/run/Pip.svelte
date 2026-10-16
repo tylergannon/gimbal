@@ -51,7 +51,7 @@
 
   .pip[data-state="waiting"] {
     background: var(--background);
-    box-shadow: inset 0 0 0 2px var(--status-live);
+    box-shadow: inset 0 0 0 2px var(--status-needs-you);
   }
 
   .pip[data-state="waiting"]::after {
@@ -61,7 +61,7 @@
     width: 4px;
     height: 4px;
     border-radius: 9999px;
-    background: var(--status-live);
+    background: var(--status-needs-you);
     content: "";
   }
 

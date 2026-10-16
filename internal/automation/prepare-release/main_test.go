@@ -59,7 +59,7 @@ func fixture(t *testing.T) gitFixture {
 		t.Fatal(err)
 	}
 	f.write("CHANGELOG.md", strings.Replace(string(text), "## [Unreleased]\n", "## [Unreleased]\n\n### Added\n\n- Native workspace.\n", 1))
-	f.source = f.commit("Workspace release")
+	f.source = f.commit("fix: workspace release")
 	return f
 }
 func prepare(t *testing.T, f gitFixture, source string) (string, string) {
@@ -107,7 +107,7 @@ func TestOldSourceCannotDowngradeNewRelease(t *testing.T) {
 	f := fixture(t)
 	prepare(t, f, f.source)
 	f.git("checkout", "-B", "main", "origin/main")
-	newer := f.commit("Next source")
+	newer := f.commit("fix: next source")
 	tag, _ := prepare(t, f, newer)
 	if tag != "v0.13.5" {
 		t.Fatal(tag)
@@ -166,13 +166,53 @@ func TestEmptyUnreleasedUsesCommitSubjects(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.write("CHANGELOG.md", strings.Replace(string(raw), "\n### Added\n\n- Native workspace.\n", "", 1))
-	source := f.commit("New icon")
+	source := f.commit("fix: new icon")
 	prepare(t, f, source)
 	raw, err = os.ReadFile(filepath.Join(f.repo, "CHANGELOG.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(raw), "- New icon") || !strings.Contains(string(raw), "- Workspace release") {
+	if !strings.Contains(string(raw), "- fix: new icon") || !strings.Contains(string(raw), "- fix: workspace release") {
 		t.Fatal(string(raw))
+	}
+}
+
+func TestFeatureWinsAcrossCoalescedCommits(t *testing.T) {
+	f := fixture(t)
+	f.commit("feat(ui): show run transcripts")
+	source := f.commit("fix: repair transcript scrolling")
+	tag, sha := prepare(t, f, source)
+	if tag != "v0.14.0" {
+		t.Fatal(tag)
+	}
+	if again, same := prepare(t, f, source); again != tag || same != sha {
+		t.Fatal("minor release retry changed reservation")
+	}
+}
+
+func TestNoReleaseCommitsLeaveRepositoryUntouched(t *testing.T) {
+	f := fixture(t)
+	f.git("reset", "--hard", "v0.13.3")
+	f.git("push", "--force", "origin", "main")
+	source := f.commit("chore: maintain release tooling")
+	tag, sha := prepare(t, f, source)
+	if tag != "" || sha != "" || f.git("tag", "--list") != "v0.13.3" || f.git("rev-parse", "HEAD") != source {
+		t.Fatal("non-release commit reserved a version")
+	}
+}
+
+func TestBreakingDeclarationCannotReserveRelease(t *testing.T) {
+	for _, message := range []string{"feat!: replace the API", "fix(api)!: replace the API", "feat: replace the API\n\nBREAKING CHANGE: old API removed", "chore: remove old API\n\nBREAKING-CHANGE: old API removed"} {
+		t.Run(message, func(t *testing.T) {
+			f := fixture(t)
+			source := f.commit(message)
+			tag, sha, err := f.p.prepare(source, "origin")
+			if err == nil || !strings.Contains(err.Error(), "major version increments are forbidden") {
+				t.Fatalf("%q %q %v", tag, sha, err)
+			}
+			if f.git("tag", "--list") != "v0.13.3" || f.git("rev-parse", "HEAD") != source || f.git("status", "--porcelain") != "" {
+				t.Fatal("rejected declaration mutated release state")
+			}
+		})
 	}
 }

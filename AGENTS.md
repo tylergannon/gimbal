@@ -76,6 +76,13 @@ such as DOM integration, never for copying or synchronizing application state.
 
 ## Working here
 
+- Use Conventional Commit titles for commits and PRs. Squash merges use the PR
+  title and body. `feat:` selects a minor release; `fix:` and `perf:` select a
+  patch; other types do not release by themselves. The largest bump since the
+  previous release wins. Gimbal is pre-release and has no users: major version
+  increments are forbidden. Do not use `!`, `BREAKING CHANGE:`, or
+  `BREAKING-CHANGE:` declarations. The commit-msg hook, PR check, and release
+  preparation reject them. Classify pre-release API changes as `feat:` or `fix:`.
 - Commit, and push, whenever something interesting has happened.
 - Commit hooks have a three-second feedback budget: staged-content, whitespace,
   staged Go formatting, and uncached smoke tests for model aliases, environment

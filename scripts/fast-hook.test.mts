@@ -30,7 +30,7 @@ function fixture(t: test.TestContext) {
     'internal/sessionstate', 'internal/pi/model', 'internal/automation/dispatch-release',
     'web/src/lib/workflow-design', 'web/src/lib/sessionstate/fixtures',
     'lefthook.yml', 'scripts/pre-commit.mts', 'scripts/pre-commit.sh', 'scripts/check-staged-content.sh',
-    'scripts/check-staged-format.sh', 'web/tests/workflow/view-state.test.mjs',
+    'scripts/check-staged-format.sh', 'scripts/check-commit-message.sh', 'web/tests/workflow/view-state.test.mjs',
   ]) { mkdirSync(dirname(join(repo, path)), { recursive: true }); cpSync(join(root, path), join(repo, path), { recursive: true }); }
   git('add', '.'); git('-c', 'user.name=Hook test', '-c', 'user.email=hook@example.invalid', 'commit', '--quiet', '-m', 'Base fixture');
   const stage = (path: string, content: string) => {
@@ -144,7 +144,7 @@ test('real Git commit through Lefthook shows slow-hook instructions and still su
   const { repo, git, stage, fake } = fixture(t);
   execFileSync('lefthook', ['install'], { cwd: repo, env: environment });
   stage('fixture.go', 'package fixture\n');
-  const result = spawnSync('git', ['-c', 'user.name=Hook test', '-c', 'user.email=hook@example.invalid', 'commit', '-m', 'Slow hook remains advisory'], {
+  const result = spawnSync('git', ['-c', 'user.name=Hook test', '-c', 'user.email=hook@example.invalid', 'commit', '-m', 'test: slow hook remains advisory'], {
     cwd: repo, env: fake({ go: 'sleep 10' }), encoding: 'utf8', timeout: 15000,
   });
   assert.ifError(result.error);
@@ -154,5 +154,27 @@ test('real Git commit through Lefthook shows slow-hook instructions and still su
   assert.match(output, /just warm-hook/);
   assert.match(output, /investigate slow checks before the next commit/);
   assert.match(output, /cancelled, not passed/);
-  assert.equal(git('log', '-1', '--format=%s').toString().trim(), 'Slow hook remains advisory');
+  assert.equal(git('log', '-1', '--format=%s').toString().trim(), 'test: slow hook remains advisory');
+});
+
+test('real Git commits reject breaking declarations and accept a feature', t => {
+  const { repo, git, stage } = fixture(t);
+  if (spawnSync('lefthook', ['version']).status === 0) {
+    execFileSync('lefthook', ['install'], { cwd: repo, env: environment });
+  } else {
+    // CI does not install Lefthook; exercise the same command as a real Git hook.
+    const hook = join(repo, '.git/hooks/commit-msg');
+    writeFileSync(hook, '#!/bin/sh\nexec bash scripts/check-commit-message.sh "$1"\n');
+    chmodSync(hook, 0o755);
+  }
+  stage('README.md', '# Documentation\n');
+  const before = git('rev-parse', 'HEAD').toString();
+  for (const message of ['feat!: replace API', 'fix(api)!: replace API', 'feat: replace API\n\nBREAKING CHANGE: removed API', 'chore: replace API\n\nBREAKING-CHANGE: removed API', 'Unclassified feature']) {
+    const result = spawnSync('git', ['-c', 'user.name=Hook test', '-c', 'user.email=hook@example.invalid', 'commit', '-m', message], { cwd: repo, env: environment, encoding: 'utf8' });
+    assert.notEqual(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout + result.stderr, message === 'Unclassified feature' ? /Conventional Commit/ : /pre-release.*no users.*Major version increments are forbidden/);
+    assert.equal(git('rev-parse', 'HEAD').toString(), before);
+  }
+  git('-c', 'user.name=Hook test', '-c', 'user.email=hook@example.invalid', 'commit', '-m', 'feat: improve documentation');
+  assert.equal(git('log', '-1', '--format=%s').toString().trim(), 'feat: improve documentation');
 });

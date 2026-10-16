@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, edited]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +24,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Check squash commit message
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          message="$RUNNER_TEMP/gimbal-squash-message"
+          printf '%s\n\n%s\n' "$PR_TITLE" "$PR_BODY" > "$message"
+          bash scripts/check-commit-message.sh "$message"
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -139,7 +149,7 @@ jobs:
             chmod +x "$blocked/$tool"
           done
           echo "$blocked" >> "$GITHUB_PATH"
-      - name: Prepare next patch release
+      - name: Prepare Conventional Commit release
         id: version
         env:
           SOURCE_SHA: ${{ github.sha }}

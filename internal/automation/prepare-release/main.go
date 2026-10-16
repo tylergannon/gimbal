@@ -1,4 +1,4 @@
-// Prepare release atomically reserves checked main source and its next patch tag.
+// Prepare release atomically reserves checked main source and its conventional version tag.
 package main
 
 import (
@@ -116,11 +116,14 @@ func (p preparer) prepare(source, remote string) (string, string, error) {
 	if _, err := p.git("merge-base", "--is-ancestor", previous, source); err != nil {
 		return "", "", err
 	}
-	number, err := version(previous)
+	messages, err := p.git("log", "--first-parent", "--format=%B%x00", previous+".."+source)
 	if err != nil {
 		return "", "", err
 	}
-	tag := fmt.Sprintf("v%d.%d.%d", number[0], number[1], number[2]+1)
+	tag, err := nextVersion(previous, messages)
+	if err != nil || tag == "" {
+		return "", "", err
+	}
 	if _, err := p.git("checkout", "--detach", source); err != nil {
 		return "", "", err
 	}

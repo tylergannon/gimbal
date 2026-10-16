@@ -1,0 +1,16 @@
+diff --git a/src/core/postbuild/queue.js b/src/core/postbuild/queue.js
+--- a/src/core/postbuild/queue.js
++++ b/src/core/postbuild/queue.js
+@@ -18,0 +19 @@
++	let done_requested = false;
+@@ -42 +43 @@
+-			} else if (current === 0) {
++			} else if (current === 0 && done_requested) {
+@@ -63,0 +65 @@
++			done_requested = true;
+diff --git a/src/runtime/client/remote-functions/query/index.js b/src/runtime/client/remote-functions/query/index.js
+--- a/src/runtime/client/remote-functions/query/index.js
++++ b/src/runtime/client/remote-functions/query/index.js
+@@ -34,0 +35,2 @@
++
++			return result._;

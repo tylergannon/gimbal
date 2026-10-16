@@ -207,7 +207,7 @@ func (i *Instance) startWeb(cfg config) error {
 		i.shutdown.Done()
 		return fmt.Errorf("gimbal: web application: %w", err)
 	}
-	handler, mode, err := NewHandler(dist, os.Getenv("GIMBAL_WEB_PROXY"), origin, handlerSettings{project: i.projectRequest, auth: i.auth})
+	handler, mode, err := NewHandler(dist, origin, handlerSettings{project: i.projectRequest, auth: i.auth})
 	if err != nil {
 		_ = listener.Close()
 		i.shutdown.Done()

@@ -30,8 +30,8 @@ require (
 	github.com/tiktoken-go/tokenizer v0.8.1
 	github.com/tylergannon/claude-agent-sdk-go v1.2.1
 	github.com/tylergannon/devalue/v5 v5.0.0
-	github.com/tylergannon/polytype v1.9.0
-	github.com/tylergannon/skgo v0.33.1-0.20261015222545-670c14d8d0ac
+	github.com/tylergannon/polytype v1.10.0
+	github.com/tylergannon/skgo v0.35.0
 	github.com/yuin/goldmark v1.7.13
 	golang.org/x/net v0.61.0
 	golang.org/x/sync v0.24.0
@@ -62,6 +62,7 @@ require (
 	github.com/dop251/goja v0.0.0-20261008222547-e9f698900731 // indirect
 	github.com/dop251/goja_nodejs v0.0.0-20260918173711-b481721df8a2 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
+	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/getkin/kin-openapi v0.149.0 // indirect
 	github.com/go-openapi/jsonpointer v1.0.2 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect

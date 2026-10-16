@@ -38,7 +38,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, _, err := NewHandler(dist, "", "")
+	handler, _, err := NewHandler(dist, "")
 	if err != nil {
 		t.Fatal(err)
 	}

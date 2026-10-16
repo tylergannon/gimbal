@@ -41,6 +41,9 @@ export default defineConfig(({ command }) => ({
           name: "client",
           browser: {
             enabled: true,
+            // Headless checks need the full viewport: the runner UI scales its
+            // iframe and can intercept clicks on controls near its edges.
+            ui: false,
             provider: playwright(),
             viewport: { width: 1440, height: 900 },
             instances: [{ browser: "chromium", headless: true }],

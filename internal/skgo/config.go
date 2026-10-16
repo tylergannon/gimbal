@@ -9,8 +9,9 @@
 // passes the same flags, so both write the same bindings; TestNativeSelection
 // keeps the two lists equal. SKGO also emits canonical Go import groups.
 //
-// appgen writes the observation declarations after skgo generation because
-// skgo removes any generated types.ts under web/src that it did not write.
+// Polytype owns the standalone observation declarations; SKGO preserves them.
+// Development uses the application generation callback in devgen.json so
+// affected producers run on edits as well as initial startup.
 package skgo
 
 //go:generate go run ../generate/appgen generate --web ../../web --locals-package github.com/tylergannon/gimbal/internal/app --hook-package github.com/tylergannon/gimbal/internal/serverhooks --swift-out ../../native/Generated.swift --swift-remote src/lib/transcript.remote.ts#abortSession --swift-remote src/lib/transcript.remote.ts#acceptTranscript --swift-remote src/lib/transcript.remote.ts#activateSession --swift-remote src/lib/transcript.remote.ts#closeSession --swift-remote src/lib/transcript.remote.ts#openSession --swift-remote src/lib/transcript.remote.ts#touchSession --swift-remote src/lib/transcript.remote.ts#recordingHeader

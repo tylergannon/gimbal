@@ -18,7 +18,7 @@
   let saving = Promise.resolve();
   let saveError = $state('');
   function moved(place: WindowState) {
-    const root = `/projects/${place.project}/conversations/`;
+    const root = `/projects/${place.project}/`;
     windowState = { ...place, seen: [...(windowState.seen ?? []).filter(item => !item.path.startsWith(root)), ...place.seen] };
     saving = saving.then(async () => {
       try { await rememberWindow(place); saveError = ''; }

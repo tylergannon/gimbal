@@ -38,7 +38,15 @@
   const invocation = $derived(snapshot.scopes['']);
   const taskText = (value: unknown): string => typeof value === 'string' ? value : value && typeof value === 'object' && 'description' in value ? String(value.description) : value === undefined ? '' : JSON.stringify(value);
   const time = (value: number) => new Date(value).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  const stateFor = (id: string) => waiting.some(row => row.session === id || row.session === snapshot.sessions[id]?.name) ? 'waiting' as const : Object.values(snapshot.turns).some(row => row.session === id && !row.ended && live) ? 'running' as const : Object.values(snapshot.turns).some(row => row.session === id && row.error && !row.interrupted) ? 'failed' as const : 'ended' as const;
+  const scopeName = (key: string) => key.split('/').filter(Boolean).at(-1)?.replace(/\.\d+$/, '').replaceAll('-', ' ') || 'root';
+  const sessionLabel = (session: RunSnapshot['sessions'][string]) => sessions.filter(item => item.name === session.name).length > 1 ? `${session.name} · ${scopeName(session.scope)}` : session.name;
+  function stepLabel(node: NonNullable<typeof layout>['nodes'][number]) {
+    const operation = node.operation;
+    if (operation.kind !== 'agent_call') return operation.name;
+    const duplicate = (layout?.nodes.filter(item => item.operation.kind === 'agent_call' && item.operation.session === operation.session).length ?? 0) > 1;
+    return `${operation.session}${duplicate ? ` · ${scopeName(node.scopeKey)}` : ''}`;
+  }
+  const stateFor = (id: string) => waiting.some(row => row.session === id || row.session === snapshot.sessions[id]?.name) ? 'needs-you' as const : Object.values(snapshot.turns).some(row => row.session === id && !row.ended && live) ? 'running' as const : Object.values(snapshot.turns).some(row => row.session === id && row.error && !row.interrupted) ? 'failed' as const : 'ended' as const;
   const timeline = $derived([
     ...turns.map(turn => ({ kind: 'turn' as const, at: turn.started, id: turn.id, turn })),
     ...(chosen?.steers ?? []).map((steer, index) => ({ kind: 'steer' as const, at: steer.created, id: `steer-${index}`, steer })),
@@ -56,17 +64,17 @@
   <div class="measure">
     {#if layout}
       <div class="orient" aria-label="Where this session sits in the workflow">
-        {#each layout.sheets.filter(sheet => sheet.scope.key && (running?.scope || turns.at(-1)?.scope || '').startsWith(sheet.scope.key)) as sheet (sheet.selectionKey)}<span class="group-label">{sheet.kind} · {sheet.scope.key}</span>{/each}
+        {#each layout.sheets.filter(sheet => sheet.scope.key && (running?.scope || turns.at(-1)?.scope || '').startsWith(sheet.scope.key)) as sheet (sheet.selectionKey)}<span class="group-label">{sheet.kind === 'group' ? 'parallel' : sheet.kind} · {scopeName(sheet.scope.key)}</span>{/each}
         {#each layout.nodes as node (node.selectionKey)}
-          <button class={['step', { now: node.state === 'running', wait: node.state === 'waiting' }]} onclick={() => onmap({ kind: 'node', scope: snapshot.scopes[node.scopeKey], operation: node.operation, runtime: node.runtime })}>
-            <span class="glyph">{node.operation.kind === 'command' ? '›_' : node.operation.kind === 'interview' ? '◇' : '▱'}</span>{node.operation.kind === 'agent_call' ? node.operation.session : node.operation.name}<Pip state={node.state} />
+          <button class={['step', { now: node.state === 'running', wait: node.state === 'needs-you' }]} onclick={() => onmap({ kind: 'node', scope: snapshot.scopes[node.scopeKey], operation: node.operation, runtime: node.runtime })}>
+            <span class="glyph">{node.operation.kind === 'command' ? '›_' : node.operation.kind === 'interview' ? '◇' : '▱'}</span>{stepLabel(node)}<Pip state={node.state} />
           </button><span class="arrow">›</span>
         {/each}
         <button class="map-button" onclick={() => onmap()}><MapIcon size={13} />Map</button>
       </div>
     {/if}
     <div class="switcher" aria-label="Sessions in this run">
-      {#each sessions as session (session.id)}{@const count = Object.values(snapshot.turns).filter(row => row.session === session.id).length}<button aria-pressed={chosen?.id === session.id} class={{ selected: chosen?.id === session.id }} onclick={() => { picked = session.id; }}><Pip state={stateFor(session.id)} />{session.name}<span class="quiet">· {count} {count === 1 ? 'turn' : 'turns'}</span></button>{/each}
+      {#each sessions as session (session.id)}{@const count = Object.values(snapshot.turns).filter(row => row.session === session.id).length}<button aria-pressed={chosen?.id === session.id} class={{ selected: chosen?.id === session.id }} onclick={() => { picked = session.id; }}><Pip state={stateFor(session.id)} />{sessionLabel(session)}<span class="quiet">· {count} {count === 1 ? 'turn' : 'turns'}</span></button>{/each}
     </div>
     {#if chosen}<div class="identities"><span>{harnessName(chosen.adapter.replace(/^\*/, '').replace(/\.adapter$/i, ''))}</span><span>{chosen.model}</span>{#if chosen.effort}<span>{chosen.effort}</span>{/if}{#if chosen.workdir}<span class="workdir" title={chosen.workdir}>{chosen.workdir}</span>{/if}</div>{/if}
   </div>
@@ -83,7 +91,7 @@
         {:else if item.kind === 'steer'}<article class="steer"><div class="turn-head">Steer{item.steer.source ? ` · ${item.steer.source}` : ''} · {time(item.at)} · {item.steer.landed ? 'Landed' : 'Dropped'}</div><p class="bubble">{item.steer.message}</p></article>
         {:else if item.kind === 'command'}<details class="run-event"><summary><Pip state={!item.command.ended ? 'running' : item.command.exit_code && !item.command.interrupted ? 'failed' : 'ended'} /><b>{item.command.name}</b><span>{item.command.ended ? `exit ${item.command.exit_code}` : 'running'}</span><span class="line"></span><span>{time(item.at)}</span></summary><Payload label="command" text={`${item.command.command} ${item.command.args.join(' ')}\n${item.command.stderr || item.command.stdout}`} /></details>
         {:else if item.kind === 'scope'}<div class="run-event"><Pip state={item.scope.error ? 'failed' : item.scope.status === 'running' ? 'running' : 'ended'} /><b>{item.scope.name || item.scope.key}</b><span>{item.scope.status}</span><span class="line"></span><span>{time(item.at)}</span></div>
-        {:else if item.kind === 'interview'}<section class={['interview', { answered: item.question.status === 'answered' }]}><div class="ih"><Pip state={item.question.status === 'pending' ? 'waiting' : 'ended'} />{item.question.status === 'pending' ? 'Needs you' : 'Answered'}<span class="quiet">· {item.question.name} · asked {time(item.at)}</span></div><p>{item.question.question}</p>{#if item.question.status === 'answered'}<p class="answer">{item.question.answer || 'Interview ended.'}</p>{/if}</section>{/if}
+        {:else if item.kind === 'interview'}<section class={['interview', { answered: item.question.status === 'answered' }]}><div class="ih"><Pip state={item.question.status === 'pending' ? 'needs-you' : 'ended'} />{item.question.status === 'pending' ? 'Needs you' : 'Answered'}<span class="quiet">· {item.question.name} · asked {time(item.at)}</span></div><p>{item.question.question}</p>{#if item.question.status === 'answered'}<p class="answer">{item.question.answer || 'Interview ended.'}</p>{/if}</section>{/if}
       {/each}
       {#if !chosen}<p class="quiet">Waiting for the workflow to start a session…</p>{/if}
       {#if snapshot.run.error}<p class="error">{snapshot.run.error}</p>{/if}

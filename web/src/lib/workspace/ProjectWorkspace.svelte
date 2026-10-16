@@ -3,10 +3,10 @@
   import { APP_NAME } from "#lib/app";
   import { errorMessage } from "#lib/errors";
   import { onMount, untrack, tick, type Snippet } from 'svelte';
-  import { MediaQuery, SvelteMap } from 'svelte/reactivity';
+  import { MediaQuery, SvelteMap, SvelteSet } from 'svelte/reactivity';
   import * as Dialog from '#lib/components/ui/dialog';
   import type { Conversation } from '#lib/skgo/conversation/types';
-  import { afterNavigate, goto } from '$app/navigation';
+  import { afterNavigate, beforeNavigate, goto } from '$app/navigation';
   import { page } from '$app/state';
   import WorkspaceShell from '#lib/shell/WorkspaceShell.svelte';
   import type { WorkspaceTab, RecordingDisplay } from '#lib/shell/types';
@@ -49,15 +49,15 @@
     ? { id: `${initialPath.split("/").slice(0, 3).join("/")}/conversations/${initialConversation.id}`, title: initialConversation.title, kind: 'chat' }
     : initialPath.endsWith('/discuss') ? { id: `${initialPath.split('/').slice(0, 3).join('/')}/conversations/new`, title: 'New session', kind: 'chat' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
-    : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'chat' }
-    : page.params.workflow ? { id: initialPath, title: `${page.params.workflow} guide`, kind: 'file' }
-    : initialPath.endsWith('/promises') ? { id: initialPath, title: 'Promises', kind: 'file' }
-    : initialPath === initialPath.split("/").slice(0, 3).join("/") ? { id: initialPath, title: 'Runs', kind: 'run' }
+    : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'recording' }
+    : page.params.workflow ? { id: initialPath, title: `${page.params.workflow} guide`, kind: 'guide' }
+    : initialPath.endsWith('/promises') ? { id: initialPath, title: 'Promises', kind: 'promises' }
+    : initialPath === initialPath.split("/").slice(0, 3).join("/") ? { id: initialPath, title: 'Runs', kind: 'runs' }
     : page.params.runID && (page.data as { snapshot?: RunSnapshot }).snapshot ? { id: initialPath, title: (page.data as { snapshot?: { run: { name: string } } }).snapshot?.run.name ?? 'Run', kind: 'run' }
     : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New session', kind: 'chat' } : undefined;
   const upload = $derived(uploadFile.for(project));
   // Keyed by project, so the desktop window's last tabs seed this mount only.
-  const reopened = untrack(() => restored).map(tab => ({ ...tab, kind: tab.kind === 'run' ? 'run' as const : tab.kind === 'file' ? 'file' as const : 'chat' as const }));
+  const reopened = untrack(() => restored).map(tab => ({ ...tab, kind: tab.id.includes('/recordings/') ? 'recording' as const : tab.id.endsWith('/promises') ? 'promises' as const : tab.id.includes('/workflows/') ? 'guide' as const : tab.id === root ? 'runs' as const : (['chat','run','runs','file','recording','promises','guide'].includes(tab.kind) ? tab.kind : 'chat') as WorkspaceTab['kind'] }));
   let open = $state<WorkspaceTab[]>([...reopened, ...(initialTab && !reopened.some(tab => tab.id === initialTab.id) ? [initialTab] : [])]);
   // The desktop window opens at 1000 px, so its server render starts without the sidebar.
   const wide = new MediaQuery('min-width: 1100px', !(page.data as { desktop?: boolean }).desktop);
@@ -67,16 +67,26 @@
   let status = $state<NativeStatus>();
   const active = $derived(page.status >= 400 ? undefined : open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));
   const seen = new SvelteMap<string, string>(untrack(() => seenReplies.map(item => [item.path, item.request] as const)));
+  const dismissedRuns = new SvelteSet<string>();
+  const conversationVersion = (item: Conversation) => `${item.updated}:${item.revision}:${item.status}:${completedReply(item)}`;
   const items = $derived<WorkspaceTab[]>([
     ...conversations.map(item => ({ id: `${root}/conversations/${item.id}`, title: item.title,
       kind: 'chat' as const, detail: harnessName(item.provider),
-      status: conversationStatus(item, seen.get(`${root}/conversations/${item.id}`)) })),
+      status: conversationStatus(item), unseen: `${root}/conversations/${item.id}` !== active && conversationVersion(item) !== seen.get(`${root}/conversations/${item.id}`) })),
     ...files.map(file => ({ id: `${root}/files/${file.id}`, title: file.name, kind: 'file' as const })),
   ]);
   // Both the Runs view and tab labels read the same live inventory.
-  const runQuery = $derived(open.some(tab => tab.kind === 'run') ? watchRuns(project) : undefined);
-  const runData = $derived((runQuery?.current ?? (page.url.pathname === root ? page.data : undefined)) as { items: RunCardItem[]; attention: InterviewRow[]; now: number } | undefined);
-  const runTabs = $derived<WorkspaceTab[]>(runData?.items.map(({ run }) => ({ id: `${root}/runs/${encodeURIComponent(run.id)}`, title: run.name, kind: 'run', status: runData.attention.some(question => question.run === run.id && question.status === 'pending') ? 'attention' : run.status === 'running' ? 'working' : undefined })) ?? []);
+  const runQuery = $derived(watchRuns(project));
+  const runData = $derived((runQuery.current ?? (page.url.pathname === root ? page.data : undefined)) as { items: RunCardItem[]; attention: InterviewRow[]; now: number } | undefined);
+  const runVersion = (item: RunCardItem) => `${item.activity_at}:${item.run.status}:${item.run.error}:${runData?.attention.filter(question => question.run === item.run.id).map(question => `${question.question_id}:${question.status}`).join(',')}`;
+  const runTabs = $derived<WorkspaceTab[]>(runData?.items.map(item => {
+    const { run } = item; const id = `${root}/runs/${encodeURIComponent(run.id)}`;
+    const origin = conversations.find(conversation => conversation.runs.some(child => child.id === run.id));
+    return { id, title: `${run.name} · ${run.id.split(".")[0].slice(-6)}`, workflow: run.name, kind: 'run', detail: item.summary || run.status,
+      origin: origin ? { id: `${root}/conversations/${origin.id}`, title: origin.title } : undefined,
+      status: runData.attention.some(question => question.run === run.id && question.status === 'pending') && run.status === 'running' ? 'needs-you' : run.status === 'running' ? 'running' : run.status === 'failed' ? 'failed' : run.status === 'cancelled' ? 'cancelled' : 'ended',
+      unseen: id !== active && runVersion(item) !== seen.get(id) };
+  }) ?? []);
   const tabs = $derived(open.map(tab => items.find(item => item.id === tab.id) ?? runTabs.find(item => item.id === tab.id) ?? tab));
   const recording = $derived.by((): RecordingDisplay | undefined => {
     if (!status?.sessionID || ['idle', 'stopped'].includes(status.state)) return;
@@ -118,14 +128,14 @@
     if (page.status >= 400) return;
     const item = items.find(item => item.id === path);
     const recordingID = page.params.recordingID;
-    const tab = item ?? (path === root ? { id: path, title: 'Runs', kind: 'run' as const }
+    const tab = item ?? (path === root ? { id: path, title: 'Runs', kind: 'runs' as const }
       : page.params.runID && path.startsWith(`${root}/runs/`) ? { id: path, title: (page.data as { snapshot?: { run: { name: string } } }).snapshot?.run.name ?? 'Run', kind: 'run' as const }
       : path === `${root}/conversations/new`
       ? { id: path, title: 'New session', kind: 'chat' as const }
-      : path.startsWith(`${root}/workflows/`) ? { id: path, title: `${decodeURIComponent(path.split('/').at(-1)!)} guide`, kind: 'file' as const }
-      : path === `${root}/promises` ? { id: path, title: 'Promises', kind: 'file' as const }
+      : path.startsWith(`${root}/workflows/`) ? { id: path, title: `${decodeURIComponent(path.split('/').at(-1)!)} guide`, kind: 'guide' as const }
+      : path === `${root}/promises` ? { id: path, title: 'Promises', kind: 'promises' as const }
       : page.params.fileID ? { id: path, title: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file', kind: 'file' as const }
-      : recordingID ? { id: path, title: 'Recorded conversation', kind: 'chat' as const } : undefined);
+      : recordingID ? { id: path, title: 'Recorded conversation', kind: 'recording' as const } : undefined);
     // A conversation started from the New conversation tab takes over that tab.
     const form = path === started ? open.findIndex(item => item.id === `${root}/conversations/new`) : -1;
     started = undefined;
@@ -142,6 +152,7 @@
     started = `${root}/conversations/${conversation.id}`;
     fileContext = undefined;
   }
+  beforeNavigate(() => { markSeen(); });
   afterNavigate(() => {
     if (page.url.pathname.endsWith('/discuss') && page.params.fileID) {
       discuss({ id: page.params.fileID, name: files.find(file => file.id === page.params.fileID)?.name ?? 'Project file' });
@@ -151,8 +162,9 @@
     else visit(page.url.pathname);
     workspaceChanged();
   });
-  function select(path: string) { fileChooser = false; projectChooser = false; void goto(path, { reset: false }); }
+  function select(path: string) { markSeen(); fileChooser = false; projectChooser = false; void goto(path, { reset: false }); }
   function close(path: string) {
+    if (path.startsWith(`${root}/runs/`)) dismissedRuns.add(path);
     const index = open.findIndex(tab => tab.id === path);
     open = open.filter(tab => tab.id !== path);
     if (page.url.pathname === path) select(open[Math.min(index, open.length - 1)]?.id ?? `${root}/recordings`);
@@ -197,13 +209,27 @@
     if (native) onplace?.({ project, path: page.url.pathname,
       tabs: tabs.map(({ id, title, kind }) => ({ id, title, kind })),
       sidebar: preferredSidebar,
-      seen: [...seen].filter(([path]) => path.startsWith(`${root}/conversations/`)).map(([path, request]) => ({ path, request })) });
+      seen: [...seen].filter(([path]) => path.startsWith(`${root}/`)).map(([path, request]) => ({ path, request })) });
   }
-  function workspaceChanged() {
+  function markSeen() {
     const item = conversations.find(item => `${root}/conversations/${item.id}` === active);
-    if (item) seen.set(`${root}/conversations/${item.id}`, completedReply(item));
-    rememberPlace();
+    if (item) seen.set(`${root}/conversations/${item.id}`, conversationVersion(item));
+    const run = runData?.items.find(item => `${root}/runs/${encodeURIComponent(item.run.id)}` === active);
+    if (run) seen.set(active!, runVersion(run));
   }
+  function adoptRuns() {
+    for (const conversation of conversations) {
+      const parent = `${root}/conversations/${conversation.id}`;
+      const index = open.findIndex(tab => tab.id === parent);
+      if (index < 0) continue;
+      const children: WorkspaceTab[] = conversation.runs.map(run => ({ id: `${root}/runs/${encodeURIComponent(run.id)}`, title: `${run.workflow} · ${run.id.split(".")[0].slice(-6)}`, workflow: run.workflow, kind: 'run', origin: { id: parent, title: conversation.title } }));
+      const additions = children.filter(child => !open.some(tab => tab.id === child.id) && !dismissedRuns.has(child.id));
+      if (!additions.length) continue;
+      const position = Math.max(index, ...open.map((tab, i) => children.some(child => child.id === tab.id) ? i : -1)) + 1;
+      open = [...open.slice(0, position), ...additions, ...open.slice(position)];
+    }
+  }
+  function workspaceChanged() { visit(page.url.pathname); adoptRuns(); markSeen(); rememberPlace(); }
   function setSidebar(value: boolean) { preferredSidebar = value; rememberPlace(); }
   let mounted = false;
   async function refreshChats() {

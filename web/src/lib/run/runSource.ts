@@ -112,7 +112,7 @@ const graphKind: Record<string, string> = {
 };
 
 function scopeState(scope: ScopeRow | undefined): PipState {
-  if (!scope) return "not-yet";
+  if (!scope) return "queued";
   if (scope.error) return "failed";
   return scope.status === "running" ? "running" : "ended";
 }
@@ -171,7 +171,7 @@ export function bindRun(
 
   const bindStep = (operation: NodeOperation, scopeKey: string | undefined): RunMark => {
     const scope = scopeKey === undefined ? undefined : snapshot.scopes[scopeKey];
-    if (scopeKey === undefined || !scope) return { state: "not-yet", meta: "", watchers: [] };
+    if (scopeKey === undefined || !scope) return { state: "queued", meta: "", watchers: [] };
     const supervisors = operation.kind === "agent_call" ? operation.supervisors : [];
     return {
       state: operationState(snapshot, scopeKey, operation),
@@ -189,7 +189,7 @@ export function bindRun(
   };
 
   const bindContainer = (parentKey: string | undefined, name: string): RunMark => {
-    if (parentKey === undefined) return { state: "not-yet", meta: "", watchers: [] };
+    if (parentKey === undefined) return { state: "queued", meta: "", watchers: [] };
     const { instances, scope } = pick(parentKey, name);
     return {
       state: scopeState(scope),
@@ -219,13 +219,13 @@ export function bindRun(
       case "service": {
         const scopeKey = resolve(path);
         const scope = scopeKey === undefined ? undefined : snapshot.scopes[scopeKey];
-        if (scopeKey === undefined || !scope) return { state: "not-yet", meta: "", watchers: [] };
+        if (scopeKey === undefined || !scope) return { state: "queued", meta: "", watchers: [] };
         const runtime = commandFor(snapshot, scopeKey, operation.name);
         const service = { ...operation } as Service & { kind?: string };
         delete service.kind;
         return {
           state: !runtime
-            ? "not-yet"
+            ? "queued"
             : runtime.ended === 0
               ? "running"
               : runtime.error
@@ -277,7 +277,7 @@ export function bindRun(
       if (mark) marks.set(node.id, mark);
       let inner = false;
       for (const lane of node.children ?? []) inner = visit(lane) || inner;
-      const own = !!mark && mark.state !== "not-yet";
+      const own = !!mark && mark.state !== "queued";
       if ((inner || own) && node.children?.length) active.add(node.id);
       started = started || inner || own;
     }

@@ -71,12 +71,12 @@ func TestWindowFactsStayOwnedAcrossProjectsAndStaleSnapshots(t *testing.T) {
 		t.Fatal(err)
 	}
 	pathA := "/projects/" + a.ID() + "/conversations/chat"
-	pathB := "/projects/" + b.ID() + "/conversations/chat"
+	pathB := "/projects/" + b.ID() + "/runs/background-run"
 	if err := owner.RememberWindow(WindowState{Project: a.ID(), Sidebar: polytype.Nullable[bool]{Present: true, Value: true}, Seen: []SeenReply{{Path: pathA, Request: "reply-A"}}}); err != nil {
 		t.Fatal(err)
 	}
 	// B cannot overwrite A's acknowledgment with a stale startup snapshot.
-	if err := owner.RememberWindow(WindowState{Project: b.ID(), Seen: []SeenReply{{Path: pathA, Request: "stale"}, {Path: pathB, Request: "reply-B"}}}); err != nil {
+	if err := owner.RememberWindow(WindowState{Project: b.ID(), Seen: []SeenReply{{Path: pathA, Request: "stale"}, {Path: pathB, Request: "activity-B"}}}); err != nil {
 		t.Fatal(err)
 	}
 	got := owner.Window()

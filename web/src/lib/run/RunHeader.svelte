@@ -17,7 +17,7 @@
 </script>
 <header class="run-head">
   <h1>{run.name}</h1>
-  <span class="status"><Pip state={waiting ? 'waiting' : run.status === 'running' ? 'running' : run.status === 'failed' ? 'failed' : 'ended'} />{waiting ? 'Needs you' : run.status === 'running' ? 'Running' : run.status === 'completed' ? 'Ended' : run.status === 'failed' ? 'Failed' : 'Cancelled'} <span class="quiet">{Math.floor(seconds / 60)}m {String(seconds % 60).padStart(2, '0')}s</span></span>
+  <span class="status"><Pip state={waiting ? 'needs-you' : run.status === 'running' ? 'running' : run.status === 'failed' ? 'failed' : run.status === 'cancelled' ? 'cancelled' : 'ended'} />{waiting ? 'Needs you' : run.status === 'running' ? 'Running' : run.status === 'completed' ? 'Ended' : run.status === 'failed' ? 'Failed' : 'Cancelled'} <span class="quiet">{Math.floor(seconds / 60)}m {String(seconds % 60).padStart(2, '0')}s</span></span>
   <div class="spacer"></div>
   <div class="view" role="group" aria-label="Run view"><button class={{ chosen: mode !== 'map' }} onclick={() => onmode('transcript')}>Transcript</button><button class={{ chosen: mode === 'map' }} onclick={() => onmode('map')}>Map</button></div>
   {#if run.task_environment}<span class="identity">{run.task_environment}</span>{/if}

@@ -15,8 +15,8 @@
   // Run state, present only when the run map draws this node.
   let run = $derived(data.run as RunMark | undefined);
   let runMode = $derived(!!data.onpick);
-  let now = $derived(run?.state === 'running' || run?.state === 'waiting');
-  let muted = $derived(run?.state === 'not-yet');
+  let now = $derived(run?.state === 'running' || run?.state === 'needs-you');
+  let muted = $derived(run?.state === 'queued');
   function activate() { (data.onactivate as ((id:string)=>void) | undefined)?.(id); }
   function press() { if (runMode) (data.onpick as (id:string)=>void)(id); else activate(); }
   function open() { (data.onopen as ((id:string)=>void) | undefined)?.(id); }

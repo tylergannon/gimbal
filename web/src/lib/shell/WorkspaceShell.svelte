@@ -106,7 +106,7 @@
   .native:not(.with-sidebar) header { padding-left: 86px; }
   .native header { padding-right: 78px; }
   .workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
-  header { display: flex; align-items: center; flex: none; gap: 8px; height: 52px; padding: 0 14px; border-bottom: 1px solid var(--border); }
+  header { display: flex; align-items: center; flex: none; gap: 8px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--border); }
   .compact-project { flex: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; font-size: 13px; font-weight: 600; }
   button { font: inherit; border: 0; background: transparent; color: inherit; cursor: pointer; }
   button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }

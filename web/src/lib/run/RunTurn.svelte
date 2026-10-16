@@ -26,7 +26,7 @@
   const seconds = $derived(Math.max(0, Math.floor((turn.duration || (turn.ended || clock.now) - turn.started) / 1000)));
 </script>
 <article class="turn" aria-label={`Turn ${ordinal}`}>
-  <div class="turn-head"><b>Turn {ordinal}</b><span>·</span><span>{turn.scope || session?.name || 'root'}</span><span>·</span><Pip state={!turn.ended ? 'running' : turn.error && !turn.interrupted ? 'failed' : 'ended'} /><span>{turn.unresolved ? 'delivery unresolved' : !turn.ended ? 'running' : turn.interrupted ? 'stopped' : turn.error ? 'failed' : 'ended'}</span><span>·</span><span>{Math.floor(seconds / 60)}m {String(seconds % 60).padStart(2, '0')}s</span><span>·</span><span>{toolCount} tool calls</span></div>
+  <div class="turn-head"><b>Turn {ordinal}</b><span>·</span><span>{turn.scope || session?.name || 'root'}</span><span>·</span><Pip state={turn.unresolved ? 'needs-you' : turn.interrupted ? 'cancelled' : !turn.ended ? 'running' : turn.error && !turn.interrupted ? 'failed' : 'ended'} /><span>{turn.unresolved ? 'delivery unresolved' : !turn.ended ? 'running' : turn.interrupted ? 'stopped' : turn.error ? 'failed' : 'ended'}</span><span>·</span><span>{Math.floor(seconds / 60)}m {String(seconds % 60).padStart(2, '0')}s</span><span>·</span><span>{toolCount} tool calls</span></div>
   <div class="prose"><ConversationTranscript {messages} {revision} {messageRevisions} provider={session?.name || 'Agent'} model={session?.model || ''} location={session?.workdir || ''} compact /></div>
   {#if !messages.length}<p class="empty">{turn.events_unavailable ? 'Transcript events are unavailable for this turn.' : turn.ended ? 'No transcript recorded for this turn.' : 'Waiting for transcript events…'}</p>{/if}
   {#if turn.error}<p class="error">{turn.error}</p>{/if}

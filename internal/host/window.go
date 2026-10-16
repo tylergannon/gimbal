@@ -79,13 +79,13 @@ func (o *Owner) RememberWindow(w WindowState) error {
 	}
 	entries := append([]SeenReply{}, previous.Seen...)
 	for _, entry := range w.Seen {
-		if strings.HasPrefix(entry.Path, "/projects/"+w.Project+"/conversations/") {
+		if strings.HasPrefix(entry.Path, "/projects/"+w.Project+"/conversations/") || strings.HasPrefix(entry.Path, "/projects/"+w.Project+"/runs/") {
 			entries = append(entries, entry)
 		}
 	}
 	for _, entry := range entries {
 		for _, p := range o.projects {
-			if strings.HasPrefix(entry.Path, "/projects/"+p.id+"/conversations/") {
+			if strings.HasPrefix(entry.Path, "/projects/"+p.id+"/conversations/") || strings.HasPrefix(entry.Path, "/projects/"+p.id+"/runs/") {
 				seen[entry.Path] = entry
 				break
 			}
@@ -116,7 +116,7 @@ func (w WindowState) within() WindowState {
 		out.Seen = []SeenReply{}
 		for _, seen := range w.Seen {
 			parts := strings.Split(strings.Trim(seen.Path, "/"), "/")
-			if len(parts) == 4 && parts[0] == "projects" && parts[1] != "" && parts[2] == "conversations" && parts[3] != "" {
+			if len(parts) == 4 && parts[0] == "projects" && parts[1] != "" && (parts[2] == "conversations" || parts[2] == "runs") && parts[3] != "" {
 				out.Seen = append(out.Seen, seen)
 			}
 		}

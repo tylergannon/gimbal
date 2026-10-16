@@ -13,7 +13,7 @@ const remote = vi.hoisted(() => ({
 }));
 vi.mock("../../routes/conversation.remote", () => ({
   watchConversation: remote.watch,
-  conversationSetup: () => ({current:undefined}),
+  conversationSetup: () => ({ current: undefined }),
   configureConversationModel: vi.fn(),
   renameConversation: {
     for: () => ({

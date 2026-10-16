@@ -99,8 +99,8 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	}
 	assertGraph := func(body string) {
 		t.Helper()
-		if !strings.Contains(body, workflowName+" workflow map") {
-			t.Fatal("run with a matching compiled graph did not render the workflow map")
+		if !strings.Contains(body, `aria-label="Run view"`) || !strings.Contains(body, ">Transcript</button>") {
+			t.Fatal("run with a matching compiled graph did not render the default transcript view")
 		}
 		if strings.Contains(body, "Workflow graph required") {
 			t.Fatal("run with a matching compiled graph rendered the corrective state")

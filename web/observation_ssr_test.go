@@ -90,9 +90,10 @@ func TestRunPageIsRenderedFromTheRunsObservation(t *testing.T) {
 	}
 }
 
-// TestRunPageRequiresGenerationWhenTheGraphIsUnavailable exercises the
-// corrective state without changing the saved run.
-func TestRunPageRequiresGenerationWhenTheGraphIsUnavailable(t *testing.T) {
+// TestRunPageKeepsTranscriptWhenTheGraphIsUnavailable exercises the default
+// transcript view without changing the saved run. The Map view presents the
+// graph correction, which is covered by the frontend interaction test.
+func TestRunPageKeepsTranscriptWhenTheGraphIsUnavailable(t *testing.T) {
 	dist, err := fs.Sub(Build, "build")
 	if err != nil {
 		t.Fatal(err)
@@ -129,16 +130,12 @@ func TestRunPageRequiresGenerationWhenTheGraphIsUnavailable(t *testing.T) {
 		t.Fatalf("GET /runs/run-loop: status %d, body %s", recorder.Code, recorder.Body.String())
 	}
 	body := recorder.Body.String()
-	for _, want := range []string{
-		"Workflow graph required",
-		"No workflow graph was saved for looping",
-		"Restarting the server cannot replace it.",
-	} {
+	for _, want := range []string{`aria-label="Run view"`, ">Transcript</button>", "sprint.1", "quiet.1"} {
 		if !strings.Contains(body, want) {
-			t.Fatalf("the graph guidance does not contain %q:\n%s", want, body)
+			t.Fatalf("the transcript does not contain %q:\n%s", want, body)
 		}
 	}
-	if strings.Contains(body, `aria-label="Recorded run history"`) {
-		t.Fatal("the missing-graph page still rendered history navigation")
+	if strings.Contains(body, "Workflow graph required") {
+		t.Fatal("the default transcript view rendered the Map view's graph correction")
 	}
 }

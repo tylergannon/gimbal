@@ -12,7 +12,7 @@
   const source = $derived(query.current?.source_json ? JSON.parse(query.current.source_json) as SourcePage : undefined);
   let viewer = $state<WorkflowCanvas>();
   async function showStructure() { panel = 'diagram'; await tick(); if (source) await viewer?.show(source, view); }
-  let panel = $state<'guide' | 'diagram'>('guide');
+  let panel = $state<'guide' | 'diagram'>('diagram');
   let view = $state<ViewState>({ open: [], details: [], types: false });
 </script>
 <section class="workflow-guide">
@@ -22,10 +22,10 @@
   {:else if !source}<p class="message">This workflow has no source guide recorded.</p>
   {:else}
     <div class="reading" hidden={panel !== 'guide'}><Guide page={source} /></div>
-    <div class="diagram workflow-viewer" hidden={panel !== 'diagram'}>
+    {#if panel === 'diagram'}<div class="diagram workflow-viewer">
       {#if source.diagnostics?.length}<details class="coverage"><summary>Some source could not be represented ({source.diagnostics.length})</summary>{#each source.diagnostics as diagnostic, index (index)}<p>{diagnostic.message}</p>{/each}</details>{/if}
       <WorkflowCanvas bind:this={viewer} page={source} initialView={view} oncommit={async (next) => { view = next; await viewer?.show(source, next); }} />
-    </div>
+    </div>{/if}
   {/if}
 </section>
 <style>
@@ -35,7 +35,7 @@
  nav { display: flex; gap: 10px; } button { background: transparent; border: 0; color: var(--muted-foreground); font: inherit; font-size: 12px; cursor: pointer; padding: 4px; } button[aria-pressed='true'] { color: var(--foreground); }
  .reading { flex: 1; min-height: 0; overflow: auto; padding: 24px max(24px, calc((100% - 680px)/2)); }
  .diagram { flex: 1; min-height: 0; display: flex; flex-direction: column; }
- .reading[hidden], .diagram[hidden] { display: none; }
+ .reading[hidden] { display: none; }
  .coverage { padding: 8px 24px; color: var(--muted-foreground); font-size: 12px; }
  .message { padding: 16px 24px; color: var(--muted-foreground); font-size: 13px; }
 </style>

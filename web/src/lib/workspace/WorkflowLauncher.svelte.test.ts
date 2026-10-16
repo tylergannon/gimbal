@@ -22,6 +22,14 @@ vi.mock("../../routes/workflow.remote", () => ({
           roles: [],
           source_json: "",
         },
+        {
+          name: "implement",
+          summary: "Implement outcomes",
+          help: "",
+          fields: [],
+          roles: [],
+          source_json: "",
+        },
       ],
     },
   }),
@@ -56,6 +64,19 @@ vi.mock("../../routes/launch.remote", () => {
       }),
     },
   };
+});
+
+test("the guide follows the selected workflow instead of the first catalog entry", async () => {
+  const screen = await render(Launcher, {
+    project: "project",
+    onopen: remote.opened,
+    onopenguide: remote.guide,
+  });
+  await screen.getByRole("button", { name: "Run a workflow", exact: true }).click();
+  await screen.getByRole("combobox", { name: "Workflow", exact: true }).selectOptions("implement");
+  await expect.element(screen.getByText("Implement outcomes", { exact: true })).toBeVisible();
+  await screen.getByRole("button", { name: "Read the guide" }).click();
+  expect(remote.guide).toHaveBeenLastCalledWith("implement");
 });
 
 test("opening the guide removes the popup immediately even without animation frames", async () => {

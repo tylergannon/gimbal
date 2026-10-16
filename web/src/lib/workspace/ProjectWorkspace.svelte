@@ -26,6 +26,7 @@
   import ProjectSwitcher from './ProjectSwitcher.svelte';
   import ServerIcon from '@lucide/svelte/icons/server';
   import WorkflowGuide from './WorkflowGuide.svelte';
+  import WorkflowBrowser from './WorkflowBrowser.svelte';
   import type { RunCardItem } from '#lib/run/RunsList.svelte';
   import RunPanel from './RunPanel.svelte';
   import type { RunSnapshot, InterviewRow } from '#lib/observation';
@@ -57,6 +58,7 @@
     : initialPath.endsWith('/discuss') ? { id: `${initialPath.split('/').slice(0, 3).join('/')}/conversations/new`, title: 'New session', kind: 'chat' }
     : page.params.fileID ? { id: initialPath, title: 'Project file', kind: 'file' }
     : page.params.recordingID ? { id: initialPath, title: 'Recorded conversation', kind: 'recording' }
+    : initialPath.endsWith('/workflows') ? { id: initialPath, title: 'Workflows', kind: 'guide' }
     : page.params.workflow ? { id: initialPath, title: `${page.params.workflow} guide`, kind: 'guide' }
     : initialPath.endsWith('/promises') ? { id: initialPath, title: 'Promises', kind: 'promises' }
     : initialPath === `${initialPath.split("/").slice(0, 3).join("/")}/runs` ? { id: initialPath, title: 'All runs', kind: 'runs' }
@@ -64,7 +66,7 @@
     : initialPath.endsWith('/conversations/new') ? { id: initialPath, title: 'New session', kind: 'chat' } : undefined;
   const upload = $derived(uploadFile.for(project));
   // Keyed by project, so the desktop window's last tabs seed this mount only.
-  const reopened = untrack(() => restored).filter(tab => tab.id !== root).map(tab => ({ ...tab, kind: tab.id.includes('/recordings/') ? 'recording' as const : tab.id.endsWith('/promises') ? 'promises' as const : tab.id.includes('/workflows/') ? 'guide' as const : tab.id === allRuns ? 'runs' as const : (['chat','run','runs','file','recording','promises','guide'].includes(tab.kind) ? tab.kind : 'chat') as WorkspaceTab['kind'] }));
+  const reopened = untrack(() => restored).filter(tab => tab.id !== root).map(tab => ({ ...tab, kind: tab.id.includes('/recordings/') ? 'recording' as const : tab.id.endsWith('/promises') ? 'promises' as const : (tab.id.endsWith('/workflows') || tab.id.includes('/workflows/')) ? 'guide' as const : tab.id === allRuns ? 'runs' as const : (['chat','run','runs','file','recording','promises','guide'].includes(tab.kind) ? tab.kind : 'chat') as WorkspaceTab['kind'] }));
   let open = $state<WorkspaceTab[]>([...reopened, ...(initialTab && !reopened.some(tab => tab.id === initialTab.id) ? [initialTab] : [])]);
   // The desktop window opens at 1000 px, so its server render starts without the sidebar.
   const wide = new MediaQuery('min-width: 1100px', !(page.data as { desktop?: boolean }).desktop);
@@ -97,7 +99,7 @@
   const runStatuses = $derived(Object.fromEntries((runData?.items ?? []).map(item => [item.run.id,runStatus(item.run,runData?.attention ?? [])])));
   const pendingQuestions = $derived(runData?.attention.filter(row => row.status === 'pending' && runData.items.some(item => item.run.id === row.run && item.run.status === 'running')) ?? []);
   const sidebarItems = $derived<WorkspaceTab[]>([
-    ...items, {id:allRuns,title:'All runs',kind:'runs',count:runData?.items.length,detail:pendingQuestions.length ? `${new Set(pendingQuestions.map(row => row.run)).size} needs you` : undefined}, ...runTabs,
+    ...items, {id:`${root}/workflows`,title:'Workflows',kind:'guide'}, {id:allRuns,title:'All runs',kind:'runs',count:runData?.items.length,detail:pendingQuestions.length ? `${new Set(pendingQuestions.map(row => row.run)).size} needs you` : undefined}, ...runTabs,
     ...(newest.current?.items ?? history.items).map(item => ({id:`${root}/recordings/${item.id}`,title:`Recording · ${new Date(item.created).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}`,kind:'recording' as const})),
     {id:`${root}/promises`,title:'Promises',kind:'promises',count:promiseQuery.current?.entries.filter(entry => !entry.withdrawn).length},
   ]);
@@ -283,6 +285,7 @@
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
         {#if current}<ConversationView {project} {current} {runStatuses} onchanged={workspaceChanged} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
+      {:else if tab.id === `${root}/workflows`}<WorkflowBrowser {project} onopen={guide} />
       {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split("/").at(-1)!)} />
       {:else if tab.id === allRuns}<ProjectRuns {project} active={active === tab.id} onopenguide={guide} data={runData} error={runQuery?.error} onretry={() => runQuery?.reconnect()} onopen={select} />
       {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string; source?: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} />
@@ -305,7 +308,7 @@
     <div class="pager">{#if after}<button onclick={() => after = ''}>Newest</button>{/if}{#if history.next}<button onclick={() => after = history.next}>Older recordings</button>{/if}</div>
   {/snippet}
   {#snippet sidebarFooter()}
-    <nav class="tools" aria-label="Project tools"><a class="row" href={root}>Project home</a><a class="row" href={`/settings/machines/projects/${project}`}><ServerIcon size={14} />Machines</a></nav>
+    <nav class="tools" aria-label="Project tools"><a class="row" href={root}>Project home</a><a class="row" href={`${root}/workflows`}>Workflows</a><a class="row" href={`/settings/machines/projects/${project}`}><ServerIcon size={14} />Machines</a></nav>
   {/snippet}
 </WorkspaceShell>
 

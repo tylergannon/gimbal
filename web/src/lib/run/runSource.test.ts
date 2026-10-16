@@ -24,9 +24,11 @@ test("a step binds to its latest runtime instance and record", () => {
   const mark = bindRun(source, graph, snapshot).marks.get(coding.id)!;
   expect(mark.scopeKey).toBe("implementation.1/task.3");
   expect(mark.selection?.kind).toBe("node");
-  expect(mark.selection && "runtime" in mark.selection && (mark.selection.runtime as { id?: string } | undefined)?.id).toBe(
-    "coding.1/turn.3",
-  );
+  expect(
+    mark.selection &&
+      "runtime" in mark.selection &&
+      (mark.selection.runtime as { id?: string } | undefined)?.id,
+  ).toBe("coding.1/turn.3");
   expect(mark.selectionKey).toBe(selectionKeyOf(mark.selection));
 });
 
@@ -74,7 +76,9 @@ test("group branches resolve their own instances; unmatched designer nodes stay 
 
   const moved = { ...preferences, id: "moved", source: { ...preferences.source, line: 9999 } };
   const page = { ...source, body: [...source.body, moved] };
-  expect(bindRun(page, planTripFixture.graph, planTripFixture.snapshot).marks.has("moved")).toBe(false);
+  expect(bindRun(page, planTripFixture.graph, planTripFixture.snapshot).marks.has("moved")).toBe(
+    false,
+  );
 });
 
 test("steps in scopes that have not started are not yet", () => {

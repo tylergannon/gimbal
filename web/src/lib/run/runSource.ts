@@ -29,10 +29,7 @@ import {
 
 type Operation = Graph["body"][number];
 type GroupChild = Extract<Operation, { kind: "group" }>["children"][number];
-type Matched =
-  | Operation
-  | (GroupChild & { kind: "go" })
-  | (Service & { kind: "service" });
+type Matched = Operation | (GroupChild & { kind: "go" }) | (Service & { kind: "service" });
 
 export type WatcherMark = {
   supervisor: Supervisor;
@@ -157,9 +154,9 @@ export function bindRun(
   };
 
   const match = (node: ViewNode) =>
-    index.get(position(node.source.file, node.source.line))?.find(
-      (item) => item.kind === graphKind[node.kind],
-    );
+    index
+      .get(position(node.source.file, node.source.line))
+      ?.find((item) => item.kind === graphKind[node.kind]);
 
   const watchersFor = (scopeKey: string, scope: ScopeRow, supervisors: Supervisor[]) =>
     supervisors.map((supervisor): WatcherMark => {
@@ -196,7 +193,10 @@ export function bindRun(
     const { instances, scope } = pick(parentKey, name);
     return {
       state: scopeState(scope),
-      meta: instances.length > 1 && scope ? `${instances.indexOf(scope) + 1} of ${instances.length}` : "",
+      meta:
+        instances.length > 1 && scope
+          ? `${instances.indexOf(scope) + 1} of ${instances.length}`
+          : "",
       scopeKey: scope?.key,
       selection: scope ? { kind: "sheet", scope } : undefined,
       selectionKey: scope ? sheetSelectionKey(scope.key) : undefined,
@@ -224,7 +224,13 @@ export function bindRun(
         const service = { ...operation } as Service & { kind?: string };
         delete service.kind;
         return {
-          state: !runtime ? "not-yet" : runtime.ended === 0 ? "running" : runtime.error ? "failed" : "ended",
+          state: !runtime
+            ? "not-yet"
+            : runtime.ended === 0
+              ? "running"
+              : runtime.error
+                ? "failed"
+                : "ended",
           meta: "",
           scopeKey,
           selection: { kind: "service", scope, service, runtime },
@@ -308,14 +314,29 @@ export function sourceFromGraph(graph: Graph): SourcePage {
     at: { file: string; line: number },
     scope: string,
     extra: Partial<ViewNode> = {},
-  ): ViewNode => ({ id: `g${++next}`, kind, label, source: { file: at.file, line: at.line }, scope, context: [], ...extra });
-  const services = (list: Service[], scope: string) => list.map((s) => node("Service", s.name, s, scope));
+  ): ViewNode => ({
+    id: `g${++next}`,
+    kind,
+    label,
+    source: { file: at.file, line: at.line },
+    scope,
+    context: [],
+    ...extra,
+  });
+  const services = (list: Service[], scope: string) =>
+    list.map((s) => node("Service", s.name, s, scope));
   const lane = (operations: readonly unknown[], scope: string): ViewNode[] =>
     operations.flatMap((raw): ViewNode[] => {
       const op = raw as Operation;
       switch (op.kind) {
         case "agent_call":
-          return [node("Generate", op.role || op.session, op, scope, { title: op.session, session: op.session, prompt: op.prompt })];
+          return [
+            node("Generate", op.role || op.session, op, scope, {
+              title: op.session,
+              session: op.session,
+              prompt: op.prompt,
+            }),
+          ];
         case "command":
           return [node("Command", op.name, op, scope)];
         case "interview":
@@ -334,17 +355,21 @@ export function sourceFromGraph(graph: Graph): SourcePage {
             }),
           ];
         case "repeat":
-          return [node("Repeat", op.cond || "repeat", op, scope, { children: [lane(op.body, scope)] })];
+          return [
+            node("Repeat", op.cond || "repeat", op, scope, { children: [lane(op.body, scope)] }),
+          ];
         case "group": {
           const inner = `${scope}/${op.name}`;
           return [
             node("Group", op.name, op, scope, {
               children: op.children.map((child) => [
                 node("Go", child.name, child, `${inner}/${child.name}`, {
-                  children: [[
-                    ...services(child.services, `${inner}/${child.name}`),
-                    ...lane(child.body, `${inner}/${child.name}`),
-                  ]],
+                  children: [
+                    [
+                      ...services(child.services, `${inner}/${child.name}`),
+                      ...lane(child.body, `${inner}/${child.name}`),
+                    ],
+                  ],
                 }),
               ]),
             }),

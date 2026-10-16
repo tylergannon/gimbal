@@ -55,18 +55,30 @@ afterEach(() => {
 const guard = () => page.getByRole("alertdialog");
 const overlay = () => document.querySelector("[data-slot=alert-dialog-overlay]");
 
+async function openCancelGuard(panelID = "workspace-panel-run") {
+  const panel = document.getElementById(panelID);
+  const menu = panel?.querySelector<HTMLDetailsElement>("details.more");
+  if (!panel || panel.hidden || !menu) throw new Error(`active run panel ${panelID} is missing`);
+  if (!menu.open) {
+    const summary = menu.querySelector("summary");
+    if (!summary) throw new Error(`run panel ${panelID} has no actions menu`);
+    summary.click();
+  }
+  const action = menu.querySelector<HTMLButtonElement>(".menu button");
+  if (action?.textContent?.trim() !== "Cancel run…") {
+    throw new Error(`run panel ${panelID} has no Cancel run… action`);
+  }
+  action.click();
+  await expect.element(guard()).toBeVisible();
+}
+
 async function openRunTabs() {
   const run = {
     snapshot: structuredClone(planTripFixture.snapshot),
     graph: JSON.stringify(planTripFixture.graph),
   };
   const screen = await render(RetainedRunTabs, { project: "retained-project", run });
-  const openGuard = async () => {
-    await screen.getByRole("button", { name: "More run actions" }).click();
-    await screen.getByRole("button", { name: "Cancel run…", exact: true }).click();
-    await expect.element(guard()).toBeVisible();
-  };
-  return { screen, run, openGuard };
+  return { screen, run, openGuard: () => openCancelGuard() };
 }
 
 test("switching away from a run removes its cancellation guard and leaves the destination usable", async () => {
@@ -82,11 +94,8 @@ test("switching away from a run removes its cancellation guard and leaves the de
   await expect.element(draft).toHaveValue("still typing");
 
   await screen.rerender({ project: "retained-project", run, selected: "run" });
-  await screen.getByRole("button", { name: "More run actions" }).click();
-  await expect
-    .element(screen.getByRole("button", { name: "Cancel run…", exact: true }))
-    .toBeVisible();
-  await screen.getByRole("button", { name: "More run actions" }).click();
+  await openCancelGuard();
+  await page.getByRole("button", { name: "Keep running", exact: true }).click();
   await expect.element(guard()).not.toBeInTheDocument();
   expect(remote.cancelRun).not.toHaveBeenCalled();
 });
@@ -144,8 +153,7 @@ test("eight retained live runs use one observation stream and cancellation still
       .toBe(1);
     expect(SilentEventSource.instances.at(-1)?.url).toContain(runs[id].snapshot.run.id);
   }
-  await screen.getByRole("button", { name: "More run actions" }).click();
-  await screen.getByRole("button", { name: "Cancel run…", exact: true }).click();
+  await openCancelGuard(`workspace-panel-${ids.at(-1)!}`);
   await guard().getByRole("button", { name: "Cancel run", exact: true }).click();
   expect(remote.cancelRun.mock.calls).toEqual([[{ run: runs[ids.at(-1)!].snapshot.run.id }]]);
   await screen.rerender({ ...props, selected: "draft" });

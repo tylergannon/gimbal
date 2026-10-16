@@ -9,4 +9,5 @@ var diffusionLimits = map[string]diffusionLimit{
 	"glm-5.3":            {contextWindow: 524288, maxTokens: 131072, vision: true},
 	"glm-5.3-flash":      {contextWindow: 524288, maxTokens: 163840, vision: true},
 	"glm-5.3-vision":     {contextWindow: 524288, maxTokens: 131072, vision: true},
+	"muse-spark-open":    {contextWindow: 524288, maxTokens: 131072, vision: true},
 }

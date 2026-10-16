@@ -6,6 +6,9 @@
   // Canonical projections retain identity, including nested tool state. Copy only this
   // message on invalidation so derived tool input/output sees a new reference too.
   const row = $derived.by(() => { revision; return JSON.parse(JSON.stringify(message)) as JSONObject; });
+  const content = $derived((row.content ?? []).filter((part: JSONObject) => part.type !== 'tool' || part.name !== 'StructuredOutput'));
+  // A completion-only step (including its thinking) has no chat content.
+  const completionOnly = $derived(content.length < (row.content ?? []).length && !content.some((part: JSONObject) => part.type !== 'reasoning') && !row.error && !row.retry);
   const text = (value: unknown) => typeof value === 'string' ? value : JSON.stringify(value, null, 2);
   const cause = (value: unknown): string => {
     if (!value || typeof value !== 'object') return text(value);
@@ -22,8 +25,9 @@
   {#if row.type === 'user'}
     <article class="user" data-request-id={row.requestID}><p>{row.text}</p>{#if row.steered}<span class="caption">Sent while {provider} was working</span>{/if}</article>
   {:else if row.type === 'assistant'}
+    {#if !completionOnly}
     <article class="assistant"><header><span class="avatar" aria-hidden="true">{provider.slice(0, 1)}</span><span>{provider} · {model} · {location}</span></header>
-      {#each row.content ?? [] as part, i (`${row.id}/${i}`)}
+      {#each content as part, i (`${row.id}/${i}`)}
         {#if part.type === 'text'}<p>{part.text}</p>
         {:else if part.type === 'reasoning'}<details class="reasoning"><summary>Thinking</summary><p>{part.text}</p></details>
         {:else if part.type === 'tool'}<details class="tool"><summary><span>{part.name}</span><span>{part.state?.status ?? 'pending'}</span><code title={String(digest(part))}>{digest(part)}</code></summary><ToolCall {part} /></details>{/if}
@@ -31,6 +35,7 @@
       {#if row.retry}<p class="warning" role="status">Retry scheduled{row.retry.attempt ? ` · attempt ${row.retry.attempt}` : ''}: {cause(row.retry.error)}</p>{/if}
       {#if row.error}<p class="error" role="alert">{cause(row.error)}</p>{/if}
     </article>
+    {/if}
   {:else if row.type === 'connection'}<p class="caption">{row.message}</p>
   {:else if row.type === 'synthetic' && row.description === 'Harness retry'}<p class="warning" role="status">{row.text} · {cause({ type: row.metadata?.error, status: row.metadata?.error_status })}</p><details><summary>Retry details</summary><Payload label="retry" text={text(row.metadata)} /></details>
   {:else if row.type === 'shell'}<details><summary>Shell command</summary><Payload label="shell" text={`$ ${row.command}\n${row.output ?? ''}`} /></details>

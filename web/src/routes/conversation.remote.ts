@@ -3,6 +3,7 @@ import { command, form, query } from "$app/server";
 import type { Conversation, RequestState, Setup } from "../lib/skgo/conversation/types";
 import type {
   CleanupConversation,
+  ConfigureConversationModel,
   ConversationSetup,
   CreateConversation,
   RenameConversation,
@@ -13,6 +14,7 @@ import type {
 
 export type {
   CleanupConversation,
+  ConfigureConversationModel,
   Conversation,
   ConversationSetup,
   CreateConversation,
@@ -33,6 +35,11 @@ const unimplemented = (): never => {
 
 export const cleanupConversation = command("unchecked", (_arg: CleanupConversation): boolean =>
   unimplemented(),
+);
+
+export const configureConversationModel = command(
+  "unchecked",
+  (_arg: ConfigureConversationModel): Conversation => unimplemented(),
 );
 
 export const conversationSetup = query("unchecked", (_arg: ConversationSetup): Setup =>

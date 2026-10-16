@@ -59,7 +59,7 @@ func TestDesktopFrontDoorReopensTheLastProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status, location, _ := get("/window", true); status != http.StatusTemporaryRedirect || location != "/projects/"+first.ID()+"/recordings" {
+	if status, location, _ := get("/window", true); status != http.StatusTemporaryRedirect || location != "/projects/"+first.ID() {
 		t.Fatalf("desktop window with nothing remembered: %d %q", status, location)
 	}
 	chat := "/projects/" + second.ID() + "/conversations/c1"

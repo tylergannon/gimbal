@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.44] - 2026-10-16
+
+### Changed
+
+- feat: add run transcripts and unified project navigation
+
 ## [0.13.43] - 2026-10-16
 
 ### Changed
@@ -440,7 +446,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.43...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.44...main
+[0.13.44]: https://github.com/tylergannon/gimbal/compare/v0.13.43...v0.13.44
 [0.13.43]: https://github.com/tylergannon/gimbal/compare/v0.13.42...v0.13.43
 [0.13.42]: https://github.com/tylergannon/gimbal/compare/v0.13.41...v0.13.42
 [0.13.41]: https://github.com/tylergannon/gimbal/compare/v0.13.40...v0.13.41

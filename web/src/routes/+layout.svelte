@@ -18,7 +18,7 @@
   let saving = Promise.resolve();
   let saveError = $state('');
   function moved(place: WindowState) {
-    const root = `/projects/${place.project}/conversations/`;
+    const root = `/projects/${place.project}/`;
     windowState = { ...place, seen: [...(windowState.seen ?? []).filter(item => !item.path.startsWith(root)), ...place.seen] };
     saving = saving.then(async () => {
       try { await rememberWindow(place); saveError = ''; }
@@ -83,7 +83,7 @@
       </h2>
       {#each data.workspaceProjects as item (item.id)}<a
           class={row}
-          href={`/projects/${item.id}/recordings`}
+          href={`/projects/${item.id}`}
           title={item.path}
           ><span class="truncate">{item.path.split("/").at(-1)}</span></a
         >{:else}<p class="px-2.5 text-xs text-muted-foreground">

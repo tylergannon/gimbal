@@ -212,7 +212,7 @@
     placed = true;
     const live = [...binding.marks].find(
       ([id, mark]) =>
-        (mark.state === "running" || mark.state === "waiting") &&
+        (mark.state === "running" || mark.state === "needs-you") &&
         !nodes.find((n) => n.id === id)?.data.expandable,
     )?.[0];
     if (live && nodes.some((n) => n.id === live)) await center(live);

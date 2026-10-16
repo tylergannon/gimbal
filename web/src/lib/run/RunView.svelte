@@ -20,7 +20,9 @@
   import SessionPage from "#lib/run/detail/SessionPage.svelte";
   import RunQuestions from "./RunQuestions.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
-  import Topbar from "#lib/run/Topbar.svelte";
+  import Topbar from "./Topbar.svelte";
+  import RunHeader from "./RunHeader.svelte";
+  import RunTranscript from "./RunTranscript.svelte";
   import Workspace from "#lib/run/Workspace.svelte";
   import {
     asMapSelection,
@@ -68,9 +70,11 @@
   let stopping = $state(false);
   let cancelling = $state(false);
   let controlFeedback = $state("");
-  type RunView = "map" | "focus";
-  let view = $state<RunView>("map");
+  type RunView = "transcript" | "map" | "focus";
+  let view = $state<RunView>("transcript");
   let selectedSessionID = $state<string | undefined>();
+  let mapOpened = $state(false);
+  function showMap() { mapOpened = true; view = "map"; }
   let observedRunID = "";
   let revealSequence = 0;
 
@@ -172,7 +176,8 @@
       cancelOpen = false;
       controlFeedback = "";
       inspected = undefined;
-      view = "map";
+      view = "transcript";
+      mapOpened = false;
       selectedSessionID = undefined;
     }
     observedRunID = next.run.id;
@@ -379,36 +384,20 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <div class="run-workspace">
-  <Topbar
-    {project}
-    {active}
-    run={snapshot.run}
-    agentFocus={view === "focus"}
-    {connection}
-    {activeTurn}
-    {waiting}
-    {stopping}
-    {cancelling}
-    feedback={controlFeedback}
-    {searchItems}
-    currentAvailable={Boolean(currentSelection)}
-    onnavigate={(item) => navigateTo(item.selection)}
-    oncurrent={() => currentSelection && navigateTo(currentSelection)}
-    onstop={stopActiveTurn}
-    oncancel={() => snapshot.run.status === "running" ? (cancelOpen = true) : void cancelActiveRun()}
-    sessionName={openSessionName}
-    onclosesession={closeSession}
-  />
-  {#if data.snapshot.run.workflow_environment || data.snapshot.run.task_environment}<p class="placement">Workflow: {data.snapshot.run.workflow_environment || "local"} · Tasks: {data.snapshot.run.task_environment || "local"}</p>{/if}
-  {#if waiting}
-    <div class="run-questions" aria-label="Run questions">
-      {#each Object.values(snapshot.interviews).filter(question => question.status === 'pending') as question (question.question_id)}
-        <RunQuestions run={snapshot.run.id} {question} />
-      {/each}
-    </div>
+  {#if view === 'transcript'}
+    <RunHeader run={snapshot.run} {waiting} {connection} mode={view} onmode={(mode) => mode === "map" ? showMap() : (view = mode)} oncancel={() => snapshot.run.status === "running" ? (cancelOpen = true) : void cancelActiveRun()} {searchItems} onnavigate={(item) => { showMap(); navigateTo(item.selection); }} />
+    {#if controlFeedback}<p class="placement" role="status">{controlFeedback}</p>{/if}
+  {:else}
+    <div class="map-toolbar"><button class="transcript-back" onclick={() => view = 'transcript'}>← Transcript</button></div>
+    <Topbar {project} {active} run={snapshot.run} agentFocus={view === "focus"} {connection} {activeTurn} {waiting} {stopping} {cancelling} feedback={controlFeedback} {searchItems} currentAvailable={Boolean(currentSelection)} onnavigate={(item) => navigateTo(item.selection)} oncurrent={() => currentSelection && navigateTo(currentSelection)} onstop={stopActiveTurn} oncancel={() => snapshot.run.status === "running" ? (cancelOpen = true) : void cancelActiveRun()} sessionName={openSessionName} onclosesession={closeSession} />
+    {#if waiting}<div class="run-questions" aria-label="Run questions">{#each Object.values(snapshot.interviews).filter(question => question.status === 'pending') as question (question.question_id)}<RunQuestions run={snapshot.run.id} {question} />{/each}</div>{/if}
   {/if}
+  <div class={["workspace-slot", { hidden: view !== "transcript" }]}>
+    <RunTranscript {project} {snapshot} {observation} {revision} graph={graphMatches ? graph : undefined} onmap={(next) => { showMap(); if (next) selectWithoutReveal(next); }} />
+  </div>
   <!-- Hidden, not unmounted, while a session is open, so the map keeps its
   scroll and expanded instances. -->
+  {#if mapOpened}
   <div class={["workspace-slot", { hidden: view !== "map" }]}>
     <Workspace active={active && view === "map"} open={Boolean(selection || inspected)} onclose={clearSelection}>
       {#snippet map()}
@@ -466,6 +455,7 @@
       {/snippet}
     </Workspace>
   </div>
+  {/if}
   {#if view === "focus" && selectedSessionID}
     <div class="workspace-slot">
       {#key selectedSessionID}
@@ -488,7 +478,7 @@
 </div>
 
 <CancelGuard
-  open={active && view !== "focus" && cancelOpen}
+  open={active && cancelOpen}
   run={snapshot.run}
   {activeTurn}
   {openScopes}
@@ -517,6 +507,7 @@
 </form>
 
 <style>
+  .map-toolbar { padding: 6px 16px 0; } .transcript-back { border: 0; color: var(--muted-foreground); background: transparent; font: 12px var(--font-sans); cursor: pointer; }
   .run-questions { flex: none; max-height: 30vh; overflow: auto; }
  .placement{margin:0;padding:6px 20px;font-size:13px;color:#374151;background:#f7f8fa}
   .run-workspace {
@@ -533,6 +524,7 @@
   .workspace-slot {
     display: flex;
     min-height: 0;
+    min-width: 0;
     flex: 1;
   }
 

@@ -17,8 +17,8 @@
       const project = await openProject({ path });
       if (window.webkit?.messageHandlers?.requestProject) {
         await refreshAll();
-        window.webkit.messageHandlers.requestProject.postMessage({ path: `/projects/${project.id}/recordings`, projectPath: path });
-      } else await goto(`/projects/${project.id}/recordings`, { invalidateAll: true });
+        window.webkit.messageHandlers.requestProject.postMessage({ path: `/projects/${project.id}`, projectPath: path });
+      } else await goto(`/projects/${project.id}`, { invalidateAll: true });
     } catch (cause) {
       error = (cause as { body?: { message?: string } }).body?.message ?? `Could not open ${path}`;
     } finally {

@@ -28,14 +28,14 @@
   </p>
   <ProjectList
     projects={data.projects}
-    href={(project) => `/projects/${project.id}${page.data.desktop ? "/recordings" : ""}`}
+    href={(project) => `/projects/${project.id}`}
   />
   <form
     class="mt-8 grid gap-2 border-t pt-6"
     {...createProject.enhance(async (form) => {
       try {
         if (await form.submit()) {
-          if (form.result) await goto(`/projects/${form.result.id}/recordings`);
+          if (form.result) await goto(`/projects/${form.result.id}`);
         }
       } catch (error) {
         if (!navigateOnUnauthorized(error)) actionError = errorMessage(error);

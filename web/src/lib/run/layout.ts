@@ -440,9 +440,9 @@ export function runtimeFor(snapshot: RunSnapshot, scopeKey: string, operation: N
 }
 
 export function turnState(turn?: TurnRow): PipState {
-  if (!turn) return "not-yet";
-  if (turn.unresolved) return "unresolved";
-  if (turn.interrupted) return "ended";
+  if (!turn) return "queued";
+  if (turn.unresolved) return "needs-you";
+  if (turn.interrupted) return "cancelled";
   if (turn.error) return "failed";
   return turn.ended === 0 ? "running" : "ended";
 }
@@ -450,16 +450,16 @@ export function turnState(turn?: TurnRow): PipState {
 export function operationState(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
   if (operation.kind === "command") {
     const command = commandFor(snapshot, scopeKey, operation.name);
-    if (!command) return "not-yet" as const;
-    if (command.interrupted) return "ended" as const;
+    if (!command) return "queued" as const;
+    if (command.interrupted) return "cancelled" as const;
     if (command.error || command.exit_code !== 0) return "failed" as const;
     return command.ended === 0 ? ("running" as const) : ("ended" as const);
   }
 
   if (operation.kind === "interview") {
     const interview = interviewFor(snapshot, scopeKey, operation.name);
-    if (!interview) return "not-yet" as const;
-    return interview.status === "pending" ? ("waiting" as const) : ("ended" as const);
+    if (!interview) return "queued" as const;
+    return interview.status === "pending" ? ("needs-you" as const) : ("ended" as const);
   }
 
   return turnState(turnFor(snapshot, scopeKey, operation.session));

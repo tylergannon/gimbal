@@ -39,7 +39,7 @@
 	const scope = $derived(snapshot.scopes[turn?.scope ?? '']);
 
 	const pipState = $derived<PipState>(
-		!turn ? 'not-yet' : turn.error ? 'failed' : turn.ended ? 'ended' : 'running'
+		!turn ? 'queued' : turn.error ? 'failed' : turn.ended ? 'ended' : 'running'
 	);
 	const live = $derived(snapshot.run.status === 'running');
 </script>

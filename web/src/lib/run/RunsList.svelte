@@ -31,7 +31,7 @@
     const needle = query.trim().toLocaleLowerCase();
     return matches && (!needle || `${item.run.name} ${item.run.id} ${item.summary}`.toLocaleLowerCase().includes(needle));
   }));
-  const pipState = (run: RunRow) => pending.has(run.id) && run.status === 'running' ? 'waiting' : run.status === 'running' ? 'running' : run.status === 'failed' ? 'failed' : 'ended';
+  const pipState = (run: RunRow) => pending.has(run.id) && run.status === 'running' ? 'needs-you' : run.status === 'running' ? 'running' : run.status === 'failed' ? 'failed' : run.status === 'cancelled' ? 'cancelled' : 'ended';
   const status = (run: RunRow) => pending.has(run.id) && run.status === 'running' ? 'Needs you' : run.status === 'completed' ? 'Completed' : run.status[0].toUpperCase() + run.status.slice(1);
   function relative(timestamp: number) { const seconds = Math.max(0, Math.floor((now - timestamp) / 1000)); return timestamp === 0 ? 'No activity yet' : seconds < 60 ? `${seconds} s ago` : seconds < 3600 ? `${Math.floor(seconds / 60)} min ago` : new Date(timestamp).toLocaleString(); }
   async function cancel() {

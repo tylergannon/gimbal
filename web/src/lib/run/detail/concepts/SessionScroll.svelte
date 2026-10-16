@@ -51,7 +51,7 @@
 		return 'ended' as const;
 	});
 	const pipState = $derived<PipState>(
-		!turn ? 'not-yet' : turn.error ? 'failed' : turn.ended ? 'ended' : 'running'
+		!turn ? 'queued' : turn.error ? 'failed' : turn.ended ? 'ended' : 'running'
 	);
 
 	let now = $state(Date.now());

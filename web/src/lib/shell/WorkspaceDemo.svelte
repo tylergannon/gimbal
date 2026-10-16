@@ -8,10 +8,10 @@
   } = $props();
   const inventory: WorkspaceTab[] = [
     { id: 'layout', title: 'Workspace layout', kind: 'chat', detail: 'Claude' },
-    { id: 'navigation', title: 'Return navigation #455', kind: 'chat', detail: 'Codex', status: 'working' },
+    { id: 'navigation', title: 'Return navigation #455', kind: 'chat', detail: 'Codex', status: 'running' },
     { id: 'webapp', title: 'web-app.md', kind: 'file' },
-    { id: 'menu', title: 'Menu bar in Swift', kind: 'chat', detail: 'Claude', status: 'unread' },
-    { id: 'map', title: 'run-map.md', kind: 'file', status: 'attention' },
+    { id: 'menu', title: 'Menu bar in Swift', kind: 'chat', detail: 'Claude', status: 'ended', unseen: true },
+    { id: 'map', title: 'run-map.md', kind: 'file', status: 'needs-you' },
     { id: 'api', title: 'API.md', kind: 'file' },
     ...Array.from({ length: 7 }, (_, i): WorkspaceTab => ({ id: `long${i}`, title: `Workspace research and implementation notes ${i + 1}.md`, kind: 'file' }))
   ];

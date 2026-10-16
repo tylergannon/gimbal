@@ -2,8 +2,13 @@
 export interface WorkspaceTab {
   id: string;
   title: string;
-  kind: "chat" | "file" | "run";
-  status?: "working" | "attention" | "unread";
+  kind: "chat" | "run" | "runs" | "file" | "recording" | "promises" | "guide";
+  status?: "queued" | "running" | "needs-you" | "ended" | "failed" | "cancelled";
+  unseen?: boolean;
+  count?: number;
+  origin?: { id: string; title: string };
+  workflow?: string;
+  members?: WorkspaceTab[];
   detail?: string;
 }
 

@@ -41,7 +41,7 @@ export function watcherRows(
         return {
           session: watcher.session,
           role: watcher.role,
-          pip: "not-yet",
+          pip: "queued",
           verdict: "not yet run",
           result: "No watcher turn has been recorded in this scope.",
         };
@@ -50,11 +50,11 @@ export function watcherRows(
         session: watcher.session,
         role: watcher.role,
         pip: watcherTurn.unresolved
-          ? "unresolved"
+          ? "needs-you"
           : !watcherTurn.ended
             ? "running"
             : watcherTurn.interrupted
-              ? "ended"
+              ? "cancelled"
               : watcherTurn.error
                 ? "failed"
                 : "ended",

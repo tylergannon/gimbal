@@ -32,7 +32,7 @@ test("watcher summaries preserve uncertainty, failure, interruption, and success
       error: "delivery lost after retained native success",
       ended: 2,
       verdict: "unresolved",
-      pip: "unresolved",
+      pip: "needs-you",
     },
     {
       unresolved: false,
@@ -48,7 +48,7 @@ test("watcher summaries preserve uncertainty, failure, interruption, and success
       error: "context canceled",
       ended: 2,
       verdict: "interrupted",
-      pip: "ended",
+      pip: "cancelled",
     },
     { unresolved: false, interrupted: false, error: "", ended: 2, verdict: "ended", pip: "ended" },
     {

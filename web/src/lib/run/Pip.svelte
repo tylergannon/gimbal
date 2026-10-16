@@ -1,5 +1,5 @@
 <script module lang="ts">
-  export type PipState = "ended" | "running" | "failed" | "waiting" | "not-yet" | "unresolved";
+  export type PipState = "queued" | "running" | "needs-you" | "ended" | "failed" | "cancelled";
 </script>
 
 <script lang="ts">
@@ -12,8 +12,8 @@
   .pip {
     position: relative;
     display: inline-block;
-    width: 10px;
-    height: 10px;
+    width: 8px;
+    height: 8px;
     box-sizing: border-box;
     flex-shrink: 0;
     border-radius: 9999px;
@@ -36,7 +36,7 @@
   .pip[data-state="failed"]::before,
   .pip[data-state="failed"]::after {
     position: absolute;
-    top: 4px;
+    top: 3px;
     right: 2px;
     left: 2px;
     height: 1.5px;
@@ -49,26 +49,28 @@
     transform: rotate(-45deg);
   }
 
-  .pip[data-state="waiting"] {
+  .pip[data-state="needs-you"] {
+    width: 9px; height: 9px;
     background: var(--background);
-    box-shadow: inset 0 0 0 2px var(--status-live);
+    box-shadow: inset 0 0 0 2px var(--status-needs-you);
   }
 
-  .pip[data-state="waiting"]::after {
+  .pip[data-state="needs-you"]::after {
     position: absolute;
     top: 3px;
     left: 3px;
-    width: 4px;
-    height: 4px;
+    width: 3px;
+    height: 3px;
     border-radius: 9999px;
-    background: var(--status-live);
+    background: var(--status-needs-you);
     content: "";
   }
 
-  .pip[data-state="unresolved"],
- .pip[data-state="not-yet"] {
+  .pip[data-state="queued"] {
     border: 1.5px dashed var(--status-muted);
   }
+
+  .pip[data-state="cancelled"] { border: 1px solid var(--foreground); background: linear-gradient(90deg, var(--foreground) 50%, transparent 50%); }
 
   @keyframes spin {
     to {

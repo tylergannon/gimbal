@@ -89,6 +89,6 @@ test("steps in scopes that have not started are not yet", () => {
   empty.commands = {};
   const marks = bindRun(source, graph, empty).marks;
   const coding = find(source.body, (n) => n.kind === "Generate" && n.session === "coding")!;
-  expect(marks.get(coding.id)?.state).toBe("not-yet");
+  expect(marks.get(coding.id)?.state).toBe("queued");
   expect(marks.get(coding.id)?.selection).toBeUndefined();
 });

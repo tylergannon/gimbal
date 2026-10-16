@@ -11,7 +11,7 @@
     argTypes: {
       state: {
         control: "select",
-        options: ["ended", "running", "failed", "waiting", "not-yet"],
+        options: ["ended", "running", "failed", "needs-you", "queued"],
       },
     },
   });
@@ -22,16 +22,16 @@
     <span><Pip state="ended" />ended</span>
     <span><Pip state="running" />running</span>
     <span><Pip state="failed" />failed</span>
-    <span><Pip state="waiting" />waiting for you</span>
-    <span><Pip state="not-yet" />not yet</span>
+    <span><Pip state="needs-you" />waiting for you</span>
+    <span><Pip state="queued" />not yet</span>
   </div>
 </Story>
 
 <Story name="Ended" args={{ state: "ended" }} />
 <Story name="Running" args={{ state: "running" }} />
 <Story name="Failed" args={{ state: "failed" }} />
-<Story name="Waiting for you" args={{ state: "waiting" }} />
-<Story name="Not yet" args={{ state: "not-yet" }} />
+<Story name="Waiting for you" args={{ state: "needs-you" }} />
+<Story name="Not yet" args={{ state: "queued" }} />
 
 <style>
   .states {

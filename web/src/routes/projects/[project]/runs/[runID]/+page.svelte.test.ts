@@ -154,109 +154,85 @@ function multiAgentSnapshot() {
   return snapshot;
 }
 
-test("multiple running agents default to Watchboard and remain visible without a graph", async () => {
+function mapRegion(screen: { getByRole: (role: "region", options: { name: RegExp }) => unknown }) {
+  return screen.getByRole("region", { name: /workflow map/ }) as never;
+}
+
+function step(name: string) {
+  return document.querySelector<HTMLButtonElement>(`.svelte-flow button[aria-label^="${name},"]`);
+}
+
+async function stepButton(name: string) {
+  await expect.poll(() => step(name)).not.toBeNull();
+  return step(name)!;
+}
+
+async function press(label: string) {
+  const find = () => document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  await expect.poll(find).not.toBeNull();
+  find()!.click();
+}
+
+function openSelectedSession() {
+  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true, cancelable: true }));
+}
+
+test("a run opens on its workflow map, drawn with the designer's shapes", async () => {
   const snapshot = multiAgentSnapshot();
-  const screen = await render(Page, { data: { snapshot, graph: "" } });
-  await expect
-    .element(
-      screen
-        .getByRole("navigation", { name: "Run views" })
-        .getByRole("button", { name: "Watchboard" }),
-    )
-    .toHaveAttribute("aria-current", "page");
-  await expect
-    .element(screen.getByRole("button", { name: "Focus interviewer" }).first())
-    .toBeVisible();
-  await expect
-    .element(screen.getByRole("button", { name: "Focus interviewer" }).last())
-    .toBeVisible();
-  await expect.element(screen.getByText("I compared the recorded lodging choices.")).toBeVisible();
-  await expect.element(screen.getByText("No assistant prose recorded yet.")).toBeVisible();
-  expect(document.body.textContent).not.toContain("Review active task 1.");
-  await expect
-    .element(screen.getByText("Workflow map unavailable; running agents remain visible above."))
-    .toBeVisible();
-
-  await screen.getByRole("button", { name: "Focus interviewer" }).last().click();
-  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
-  await expect
-    .element(screen.getByText("No assistant prose recorded for this turn yet."))
-    .toBeVisible();
-});
-
-test("one running agent defaults to Focus and manual view choice survives live snapshots", async () => {
-  const snapshot = multiAgentSnapshot();
-  const turns = Object.values(snapshot.turns);
-  delete snapshot.turns[turns[1].id];
-  const { screen, stream } = await renderRunningPage({ graph: planTripFixture.graph, snapshot });
-  const tabs = screen.getByRole("navigation", { name: "Run views" });
-  await expect
-    .element(tabs.getByRole("button", { name: "Focus" }))
-    .toHaveAttribute("aria-current", "page");
-  await tabs.getByRole("button", { name: "Map", exact: true }).click();
-  const replacement = structuredClone(snapshot);
-  replacement.position++;
-  replacement.turns[turns[1].id] = { ...turns[1], started: turns[1].started + 2 };
-  stream.send("snapshot", replacement);
-  await expect
-    .element(tabs.getByRole("button", { name: "Map", exact: true }))
-    .toHaveAttribute("aria-current", "page");
-});
-
-test("Focus gives a clear no-session state when the run has no agent sessions", async () => {
-  const snapshot = structuredClone(planTripFixture.snapshot);
-  snapshot.sessions = {};
-  snapshot.turns = {};
-  snapshot.transcripts = {};
   const screen = await render(Page, {
     data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
   });
-  await screen.getByRole("button", { name: "Focus" }).click();
-  await expect.element(screen.getByRole("region", { name: "Focus has no session" })).toBeVisible();
-  await expect
-    .element(screen.getByRole("heading", { name: "No agent session selected" }))
-    .toBeVisible();
-  await expect
-    .element(screen.getByText("No agent sessions have been recorded in this run."))
-    .toBeVisible();
+  await expect.element(mapRegion(screen)).toBeVisible();
+  expect(document.querySelector('nav[aria-label="Run views"]')).toBeNull();
+  const preferences = await stepButton("preferences");
+  expect(preferences.closest(".node")?.getAttribute("data-selection-key")).toContain(
+    "research.1/lodging.1",
+  );
 });
 
-test("Watchboard non-agent map selection reveals the run Map detail", async () => {
+test("a saved source page draws the designer's titles over the run", async () => {
+  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const { sourceFromGraph } = await import("#lib/run/runSource.js");
+  const source = sourceFromGraph(implementInterviewFixture.graph);
+  const coding = JSON.stringify(source).replace('"title":"coding"', '"title":"Implement the task"');
+  const screen = await render(Page, {
+    data: { snapshot, graph: JSON.stringify(implementInterviewFixture.graph), source: coding },
+  });
+  await expect.element(mapRegion(screen)).toBeVisible();
+  const button = await stepButton("Implement the task");
+  button.click();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
+});
+
+test("a command step in an earlier task instance selects into the detail pane", async () => {
   const { screen } = await renderRunningPage(implementInterviewFixture);
-  await screen.getByRole("button", { name: "Watchboard" }).click();
-  await expect.element(screen.getByRole("region", { name: "Watchboard" })).toBeVisible();
-  await screen.getByRole("button", { name: "Select task-check" }).click();
-  await expect
-    .element(screen.getByRole("button", { name: "Map", exact: true }))
-    .toHaveAttribute("aria-current", "page");
+  const find = () => document.querySelector<HTMLSelectElement>('select[aria-label="implementation instance"]');
+  await expect.poll(find).not.toBeNull();
+  const instances = find()!;
+  instances.value = instances.options[0].value;
+  instances.dispatchEvent(new Event("change", { bubbles: true }));
+  (await stepButton("task-check")).click();
   await expect.element(screen.getByRole("heading", { name: "task-check" })).toBeVisible();
 });
 
 test("Map runtime selection rebinds across snapshots and clears when its row disappears", async () => {
   const { screen, stream } = await renderRunningPage(implementInterviewFixture);
-  await screen.getByRole("button", { name: "Map", exact: true }).click();
-  await screen.getByRole("button", { name: "Select coding" }).click();
+  (await stepButton("coding")).click();
   await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
-  await screen.getByRole("button", { name: "Map", exact: true }).click();
-  await expect
-    .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
-    .toBeVisible();
+  await screen.getByRole("button", { name: "Close" }).first().click();
+  await expect.poll(() => step("coding")?.getAttribute("aria-pressed")).toBe("true");
 
   const refreshed = structuredClone(implementInterviewFixture.snapshot);
   refreshed.position++;
   stream.send("snapshot", refreshed);
-  await expect
-    .element(screen.getByRole("button", { name: "Select coding", pressed: true }))
-    .toBeVisible();
+  await expect.poll(() => step("coding")?.getAttribute("aria-pressed")).toBe("true");
 
   const missing = structuredClone(refreshed);
   missing.position++;
   for (const id of Object.keys(missing.turns).filter((id) => id.startsWith("coding.1/")))
     delete missing.turns[id];
   stream.send("snapshot", missing);
-  await expect
-    .element(screen.getByRole("button", { name: "Select coding" }))
-    .toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => step("coding")?.getAttribute("aria-pressed")).toBe("false");
 });
 
 test("a missing saved graph reports the missing run data", async () => {
@@ -297,45 +273,38 @@ test("an incompatible saved graph reports the mismatch", async () => {
 
 test("topbar navigation reveals folded current activity and keeps map and detail coordinated", async () => {
   const { screen } = await renderRunningPage();
-  await screen.getByRole("button", { name: "Fold research" }).click();
-  await expect.element(screen.getByRole("button", { name: "Open research" })).toBeVisible();
+  await press("Collapse research");
+  await expect.poll(() => document.querySelector('button[aria-label="Expand research"]')).not.toBeNull();
 
   await screen.getByRole("button", { name: "2 questions waiting" }).click();
 
-  await expect.element(screen.getByRole("button", { name: "Fold research" })).toBeVisible();
-  const selected = document.querySelector(
-    'button[aria-label="Select preferences"][aria-pressed="true"]',
-  );
-  expect(selected).not.toBeNull();
-  expect(selected?.closest("[data-selection-key]")?.getAttribute("data-selection-key")).toContain(
+  await expect.poll(() => document.querySelector('button[aria-label="Collapse research"]')).not.toBeNull();
+  await expect.poll(() => document.querySelector('.node.chosen')?.getAttribute("data-selection-key")).toContain(
     "research.1/transport.1",
   );
   await expect.element(screen.getByRole("heading", { name: "preferences" })).toBeVisible();
 });
 
-test("search selects an old turn through a folded loop instance", async () => {
+test("search selects an old turn through a collapsed loop instance", async () => {
   const { screen } = await renderRunningPage(implementInterviewFixture);
-  await screen.getByRole("button", { name: "Map", exact: true }).click();
-  await screen.getByRole("button", { name: "Fold implementation" }).click();
-  await expect.element(screen.getByRole("button", { name: "Open implementation" })).toBeVisible();
+  await press("Collapse implementation");
+  await expect.poll(() => document.querySelector('button[aria-label="Expand implementation"]')).not.toBeNull();
 
   const search = screen.getByRole("textbox", { name: "Find a scope, turn, or command" });
   await search.fill("coding turn 1");
   await screen.getByRole("option", { name: /coding · turn 1/ }).click();
 
-  await expect.element(screen.getByRole("button", { name: "Fold implementation" })).toBeVisible();
-  const selected = screen.getByRole("button", { name: "Select coding", pressed: true });
-  await expect.element(selected).toBeVisible();
-  expect(
-    selected.element().closest("[data-selection-key]")?.getAttribute("data-selection-key"),
-  ).toContain("implementation.1/task.1");
+  await expect.poll(() => document.querySelector('button[aria-label="Collapse implementation"]')).not.toBeNull();
+  await expect.poll(() => step("coding")?.getAttribute("aria-pressed")).toBe("true");
+  expect(step("coding")?.closest(".node")?.getAttribute("data-selection-key")).toContain(
+    "implementation.1/task.1",
+  );
   await expect.element(screen.getByRole("heading", { name: "coding" })).toBeVisible();
 });
 
-test("Map agent selection opens Focus and remains selected through live snapshots", async () => {
+test("Map agent selection opens the session and it stays open through live snapshots", async () => {
   const { screen, snapshot } = await renderRunningPage(implementInterviewFixture);
-  await screen.getByRole("button", { name: "Map", exact: true }).click();
-  await screen.getByRole("button", { name: "Select coding" }).click();
+  (await stepButton("coding")).click();
   await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 
   const refreshed = structuredClone(snapshot);
@@ -494,7 +463,6 @@ test("retained run panels close observation while inactive and preserve their se
   const screen = await render(RunView, { ...props, active: false });
   expect(TestEventSource.instances).toHaveLength(0);
   expect(auth.page.params.project).toBe("test-project");
-  await screen.getByRole("button", { name: "Map", exact: true }).click();
   const event = new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true });
   window.dispatchEvent(event);
   expect(event.defaultPrevented).toBe(false);
@@ -548,8 +516,7 @@ test("a retained run panel renders a raw route preload without proxying its obse
     initial: data,
     active: true,
   });
-  await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
-  await screen.getByRole("button", { name: "Watchboard", exact: true }).click();
+  await expect.element(mapRegion(screen)).toBeVisible();
   await screen.rerender({
     project: "retained-project",
     id: data.snapshot.run.id,
@@ -565,13 +532,7 @@ test("a retained run panel renders a raw route preload without proxying its obse
     initial: data,
     active: true,
   });
-  await expect
-    .element(
-      screen
-        .getByRole("navigation", { name: "Run views" })
-        .getByRole("button", { name: "Watchboard" }),
-    )
-    .toHaveAttribute("aria-current", "page");
+  await expect.element(mapRegion(screen)).toBeVisible();
 });
 
 test("an unseeded retained run panel renders the query result", async () => {
@@ -585,26 +546,18 @@ test("an unseeded retained run panel renders the query result", async () => {
     id: data.snapshot.run.id,
     active: true,
   });
-  await expect.element(screen.getByRole("navigation", { name: "Run views" })).toBeVisible();
+  await expect.element(mapRegion(screen)).toBeVisible();
 });
 
-test("agent focus offers steering while guarded run controls stay in the run view", async () => {
+test("an open session hides the guarded run controls the map keeps", async () => {
   const snapshot = multiAgentSnapshot();
-  const turns = Object.values(snapshot.turns);
-  delete snapshot.turns[turns[1].id];
   const { screen } = await renderRunningPage({ graph: planTripFixture.graph, snapshot });
-  await expect
-    .element(screen.getByRole("button", { name: "Cancel run", exact: true }))
-    .not.toBeInTheDocument();
-  await expect
-    .element(screen.getByRole("button", { name: "Stop turn", exact: true }))
-    .not.toBeInTheDocument();
-  const views = screen.getByRole("navigation", { name: "Run views" });
-  await views.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
   await expect.element(screen.getByRole("alertdialog")).toBeVisible();
   await screen.getByRole("button", { name: "Keep running", exact: true }).click();
-  await views.getByRole("button", { name: "Focus", exact: true }).click();
+  (await stepButton("preferences")).click();
+  openSelectedSession();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
   await expect
     .element(screen.getByRole("button", { name: "Cancel run", exact: true }))
     .not.toBeInTheDocument();
@@ -613,7 +566,7 @@ test("agent focus offers steering while guarded run controls stay in the run vie
     .not.toBeInTheDocument();
 });
 
-test("agent focus leaves unconfirmed run cleanup controls in the run view", async () => {
+test("an open session leaves unconfirmed run cleanup controls in the run view", async () => {
   const snapshot = multiAgentSnapshot();
   snapshot.run.status = "cancelled";
   snapshot.run.cancellation = {
@@ -626,23 +579,23 @@ test("agent focus leaves unconfirmed run cleanup controls in the run view", asyn
   const screen = await render(Page, {
     data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
   });
-  const views = screen.getByRole("navigation", { name: "Run views" });
   await expect
     .element(screen.getByRole("button", { name: "Retry cleanup", exact: true }))
     .toBeVisible();
-  await views.getByRole("button", { name: "Focus", exact: true }).click();
+  (await stepButton("preferences")).click();
+  openSelectedSession();
+  await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
   await expect
     .element(screen.getByRole("button", { name: "Retry cleanup", exact: true }))
     .not.toBeInTheDocument();
 });
 
-test("navigation closes a retained run confirmation without changing its selected view", async () => {
+test("navigation closes a retained run confirmation without changing its view", async () => {
   const props = {
     project: "retained-project",
     data: { snapshot: multiAgentSnapshot(), graph: JSON.stringify(planTripFixture.graph) },
   };
   const screen = await render(RunView, { ...props, active: true });
-  await screen.getByRole("button", { name: "Map", exact: true }).click();
   await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
   await expect.element(screen.getByRole("alertdialog")).toBeVisible();
   await screen.rerender({ ...props, active: false });
@@ -650,11 +603,5 @@ test("navigation closes a retained run confirmation without changing its selecte
   await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
   await screen.rerender({ ...props, active: true });
   await expect.element(screen.getByRole("alertdialog")).not.toBeInTheDocument();
-  await expect
-    .element(
-      screen
-        .getByRole("navigation", { name: "Run views" })
-        .getByRole("button", { name: "Map", exact: true }),
-    )
-    .toHaveAttribute("aria-current", "page");
+  await expect.element(mapRegion(screen)).toBeVisible();
 });

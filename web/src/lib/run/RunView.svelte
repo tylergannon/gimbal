@@ -12,10 +12,13 @@
   } from "#lib/observation/index.js";
   import CancelGuard from "#lib/run/CancelGuard.svelte";
   import DetailPane, { type ActionFeedback } from "#lib/run/DetailPane.svelte";
-  import Map, { type MapSelection } from "#lib/run/Map.svelte";
+  import type { MapSelection } from "#lib/run/types.js";
+  import RunMap from "#lib/run/RunMap.svelte";
+  import { sourceFromGraph } from "#lib/run/runSource.js";
+  import Inspector from "#lib/workflow-design/Inspector.svelte";
+  import type { SourcePage, ViewNode } from "#lib/workflow-design/types.js";
   import SessionPage from "#lib/run/detail/SessionPage.svelte";
   import RunQuestions from "./RunQuestions.svelte";
-  import Watchboard from "#lib/run/Watchboard.svelte";
   import SmallStates from "#lib/run/SmallStates.svelte";
   import Topbar from "#lib/run/Topbar.svelte";
   import Workspace from "#lib/run/Workspace.svelte";
@@ -37,7 +40,7 @@
 
   import { tick, untrack } from "svelte";
 
-  let { project, data, active = true, onstate, onrefresh }: { project: string; data: { snapshot: RunSnapshot; graph: string }; active?: boolean; onstate?: (run: RunSnapshot["run"], waiting: number) => void; onrefresh?: () => Promise<unknown> } = $props();
+  let { project, data, active = true, onstate, onrefresh }: { project: string; data: { snapshot: RunSnapshot; graph: string; source?: string }; active?: boolean; onstate?: (run: RunSnapshot["run"], waiting: number) => void; onrefresh?: () => Promise<unknown> } = $props();
 
   // SvelteKit may retain this page component while navigating between run IDs.
   // Replacing route data therefore replaces both sources of truth and causes
@@ -46,30 +49,28 @@
   const graph = $derived<Graph | undefined>(
     data.graph ? (JSON.parse(data.graph) as Graph) : undefined,
   );
+  // The designer's page for this workflow, saved by the run. Runs saved
+  // before that draw from their graph alone.
+  const source = $derived<SourcePage | undefined>(
+    data.source ? (JSON.parse(data.source) as SourcePage) : graph ? sourceFromGraph(graph) : undefined,
+  );
   const loopForm = $derived(steerLoop.for(`workspace-loop-${project}-${data.snapshot.run.id}`));
   const answerForm = $derived(answerInterview.for(`workspace-answer-${project}-${data.snapshot.run.id}`));
 
   let revision = $state(0);
   let selection = $state<RunSelection>();
+  /** A step with no run record, shown in the designer's inspector. */
+  let inspected = $state<ViewNode>();
+  let inspectorTypes = $state(false);
+  let inspectorPaths = $state<string[]>([]);
   let reveal = $state<{ request: number; selection: MapSelection }>();
   let cancelOpen = $state(false);
   let stopping = $state(false);
   let cancelling = $state(false);
   let controlFeedback = $state("");
-  type RunView = "map" | "watchboard" | "focus";
-  function initialView(snapshot: RunSnapshot): { view: RunView; sessionID?: string } {
-    const active = Object.values(snapshot.turns)
-      .filter((turn) => turn.ended === 0 && snapshot.sessions[turn.session])
-      .sort((left, right) => left.started - right.started);
-    const sessions = [...new Set(active.map((turn) => turn.session))];
-    return {
-      view: sessions.length === 1 ? "focus" : sessions.length > 1 ? "watchboard" : "map",
-      sessionID: sessions.length === 1 ? sessions[0] : undefined,
-    };
-  }
-  const entryView = untrack(() => initialView(data.snapshot));
-  let view = $state<RunView>(entryView.view);
-  let selectedSessionID = $state<string | undefined>(entryView.sessionID);
+  type RunView = "map" | "focus";
+  let view = $state<RunView>("map");
+  let selectedSessionID = $state<string | undefined>();
   let observedRunID = "";
   let revealSequence = 0;
 
@@ -94,15 +95,6 @@
       .sort((left, right) => right.started - left.started)[0],
   );
 
-  const availableSessions = $derived.by(() => {
-    const latest = new globalThis.Map<string, number>();
-    for (const turn of Object.values(snapshot.turns)) {
-      latest.set(turn.session, Math.max(latest.get(turn.session) ?? 0, turn.started));
-    }
-    return Object.values(snapshot.sessions).sort(
-      (left, right) => (latest.get(right.id) ?? 0) - (latest.get(left.id) ?? 0),
-    );
-  });
   const waiting = $derived(
     snapshot.run.status === "running" ? Object.values(snapshot.interviews).filter((row) => row.status === "pending").length : 0,
   );
@@ -179,9 +171,9 @@
       reveal = undefined;
       cancelOpen = false;
       controlFeedback = "";
-      const nextEntry = initialView(next.snapshot());
-      view = nextEntry.view;
-      selectedSessionID = nextEntry.sessionID;
+      inspected = undefined;
+      view = "map";
+      selectedSessionID = undefined;
     }
     observedRunID = next.run.id;
   });
@@ -198,12 +190,14 @@
 
   function navigateTo(next: RunSelection) {
     selection = next;
+    inspected = undefined;
     const mapSelection = asMapSelection(next);
     if (mapSelection) reveal = { request: ++revealSequence, selection: mapSelection };
   }
 
   function selectWithoutReveal(next: RunSelection) {
     selection = next;
+    inspected = undefined;
     reveal = undefined;
   }
 
@@ -216,8 +210,16 @@
     }
   }
 
+  function inspect(node: ViewNode) {
+    selection = undefined;
+    reveal = undefined;
+    inspected = node;
+    inspectorPaths = [];
+  }
+
   function clearSelection() {
     selection = undefined;
+    inspected = undefined;
     reveal = undefined;
   }
 
@@ -398,25 +400,6 @@
     onclosesession={closeSession}
   />
   {#if data.snapshot.run.workflow_environment || data.snapshot.run.task_environment}<p class="placement">Workflow: {data.snapshot.run.workflow_environment || "local"} · Tasks: {data.snapshot.run.task_environment || "local"}</p>{/if}
-  <nav class="view-tabs" aria-label="Run views">
-    {#each [{ id: "map", label: "Map" }, { id: "watchboard", label: "Watchboard" }, { id: "focus", label: "Focus" }] as item}
-      <button
-        type="button"
-        class:active={view === item.id}
-        aria-current={view === item.id ? "page" : undefined}
-        onclick={() => {
-          view = item.id as RunView;
-          if (view === "focus") cancelOpen = false;
-          if (view === "focus" && !selectedSessionID) {
-            selectedSessionID = Object.values(snapshot.turns)
-              .filter((turn) => snapshot.sessions[turn.session])
-              .sort((left, right) => left.started - right.started)
-              .at(-1)?.session;
-          }
-        }}
-      >{item.label}</button>
-    {/each}
-  </nav>
   {#if waiting}
     <div class="run-questions" aria-label="Run questions">
       {#each Object.values(snapshot.interviews).filter(question => question.status === 'pending') as question (question.question_id)}
@@ -427,15 +410,18 @@
   <!-- Hidden, not unmounted, while a session is open, so the map keeps its
   scroll and expanded instances. -->
   <div class={["workspace-slot", { hidden: view !== "map" }]}>
-    <Workspace active={active && view === "map"} open={Boolean(selection)} onclose={clearSelection}>
+    <Workspace active={active && view === "map"} open={Boolean(selection || inspected)} onclose={clearSelection}>
       {#snippet map()}
-        {#if graph && graphMatches}
-          <Map
+        {#if graph && source && graphMatches}
+          <RunMap
+            {source}
             {graph}
             {snapshot}
             selected={asMapSelection(selection)}
+            {inspected}
             {reveal}
             onselect={selectMapItem}
+            oninspect={inspect}
             onopen={openSession}
           />
         {:else}
@@ -450,6 +436,19 @@
         {/if}
       {/snippet}
       {#snippet pane({ width, maximized, onmaximize })}
+        {#if inspected && !selection}
+          <div class="static-inspector" style:width={`${width}px`}>
+            <Inspector
+              node={inspected}
+              onclose={clearSelection}
+              goTypes={inspectorTypes}
+              ontypes={(types) => (inspectorTypes = types)}
+              openPaths={inspectorPaths}
+              ondetail={(path, open) =>
+                (inspectorPaths = open ? [...inspectorPaths, path] : inspectorPaths.filter((p) => p !== path))}
+            />
+          </div>
+        {:else}
         <DetailPane
           {snapshot}
           {selection}
@@ -463,22 +462,11 @@
           onselectscope={selectScope}
           onopen={() => openSession(selection)}
         />
+        {/if}
       {/snippet}
     </Workspace>
   </div>
-  {#if view === "watchboard"}
-    <div class="workspace-slot">
-      <Watchboard
-        {snapshot}
-        {graph}
-        {graphMatches}
-        {selectedSessionID}
-        onfocus={(id) => { selectedSessionID = id; view = "focus"; cancelOpen = false; }}
-        onopenmap={() => (view = "map")}
-        onmapselect={selectMapItem}
-      />
-    </div>
-  {:else if view === "focus" && selectedSessionID}
+  {#if view === "focus" && selectedSessionID}
     <div class="workspace-slot">
       {#key selectedSessionID}
       <SessionPage
@@ -495,24 +483,6 @@
         }}
       />
       {/key}
-    </div>
-  {:else if view === "focus"}
-    <div class="workspace-slot">
-      <section class="no-session" aria-label="Focus has no session">
-        <h1>No agent session selected</h1>
-        <p>Choose an agent session from this run to focus its recorded turns and live activity.</p>
-        {#if availableSessions.length}
-          <div class="session-options" aria-label="Available agent sessions">
-            {#each availableSessions as session (session.id)}
-              <button type="button" onclick={() => (selectedSessionID = session.id)}>
-                <strong>{session.name}</strong><span>{session.model}</span>
-              </button>
-            {/each}
-          </div>
-        {:else}
-          <p>No agent sessions have been recorded in this run.</p>
-        {/if}
-      </section>
     </div>
   {/if}
 </div>
@@ -560,44 +530,11 @@
     background: var(--background);
   }
 
-  .view-tabs {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 4px;
-    padding: 6px 12px 0;
-    background: var(--background);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .view-tabs button {
-    padding: 7px 12px;
-    color: var(--status-muted);
-    font: inherit;
-    font-size: 12px;
-    background: transparent;
-    border: 0;
-    border-bottom: 2px solid transparent;
-    cursor: pointer;
-  }
-
-  .view-tabs button:hover,
-  .view-tabs button.active { color: var(--foreground); }
-  .view-tabs button.active { border-bottom-color: var(--status-live); }
-
   .workspace-slot {
     display: flex;
     min-height: 0;
     flex: 1;
   }
-
-  .no-session { display: flex; width: min(100% - 32px, 560px); flex-direction: column; align-self: center; gap: 10px; margin: 24px auto; padding: 22px; background: var(--card); border: 1px solid var(--map-line); border-radius: 10px; }
-  .no-session h1, .no-session p { margin: 0; }
-  .no-session h1 { font-size: 16px; }
-  .no-session p { color: var(--status-muted); font-size: 13px; line-height: 1.5; }
-  .session-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
-  .session-options button { display: flex; min-width: 150px; flex-direction: column; gap: 3px; padding: 9px 11px; color: var(--foreground); text-align: left; background: var(--background); border: 1px solid var(--map-line); border-radius: 7px; cursor: pointer; }
-  .session-options button:hover { border-color: var(--status-live); }
-  .session-options span { color: var(--status-muted); font: 11px var(--font-mono); }
 
   .workspace-slot.hidden {
     display: none;
@@ -612,11 +549,10 @@
     background: var(--background);
   }
 
+  .static-inspector { height: 100%; min-height: 0; overflow: auto; background: var(--background); }
+
   .remote-form {
     display: none;
   }
 
-  @media (max-width: 600px) {
-    .view-tabs { padding-inline: 8px; }
-  }
 </style>

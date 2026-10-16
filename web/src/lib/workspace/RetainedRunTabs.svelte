@@ -6,7 +6,7 @@
   import RunPanel from './RunPanel.svelte';
   // The desktop selects and closes tabs from its menu, outside the page, so a test passes them.
   let { project, run, runs, selected = 'run', shown = ['run', 'draft'] }: {
-    project: string; run: { snapshot: RunSnapshot; graph: string }; runs?: Record<string, { snapshot: RunSnapshot; graph: string }>; selected?: string; shown?: string[];
+    project: string; run: { snapshot: RunSnapshot; graph: string; source?: string }; runs?: Record<string, { snapshot: RunSnapshot; graph: string; source?: string }>; selected?: string; shown?: string[];
   } = $props();
   const byID = $derived(runs ?? { run });
   const tabs = $derived(shown.map((id): WorkspaceTab => byID[id] ? { id, title: byID[id].snapshot.run.name, kind: 'run' } : { id, title: 'New session', kind: 'chat' }));

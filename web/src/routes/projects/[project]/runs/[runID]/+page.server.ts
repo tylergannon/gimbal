@@ -4,6 +4,6 @@ import type { RunSnapshot } from "../../../../../hooks";
 
 export const load = async (
   event: RequestEvent,
-): Promise<{ snapshot: RunSnapshot; graph: string }> => {
+): Promise<{ snapshot: RunSnapshot; graph: string; source: string }> => {
   throw new Error("skgo: implemented in Go");
 };

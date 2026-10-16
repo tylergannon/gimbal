@@ -101,6 +101,27 @@
   --map-live-soft: color-mix(in oklch, var(--status-running) 14%, transparent);
   --map-shadow-path: 0 4px 12px rgb(0 0 0 / 0.1), 0 1px 2px rgb(0 0 0 / 0.06);
   --map-shadow-selected: 0 14px 32px rgb(0 0 0 / 0.18), 0 3px 6px rgb(0 0 0 / 0.08);
+  /* Workflow graph: the designer's drawing, shared by the run map. */
+  --graph-ink: oklch(0.153 0 0);
+  --graph-fill: oklch(1 0 0);
+  --graph-stroke: oklch(0.404 0 0);
+  --graph-stroke-container: oklch(0.551 0 0);
+  --graph-header: oklch(0.972 0.007 295.5);
+  --graph-header-writes: oklch(0.975 0.005 183);
+  --graph-header-rule: oklch(0.738 0 0);
+  --decision-fill: oklch(0.986 0.014 84.6);
+  --decision-stroke: oklch(0.466 0.092 77.3);
+  --chosen: oklch(0.497 0.125 249.8);
+  --chosen-soft: oklch(0.976 0.008 241.7);
+  --row-rule: oklch(0.914 0.002 197.1);
+  --row-selected: oklch(0.953 0.013 241);
+  --focus-ring: oklch(0.899 0.186 97.9);
+  --hue-context: oklch(0.45 0.072 200.1);
+  --hue-control: oklch(0.422 0.168 292.3);
+  --hue-session: oklch(0.497 0.125 249.8);
+  --ink-2: oklch(0.42 0 0);
+  --status-ended: var(--graph-ink);
+  --status-failed: var(--destructive);
 }
 
 .dark {
@@ -207,4 +228,26 @@
   html {
     @apply font-sans;
   }
+}
+
+/* The run map follows the app into dark. The designer pages keep their
+   light drawing, so the dark graph values apply only inside .run-map. */
+.dark .run-map {
+  --graph-ink: oklch(0.985 0 0);
+  --graph-fill: oklch(0.205 0 0);
+  --graph-stroke: oklch(0.75 0 0);
+  --graph-stroke-container: oklch(0.55 0 0);
+  --graph-header: oklch(0.27 0.005 290);
+  --graph-header-writes: oklch(0.27 0.01 170);
+  --graph-header-rule: oklch(0.4 0 0);
+  --decision-fill: oklch(0.26 0.02 80);
+  --decision-stroke: oklch(0.8 0.12 80);
+  --chosen: oklch(0.79 0.087 248);
+  --chosen-soft: oklch(0.28 0.03 250);
+  --row-rule: oklch(0.32 0 0);
+  --row-selected: oklch(0.3 0.04 250);
+  --hue-context: oklch(0.759 0.094 198.9);
+  --hue-control: oklch(0.763 0.111 296.8);
+  --hue-session: oklch(0.79 0.087 248);
+  --ink-2: oklch(0.8 0 0);
 }

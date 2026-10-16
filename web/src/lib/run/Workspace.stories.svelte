@@ -2,7 +2,9 @@
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import { RunObservation } from "../observation/index.js";
   import DetailPane from "./DetailPane.svelte";
-  import Map, { type MapSelection } from "./Map.svelte";
+  import RunMap from "./RunMap.svelte";
+  import { sourceFromGraph } from "./runSource.js";
+  import type { MapSelection } from "./types.js";
   import Workspace from "./Workspace.svelte";
   import { issue325Fixture } from "./fixtures/index.js";
 
@@ -33,7 +35,7 @@
     <div class="story-topbar">Runs › implement · a stand-in for the real Topbar</div>
     <Workspace open>
       {#snippet map()}
-        <Map graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
+        <RunMap source={sourceFromGraph(issue325Fixture.graph)} graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
       {/snippet}
       {#snippet pane({ width, maximized, onmaximize })}
         <DetailPane
@@ -54,7 +56,7 @@
     <div class="story-topbar">Runs › implement · a stand-in for the real Topbar</div>
     <Workspace open initialMaximized={true}>
       {#snippet map()}
-        <Map graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
+        <RunMap source={sourceFromGraph(issue325Fixture.graph)} graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
       {/snippet}
       {#snippet pane({ width, maximized, onmaximize })}
         <DetailPane
@@ -75,7 +77,7 @@
     <div class="story-topbar">Runs › implement · a stand-in for the real Topbar</div>
     <Workspace open>
       {#snippet map()}
-        <Map graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
+        <RunMap source={sourceFromGraph(issue325Fixture.graph)} graph={issue325Fixture.graph} snapshot={issue325Fixture.snapshot} selected={nodeSelection} />
       {/snippet}
       {#snippet pane({ width, maximized, onmaximize })}
         <DetailPane

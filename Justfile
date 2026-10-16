@@ -14,8 +14,7 @@ clean:
     rm -f native/Resources/gimbal
 
 dev *args:
-    go generate ./...
-    go tool skgo dev {{args}}
+    go tool skgo dev --generator-config internal/skgo/devgen.json {{args}}
 
 # Build the Debug macOS app around its matching CLI, reusing current outputs.
 app: build

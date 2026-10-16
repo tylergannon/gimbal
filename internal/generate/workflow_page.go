@@ -79,6 +79,10 @@ func pageGuide(p sourcePage, info entryInfo, roles []string, defaults map[string
 }
 
 func writeWorkflowPages(root string, pages []sourcePage, inputs []stockData) error {
+	var p publication
+	return writeWorkflowPagesResult(root, pages, inputs, &p)
+}
+func writeWorkflowPagesResult(root string, pages []sourcePage, inputs []stockData, published *publication) error {
 	base := filepath.Join(root, "web", "src", "lib", "workflow-design", "generated")
 	if err := os.MkdirAll(base, 0755); err != nil {
 		return err
@@ -92,12 +96,12 @@ func writeWorkflowPages(root string, pages []sourcePage, inputs []stockData) err
 
 	}
 	index.WriteString("];\n")
-	if err := writeGeneratedFile(filepath.Join(base, "index.ts"), []byte(index.String()), 0644); err != nil {
+	if err := published.write(filepath.Join(base, "index.ts"), []byte(index.String()), 0644); err != nil {
 		return err
 	}
 	data, err := json.MarshalIndent(catalog, "", "  ")
 	if err != nil {
 		return err
 	}
-	return writeGeneratedFile(filepath.Join(base, "catalog.json"), append(data, '\n'), 0644)
+	return published.write(filepath.Join(base, "catalog.json"), append(data, '\n'), 0644)
 }

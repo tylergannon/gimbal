@@ -6,7 +6,6 @@ import (
 	"go/ast"
 	"go/types"
 	"maps"
-	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -525,7 +524,7 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 	return nodes, ctx
 }
 
-func sourceInspection(dir, entry, name, output string) error {
+func sourceInspectionResult(dir, entry, name, output string, published *publication) error {
 	withGuide := strings.HasSuffix(output, ".page.json")
 	result, err := analyzeOne(dir, entry, name, nil, withGuide, true)
 	if err != nil {
@@ -549,7 +548,7 @@ func sourceInspection(dir, entry, name, output string) error {
 	if !filepath.IsAbs(output) {
 		output = filepath.Join(dir, output)
 	}
-	return os.WriteFile(output, []byte(page), 0644)
+	return published.write(output, []byte(page), 0644)
 }
 
 func signatureParameters(fn *ast.FuncType) []*ast.Ident {

@@ -207,10 +207,14 @@ github.com/tylergannon/devalue/v5 v5.0.0 h1:UZuNeNpVXHnn79lOS/l7gEWcC4jKoILHUb0s
 github.com/tylergannon/devalue/v5 v5.0.0/go.mod h1:F3VxJn5uu/ROJxoVB3zhxFwuWl+jUrv6n6EJC5yB3z8=
 github.com/tylergannon/polytype v1.9.0 h1:t+qhlALy3XBhm8QS2Eq8UohKKgumxP3h7YUjwVtEIVk=
 github.com/tylergannon/polytype v1.9.0/go.mod h1:go8LF2qxZ3cpymGOfA4/BfDodZL6446Aq4TmhLeoN6c=
+github.com/tylergannon/polytype v1.10.0 h1:GBjoOATxJjHUbpq3s3mkU50pEwQEocT9/zMxWc3j2Ds=
+github.com/tylergannon/polytype v1.10.0/go.mod h1:go8LF2qxZ3cpymGOfA4/BfDodZL6446Aq4TmhLeoN6c=
 github.com/tylergannon/skgo v0.34.4 h1:6lCv6nUpM7nrgPqXPr8qQM/NYN5p1TdMeFBCt+fLtlA=
 github.com/tylergannon/skgo v0.34.4/go.mod h1:C0m+mw3Xd64YB5CAlSd6/rnBMgcCFl0D8Ppd7f6/D3I=
 github.com/tylergannon/skgo v0.34.7 h1:cCjdbYoy5sPlFdqBfUasGkv024LoraIUvquWBUee2QI=
 github.com/tylergannon/skgo v0.34.7/go.mod h1:C0m+mw3Xd64YB5CAlSd6/rnBMgcCFl0D8Ppd7f6/D3I=
+github.com/tylergannon/skgo v0.35.0 h1:T1kV+FgkA9SwN0UqlaGq+k6d2NIAqqg9gNnG8RvB8+A=
+github.com/tylergannon/skgo v0.35.0/go.mod h1:C0m+mw3Xd64YB5CAlSd6/rnBMgcCFl0D8Ppd7f6/D3I=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=
 github.com/tylergannon/structtag v0.1.0/go.mod h1:Rjgg4hJfebaKNeyqoLh4n+zKhfVBdMyc7nBHIlQsVw0=
 github.com/vmware-labs/yaml-jsonpath v0.3.2 h1:/5QKeCBGdsInyDCyVNLbXyilb61MXGi9NP674f9Hobk=

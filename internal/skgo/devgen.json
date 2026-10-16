@@ -1,0 +1,7 @@
+{
+  "package": "./internal/generate/devgen",
+  "beforeBuild": {
+    "dir": "workflow",
+    "argv": ["go", "tool", "polytype", "--typescript", "../web/src/lib/workflow"]
+  }
+}

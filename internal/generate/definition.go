@@ -126,7 +126,7 @@ func Definition(dir, entry, name string, defaults map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("generate definition: %w", err)
 	}
-	if err = os.WriteFile(file, formatted, 0644); err != nil {
+	if err = writeGeneratedFile(file, formatted, 0644); err != nil {
 		return err
 	}
 	return sourceGraph(dir, entry, graph, pkg)
@@ -136,7 +136,7 @@ func sourceGraph(dir, entry string, graph workflow.Graph, pkg string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "workflow_gen.go"), source, 0644)
+	return writeGeneratedFile(filepath.Join(dir, "workflow_gen.go"), source, 0644)
 }
 
 // outputSchemaDeclarations discovers the concrete local Generate output types.
@@ -203,7 +203,7 @@ func outputSchemaDeclarations(dir, pkg string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "output_schema_gen.go"), raw, 0644)
+	return writeGeneratedFile(filepath.Join(dir, "output_schema_gen.go"), raw, 0644)
 }
 
 func checkPolytypeVersion(dir string) error {

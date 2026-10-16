@@ -157,9 +157,16 @@ test('real Git commit through Lefthook shows slow-hook instructions and still su
   assert.equal(git('log', '-1', '--format=%s').toString().trim(), 'test: slow hook remains advisory');
 });
 
-test('real Git commits through Lefthook reject breaking declarations and accept a feature', t => {
+test('real Git commits reject breaking declarations and accept a feature', t => {
   const { repo, git, stage } = fixture(t);
-  execFileSync('lefthook', ['install'], { cwd: repo, env: environment });
+  if (spawnSync('lefthook', ['version']).status === 0) {
+    execFileSync('lefthook', ['install'], { cwd: repo, env: environment });
+  } else {
+    // CI does not install Lefthook; exercise the same command as a real Git hook.
+    const hook = join(repo, '.git/hooks/commit-msg');
+    writeFileSync(hook, '#!/bin/sh\nexec bash scripts/check-commit-message.sh "$1"\n');
+    chmodSync(hook, 0o755);
+  }
   stage('README.md', '# Documentation\n');
   const before = git('rev-parse', 'HEAD').toString();
   for (const message of ['feat!: replace API', 'fix(api)!: replace API', 'feat: replace API\n\nBREAKING CHANGE: removed API', 'chore: replace API\n\nBREAKING-CHANGE: removed API', 'Unclassified feature']) {

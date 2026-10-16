@@ -219,3 +219,25 @@ func renameConversation(ctx context.Context, event app.RequestEvent[params.Param
 }
 
 var _ = skgo.Form(renameConversation)
+
+// ConfigureConversationModel applies only to the next idle local Codex turn.
+type ConfigureConversationModel struct {
+	Project      string `json:"project"`
+	Conversation string `json:"conversation"`
+	Model        string `json:"model"`
+	Effort       string `json:"effort"`
+}
+
+func configureConversationModel(ctx context.Context, event app.RequestEvent[params.Params], arg ConfigureConversationModel) (conversation.Conversation, error) {
+	manager, err := projectManager(ctx, arg.Project)
+	if err != nil {
+		return conversation.Conversation{}, err
+	}
+	item, err := manager.ConfigureModel(arg.Conversation, arg.Model, arg.Effort)
+	if err != nil {
+		return item, skgo.Errorf(400, "%s", err)
+	}
+	return item, skgo.RefreshRequested(ctx, projectConversations, 1)
+}
+
+var _ = skgo.Command(configureConversationModel)

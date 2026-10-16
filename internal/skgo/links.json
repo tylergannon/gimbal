@@ -39,6 +39,10 @@
 			"target": "web/src/routes/projects/[project]/files/[fileID]/body"
 		},
 		{
+			"link": "internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44y",
+			"target": "web/src/routes/projects/[project]/runs"
+		},
+		{
 			"link": "internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq",
 			"target": "web/src/routes/projects/[project]/runs/[runID]"
 		}

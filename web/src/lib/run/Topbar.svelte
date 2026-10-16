@@ -156,7 +156,7 @@
     {#if !terminal}
       {#if connection === "disconnected"}
         <Badge variant="outline" class="disconnected">
-          <Pip state="not-yet" /> Disconnected {disconnectedSeconds} s
+          <Pip state="queued" /> Disconnected {disconnectedSeconds} s
         </Badge>
       {:else if connection === "live"}
         <Badge variant="secondary">
@@ -177,7 +177,7 @@
     title={currentAvailable ? "Reveal current activity" : currentLabel}
     onclick={oncurrent}
   >
-    {#if waiting > 0}<Pip state="waiting" />{/if}
+    {#if waiting > 0}<Pip state="needs-you" />{/if}
     {currentLabel}
   </button>
 

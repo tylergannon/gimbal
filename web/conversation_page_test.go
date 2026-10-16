@@ -65,7 +65,7 @@ func TestConversationPageRendersProviderAndRealWorktreeFacts(t *testing.T) {
 		t.Fatalf("GET /conversations: status %d, body %s", response.StatusCode, body)
 	}
 	for _, want := range []string{
-		"Chats", "New tab", "Codex", "Claude", "Antigravity", "Antigravity · Flash 3.8 Low",
+		"Sessions", "New tab", "Antigravity", "Antigravity · Flash 3.8 Low",
 		selected.Title, selected.Model, selected.Branch, selected.Worktree,
 	} {
 		if !strings.Contains(string(body), want) {
@@ -130,7 +130,7 @@ func TestConversationPageRendersLinkedWorkflowStatusAndSavedContext(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"Workflow runs", "/projects/" + runtime.ID() + "/runs/01RUN.review", "completed", "Keep this context"} {
+	for _, want := range []string{"source turn unavailable", "/projects/" + runtime.ID() + "/runs/01RUN.review", "Ended", "Keep this context"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("conversation page does not contain %q", want)
 		}

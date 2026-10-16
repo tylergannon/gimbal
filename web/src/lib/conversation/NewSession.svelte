@@ -127,8 +127,8 @@
 </section>
 
 <style>
-  .new-session { width: min(720px, calc(100% - 48px)); margin: 0 auto; padding: 72px 0 24px; }
-  h1 { margin: 0 0 14px; font-size: 15px; font-weight: 600; }
+  .new-session { width: min(860px, calc(100% - 64px)); margin: 0 auto; padding: 72px 0 24px; }
+  h1 { margin: 0 0 14px; font-size: 20px; line-height:26px; font-weight: 600; }
   .composer { border: 1px solid var(--border); border-radius: 14px; background: var(--background); box-shadow: var(--shadow-xs, 0 1px 2px rgb(0 0 0 / .05)); }
   .composer:focus-within { border-color: var(--ring); }
   textarea { box-sizing: border-box; display: block; width: 100%; min-height: 76px; max-height: 40vh; resize: none; padding: 14px 16px 4px; border: 0; outline: none; color: var(--foreground); background: transparent; font: inherit; }

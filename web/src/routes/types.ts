@@ -21,6 +21,16 @@ export type CleanupConversation = {
 };
 
 /**
+ * ConfigureConversationModel applies only to the next idle local Codex turn.
+ */
+export type ConfigureConversationModel = {
+  project: string;
+  conversation: string;
+  model: string;
+  effort: string;
+};
+
+/**
  * ControlAccepted says the live runtime accepted an operator control. The observation stream remains the authority for the resulting terminal state.
  */
 export type ControlAccepted = {

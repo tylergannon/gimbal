@@ -8,7 +8,7 @@
   import type { WorkspaceTab, RecordingDisplay } from './types.js';
 
   let { project, items, tabs, active, sidebar = $bindable(false), recording, content,
-    sidebarExtra, sidebarFooter, fallback, native = false, onproject, onrecording, oncontrol, onselect, onclose, onopen, onnew }: {
+    sidebarExtra, sidebarFooter, projectControl, fallback, native = false, onproject, onrecording, oncontrol, onselect, onclose, onopen, onnew }: {
     project: string;
     /** Project inventory, including views that are currently closed. */
     items: WorkspaceTab[];
@@ -18,6 +18,7 @@
     recording?: RecordingDisplay;
     content: Snippet<[WorkspaceTab]>;
     sidebarExtra?: Snippet;
+    projectControl?: Snippet;
     sidebarFooter?: Snippet;
     fallback?: Snippet;
     native?: boolean;
@@ -63,18 +64,18 @@
     <aside aria-label="Project sidebar" bind:this={aside}>
       <!-- Native titlebar integration supplies the traffic lights later. -->
       <div class="native-space"></div>
-      <button class="project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`}><span class="tile" aria-hidden="true">{project.slice(0, 1).toUpperCase()}</span><span class="project-name" title={project}>{project}</span><span aria-hidden="true">⌃⌄</span></button>
+      {#if projectControl}{@render projectControl()}{:else}<button class="project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`}><span class="tile" aria-hidden="true">{project.slice(0, 1).toUpperCase()}</span><span class="project-name" title={project}>{project}</span><span aria-hidden="true">⌃⌄</span></button>{/if}
       {@render recordingStatus()}
       <div class="sidebar-content">
-      {#each ['chat', 'file'] as kind}
-        <h2>{kind === 'chat' ? 'Chats' : 'Files'}</h2>
-        {#each items.filter(item => item.kind === kind) as tab (tab.id)}
+      {#each [{kind:'chat',title:'Sessions'},{kind:'run',title:'Runs'},{kind:'recording',title:'Recordings'},{kind:'file',title:'Files'}] as group (group.kind)}
+        <div class="group-heading"><h2>{group.title}</h2>{#if group.kind === 'chat' && onnew}<button aria-label="New session" onclick={onnew}>+</button>{/if}</div>
+        {#each items.filter(item => item.kind === group.kind || group.kind === 'run' && item.kind === 'runs') as tab (tab.id)}
           <button class="item" class:selected={active === tab.id} type="button" title={tab.title} onclick={() => onopen(tab.id)}>
-            <TabGlyph {tab} /><span class="item-title">{tab.title}</span><TabStatus status={tab.status} />
-            {#if tab.detail}<span class="detail">{tab.detail}</span>{/if}
+            {#if tab.status && (tab.kind === 'chat' || tab.kind === 'run')}<TabStatus status={tab.status} />{:else}<TabGlyph {tab} />{/if}<span class="item-title">{tab.title}</span>{#if tab.unseen}<span class="unseen-mark" aria-label="Unseen changes"></span>{/if}
+            {#if tab.count !== undefined}<span class="count">{tab.detail || tab.count}</span>{/if}
           </button>
-        {/each}
-        {#if kind === 'chat' && onnew}<button class="item new-chat" onclick={onnew}>New chat</button>{/if}
+        {:else}<p class="no-items">No {group.title.toLowerCase()} yet</p>{/each}
+        {#if group.kind === 'recording'}{#each items.filter(item => item.kind === 'promises') as tab (tab.id)}<button class="item promises" class:selected={active === tab.id} onclick={() => onopen(tab.id)}><TabGlyph {tab} /><span class="item-title">{tab.title}</span>{#if tab.count !== undefined}<span class="count">{tab.count}</span>{/if}</button>{/each}{/if}
       {/each}
       {#if sidebarExtra}{@render sidebarExtra()}{/if}
       </div>
@@ -84,10 +85,10 @@
   <section class="workspace" aria-label="Open views">
     <!-- This is a tab strip. The menubar is the macOS system menubar. -->
     <header>
-      {#if !sidebar}<button class="compact-project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`} title={project}>{project} <span aria-hidden="true">⌃⌄</span></button>{/if}
+      <button bind:this={toggle} class="sidebar-toggle" class:on={sidebar} type="button" aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} aria-expanded={sidebar} onclick={() => sidebar = !sidebar}><PanelLeft size={16} aria-hidden="true" /></button>
+      {#if !sidebar && projectControl}{@render projectControl()}{:else if !sidebar}<button class="compact-project" type="button" onclick={onproject} aria-label={`Switch project, ${project}`} title={project}>{project} <span aria-hidden="true">⌃⌄</span></button>{/if}
       <TabStrip {tabs} {active} {onselect} {onclose} {onnew} />
       {#if !sidebar}{@render recordingStatus()}{/if}
-      <button bind:this={toggle} class="sidebar-toggle" class:on={sidebar} type="button" aria-label={sidebar ? 'Hide sidebar' : 'Show sidebar'} aria-expanded={sidebar} onclick={() => sidebar = !sidebar}><PanelLeft size={16} aria-hidden="true" /></button>
     </header>
     <div class="panels">
       {#each tabs as tab (tab.id)}
@@ -106,7 +107,7 @@
   .native:not(.with-sidebar) header { padding-left: 86px; }
   .native header { padding-right: 78px; }
   .workspace { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
-  header { display: flex; align-items: center; flex: none; gap: 8px; height: 52px; padding: 0 14px; border-bottom: 1px solid var(--border); }
+  header { display: flex; align-items: center; flex: none; gap: 8px; height: 40px; padding: 0 14px; border-bottom: 1px solid var(--border); }
   .compact-project { flex: none; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 8px; font-size: 13px; font-weight: 600; }
   button { font: inherit; border: 0; background: transparent; color: inherit; cursor: pointer; }
   button:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
@@ -117,8 +118,10 @@
   .panel[hidden] { display: none; }
   .panel:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
   .empty { display: grid; place-items: center; height: 100%; color: var(--muted-foreground); }
-  aside { width: 260px; flex: none; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 0 8px 12px; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
-  .native-space { height: 52px; flex: none; }
+  aside { width: 250px; flex: none; display: flex; flex-direction: column; min-height: 0; overflow: hidden; padding: 0 8px 12px; background: var(--sidebar); color: var(--sidebar-foreground); border-right: 1px solid var(--sidebar-border); }
+  .native-space { height: 4px; flex: none; }
+  .native .native-space { height:32px; }
+  .group-heading { display:flex; align-items:center; justify-content:space-between; margin:22px 10px 6px; } .group-heading h2 { margin:0; } .group-heading button { padding:0 3px; font-size:18px; line-height:20px; } .count { border-radius:5px; padding:1px 5px; background:var(--sidebar-accent); font-size:10px; color:var(--muted-foreground); } .unseen-mark { width:6px; height:6px; border-radius:50%; background:var(--foreground); flex:none; } .no-items { margin:4px 10px; font-size:12px; color:var(--muted-foreground); } .promises { margin-top:8px; }
   .project { display: flex; align-items: center; gap: 8px; min-height: 38px; text-align: left; flex: none; padding: 0 10px; font-size: 13px; font-weight: 500; }
   .project-name { flex: 1; }
   .new-chat { color: var(--muted-foreground); padding-left: 32px; }
@@ -144,6 +147,6 @@
   @media (width < 1100px) {
     aside { position: absolute; inset: 0 auto 0 0; z-index: 20; box-shadow: var(--shadow-lg); }
     .native header { padding-left: 86px; }
-    .with-sidebar header { padding-left: 274px; }
+    .with-sidebar header { padding-left: 264px; }
   }
 </style>

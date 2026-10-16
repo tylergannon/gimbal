@@ -192,7 +192,7 @@ test("an unobserved guarded command does not inherit its ended scope state", asy
   });
 
   await expect.element(screen.getByText("Not observed")).toBeVisible();
-  expect(document.querySelector('aside [data-state="not-yet"]')).not.toBeNull();
+  expect(document.querySelector('aside [data-state="queued"]')).not.toBeNull();
 });
 
 test("a service selection shows declaration ownership and source without runtime status", async () => {
@@ -458,6 +458,6 @@ test("delivery uncertainty renders unresolved rather than a failed native outcom
   await expect.element(screen.getByText("unresolved", { exact: true }).first()).toBeVisible();
   await expect.element(screen.getByText("failed", { exact: true })).not.toBeInTheDocument();
   await expect.element(screen.getByText("delivery problem", { exact: true })).toBeVisible();
-  expect(document.querySelectorAll('.pip[data-state="unresolved"]').length).toBeGreaterThan(0);
+  expect(document.querySelectorAll('.pip[data-state="needs-you"]').length).toBeGreaterThan(0);
   expect(document.querySelectorAll('.pip[data-state="failed"]').length).toBe(0);
 });

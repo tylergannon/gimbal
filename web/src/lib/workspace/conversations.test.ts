@@ -108,10 +108,10 @@ test("restart uncertainty needs attention while real work and unread replies rem
   const item = chat("recover", 1);
   item.status = "unresolved";
   item.error = "The server restarted; outcome unconfirmed";
-  expect(conversationStatus(item)).toBe("attention");
+  expect(conversationStatus(item)).toBe("needs-you");
   item.error = "";
   item.status = "working";
-  expect(conversationStatus(item)).toBe("working");
+  expect(conversationStatus(item)).toBe("running");
   item.status = "idle";
   item.requests = [
     {
@@ -121,6 +121,6 @@ test("restart uncertainty needs attention while real work and unread replies rem
       delivery: "turn",
     } as Conversation["requests"][number],
   ];
-  expect(conversationStatus(item)).toBe("unread");
-  expect(conversationStatus(item, "reply")).toBeUndefined();
+  expect(conversationStatus(item)).toBe("ended");
+  expect(completedReply(item)).toBe("reply");
 });

@@ -179,7 +179,7 @@
   });
   const pipState = $derived<PipState>(
     notObserved
-      ? "not-yet"
+      ? "queued"
       : command
       ? command.interrupted
         ? "ended"
@@ -190,11 +190,11 @@
         : "running"
       : interview
         ? interview.status === "pending"
-          ? "waiting"
+          ? "needs-you"
           : "ended"
         : turn
           ? turn.unresolved
-            ? "unresolved"
+            ? "needs-you"
             : turn.interrupted
             ? "ended"
             : turn.error

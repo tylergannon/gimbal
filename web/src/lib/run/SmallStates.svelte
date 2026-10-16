@@ -66,7 +66,7 @@
       <div class="badges">
         <Badge variant="outline" class="state-badge"><Pip state="running" />Running</Badge>
         <Badge variant="outline" class="state-badge disconnected">
-          <Pip state="not-yet" />Disconnected {disconnectedFor}
+          <Pip state="queued" />Disconnected {disconnectedFor}
         </Badge>
       </div>
       <div class="message" role="status">

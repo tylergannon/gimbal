@@ -95,6 +95,8 @@ var (
 	Skgo_stopTurn = stopTurn
 	// Skgo_cleanupConversation is cleanupConversation, published as src/routes/conversation.remote.ts#cleanupConversation.
 	Skgo_cleanupConversation = cleanupConversation
+	// Skgo_configureConversationModel is configureConversationModel, published as src/routes/conversation.remote.ts#configureConversationModel.
+	Skgo_configureConversationModel = configureConversationModel
 	// Skgo_conversationSetup is conversationSetup, published as src/routes/conversation.remote.ts#conversationSetup.
 	Skgo_conversationSetup = conversationSetup
 	// Skgo_createConversation is createConversation, published as src/routes/conversation.remote.ts#createConversation.

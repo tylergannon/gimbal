@@ -35,7 +35,7 @@
         <form
           class="grid gap-2"
           {...createProject.enhance(async (form) => {
-            if ((await form.submit()) && form.result) await goto(`/projects/${form.result.id}/recordings`, { invalidateAll: true });
+            if ((await form.submit()) && form.result) await goto(`/projects/${form.result.id}`, { invalidateAll: true });
           })}
         >
           <label class="text-sm font-medium" for="project-path">Project directory</label>

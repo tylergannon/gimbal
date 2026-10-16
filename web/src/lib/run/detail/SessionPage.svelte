@@ -68,7 +68,7 @@
       <div class="prose"><ConversationTranscript {messages} {revision} {messageRevisions} {provider} model={session.model} location={machine?.name || snapshot.run.task_environment || 'Host not recorded'} />
       {#if !hasProse}<p class="empty">No assistant prose recorded for this turn yet.</p>{/if}
       {#if chosen.error}<p class="turn-error">{chosen.error}</p>{/if}
-      <p class="working-line"><Pip state={chosen.unresolved ? 'unresolved' : !chosen.ended && live ? 'running' : chosen.error && !chosen.interrupted ? 'failed' : 'ended'} /><span>{chosen.unresolved ? 'Delivery unresolved' : !chosen.ended && live ? `${session.name} is working…` : `Turn ${ordinal(chosen)} · ${turnOutcome(chosen)}`} · {duration(chosen)}</span></p>
+      <p class="working-line"><Pip state={chosen.unresolved ? 'needs-you' : !chosen.ended && live ? 'running' : chosen.error && !chosen.interrupted ? 'failed' : 'ended'} /><span>{chosen.unresolved ? 'Delivery unresolved' : !chosen.ended && live ? `${session.name} is working…` : `Turn ${ordinal(chosen)} · ${turnOutcome(chosen)}`} · {duration(chosen)}</span></p>
       </div>
       {#snippet failed(error)}<p class="empty" role="alert">Could not render this turn's transcript: {error instanceof Error ? error.message : String(error)}</p>{/snippet}
      </svelte:boundary>

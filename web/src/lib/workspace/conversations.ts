@@ -36,14 +36,11 @@ export function completedReply(item: Conversation): string {
 /** Recovery and errors need a person; an unresolved outcome is not active work. */
 export function conversationStatus(
   item: Conversation,
-  seen?: string,
-): "working" | "attention" | "unread" | undefined {
-  if (item.status === "unresolved" || item.error) return "attention";
-  if (
-    ["working", "stopping"].includes(item.status) ||
-    item.runs.some((run) => run.status === "running")
-  )
-    return "working";
-  const reply = completedReply(item);
-  return reply && reply !== seen ? "unread" : undefined;
+): "queued" | "running" | "needs-you" | "ended" | "failed" | "cancelled" {
+  if (item.status === "unresolved") return "needs-you";
+  if (item.error || item.status === "failed") return "failed";
+  if (["working", "stopping"].includes(item.status)) return "running";
+  if (item.requests.some((request) => request.status === "accepted")) return "queued";
+  if (item.status === "canceled" || item.status === "cancelled") return "cancelled";
+  return "ended";
 }

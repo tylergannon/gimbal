@@ -43,7 +43,7 @@ test("keyboard selection reveals overflowed tabs and Delete closes only the view
     .not.toBeInTheDocument();
   await expect.element(screen.getByRole("status")).toHaveAccessibleName("recording: 1:12:08");
   await screen.getByRole("button", { name: "Show sidebar" }).click();
-  const working = screen.getByRole("button", { name: "Return navigation #455 Working Codex" });
+  const working = screen.getByRole("button", { name: "Running Return navigation #455" });
   await expect.element(working).toBeVisible();
   await working.click();
   await expect
@@ -55,7 +55,7 @@ test("the more disclosure selects a hidden view and dismisses with Escape", asyn
   const screen = await render(WorkspaceDemo, { many: true });
   const more = screen.getByText(/^\d+ more$/);
   await more.click();
-  const choice = screen.getByRole("button", {
+  const choice = screen.getByRole("menuitem", {
     name: "Workspace research and implementation notes 7.md",
   });
   const label = choice.element().querySelector(".choice-title") as HTMLElement;

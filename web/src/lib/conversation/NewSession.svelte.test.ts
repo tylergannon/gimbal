@@ -397,7 +397,8 @@ test("explicit effort stays with the submitted session setup", async () => {
   });
   await screen.getByRole("button", { name: "Harness and model" }).click();
   await screen.getByRole("combobox", { name: "Effort" }).selectOptions("high");
-  await screen.getByRole("button", { name: "Harness and model" }).click();
+  // Re-selecting the current model closes the picker without resetting explicit effort.
+  await screen.getByRole("button", { name: /Luna 6.*gpt-6-luna/ }).click();
   await screen.getByRole("textbox", { name: "First message" }).fill("Use this effort");
   await screen.getByRole("button", { name: "Start session" }).click();
   expect(remote.submitted[0].get("effort")).toBe("high");

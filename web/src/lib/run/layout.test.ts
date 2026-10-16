@@ -33,7 +33,7 @@ test("lays out implement-interview recursively in source order", () => {
   );
   assert.deepEqual(
     layout.nodes.map((node) => node.state),
-    ["ended", "ended", "ended", "running", "not-yet", "not-yet", "not-yet", "not-yet", "not-yet"],
+    ["ended", "ended", "ended", "running", "queued", "queued", "queued", "queued", "queued"],
   );
   assert.deepEqual(
     layout.nodes.slice(0, 2).map((node) => node.meta),
@@ -90,7 +90,7 @@ test("lays out plan-trip with pending interviews before its unexecuted planner",
   );
   assert.deepEqual(
     layout.nodes.map((node) => node.state),
-    ["waiting", "waiting", "not-yet"],
+    ["needs-you", "needs-you", "queued"],
   );
   assert.deepEqual(
     layout.nodes.slice(0, 2).map((node) => node.meta),
@@ -145,12 +145,12 @@ test("selected promise-loop instance drives every runtime fact", () => {
     task3.nodes.slice(3, 5).map((node) => [operationName(node.operation), node.state, node.meta]),
     [
       ["coding", "running", "turn 3"],
-      ["task-check", "not-yet", "not started"],
+      ["task-check", "queued", "not started"],
     ],
   );
 });
 
-test("interrupted turns and commands are ended while genuine failures stay failed", () => {
+test("interrupted turns and commands are cancelled while genuine failures stay failed", () => {
   const snapshot = structuredClone(implementInterviewFixture.snapshot);
   snapshot.turns["coding.1/turn.2"].interrupted = true;
   snapshot.turns["coding.1/turn.2"].error = "turn stopped";
@@ -167,8 +167,8 @@ test("interrupted turns and commands are ended while genuine failures stay faile
   assert.deepEqual(
     task2Nodes.map((node) => [operationName(node.operation), node.state]),
     [
-      ["coding", "ended"],
-      ["task-check", "ended"],
+      ["coding", "cancelled"],
+      ["task-check", "cancelled"],
       ["build", "failed"],
       ["vet", "ended"],
       ["test", "ended"],
@@ -263,8 +263,8 @@ test("folded summaries retain child-scope states and selected-instance facts", (
   assert.deepEqual(
     research.steps.map((step) => [operationName(step.operation), step.state]),
     [
-      ["preferences", "waiting"],
-      ["preferences", "waiting"],
+      ["preferences", "needs-you"],
+      ["preferences", "needs-you"],
     ],
   );
 
@@ -384,5 +384,5 @@ test("a delivery-unresolved turn is distinct from failed execution on the graph"
   turn.unresolved = true;
   const layout = buildMapLayout(implementInterviewFixture.graph, snapshot);
   const node = layout.nodes.find((node) => operationName(node.operation) === "coding");
-  assert.equal(node?.state, "unresolved");
+  assert.equal(node?.state, "needs-you");
 });

@@ -10,10 +10,10 @@
     return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
   }));
 </script>
-<defs><mask id="mask-{id}" maskUnits="userSpaceOnUse" x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height}><rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="white"/>{#each masks as rect}<rect x={rect.x} y={rect.y} width={rect.width} height={rect.height} fill="black"/>{/each}</mask><marker id="arrow-{id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 1 1 L 9 5 L 1 9" fill="none" stroke="#0b0c0c" stroke-width="1.5"/></marker></defs>
+<defs><mask id="mask-{id}" maskUnits="userSpaceOnUse" x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height}><rect x={bounds.x} y={bounds.y} width={bounds.width} height={bounds.height} fill="white"/>{#each masks as rect}<rect x={rect.x} y={rect.y} width={rect.width} height={rect.height} fill="black"/>{/each}</mask><marker id="arrow-{id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 1 1 L 9 5 L 1 9" fill="none" style="stroke:var(--graph-ink)" stroke-width="1.5"/></marker></defs>
 <g mask={`url(#mask-${id})`}>
 {#each paths as path, i}
-  <BaseEdge id={`${id}-${i}`} {path} style="stroke:#0b0c0c;stroke-width:1.7" markerEnd={i === paths.length - 1 ? `url(#arrow-${id})` : undefined} interactionWidth={0}/>
+  <BaseEdge id={`${id}-${i}`} {path} style="stroke:var(--graph-ink);stroke-width:1.7" markerEnd={i === paths.length - 1 ? `url(#arrow-${id})` : undefined} interactionWidth={0}/>
 {/each}
 </g>
 {#each data?.labels ?? [] as label}
@@ -22,5 +22,5 @@
   </EdgeLabel>
 {/each}
 <style>
-  .edge-caption { display:block; background:#fff; color:#0b0c0c; padding:3px 6px; font-size:13px; line-height:18px; white-space:nowrap; }
+  .edge-caption { display:block; background:var(--graph-fill); color:var(--graph-ink); padding:3px 6px; font-size:13px; line-height:18px; white-space:nowrap; }
 </style>

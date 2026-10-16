@@ -1,5 +1,5 @@
 import type { PipState } from "./Pip.svelte";
-import type { NodeOperation } from "./Node.svelte";
+import type { NodeOperation } from "./types.js";
 import type {
   CommandRow,
   InterviewRow,
@@ -387,13 +387,13 @@ function declaredScopeName(scope: ScopeRow) {
   return runtimeName.replace(/\.\d+$/, "");
 }
 
-function childScopes(snapshot: RunSnapshot, parent: string, name: string) {
+export function childScopes(snapshot: RunSnapshot, parent: string, name: string) {
   return Object.values(snapshot.scopes)
     .filter((scope) => parentKey(scope.key) === parent && declaredScopeName(scope) === name)
     .sort((left, right) => left.began - right.began);
 }
 
-function instanceGroupKey(parent: string, name: string) {
+export function instanceGroupKey(parent: string, name: string) {
   return `${parent}/${name}`;
 }
 
@@ -407,7 +407,7 @@ function selectedScope(
   return instances.find((scope) => scope.key === selected) ?? instances.at(-1);
 }
 
-function turnFor(snapshot: RunSnapshot, scopeKey: string, sessionName: string) {
+export function turnFor(snapshot: RunSnapshot, scopeKey: string, sessionName: string) {
   const sessionIDs = new Set(
     Object.values(snapshot.sessions)
       .filter((session) => session.name === sessionName)
@@ -419,7 +419,7 @@ function turnFor(snapshot: RunSnapshot, scopeKey: string, sessionName: string) {
     .at(-1);
 }
 
-function commandFor(snapshot: RunSnapshot, scopeKey: string, name: string) {
+export function commandFor(snapshot: RunSnapshot, scopeKey: string, name: string) {
   return Object.values(snapshot.commands ?? {})
     .filter((row) => row.scope === scopeKey && row.name === name)
     .sort((left, right) => left.started - right.started)
@@ -433,13 +433,13 @@ function interviewFor(snapshot: RunSnapshot, scopeKey: string, name: string) {
     .at(-1);
 }
 
-function runtimeFor(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
+export function runtimeFor(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
   if (operation.kind === "command") return commandFor(snapshot, scopeKey, operation.name);
   if (operation.kind === "interview") return interviewFor(snapshot, scopeKey, operation.name);
   return turnFor(snapshot, scopeKey, operation.session);
 }
 
-function turnState(turn?: TurnRow): PipState {
+export function turnState(turn?: TurnRow): PipState {
   if (!turn) return "not-yet";
   if (turn.unresolved) return "unresolved";
   if (turn.interrupted) return "ended";
@@ -447,7 +447,7 @@ function turnState(turn?: TurnRow): PipState {
   return turn.ended === 0 ? "running" : "ended";
 }
 
-function operationState(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
+export function operationState(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
   if (operation.kind === "command") {
     const command = commandFor(snapshot, scopeKey, operation.name);
     if (!command) return "not-yet" as const;
@@ -465,7 +465,7 @@ function operationState(snapshot: RunSnapshot, scopeKey: string, operation: Node
   return turnState(turnFor(snapshot, scopeKey, operation.session));
 }
 
-function operationMeta(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
+export function operationMeta(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
   if (operation.kind === "command") {
     const command = commandFor(snapshot, scopeKey, operation.name);
     return command ? `exit ${command.exit_code}` : "not started";

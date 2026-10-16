@@ -15,7 +15,7 @@ const unimplemented = (): never => {
 
 export const viewRun = query(
   "unchecked",
-  (_arg: RunRequest): { snapshot: RunSnapshot; graph: string } => unimplemented(),
+  (_arg: RunRequest): { snapshot: RunSnapshot; graph: string; source: string } => unimplemented(),
 );
 
 export const watchRuns = query.live("unchecked", (_arg: string): AsyncIterable<RunsData> =>

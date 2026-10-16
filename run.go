@@ -222,12 +222,17 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	r := &run{finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	r.cleanupTimeout, _ = ctx.Value(cleanupTimeoutKey{}).(time.Duration)
 	r.store = store
-	if graph, ok := RegisteredGraph(name); ok {
-		raw, err := json.Marshal(graph)
+	if d, ok := DefaultRegistry.Workflow(name); ok {
+		raw, err := json.Marshal(d.Graph)
 		if err == nil {
 			err = os.WriteFile(filepath.Join(dir, "graph.json"), raw, 0644)
 		}
 		r.recordFailure("save run graph", err)
+		// The designer's source page, saved beside the graph so the run page
+		// draws this run with the shapes the workflow designer draws.
+		if len(d.SourcePage) > 0 {
+			r.recordFailure("save run source page", os.WriteFile(filepath.Join(dir, "source.json"), d.SourcePage, 0644))
+		}
 	}
 	r.recordFailure("open observation", storeErr)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))

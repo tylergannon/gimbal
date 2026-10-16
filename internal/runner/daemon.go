@@ -277,7 +277,7 @@ func (d *WorkflowDaemon) bytes(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = root.Close() }()
 	snapshot, err := d.registry(project).Snapshot(v.Run)
-	if err != nil || (v.Name != "graph.json" && (!strings.HasPrefix(v.Name, "artifacts/") || !observation.ReferencedArtifact(snapshot, v.Name))) {
+	if err != nil || (v.Name != "graph.json" && v.Name != "source.json" && (!strings.HasPrefix(v.Name, "artifacts/") || !observation.ReferencedArtifact(snapshot, v.Name))) {
 		http.Error(w, "unreferenced artifact", 404)
 		return
 	}

@@ -7,7 +7,7 @@ import type {
 } from "../observation/index.js";
 import type { Graph, Service } from "../workflow/types.js";
 import type { Supervisor } from "../workflow/types.js";
-import type { MapSelection } from "./Map.svelte";
+import type { MapSelection } from "./types.js";
 import { buildMapLayout } from "./layout.js";
 
 export type RunSelection = MapSelection;
@@ -40,7 +40,7 @@ function addServices(shape: Shape, services: Service[], scope: string) {
   for (const service of services) shape.commands.add(join(scope, service.name));
 }
 
-function selectedInstancesFor(scopeKey: string) {
+export function selectedInstancesFor(scopeKey: string) {
   const selected: Record<string, string> = {};
   let parent = "";
   for (const part of scopeKey.split("/")) {

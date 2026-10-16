@@ -244,7 +244,7 @@
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
       {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split("/").at(-1)!)} />
       {:else if tab.id === root}<ProjectRuns {project} active={active === tab.id} onopenguide={guide} data={runData} error={runQuery?.error} onretry={() => runQuery?.reconnect()} onopen={select} />
-      {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} />
+      {:else if tab.kind === 'run'}<RunPanel {project} initial={page.url.pathname === tab.id ? page.data as { snapshot: RunSnapshot; graph: string; source?: string } : undefined} id={decodeURIComponent(tab.id.split('/').at(-1)!)} active={active === tab.id} />
       {:else if tab.id === `${root}/promises`}<PromiseLedger {project} recordings={history.items} />
       {:else}<RecordingTranscript {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} />{/if}
       {#snippet failed(error, reset)}<p class="notice" role="alert">Could not load this view. <button onclick={reset}>Retry</button></p>{/snippet}

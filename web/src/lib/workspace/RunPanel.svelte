@@ -5,7 +5,7 @@
   import { untrack } from "svelte";
   import type { RunSnapshot } from "#lib/observation";
   let { project, id, initial, active }: {
-    project: string; id: string; initial?: { snapshot: RunSnapshot; graph: string };
+    project: string; id: string; initial?: { snapshot: RunSnapshot; graph: string; source?: string };
     active: boolean;
   } = $props();
   let preload = $state.raw(untrack(() => initial?.snapshot?.run.id === id ? initial : undefined));

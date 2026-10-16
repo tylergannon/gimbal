@@ -30,7 +30,7 @@
     type ScopeRow,
     type TurnRow,
   } from "../observation/index.js";
-  import type { NodeOperation } from "./Node.svelte";
+  import type { NodeOperation } from "./types.js";
   import Pip, { type PipState } from "./Pip.svelte";
   import { selectionSessionID, type RunSelection } from "./selection.js";
   import { watcherRows } from "./watchers.js";

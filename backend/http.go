@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 )
 
@@ -124,6 +125,10 @@ func (h HTTP) ReadBytes(c context.Context, v Artifact) (io.ReadCloser, error) {
 	r, e := client.Do(req)
 	if e != nil {
 		return nil, e
+	}
+	if r.StatusCode == http.StatusNotFound {
+		_ = r.Body.Close()
+		return nil, fmt.Errorf("artifact: HTTP %d: %w", r.StatusCode, fs.ErrNotExist)
 	}
 	if r.StatusCode != 200 {
 		_ = r.Body.Close()

@@ -174,7 +174,9 @@ async function press(label: string) {
 }
 
 function openSelectedSession() {
-  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "o", bubbles: true, cancelable: true }));
+  document.body.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "o", bubbles: true, cancelable: true }),
+  );
 }
 
 test("a run opens on its workflow map, drawn with the designer's shapes", async () => {
@@ -206,7 +208,8 @@ test("a saved source page draws the designer's titles over the run", async () =>
 
 test("a command step in an earlier task instance selects into the detail pane", async () => {
   const { screen } = await renderRunningPage(implementInterviewFixture);
-  const find = () => document.querySelector<HTMLSelectElement>('select[aria-label="implementation instance"]');
+  const find = () =>
+    document.querySelector<HTMLSelectElement>('select[aria-label="implementation instance"]');
   await expect.poll(find).not.toBeNull();
   const instances = find()!;
   instances.value = instances.options[0].value;
@@ -274,27 +277,35 @@ test("an incompatible saved graph reports the mismatch", async () => {
 test("topbar navigation reveals folded current activity and keeps map and detail coordinated", async () => {
   const { screen } = await renderRunningPage();
   await press("Collapse research");
-  await expect.poll(() => document.querySelector('button[aria-label="Expand research"]')).not.toBeNull();
+  await expect
+    .poll(() => document.querySelector('button[aria-label="Expand research"]'))
+    .not.toBeNull();
 
   await screen.getByRole("button", { name: "2 questions waiting" }).click();
 
-  await expect.poll(() => document.querySelector('button[aria-label="Collapse research"]')).not.toBeNull();
-  await expect.poll(() => document.querySelector('.node.chosen')?.getAttribute("data-selection-key")).toContain(
-    "research.1/transport.1",
-  );
+  await expect
+    .poll(() => document.querySelector('button[aria-label="Collapse research"]'))
+    .not.toBeNull();
+  await expect
+    .poll(() => document.querySelector(".node.chosen")?.getAttribute("data-selection-key"))
+    .toContain("research.1/transport.1");
   await expect.element(screen.getByRole("heading", { name: "preferences" })).toBeVisible();
 });
 
 test("search selects an old turn through a collapsed loop instance", async () => {
   const { screen } = await renderRunningPage(implementInterviewFixture);
   await press("Collapse implementation");
-  await expect.poll(() => document.querySelector('button[aria-label="Expand implementation"]')).not.toBeNull();
+  await expect
+    .poll(() => document.querySelector('button[aria-label="Expand implementation"]'))
+    .not.toBeNull();
 
   const search = screen.getByRole("textbox", { name: "Find a scope, turn, or command" });
   await search.fill("coding turn 1");
   await screen.getByRole("option", { name: /coding · turn 1/ }).click();
 
-  await expect.poll(() => document.querySelector('button[aria-label="Collapse implementation"]')).not.toBeNull();
+  await expect
+    .poll(() => document.querySelector('button[aria-label="Collapse implementation"]'))
+    .not.toBeNull();
   await expect.poll(() => step("coding")?.getAttribute("aria-pressed")).toBe("true");
   expect(step("coding")?.closest(".node")?.getAttribute("data-selection-key")).toContain(
     "implementation.1/task.1",

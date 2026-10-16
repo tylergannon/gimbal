@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-16
+
+### Changed
+
+- feat: select conventional release versions and forbid breaking declarations (#599)
+
 ## [0.13.45] - 2026-10-16
 
 ### Changed
@@ -452,7 +458,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.13.45...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.14.0...main
+[0.14.0]: https://github.com/tylergannon/gimbal/compare/v0.13.45...v0.14.0
 [0.13.45]: https://github.com/tylergannon/gimbal/compare/v0.13.44...v0.13.45
 [0.13.44]: https://github.com/tylergannon/gimbal/compare/v0.13.43...v0.13.44
 [0.13.43]: https://github.com/tylergannon/gimbal/compare/v0.13.42...v0.13.43

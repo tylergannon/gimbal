@@ -19,3 +19,8 @@ pre-commit:
     # Slow smoke tests warn and stop; actual failures block. Never auto-stage.
     - name: bounded-commit-checks
       run: bash scripts/pre-commit.sh
+
+commit-msg:
+  jobs:
+    - name: conventional-commit
+      run: bash scripts/check-commit-message.sh "{1}"

@@ -101,7 +101,7 @@ analysis, test, formatting and Svelte gate against its built Linux amd64 candida
 before publication, alongside native packaging. Main scope is
 compared with the latest published tag, so coalescing cannot hide undelivered
 application changes. Documentation-only changes do not publish an app. It moves Unreleased entries
-into the next patch changelog, records the candidate source SHA, and atomically
+into the next release changelog, records the candidate source SHA, and atomically
 pushes the release metadata commit and tag. If main advanced during checks or
 push, that stale candidate is skipped; the newer push is checked instead.
 Release metadata uses a repository-scoped writable SSH deploy key fetched at
@@ -159,7 +159,8 @@ with main, so the release metadata commit becomes a documentation-only change
 after publication and cannot trigger another app release. PR events run scoped checks; manual main retries use the same release gate.
 `release.yml` is dispatch-only: the preparation job selects **both** its ref and
 tag input as the newly created tag, preventing competing tag-push and explicit
-builds. For a deliberately created minor/major version tag, explicitly run
+builds. Major version increments are forbidden while Gimbal is pre-release.
+For a deliberately created minor version tag, explicitly run
 `gh workflow run release.yml --ref vX.Y.Z -f tag=vX.Y.Z` after pushing that tag.
 
 Automatic releases wait for the tagged workflow under a shared concurrency

@@ -1,4 +1,7 @@
 @import "tailwindcss";
+/* Go files are backend code, not class sources. Scanning them makes Tailwind
+   reload the browser before SKGO can publish the replacement. */
+@source not "../**/*.go";
 @import "tw-animate-css";
 @import "shadcn-svelte/tailwind.css";
 @import "@fontsource-variable/inter";

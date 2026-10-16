@@ -181,8 +181,10 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if err != nil {
 		return gimbal.TurnResult{}, fmt.Errorf("claude: compose completion schema: %w", err)
 	}
-	text := string(nativeSchema)
-	extra["json-schema"] = &text
+	if len(nativeSchema) > 0 {
+		text := string(nativeSchema)
+		extra["json-schema"] = &text
+	}
 	switch {
 	case parent != "":
 		options = append(options, claudeagent.WithForkSession(parent))
@@ -219,7 +221,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 
-	out, err := waitTurn(ctx, stream, nativeErrors, sessionID, s)
+	out, err := waitTurn(ctx, stream, nativeErrors, sessionID, s, len(schema) > 0)
 	if ctx.Err() != nil {
 		return gimbal.TurnResult{}, ctx.Err()
 	}
@@ -303,7 +305,7 @@ var invalidCompletion = json.RawMessage("{")
 // results from work owned by an earlier process. The process's init followed by
 // status=requesting is the bounded post-submit barrier: origin and result index
 // describe a generation, but do not prove that the queued prompt was received.
-func waitTurn(ctx context.Context, stream turnStream, nativeErrors <-chan error, sessionID string, s *session) (json.RawMessage, error) {
+func waitTurn(ctx context.Context, stream turnStream, nativeErrors <-chan error, sessionID string, s *session, structured bool) (json.RawMessage, error) {
 	messages := make(chan claudeagent.Message)
 	stop := make(chan struct{})
 	defer close(stop)
@@ -373,6 +375,15 @@ func waitTurn(ctx context.Context, stream turnStream, nativeErrors <-chan error,
 				if !promptReceived {
 					continue
 				}
+				if !structured {
+					if result.TerminalReason != nil && (*result.TerminalReason == claudeagent.TerminalReasonBackgroundRequested || *result.TerminalReason == claudeagent.TerminalReasonToolDeferred) {
+						continue
+					}
+					if strings.TrimSpace(result.Result) == "" {
+						return invalidCompletion, nil
+					}
+					return json.Marshal(result.Result)
+				}
 				state, value, valid := completionValue(result.StructuredOutput)
 				if !valid {
 					return invalidCompletion, nil
@@ -433,13 +444,14 @@ func requesting(message claudeagent.Message) bool {
 // completion envelope. Local references keep their caller-schema meaning:
 // root definitions are hoisted, other root references are redirected to the
 // embedded caller root, and a collision-free private definition name is used.
-// Text receives the same lifecycle with a string as its final value.
+// Plain text uses the native text result and does not request a schema.
 func completionSchema(schema json.RawMessage) (json.RawMessage, error) {
-	var caller any = map[string]any{"type": "string"}
-	if len(schema) > 0 {
-		if err := json.Unmarshal(schema, &caller); err != nil {
-			return nil, err
-		}
+	if len(schema) == 0 {
+		return nil, nil
+	}
+	var caller any
+	if err := json.Unmarshal(schema, &caller); err != nil {
+		return nil, err
 	}
 	root, isObject := caller.(map[string]any)
 	defs := make(map[string]any)

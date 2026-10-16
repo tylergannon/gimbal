@@ -77,7 +77,7 @@ func TestWaitTurnAttributesCompletionAfterCurrentPrompt(t *testing.T) {
 	close(stream.messages)
 
 	nativeErrors := make(chan error)
-	out, err := waitTurn(context.Background(), stream, nativeErrors, sessionID, &session{})
+	out, err := waitTurn(context.Background(), stream, nativeErrors, sessionID, &session{}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestWaitTurnRejectsMissingTextPayload(t *testing.T) {
 	promptBarrier(stream.messages, "session")
 	stream.messages <- result("session", "completed", nil, "")
 	close(stream.messages)
-	out, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{})
+	out, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestWaitTurnRejectsMalformedEnvelope(t *testing.T) {
 	malformed.StructuredOutput.(map[string]any)["unexpected"] = true
 	stream.messages <- malformed
 	close(stream.messages)
-	out, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{})
+	out, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{}, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestWaitTurnTerminatesWhileWaiting(t *testing.T) {
 		promptBarrier(stream.messages, "session")
 		stream.messages <- result("session", "waiting", nil, "")
 		close(stream.messages)
-		_, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{})
+		_, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{}, true)
 		if err == nil || !strings.Contains(err.Error(), "without a completed result") {
 			t.Fatalf("error = %v", err)
 		}
@@ -137,7 +137,7 @@ func TestWaitTurnTerminatesWhileWaiting(t *testing.T) {
 		stream.messages <- result("session", "waiting", nil, "")
 		stream.messages <- claudeagent.ResultMessage{Type: "result", Status: "error", Subtype: "error_during_execution", SessionID: "session", Errors: []string{"provider stopped"}}
 		close(stream.messages)
-		_, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{})
+		_, err := waitTurn(context.Background(), stream, make(chan error), "session", &session{}, true)
 		if err == nil || !strings.Contains(err.Error(), "provider stopped") {
 			t.Fatalf("error = %v", err)
 		}
@@ -148,7 +148,7 @@ func TestWaitTurnTerminatesWhileWaiting(t *testing.T) {
 		stream.interrupt = func() { close(stream.messages) }
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		_, err := waitTurn(ctx, stream, make(chan error), "session", &session{})
+		_, err := waitTurn(ctx, stream, make(chan error), "session", &session{}, true)
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("error = %v, want context cancellation", err)
 		}
@@ -359,5 +359,57 @@ func TestMalformedCompletionUsesGenerateValidationRetry(t *testing.T) {
 	}
 	if adapter.calls != 2 || !strings.Contains(adapter.prompts[1], "previous answer was invalid") {
 		t.Fatalf("calls/prompts = %d/%q, want bounded validation re-ask", adapter.calls, adapter.prompts)
+	}
+}
+
+func TestTextDoesNotRequestCompletionSchema(t *testing.T) {
+	for _, input := range []json.RawMessage{nil, {}} {
+		schema, err := completionSchema(input)
+		if err != nil || len(schema) != 0 {
+			t.Fatalf("plain text requested structured output: %s, %v", schema, err)
+		}
+	}
+}
+
+func TestWaitTurnReturnsNativeTextAfterPromptBarrier(t *testing.T) {
+	stream := &scriptedTurnStream{messages: make(chan claudeagent.Message, 4)}
+	stream.messages <- claudeagent.ResultMessage{Type: "result", Subtype: "success", SessionID: "session", Result: "stale"}
+	promptBarrier(stream.messages, "session")
+	stream.messages <- claudeagent.ResultMessage{Type: "result", Subtype: "success", SessionID: "session", Result: "Hey! What can I help with?"}
+	close(stream.messages)
+	out, err := waitTurn(t.Context(), stream, make(chan error), "session", &session{}, false)
+	if err != nil || string(out) != `"Hey! What can I help with?"` {
+		t.Fatalf("native text = %s, %v", out, err)
+	}
+}
+
+func TestWaitTurnTextRejectsEmptyAndFailedResults(t *testing.T) {
+	for _, subtype := range []string{"success", "error_during_execution"} {
+		t.Run(subtype, func(t *testing.T) {
+			stream := &scriptedTurnStream{messages: make(chan claudeagent.Message, 3)}
+			promptBarrier(stream.messages, "session")
+			stream.messages <- claudeagent.ResultMessage{Type: "result", Subtype: subtype, SessionID: "session"}
+			close(stream.messages)
+			out, err := waitTurn(t.Context(), stream, make(chan error), "session", &session{}, false)
+			if err == nil && json.Valid(out) {
+				t.Fatalf("empty/failed native result became text: %s", out)
+			}
+		})
+	}
+}
+
+func TestWaitTurnTextContinuesAfterExplicitNativeYield(t *testing.T) {
+	for _, reason := range []claudeagent.TerminalReason{claudeagent.TerminalReasonBackgroundRequested, claudeagent.TerminalReasonToolDeferred} {
+		t.Run(string(reason), func(t *testing.T) {
+			stream := &scriptedTurnStream{messages: make(chan claudeagent.Message, 4)}
+			promptBarrier(stream.messages, "session")
+			stream.messages <- claudeagent.ResultMessage{Type: "result", Subtype: "success", SessionID: "session", Result: "Still working", TerminalReason: &reason}
+			stream.messages <- claudeagent.ResultMessage{Type: "result", Subtype: "success", SessionID: "session", Result: "Done"}
+			close(stream.messages)
+			out, err := waitTurn(t.Context(), stream, make(chan error), "session", &session{}, false)
+			if err != nil || string(out) != `"Done"` {
+				t.Fatalf("native yield completed early: %s, %v", out, err)
+			}
+		})
 	}
 }

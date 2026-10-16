@@ -14,3 +14,14 @@ diff --git a/src/runtime/client/remote-functions/query/index.js b/src/runtime/cl
 @@ -34,0 +35,2 @@
 +
 +			return result._;
+diff --git a/src/runtime/client/remote-functions/form.svelte.js b/src/runtime/client/remote-functions/form.svelte.js
+--- a/src/runtime/client/remote-functions/form.svelte.js
++++ b/src/runtime/client/remote-functions/form.svelte.js
+@@ -17,0 +18 @@
++import { on } from 'svelte/events';
+@@ -585 +586 @@
+-			form.addEventListener('focusout', handle_focusout);
++			const remove_focusout = on(form, 'focusout', handle_focusout);
+@@ -591 +592 @@
+-				form.removeEventListener('focusout', handle_focusout);
++				remove_focusout();

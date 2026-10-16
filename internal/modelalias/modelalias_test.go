@@ -1,6 +1,8 @@
 package modelalias
 
 import (
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -110,14 +112,28 @@ func TestNewerVersionComparesNumerically(t *testing.T) {
 }
 
 func TestNewestListsEachFamilyOnceByHarness(t *testing.T) {
-	newest := Newest()
-	if got := strings.Join(newest["claude"], ","); got != "claude-fable-5-1,claude-haiku-4-5,claude-opus-5-5,claude-sonnet-5-5" {
-		t.Fatalf("claude = %s", got)
+	// Fix the input catalog, not the output of the daily catalog refresh.
+	previousGenerated, previousFamilies, previousAliases := generatedFamilies, families, aliases
+	t.Cleanup(func() {
+		generatedFamilies, families, aliases = previousGenerated, previousFamilies, previousAliases
+	})
+	generatedFamilies = []familyVersion{
+		{family: "sol", provider: "openai", version: "6.1", native: "gpt-6.1-sol"},
+		{family: "haiku", provider: "anthropic", version: "4.5", native: "claude-haiku-4-5"},
+		{family: "gpt", provider: "openai", version: "6", native: "gpt-6-sol"},
+		{family: "deepseek-flash", provider: "diffusion", version: "4.1", native: "diffusion/deepseek-4.1-flash"},
+		{family: "haiku", provider: "anthropic", version: "5.5", native: "claude-haiku-5-5"},
+		{family: "gpt", provider: "openai", version: "6.1", native: "gpt-6.1-sol"},
+		{family: "fable", provider: "anthropic", version: "5.1", native: "claude-fable-5-1"},
 	}
-	if got := strings.Join(newest["codex"], ","); got != "gpt-6-astra,gpt-6.1-sol,gpt-6-luna,gpt-5.6-terra" {
-		t.Fatalf("codex = %s", got)
+	families, aliases = deriveAliases()
+	want := map[string][]string{
+		"claude": {"claude-fable-5-1", "claude-haiku-5-5"},
+		"codex":  {"gpt-6.1-sol"},
+		"agy":    {"gemini-3.8-flash-medium"},
+		"pi":     {"diffusion/deepseek-4.1-flash"},
 	}
-	if got := strings.Join(newest["agy"], ","); got != "gemini-3.8-flash-medium" {
-		t.Fatalf("agy = %s", got)
+	if got := Newest(); !maps.EqualFunc(got, want, slices.Equal[[]string]) {
+		t.Fatalf("Newest() = %v, want %v", got, want)
 	}
 }

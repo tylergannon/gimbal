@@ -43,7 +43,7 @@ test("keyboard selection reveals overflowed tabs and Delete closes only the view
     .not.toBeInTheDocument();
   await expect.element(screen.getByRole("status")).toHaveAccessibleName("recording: 1:12:08");
   await screen.getByRole("button", { name: "Show sidebar" }).click();
-  const working = screen.getByRole("button", { name: "Return navigation #455 Running Codex" });
+  const working = screen.getByRole("button", { name: "Running Return navigation #455" });
   await expect.element(working).toBeVisible();
   await working.click();
   await expect

@@ -30,7 +30,8 @@ import (
 	skgo5 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhg"
 	skgo6 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmnxw45tfojzwc5djn5xhgl23mnxw45tfojzwc5djn5xesrc5"
 	skgo7 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpmzuwyzltf5nwm2lmmveuixjpmjxwi6i"
-	skgo8 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
+	skgo8 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44y"
+	skgo9 "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizltf5yhe33kmvrxi4zplnyhe33kmvrxixjpoj2w44zplnzhk3sjiroq"
 	params "github.com/tylergannon/gimbal/internal/skgo/params"
 	transcript "github.com/tylergannon/gimbal/internal/transcript"
 	pkg_runview "github.com/tylergannon/gimbal/web/runview"
@@ -13357,13 +13358,22 @@ func load_projects_project_conversations_conversationID_page(ctx context.Context
 	return skgo6.Skgo_Load(skgo6.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
 }
 
+// load_projects_project_runs_page answers src/routes/projects/[project]/runs/+page.server.ts.
+//
+// A load's result is the one value no generated encoder produces: it may
+// hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
+// type, so the value is encoded where a promise can still be recognised.
+func load_projects_project_runs_page(ctx context.Context) (any, error) {
+	return skgo8.Skgo_load(skgo8.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+}
+
 // load_projects_project_runs_runID_page answers src/routes/projects/[project]/runs/[runID]/+page.server.ts.
 //
 // A load's result is the one value no generated encoder produces: it may
 // hold a skgo.Deferred, and `Promise<T>` is not a projection of any Go
 // type, so the value is encoded where a promise can still be recognised.
 func load_projects_project_runs_runID_page(ctx context.Context) (any, error) {
-	return skgo8.Skgo_load(skgo8.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
+	return skgo9.Skgo_load(skgo9.SkgoPageRequestEvent(skgo.EventFrom(ctx)))
 }
 
 // load_window_page answers src/routes/window/+page.server.ts.
@@ -13402,7 +13412,8 @@ func Loads() []*skgo.ServerLoad {
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/+page.server.ts", Run: load_projects_project_page, Matchers: skgo4.SkgoParamMatchers()}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/+page.server.ts", Run: load_projects_project_conversations_page, Matchers: skgo5.SkgoParamMatchers()}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/conversations/[conversationID]/+page.server.ts", Run: load_projects_project_conversations_conversationID_page, Matchers: skgo6.SkgoParamMatchers()}),
-		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/runs/[runID]/+page.server.ts", Run: load_projects_project_runs_runID_page, Matchers: skgo8.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/runs/+page.server.ts", Run: load_projects_project_runs_page, Matchers: skgo8.SkgoParamMatchers()}),
+		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/projects/[project]/runs/[runID]/+page.server.ts", Run: load_projects_project_runs_runID_page, Matchers: skgo9.SkgoParamMatchers()}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/window/+page.server.ts", Run: load_window_page, Matchers: skgo3.SkgoParamMatchers()}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/workflows/+page.server.ts", Run: load_workflows_page, Matchers: skgo1.SkgoParamMatchers()}),
 		skgo.NewServerLoad(skgo.LoadSpec{Module: "src/routes/workflows/[workflow]/+page.server.ts", Run: load_workflows_workflow_page, Matchers: skgo2.SkgoParamMatchers()}),

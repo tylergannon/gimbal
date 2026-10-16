@@ -30,7 +30,7 @@ func TestWindowReopensOnlyWhereTheInstanceStillOwnsTheProject(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := owner.Window(); got.Project != first.ID() || got.Path != "/projects/"+first.ID()+"/recordings" {
+	if got := owner.Window(); got.Project != first.ID() || got.Path != "/projects/"+first.ID() {
 		t.Fatalf("unremembered window = %+v, want first project by path", got)
 	}
 	if err := owner.RememberWindow(WindowState{Project: "missing", Path: "/projects/missing/recordings"}); err == nil {

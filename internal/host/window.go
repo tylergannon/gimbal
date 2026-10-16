@@ -111,7 +111,7 @@ func (o *Owner) RememberWindow(w WindowState) error {
 func (w WindowState) within() WindowState {
 	root := "/projects/" + w.Project
 	inside := func(path string) bool { return strings.HasPrefix(path, root+"/") || path == root }
-	out := WindowState{Project: w.Project, Path: root + "/recordings", Tabs: []WindowTab{}, Sidebar: w.Sidebar}
+	out := WindowState{Project: w.Project, Path: root, Tabs: []WindowTab{}, Sidebar: w.Sidebar}
 	if w.Seen != nil {
 		out.Seen = []SeenReply{}
 		for _, seen := range w.Seen {

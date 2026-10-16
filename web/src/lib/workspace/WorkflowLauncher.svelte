@@ -4,7 +4,7 @@
   import { Popover as PopoverPrimitive } from 'bits-ui';
   import { workflowCatalog } from '../../routes/workflow.remote';
   import WorkflowRun from '#lib/workflow-design/WorkflowRun.svelte';
-  let { project, active = true, onopen, onopenguide }: { project: string; active?: boolean; onopen: (path: string) => void; onopenguide: (name: string) => void } = $props();
+  let { project, active = true, align = 'start', onopen, onopenguide }: { project: string; active?: boolean; align?: 'start' | 'end'; onopen: (path: string) => void; onopenguide: (name: string) => void } = $props();
   const catalog = $derived(workflowCatalog(project));
   let open = $state(false);
   let selected = $state('');
@@ -14,7 +14,7 @@
 <div class="launcher">
 <Popover.Root bind:open>
   <Popover.Trigger class="launch-trigger">Run a workflow</Popover.Trigger>
-  <PopoverPrimitive.ContentStatic forceMount hidden={!active || !open} inert={!active || !open} class="workflow-popup">
+  <PopoverPrimitive.ContentStatic forceMount hidden={!active || !open} inert={!active || !open} class="workflow-popup" style={align === 'end' ? 'left:auto;right:0' : 'left:0;right:auto'}>
     <h2>Run a workflow</h2>
     {#if catalog.error}<p role="alert">Could not load workflows. <button onclick={() => catalog.refresh()}>Try again</button></p>
     {:else if !catalog.current}<p role="status">Loading workflows…</p>

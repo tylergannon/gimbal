@@ -83,7 +83,7 @@
       </h2>
       {#each data.workspaceProjects as item (item.id)}<a
           class={row}
-          href={`/projects/${item.id}/recordings`}
+          href={`/projects/${item.id}`}
           title={item.path}
           ><span class="truncate">{item.path.split("/").at(-1)}</span></a
         >{:else}<p class="px-2.5 text-xs text-muted-foreground">

@@ -4,16 +4,17 @@ import { userEvent } from 'vitest/browser';
 import TabStrip from './TabStrip.svelte';
 import type { WorkspaceTab } from './types';
 
-test('unseen is independent from a persistent failed pip', async () => {
+test.each(['failed','needs-you'] as const)('unseen is independent from a persistent %s pip', async (status) => {
+ const label = status === 'failed' ? 'Failed' : 'Needs you';
  const select = vi.fn();
- const tab: WorkspaceTab = { id: 'run', title: 'Review', kind: 'run', status: 'failed', unseen: true };
+ const tab: WorkspaceTab = { id: 'run', title: 'Review', kind: 'run', status, unseen: true };
  const screen = await render(TabStrip, { tabs: [tab], active: 'other', onselect: select, onclose: vi.fn() });
- const button = screen.getByRole('tab', { name: 'Failed Review Unseen changes' });
+ const button = screen.getByRole('tab', { name: `${label} Review Unseen changes` });
  await expect.element(button).toBeVisible();
  await button.click(); expect(select).toHaveBeenCalledWith('run');
  await screen.rerender({ tabs: [{ ...tab, unseen: false }], active: 'run', onselect: select, onclose: vi.fn() });
- await expect.element(screen.getByRole('tab', { name: 'Failed Review' })).toHaveAttribute('aria-selected','true');
- expect(document.querySelector('.pip[data-state="failed"]')).not.toBeNull();
+ await expect.element(screen.getByRole('tab', { name: `${label} Review` })).toHaveAttribute('aria-selected','true');
+ expect(document.querySelector(`.pip[data-state="${status}"]`)).not.toBeNull();
  expect(document.querySelector('.unseen-mark')).toBeNull();
 });
 test('group menu selects real members by keyboard and can unfold views', async () => {

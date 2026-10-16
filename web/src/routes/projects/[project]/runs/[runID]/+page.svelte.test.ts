@@ -13,6 +13,7 @@ const auth = vi.hoisted(() => ({
   currentUser: vi.fn(),
   viewRun: vi.fn(),
   goto: vi.fn(() => Promise.resolve()),
+  answer: vi.fn(),
   after: undefined as undefined | (() => void),
 }));
 vi.mock("$app/state", () => ({ page: auth.page }));
@@ -41,6 +42,10 @@ vi.mock("../../../../auth.remote", () => ({
 vi.mock("#lib/runs.remote", () => ({ viewRun: auth.viewRun }));
 vi.mock("#lib/environments.remote", () => ({
   environmentSnapshot: () => ({ current: undefined }),
+}));
+
+vi.mock("../../../../interview.remote", () => ({
+ answerInterview:{for:()=>({pending:0,fields:{...Object.fromEntries(['run','question_id','answer'].map(name=>[name,{as:(type:string,value?:string)=>({name,type,value}),value:()=>"",set:()=>{}}])),allIssues:()=>[]},enhance:(handler:(value:unknown)=>Promise<void>)=>({onsubmit:async(event:SubmitEvent)=>{event.preventDefault();auth.answer(Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement)));await handler({submit:async()=>true,result:{accepted:true}});}})})}
 }));
 
 class TestEventSource {
@@ -89,6 +94,7 @@ beforeEach(() => {
   auth.currentUser.mockReset();
   auth.viewRun.mockReturnValue({ current: undefined, error: undefined });
   auth.goto.mockClear();
+  auth.answer.mockClear();
   globalThis.EventSource = TestEventSource as unknown as typeof EventSource;
 });
 
@@ -222,6 +228,18 @@ test("transcript opens the waiting session, shows actual invocation and answers 
   );
   expect(document.body.textContent).toContain("Keep the cabin comparison focused.");
   expect(document.body.textContent).not.toContain("*claude.adapter");
+  await screen.getByRole('textbox',{name:'Answer the waiting question'}).fill('Choose the cabin.');
+  await screen.getByRole('button',{name:'Send answer',exact:true}).click();
+  expect(auth.answer).toHaveBeenCalledWith({run:snapshot.run.id,question_id:question.question_id,answer:'Choose the cabin.'});
+  await expect.element(screen.getByText('Answer accepted.',{exact:true})).toBeVisible();
+  await expect.element(screen.getByText(`Answer ${session.name}`,{exact:true})).toBeVisible();
+  expect(document.querySelector('.run-head .pip[data-state="needs-you"]')).not.toBeNull();
+  await expect.poll(()=>TestEventSource.instances.length).toBe(1);
+  const remaining = Object.values(snapshot.interviews).filter(row=>row.status==='pending').map(row=>({...row,status:'answered' as const,answer:'Choose the cabin.',answered:Date.now()}));
+  TestEventSource.instances[0].send('delta',{stream:snapshot.stream,position:snapshot.position+1,frames:remaining.map(row=>({type:'row' as const,data:{table:'interviews' as const,key:row.question_id,row}}))});
+  await expect.element(screen.getByRole('textbox',{name:'Answer the waiting question'})).not.toBeInTheDocument();
+  await expect.poll(()=>document.querySelector('.run-head .pip[data-state="needs-you"]')).toBeNull();
+
 });
 
 test("a saved source page draws the designer's titles over the run", async () => {

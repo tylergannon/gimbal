@@ -94,6 +94,7 @@
       status: runStatus(run, runData.attention),
       unseen: id !== active && runVersion(item) !== seen.get(id) };
   }) ?? []);
+  const runStatuses = $derived(Object.fromEntries((runData?.items ?? []).map(item => [item.run.id,runStatus(item.run,runData?.attention ?? [])])));
   const pendingQuestions = $derived(runData?.attention.filter(row => row.status === 'pending' && runData.items.some(item => item.run.id === row.run && item.run.status === 'running')) ?? []);
   const sidebarItems = $derived<WorkspaceTab[]>([
     ...items, {id:allRuns,title:'All runs',kind:'runs',count:runData?.items.length,detail:pendingQuestions.length ? `${new Set(pendingQuestions.map(row => row.run)).size} needs you` : undefined}, ...runTabs,
@@ -280,7 +281,7 @@
       {#if tab.id === `${root}/conversations/new`}<NewSession bind:this={composer} {project} {name} {fileContext} oncontextremoved={() => fileContext = undefined} active={active === tab.id} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
-        {#if current}<ConversationView {project} {current} onchanged={workspaceChanged} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
+        {#if current}<ConversationView {project} {current} {runStatuses} onchanged={workspaceChanged} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
       {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split("/").at(-1)!)} />
       {:else if tab.id === allRuns}<ProjectRuns {project} active={active === tab.id} onopenguide={guide} data={runData} error={runQuery?.error} onretry={() => runQuery?.reconnect()} onopen={select} />

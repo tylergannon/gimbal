@@ -11,7 +11,6 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/tylergannon/gimbal/internal/webauth"
@@ -27,30 +26,22 @@ type handlerSettings struct {
 	auth    *webauth.Auth
 }
 
-// NewHandler builds the server over the frontend build in dist. With a
-// non-empty proxy it renders pages from a running `vp dev` server; otherwise it
-// serves the embedded build. Loads, remote functions and server routes sit in
-// front of pages in both modes, so Kit's generated throwing stubs never answer
-// an application request.
-func NewHandler(dist fs.FS, proxy, origin string, settings ...handlerSettings) (http.Handler, string, error) {
-	// The manifest is read in both modes: it is where appDir and base come
-	// from, and those decide the URL prefix remote calls arrive on.
+// NewHandler builds the production server over the frontend build in dist.
+func NewHandler(dist fs.FS, origin string, settings ...handlerSettings) (http.Handler, string, error) {
+	return newHandler(dist, origin, nil, settings...)
+}
+
+func newHandler(dist fs.FS, origin string, development *skgo.NativeDevelopment, settings ...handlerSettings) (http.Handler, string, error) {
 	manifest, err := skgo.ReadManifest(dist)
 	if err != nil {
 		return nil, "", err
-	}
-	if proxy != "" {
-		manifest, err = skgo.ReadDevManifest(dist, proxy)
-		if err != nil {
-			return nil, "", err
-		}
 	}
 
 	cfg := handlerSettings{}
 	if len(settings) > 0 {
 		cfg = settings[0]
 	}
-	if cfg.auth != nil && proxy != "" {
+	if cfg.auth != nil && development != nil {
 		return nil, "", fmt.Errorf("auth requires a production web build")
 	}
 	remoteCfg := manifest.RemoteConfig(origin)
@@ -71,52 +62,19 @@ func NewHandler(dist fs.FS, proxy, origin string, settings ...handlerSettings) (
 	// needs the endpoint registry.
 	var build func(*skgo.Loads, *skgo.Remotes) (http.Handler, error)
 	var endpoints *skgo.Endpoints
-	if proxy != "" {
-		target, err := url.Parse(proxy)
-		if err != nil {
-			return nil, "", err
-		}
-		// In dev the client is served by vite, not by this build, so its baked
-		// version differs from the manifest's — sending x-sveltekit-version
-		// would make it reload in a loop. Kit skips the remote origin check in
-		// dev too.
-		remoteCfg = manifest.RemoteConfig("")
-		remoteCfg.Version = ""
-		remoteCfg.Dev = true
-		remoteCfg.CookieOrigin = origin
-		loadCfg.Version = ""
-		loadCfg.Dev = true
-		endpointCfg.Dev = true
-		handleCfg.Dev = true
-		handleCfg.Version = ""
+	if development != nil {
 		mode = "dev"
-		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
-			ssr, err := skgo.NewDevSSR(dist, manifest, loads, remotes, proxy, skgo.SSROptions{
-				Fetch: internal,
-			})
-			if err != nil {
-				return nil, err
-			}
-			endpoints.SetErrorTemplate(ssr.ErrorTemplate())
-			handleCfg.ErrorTemplate = ssr.ErrorTemplate()
-			return skgo.NewDevPages(target, manifest, ssr, log.Printf, endpoints), nil
+	}
+	build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
+		ssr, err := development.NewSSR(dist, manifest, loads, remotes, skgo.SSROptions{
+			Fetch: internal,
+		})
+		if err != nil {
+			return nil, err
 		}
-	} else {
-		// Pages are rendered here, in this process, by the SSR bundle the
-		// adapter built. The renderer needs the loads and the remote functions
-		// it will answer during a render, so the page handler is built after
-		// both of them exist.
-		build = func(loads *skgo.Loads, remotes *skgo.Remotes) (http.Handler, error) {
-			ssr, err := skgo.NewSSR(dist, manifest, loads, remotes, skgo.SSROptions{
-				Fetch: internal,
-			})
-			if err != nil {
-				return nil, err
-			}
-			endpoints.SetErrorTemplate(ssr.ErrorTemplate())
-			handleCfg.ErrorTemplate = ssr.ErrorTemplate()
-			return skgo.NewStaticHandler(dist, skgo.WithSSR(ssr))
-		}
+		endpoints.SetErrorTemplate(ssr.ErrorTemplate())
+		handleCfg.ErrorTemplate = ssr.ErrorTemplate()
+		return development.NewStaticHandler(dist, skgo.WithSSR(ssr))
 	}
 
 	// The app's `transport` hook, the Go half of the encode/decode pairs

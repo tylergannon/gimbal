@@ -21,12 +21,6 @@ func (r *remotes) String() string         { return fmt.Sprint([]string(*r)) }
 func (r *remotes) Set(value string) error { *r = append(*r, value); return nil }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "dev" {
-		if err := development(os.Args[2:]); err != nil {
-			log.Fatal(err)
-		}
-		return
-	}
 	if len(os.Args) < 2 || os.Args[1] != "generate" {
 		log.Fatal("usage: appgen generate [options]")
 	}
@@ -84,4 +78,8 @@ func observationConfiguration() polytype.Configuration {
 		polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/internal/observation", Name: "InterviewRow"}),
 		polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/internal/observation", Name: "TurnRow"}),
 	)
+}
+
+func workflowConfiguration() polytype.Configuration {
+	return polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/workflow", Name: "Graph"})
 }

@@ -13,8 +13,9 @@ clean:
     find web/build -mindepth 1 ! -name .gitkeep -delete
     rm -f native/Resources/gimbal
 
-dev:
-    go run ./internal/generate/appgen dev
+dev *args:
+    go generate ./...
+    go tool skgo dev {{args}}
 
 # Build the Debug macOS app around its matching CLI, reusing current outputs.
 app: build

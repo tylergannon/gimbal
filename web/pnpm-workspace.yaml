@@ -6,7 +6,7 @@ catalog:
   vite-plus: 1.1.0
   "@vitest/browser-playwright": 5.0.3
 minimumReleaseAgeExclude:
-  - "@skgo/sveltekit-adapter@0.22.1 || 0.28.2 || 0.31.0 || 0.32.0 || 0.32.1"
+  - "@skgo/sveltekit-adapter@0.22.1 || 0.28.2 || 0.31.0 || 0.32.0 || 0.32.1 || 0.34.4 || 0.34.5"
   - "@voidzero-dev/vite-plus-core@1.1.0"
   - "vite-plus@1.1.0"
   - "@voidzero-dev/vite-plus-darwin-arm64@1.1.0"
@@ -22,6 +22,8 @@ minimumReleaseAgeExclude:
 overrides:
   vite@*: "catalog:"
   vitest@*: "catalog:"
+patchedDependencies:
+  '@sveltejs/kit@3.0.0': patches/skgo-kit-3.0.0-queue.patch
 peerDependencyRules:
   allowAny:
     - vite
@@ -29,6 +31,3 @@ peerDependencyRules:
   allowedVersions:
     vite: "*"
     vitest: "*"
-
-patchedDependencies:
-  "@sveltejs/kit@3.0.1": patches/@sveltejs__kit@3.0.1.patch

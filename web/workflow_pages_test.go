@@ -17,7 +17,7 @@ func TestShippedWorkflowPages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	handler, mode, err := NewHandler(dist, "", "")
+	handler, mode, err := NewHandler(dist, "")
 	if err != nil {
 		t.Fatal(err)
 	}

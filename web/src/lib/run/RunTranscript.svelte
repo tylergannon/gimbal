@@ -47,7 +47,8 @@
     ...Object.values(snapshot.interviews).filter(row => row.session === chosen?.id || row.session === chosen?.name || (!row.session && waiting.length === 1)).map(row => ({ kind: 'interview' as const, at: row.asked, id: row.question_id, question: row })),
   ].sort((a,b) => a.at-b.at));
   let scroller = $state<HTMLDivElement>();
-  let follow = $state(false);
+  let follow = $state(untrack(() => live));
+  let readerScrolled = $state(false);
   // Keep a reader's position; only follow incoming content while already at the tail.
   $effect.pre(() => { revision; const target = scroller; if (target && untrack(() => follow)) void tick().then(() => { target.scrollTop = target.scrollHeight; }); });
 </script>
@@ -65,11 +66,11 @@
       </div>
     {/if}
     <div class="switcher" aria-label="Sessions in this run">
-      {#each sessions as session (session.id)}<button aria-pressed={chosen?.id === session.id} class={{ selected: chosen?.id === session.id }} onclick={() => { picked = session.id; }}><Pip state={stateFor(session.id)} />{session.name}<span class="quiet">· {Object.values(snapshot.turns).filter(row => row.session === session.id).length} turns</span></button>{/each}
+      {#each sessions as session (session.id)}{@const count = Object.values(snapshot.turns).filter(row => row.session === session.id).length}<button aria-pressed={chosen?.id === session.id} class={{ selected: chosen?.id === session.id }} onclick={() => { picked = session.id; }}><Pip state={stateFor(session.id)} />{session.name}<span class="quiet">· {count} {count === 1 ? 'turn' : 'turns'}</span></button>{/each}
     </div>
     {#if chosen}<div class="identities"><span>{harnessName(chosen.adapter.replace(/^\*/, '').replace(/\.adapter$/i, ''))}</span><span>{chosen.model}</span>{#if chosen.effort}<span>{chosen.effort}</span>{/if}{#if chosen.workdir}<span class="workdir" title={chosen.workdir}>{chosen.workdir}</span>{/if}</div>{/if}
   </div>
-  <div class="scroll" bind:this={scroller} onscroll={() => { if (scroller) follow = scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight < 48; }}>
+  <div class="scroll" bind:this={scroller} onscroll={() => { readerScrolled = true; if (scroller) follow = scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight < 48; }}>
     <div class="transcript measure">
       <section class="invoke" aria-label="Invocation">
         <div class="ih"><Play size={14} />Invocation <span class="quiet">· {time(snapshot.run.started)}</span></div>
@@ -88,14 +89,16 @@
       {#if snapshot.run.error}<p class="error">{snapshot.run.error}</p>{/if}
     </div>
   </div>
-  {#if !follow}<button class="jump" onclick={() => { if (scroller) scroller.scrollTop = scroller.scrollHeight; follow = true; }}>Jump to latest ↓</button>{/if}
+  {#if !follow && readerScrolled}<button class="jump" onclick={() => { if (scroller) scroller.scrollTop = scroller.scrollHeight; follow = true; }}>Jump to latest ↓</button>{/if}
   <div class="composer measure">
-    {#if question}<RunQuestions run={snapshot.run.id} {question} composer target={chosen?.name} />
+    {#if !live}<p class="ended"><Pip state="ended" />This run has ended.</p>
+    {:else if question}<RunQuestions run={snapshot.run.id} {question} composer target={chosen?.name} turn={running?.id} />
     {:else if chosen && plannerScope}<LoopComposer run={snapshot.run.id} scope={plannerScope.key} name={chosen.name} />
     {:else if chosen}<SteerBox run={snapshot.run.id} session={chosen.id} target={!live ? 'This run has ended' : !running ? `${chosen.name} · waiting for the next turn` : chosen.name} turn={running?.id} ordinal={running ? turns.indexOf(running)+1 : undefined} ended={!live || !running} disabled={!canSteer} reason={steerReason} />{/if}
   </div>
 </div>
 <style>
+  .ended { display:flex; align-items:center; gap:8px; padding:16px 0; margin:0; color:var(--muted-foreground); font:13px/18px var(--font-sans); }
   .run-transcript { position:relative; display:flex; flex:1; min-height:0; min-width:0; flex-direction:column; } .measure { width:100%; max-width:860px; box-sizing:border-box; margin:0 auto; } .orient { display:flex; align-items:center; flex-wrap:wrap; gap:6px; padding:8px 10px; border:1px solid var(--border); border-radius:6px; background:color-mix(in oklch,var(--muted) 18%,var(--background)); font:12px/16px var(--font-sans); } .step { display:inline-flex; align-items:center; gap:5px; height:24px; padding:0 8px; border:1px solid var(--border); border-radius:3px; background:var(--background); color:var(--foreground); font:inherit; white-space:nowrap; cursor:pointer; } .step.now { outline:2px solid var(--status-running); outline-offset:1px; } .step.wait { outline:2px solid var(--status-needs-you); outline-offset:1px; } .glyph { color:var(--status-running); } .arrow { color:var(--muted-foreground); } .group-label { font-weight:500; color:var(--muted-foreground); } .map-button { margin-left:auto; display:flex; align-items:center; gap:4px; border:0; background:transparent; font:inherit; cursor:pointer; color:var(--foreground); }
   .switcher { display:flex; align-items:center; margin-top:12px; overflow-x:auto; border-bottom:1px solid var(--border); } .switcher button { display:flex; align-items:center; gap:6px; flex:none; padding:10px 12px; color:var(--muted-foreground); background:transparent; border:0; border-bottom:2px solid transparent; font:13px/18px var(--font-sans); cursor:pointer; } .switcher button.selected { color:var(--foreground); border-bottom-color:var(--foreground); } .quiet { color:var(--muted-foreground); font-weight:400; font-size:12px; } .identities { display:flex; gap:6px; padding:10px 0 0; flex-wrap:wrap; } .identities span { padding:2px 7px; font-size:11px; border:1px solid var(--border); border-radius:4px; color:var(--muted-foreground); } .workdir { overflow:hidden; text-overflow:ellipsis; max-width:320px; white-space:nowrap; }
   .scroll { flex:1; min-height:0; overflow:auto; } .transcript { display:flex; flex-direction:column; gap:24px; padding-top:16px; padding-bottom:24px; } .invoke { display:flex; flex-direction:column; gap:8px; max-width:760px; padding:12px 14px; border:1px solid var(--border); border-radius:8px; background:color-mix(in oklch,var(--muted) 18%,var(--background)); } .ih { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font:500 13px/18px var(--font-sans); } .goal { margin:0; font:15px/22px var(--font-sans); } dl { display:grid; grid-template-columns:max-content 1fr; gap:2px 14px; margin:0; font:13px/20px var(--font-sans); } dt { color:var(--muted-foreground); } dd { margin:0; overflow-wrap:anywhere; } details { font-size:12px; color:var(--muted-foreground); } summary { cursor:pointer; }

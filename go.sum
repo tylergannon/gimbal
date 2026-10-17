@@ -215,6 +215,8 @@ github.com/tylergannon/skgo v0.34.7 h1:cCjdbYoy5sPlFdqBfUasGkv024LoraIUvquWBUee2
 github.com/tylergannon/skgo v0.34.7/go.mod h1:C0m+mw3Xd64YB5CAlSd6/rnBMgcCFl0D8Ppd7f6/D3I=
 github.com/tylergannon/skgo v0.35.0 h1:T1kV+FgkA9SwN0UqlaGq+k6d2NIAqqg9gNnG8RvB8+A=
 github.com/tylergannon/skgo v0.35.0/go.mod h1:C0m+mw3Xd64YB5CAlSd6/rnBMgcCFl0D8Ppd7f6/D3I=
+github.com/tylergannon/skgo v0.35.1 h1:r6xvx3wIf4UCToL5s1OKohnKYGXGIbCR7fs1o9CyN6M=
+github.com/tylergannon/skgo v0.35.1/go.mod h1:C0m+mw3Xd64YB5CAlSd6/rnBMgcCFl0D8Ppd7f6/D3I=
 github.com/tylergannon/structtag v0.1.0 h1:Vn4ZEemGUtAfw9ddEtHQILKnIWqSWCSpciFTNPh1gcY=
 github.com/tylergannon/structtag v0.1.0/go.mod h1:Rjgg4hJfebaKNeyqoLh4n+zKhfVBdMyc7nBHIlQsVw0=
 github.com/vmware-labs/yaml-jsonpath v0.3.2 h1:/5QKeCBGdsInyDCyVNLbXyilb61MXGi9NP674f9Hobk=

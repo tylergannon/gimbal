@@ -31,7 +31,7 @@ require (
 	github.com/tylergannon/claude-agent-sdk-go v1.2.1
 	github.com/tylergannon/devalue/v5 v5.0.0
 	github.com/tylergannon/polytype v1.10.0
-	github.com/tylergannon/skgo v0.35.0
+	github.com/tylergannon/skgo v0.35.1
 	github.com/yuin/goldmark v1.7.13
 	golang.org/x/net v0.61.0
 	golang.org/x/sync v0.24.0

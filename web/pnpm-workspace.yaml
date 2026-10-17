@@ -6,7 +6,7 @@ catalog:
   vite-plus: 1.0.0
   "@vitest/browser-playwright": 5.0.1
 minimumReleaseAgeExclude:
-  - "@skgo/sveltekit-adapter@0.22.1 || 0.28.2 || 0.31.0 || 0.32.0 || 0.32.1 || 0.34.4 || 0.34.5"
+  - "@skgo/sveltekit-adapter@0.22.1 || 0.28.2 || 0.31.0 || 0.32.0 || 0.32.1 || 0.34.4 || 0.34.5 || 0.35.1"
   - "@voidzero-dev/vite-plus-core@1.0.0"
   - "vite-plus@1.0.0"
   - "@voidzero-dev/vite-plus-darwin-arm64@1.0.0"

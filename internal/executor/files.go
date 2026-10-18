@@ -210,7 +210,15 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 	write.Close()
 	go func() { _ = cmd.Wait() }()
 	_ = read.SetReadDeadline(time.Now().Add(2 * time.Minute))
-	err = json.NewDecoder(read).Decode(&d)
+	var response struct {
+		Descriptor
+		Error string `json:"error,omitempty"`
+	}
+	err = json.NewDecoder(read).Decode(&response)
+	d = response.Descriptor
+	if err == nil && response.Error != "" {
+		return d, errors.New(response.Error)
+	}
 	if err != nil {
 		return d, fmt.Errorf("executor startup: %w (diagnostics: %s)", err, log.Name())
 	}
@@ -218,9 +226,10 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 }
 
 type Control struct {
-	Op      string `json:"op"`
-	After   int64  `json:"after,omitempty"`
-	Message string `json:"message,omitempty"`
+	Deadline time.Time `json:"deadline,omitempty"`
+	Op       string    `json:"op"`
+	After    int64     `json:"after,omitempty"`
+	Message  string    `json:"message,omitempty"`
 }
 type Reply struct {
 	Landed bool   `json:"landed,omitempty"`
@@ -302,11 +311,17 @@ func Call(ctx context.Context, dir string, request Control) (Reply, error) {
 		return reply, err
 	}
 	defer conn.Close()
-	deadline := time.Now().Add(2 * time.Second)
+	deadline := time.Now().Add(30 * time.Second)
+	if request.Op == "wait" {
+		deadline = time.Now().Add(2 * time.Second)
+	}
 	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
 		deadline = d
 	}
+	request.Deadline = deadline
 	_ = conn.SetDeadline(deadline)
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
 	if err = json.NewEncoder(conn).Encode(request); err == nil {
 		err = json.NewDecoder(conn).Decode(&reply)
 	}
@@ -425,4 +440,17 @@ func Startup(d Descriptor) error {
 	}
 	defer f.Close()
 	return json.NewEncoder(f).Encode(d)
+}
+
+// RejectStartup reports pre-acceptance failures on the private startup pipe.
+// The public CLI prints the error on stderr and emits no descriptor.
+func RejectStartup(err error) {
+	f := os.NewFile(3, "startup")
+	if f == nil {
+		return
+	}
+	defer f.Close()
+	_ = json.NewEncoder(f).Encode(struct {
+		Error string `json:"error"`
+	}{err.Error()})
 }

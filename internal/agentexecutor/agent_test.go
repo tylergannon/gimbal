@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/executor"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/executor"
 )
 
 func TestEventCatchUpToleratesReplayAndPartialTail(t *testing.T) {
@@ -84,5 +86,27 @@ func TestSessionConflictsAndValidation(t *testing.T) {
 	s.ID = "../bad"
 	if err := Create(root, s); err == nil {
 		t.Fatal("path traversal accepted")
+	}
+}
+
+func TestCloseUnusedSessionIsIdempotentAndRejectsLaterTurns(t *testing.T) {
+	root := t.TempDir()
+	a := Adapter{root: root, harness: "claude"}
+	id, err := a.CreateSession(t.Context(), "unused", "", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = a.Close(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if err = a.Close(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if !executor.Exists(filepath.Join(sessionDir(root, executor.SessionID(id)), "closed.json")) {
+		t.Fatal("no closed marker")
+	}
+	_, err = Submit(root, Request{ID: executor.NewTurnID(), Session: executor.SessionID(id), Prompt: "must not run", Timeout: time.Second})
+	if err == nil || !strings.Contains(err.Error(), "closed") {
+		t.Fatalf("closed session accepted a turn: %v", err)
 	}
 }

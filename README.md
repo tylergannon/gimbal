@@ -271,6 +271,9 @@ when a planner chooses work adaptively; check `Err()` afterward.
 
 ## Independent executors
 
+Pi, Claude, Codex, and Gemini (Antigravity) use the agent executor.
+Native shared servers keep their existing ownership.
+
 `gimbal-command --id command_<ULID> -- COMMAND ARG...` accepts a command
 and prints one JSON descriptor line. `gimbal agent-executor --session
 session_<ULID> --turn turn_<ULID> --model luna --prompt "Reply OK"` does the
@@ -283,7 +286,8 @@ Both executors keep working after their caller exits. Descriptor paths are
 absolute paths on the executor host. Results and command output are files;
 agent events are JSONL with increasing sequence numbers. `--lookup ID` reads a
 retained operation; `--cancel ID` explicitly stops it. Agent turns also accept
-`--lookup ID --steer MESSAGE`. A repeated ID with matching inputs observes the
+`--lookup ID --steer MESSAGE`; `--close SESSION_ID` ends a session and releases
+its native resources. A repeated ID with matching inputs observes the
 same operation; different inputs are rejected. `--timeout` defaults to twenty
 minutes and starts at acceptance; reconnecting does not extend it.
 
@@ -294,7 +298,10 @@ operations after seven days. This is also the operation deduplication lifetime.
 operations and native session continuation state are never vacuumed. Command
 cancellation stops the owned process group; deliberately daemonizing descendants
 are outside that boundary. The task-host bridge continues to use its existing
-execution and artifact routes, so callers do not need shared paths.
+execution and artifact routes, so callers do not need shared paths. An accepted
+operation with neither an owner nor a saved terminal result is an invariant
+violation: lookup panics with the operation directory. Preserve that directory
+and the diagnostics for investigation; Gimbal never automatically resubmits it.
 
 ## Lint workflows
 

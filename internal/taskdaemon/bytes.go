@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimbal/backend"
-	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func (d *Daemon) bytes(w http.ResponseWriter, r *http.Request) {
@@ -40,39 +39,9 @@ func (d *Daemon) bytes(w http.ResponseWriter, r *http.Request) {
 	defer func() { _ = file.Close() }()
 	_, _ = io.Copy(w, file)
 }
-func (d *Daemon) acknowledge(v effects.Target) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-	t := d.tasks[key(v.Run, v.ID)]
-	if t == nil {
-		return errors.New("task not found")
-	}
-	select {
-	case <-t.done:
-	default:
-		return errors.New("task still active")
-	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.acknowledged = true
-	if t.released {
-		for _, p := range t.captures {
-			_ = os.Remove(p)
-		}
-		t.events = nil
-		t.result = nil
-	}
-	return nil
-}
 func (d *Daemon) bytesHandlers(m *http.ServeMux) {
 	m.HandleFunc("POST /tasks/bytes", d.bytes)
-	m.HandleFunc("POST /tasks/ack", func(w http.ResponseWriter, r *http.Request) {
-		v, ok := decode[effects.Target](w, r)
-		if !ok {
-			return
-		}
-		reply(w, "", false, d.acknowledge(v))
-	})
+
 	m.HandleFunc("POST /tasks/write-bytes", func(w http.ResponseWriter, r *http.Request) {
 		var v struct {
 			backend.Artifact

@@ -2,6 +2,7 @@ package claude
 
 import (
 	"context"
+
 	"github.com/tylergannon/gimbal/internal/executor"
 )
 
@@ -22,7 +23,7 @@ func (a *adapter) SaveSession(_ context.Context, id, path string) error {
 }
 
 // LoadSession rebuilds adapter routing without starting or replaying a turn.
-func (a *adapter) LoadSession(_ context.Context, path string) (string, error) {
+func (a *adapter) LoadSession(_ context.Context, path string, closing bool) (string, error) {
 	var saved savedSession
 	if err := executor.Read(path, &saved); err != nil {
 		return "", err

@@ -2,13 +2,14 @@ package commandexecutor
 
 import (
 	"context"
-	"github.com/tylergannon/gimbal/internal/executor"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/executor"
 )
 
 func TestConcurrentSubmitExecutesOnceAndRetainsCompletedOutput(t *testing.T) {
@@ -41,8 +42,8 @@ func TestConcurrentSubmitExecutesOnceAndRetainsCompletedOutput(t *testing.T) {
 		t.Fatalf("executions=%q %v", data, err)
 	}
 	request.Args = []string{"-c", "echo conflict"}
-	if _, err = Submit(root, request); err == nil {
-		t.Fatal("conflicting inputs accepted")
+	if _, err = Submit(root, request); err == nil || !strings.Contains(err.Error(), "conflicts") {
+		t.Fatalf("conflict must be actionable: %v", err)
 	}
 	d := descriptors[0]
 	out, _ := os.ReadFile(d.Stdout)
@@ -116,5 +117,43 @@ func TestLargeOutputIsFileBacked(t *testing.T) {
 	raw, _ := os.ReadFile(d.Result)
 	if strings.Contains(string(raw), "stdout") {
 		t.Fatal("terminal result embeds output")
+	}
+}
+
+func TestGracefulStopAndForcedStopAreDistinguished(t *testing.T) {
+	for _, cooperative := range []bool{true, false} {
+		t.Run(map[bool]string{true: "graceful", false: "forced"}[cooperative], func(t *testing.T) {
+			root := t.TempDir()
+			marker := filepath.Join(root, "stopped")
+			script := `trap '' INT; printf ready; while :; do sleep .05; done`
+			if cooperative {
+				script = `trap 'printf stopped > "$1"; exit 0' INT; printf ready; while :; do sleep .05; done`
+			}
+			d, err := Submit(root, Request{ID: executor.NewCommandID(), Command: "sh", Args: []string{"-c", script, "sh", marker}, Workdir: root, Environment: os.Environ(), Timeout: 5 * time.Second, Grace: 200 * time.Millisecond})
+			if err != nil {
+				t.Fatal(err)
+			}
+			deadline := time.Now().Add(2 * time.Second)
+			for {
+				raw, _ := os.ReadFile(d.Stdout)
+				if string(raw) == "ready" {
+					break
+				}
+				if time.Now().After(deadline) {
+					t.Fatal("not ready")
+				}
+				time.Sleep(time.Millisecond)
+			}
+			if err = Cancel(context.Background(), d); err != nil {
+				t.Fatal(err)
+			}
+			result, err := Wait(context.Background(), d)
+			if err != nil || result.Forced == cooperative {
+				t.Fatalf("result %+v %v", result, err)
+			}
+			if cooperative && !executor.Exists(marker) {
+				t.Fatal("SIGINT cleanup did not run")
+			}
+		})
 	}
 }

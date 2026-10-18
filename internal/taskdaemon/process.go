@@ -78,7 +78,7 @@ func (d *Daemon) process(req effects.Process) error {
 	if err != nil {
 		return err
 	}
-	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Timeout: 20 * time.Minute}
+	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Timeout: 20 * time.Minute, Grace: 10 * time.Second}
 	// The bridge records host-local identity; it never sends these paths to callers.
 	if err = os.MkdirAll(filepath.Join(root, "submissions"), 0700); err != nil {
 		return err
@@ -95,7 +95,10 @@ func (d *Daemon) process(req effects.Process) error {
 	started = true
 	t.stop = func(ctx context.Context) error {
 		err := commandexecutor.Cancel(ctx, descriptor)
-		_, waitErr := commandexecutor.Wait(ctx, descriptor)
+		result, waitErr := commandexecutor.Wait(ctx, descriptor)
+		if result.Forced {
+			waitErr = errors.Join(waitErr, errors.New(result.Error))
+		}
 		return errors.Join(err, waitErr)
 	}
 
@@ -106,7 +109,7 @@ func (d *Daemon) process(req effects.Process) error {
 		if waitErr != nil {
 			result.Error = waitErr.Error()
 		}
-		if result.Interrupted {
+		if result.Interrupted && !saved.Forced {
 			result.Error = ""
 		}
 

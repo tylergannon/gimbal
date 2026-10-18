@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"github.com/tylergannon/gimbal/internal/executor"
-	"github.com/tylergannon/gimbal/internal/modelalias"
 	"io"
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/executor"
+	"github.com/tylergannon/gimbal/internal/modelalias"
 )
 
 func CLI(args []string, stdout, stderr io.Writer) error {
@@ -18,11 +19,12 @@ func CLI(args []string, stdout, stderr io.Writer) error {
 	flags.SetOutput(stderr)
 	var root, id, sessionID, harness, model, effort, workdir, prompt, promptFile, schema, schemaFile, lookup, cancel, steer string
 	var timeout time.Duration
+	var closeSession string
 	var vacuum bool
 	flags.StringVar(&root, "state-dir", "", "executor state directory")
 	flags.StringVar(&id, "turn", "", "stable turn_ ULID")
 	flags.StringVar(&sessionID, "session", "", "stable session_ ULID")
-	flags.StringVar(&harness, "harness", "", "pi, claude, or codex")
+	flags.StringVar(&harness, "harness", "", "pi, claude, codex, or agy")
 	flags.StringVar(&model, "model", "", "native model name")
 	flags.StringVar(&effort, "effort", "", "native reasoning effort")
 	flags.StringVar(&workdir, "workdir", ".", "native workspace")
@@ -34,6 +36,7 @@ func CLI(args []string, stdout, stderr io.Writer) error {
 	flags.StringVar(&lookup, "lookup", "", "look up turn identity")
 	flags.StringVar(&cancel, "cancel", "", "cancel turn identity")
 	flags.StringVar(&steer, "steer", "", "steer message for --lookup turn")
+	flags.StringVar(&closeSession, "close", "", "close a session and release native resources")
 	flags.BoolVar(&vacuum, "vacuum", false, "remove terminal operations older than seven days; preserve all session state")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -48,6 +51,18 @@ func CLI(args []string, stdout, stderr io.Writer) error {
 	if vacuum {
 		return executor.Vacuum(root, time.Now())
 	}
+	if closeSession != "" {
+		adapter := Adapter{root: root}
+		if err = adapter.Close(context.Background(), closeSession); err != nil {
+			return err
+		}
+		var turn executor.TurnID
+		if err = executor.Read(filepath.Join(sessionDir(root, executor.SessionID(closeSession)), "close.json"), &turn); err != nil {
+			return err
+		}
+		return json.NewEncoder(stdout).Encode(executor.Describe(filepath.Join(root, string(turn)), true))
+	}
+
 	if lookup != "" || cancel != "" {
 		if cancel != "" {
 			lookup = cancel

@@ -132,7 +132,6 @@ type Execution interface {
 	Close(context.Context, Target) error
 	Cleanup(context.Context, Scope) error
 	Pending(context.Context, Scope) (State, error)
-	Acknowledge(context.Context, Target) error
 	ReadBytes(context.Context, Artifact) (io.ReadCloser, error)
 	WriteBytes(context.Context, Artifact, io.Reader) error
 	StartWorkflow(context.Context, Workflow) (WorkflowStatus, error)

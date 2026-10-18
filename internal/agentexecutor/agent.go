@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/agy"
 	"github.com/tylergannon/gimbal/claude"
 	"github.com/tylergannon/gimbal/codex"
 
@@ -30,6 +31,7 @@ func init() {
 			os.Exit(1)
 		}
 		if err := Run(os.Args[2], request); err != nil {
+			executor.RejectStartup(err)
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -51,16 +53,18 @@ type Request struct {
 	Prompt  string             `json:"prompt"`
 	Schema  json.RawMessage    `json:"schema,omitempty"`
 	Timeout time.Duration      `json:"timeout"`
+	Close   bool               `json:"close,omitempty"`
 	Fork    bool               `json:"fork,omitempty"`
 }
 type Result struct {
-	Output        []byte                  `json:"output,omitempty"`
-	Usage         map[string]gimbal.Usage `json:"usage,omitempty"`
-	Error         string                  `json:"error,omitempty"`
-	InvalidOutput bool                    `json:"invalid_output"`
-	Cancelled     bool                    `json:"cancelled"`
-	TimedOut      bool                    `json:"timed_out"`
-	Completed     time.Time               `json:"completed"`
+	Output           []byte                  `json:"output,omitempty"`
+	Usage            map[string]gimbal.Usage `json:"usage,omitempty"`
+	Error            string                  `json:"error,omitempty"`
+	ObservationError string                  `json:"observation_error,omitempty"`
+	InvalidOutput    bool                    `json:"invalid_output"`
+	Cancelled        bool                    `json:"cancelled"`
+	TimedOut         bool                    `json:"timed_out"`
+	Completed        time.Time               `json:"completed"`
 }
 type Event struct {
 	Sequence int64 `json:"sequence"`
@@ -70,13 +74,15 @@ type Event struct {
 type nativeAdapter interface {
 	gimbal.HarnessAdapter
 	SaveSession(context.Context, string, string) error
-	LoadSession(context.Context, string) (string, error)
+	LoadSession(context.Context, string, bool) (string, error)
 	DetachSession(context.Context, string) error
 }
 
 func native(harness string) (nativeAdapter, error) {
 	var a gimbal.HarnessAdapter
 	switch harness {
+	case "agy":
+		a = agy.New()
 	case "pi":
 		a = pi.New()
 	case "claude":
@@ -157,7 +163,15 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 			return executor.Descriptor{}, err
 		}
 	}
-	return executor.Launch(binary, []string{"--gimbal-agent-worker", root}, req, root)
+	d, err := executor.Launch(binary, []string{"--gimbal-agent-worker", root}, req, root)
+	if err != nil {
+		dir := filepath.Join(root, string(req.ID))
+		if executor.Match(dir, req) == nil {
+			executor.AssertOwner(dir)
+			return executor.Describe(dir, true), nil
+		}
+	}
+	return d, err
 }
 func Run(root string, req Request) error {
 	if err := executor.Validate(string(req.ID), "turn_"); err != nil {
@@ -218,7 +232,11 @@ func Run(root string, req Request) error {
 		if id == "" {
 			return executor.Reply{}
 		}
-		controlCtx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+		deadline := c.Deadline
+		if deadline.IsZero() {
+			deadline = time.Now().Add(30 * time.Second)
+		}
+		controlCtx, stop := context.WithDeadline(context.Background(), deadline)
 		defer stop()
 		landed, err := a.Steer(controlCtx, id, c.Message)
 		reply := executor.Reply{Landed: landed}
@@ -236,20 +254,27 @@ func Run(root string, req Request) error {
 		return err
 	}
 	defer events.Close()
+	if executor.Exists(filepath.Join(sdir, "closed.json")) && !req.Close {
+		return errors.New("session is closed")
+	}
+	if err = executor.Write(filepath.Join(dir, "deadline.json"), time.Now().Add(req.Timeout)); err != nil {
+		return err
+	}
+	if err = executor.Write(filepath.Join(sdir, "active.json"), req.ID); err != nil {
+		return err
+	}
 	if err = executor.Accept(dir, req); err != nil {
 		return err
 	}
-	if err = executor.Write(filepath.Join(dir, "deadline.json"), time.Now().Add(req.Timeout)); err != nil {
-		panic(err)
-	}
-	if err = executor.Write(filepath.Join(sdir, "active.json"), req.ID); err != nil {
-		panic(err)
-	}
+
 	_ = executor.Startup(executor.Describe(dir, true))
 	checkpoint := filepath.Join(sdir, "native.json")
 	id, setupErr := func() (string, error) {
 		if executor.Exists(checkpoint) {
-			return a.LoadSession(ctx, checkpoint)
+			return a.LoadSession(ctx, checkpoint, req.Close)
+		}
+		if req.Close {
+			return "", nil
 		}
 		if config.Parent != "" {
 			parentDir := sessionDir(root, config.Parent)
@@ -261,7 +286,7 @@ func Run(root string, req Request) error {
 				return "", errors.New("parent session is busy")
 			}
 			defer parentLease.Close()
-			parent, err := a.LoadSession(ctx, filepath.Join(parentDir, "native.json"))
+			parent, err := a.LoadSession(ctx, filepath.Join(parentDir, "native.json"), false)
 			if err != nil {
 				return "", err
 			}
@@ -273,36 +298,52 @@ func Run(root string, req Request) error {
 	activeMu.Lock()
 	nativeID = id
 	activeMu.Unlock()
-	if setupErr == nil {
+	if setupErr == nil && id != "" && !req.Close {
 		setupErr = a.SaveSession(ctx, id, checkpoint)
 	}
 	var result gimbal.TurnResult
 	turnErr := setupErr
-	if setupErr == nil && !req.Fork {
+	var observationMu sync.Mutex
+	var observationErr error
+	if setupErr == nil && !req.Fork && !req.Close {
 		var sequence int64
 		var eventsMu sync.Mutex
 		result, turnErr = a.RunTurn(ctx, id, req.Prompt, req.Schema, func(event gimbal.AgentEvent) error {
 			eventsMu.Lock()
 			defer eventsMu.Unlock()
+			observationMu.Lock()
+			failed := observationErr != nil
+			observationMu.Unlock()
+			if failed {
+				return nil
+			}
 			sequence++
 			err := json.NewEncoder(events).Encode(Event{Sequence: sequence, AgentEvent: event, Native: event.NativeRef})
 			if err != nil {
-				panic(fmt.Sprintf("retain agent event: %v", err))
+				observationMu.Lock()
+				observationErr = errors.Join(observationErr, err)
+				observationMu.Unlock()
 			}
 			server.Notify()
 			return nil
 		})
 	}
 	if id != "" {
-		// Save before terminal publication and detach; later turns need no idle owner.
-		if err := a.SaveSession(context.Background(), id, checkpoint); err != nil {
-			panic(err)
+		if req.Close || !executor.Exists(checkpoint) {
+			cleanupCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			turnErr = errors.Join(turnErr, a.Close(cleanupCtx, id))
+			stop()
+		} else {
+			turnErr = errors.Join(turnErr, a.SaveSession(context.Background(), id, checkpoint))
+			detachCtx, stop := context.WithTimeout(context.Background(), 15*time.Second)
+			turnErr = errors.Join(turnErr, a.DetachSession(detachCtx, id))
+			stop()
 		}
-		detachCtx, stop := context.WithTimeout(context.Background(), 15*time.Second)
-		detachErr := a.DetachSession(detachCtx, id)
-		stop()
-		turnErr = errors.Join(turnErr, detachErr)
 	}
+	if req.Close && turnErr == nil {
+		turnErr = executor.Write(filepath.Join(sdir, "closed.json"), time.Now())
+	}
+
 	saved := Result{Output: result.Output, Usage: result.Usage, Completed: time.Now(), InvalidOutput: errors.Is(turnErr, gimbal.ErrInvalidOutput), Cancelled: errors.Is(ctx.Err(), context.Canceled), TimedOut: errors.Is(ctx.Err(), context.DeadlineExceeded)}
 	if turnErr != nil {
 		saved.Error = turnErr.Error()
@@ -310,9 +351,12 @@ func Run(root string, req Request) error {
 	if ctx.Err() != nil {
 		saved.Error = ctx.Err().Error()
 	}
-	if err = events.Sync(); err != nil {
-		panic(err)
+	observationMu.Lock()
+	observationErr = errors.Join(observationErr, events.Sync())
+	if observationErr != nil {
+		saved.ObservationError = observationErr.Error()
 	}
+	observationMu.Unlock()
 	if err = executor.Write(filepath.Join(dir, "result.json"), saved); err != nil {
 		panic(err)
 	}
@@ -414,6 +458,9 @@ func (a *Adapter) CreateSession(_ context.Context, model, effort, workdir string
 	return string(id), err
 }
 func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+	if err := executor.Validate(id, "session_"); err != nil {
+		return gimbal.TurnResult{}, err
+	}
 	if err := ctx.Err(); err != nil {
 		return gimbal.TurnResult{}, err
 	}
@@ -454,6 +501,9 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 	return result, err
 }
 func (a *Adapter) Steer(ctx context.Context, id, message string) (bool, error) {
+	if err := executor.Validate(id, "session_"); err != nil {
+		return false, err
+	}
 	root, err := a.state()
 	if err != nil {
 		return false, err
@@ -473,6 +523,9 @@ func (a *Adapter) Steer(ctx context.Context, id, message string) (bool, error) {
 	return reply.Landed, err
 }
 func (a *Adapter) Fork(ctx context.Context, id string) (string, error) {
+	if err := executor.Validate(id, "session_"); err != nil {
+		return "", err
+	}
 	root, err := a.state()
 	if err != nil {
 		return "", err
@@ -499,24 +552,39 @@ func (a *Adapter) Close(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	var turn executor.TurnID
-	if err = executor.Read(filepath.Join(sessionDir(root, executor.SessionID(id)), "active.json"), &turn); os.IsNotExist(err) {
+	sid := executor.SessionID(id)
+	if err = executor.Validate(id, "session_"); err != nil {
+		return err
+	}
+	sdir := sessionDir(root, sid)
+	if executor.Exists(filepath.Join(sdir, "closed.json")) {
 		return nil
 	}
+	var turn executor.TurnID
+	if err = executor.Read(filepath.Join(sdir, "active.json"), &turn); err == nil {
+		dir := filepath.Join(root, string(turn))
+		if !executor.Exists(filepath.Join(dir, "result.json")) {
+			_, err = executor.Call(ctx, dir, executor.Control{Op: "cancel"})
+			if err != nil && !executor.Exists(filepath.Join(dir, "result.json")) {
+				executor.AssertOwner(dir)
+				return err
+			}
+			_, waitErr := Wait(ctx, executor.Describe(dir, true), nil)
+			if waitErr != nil && !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded) {
+				return waitErr
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	request := Request{ID: executor.NewTurnID(), Session: sid, Close: true, Timeout: 30 * time.Second}
+	if err = executor.Write(filepath.Join(sdir, "close.json"), request.ID); err != nil {
+		return err
+	}
+	d, err := Submit(root, request)
 	if err != nil {
 		return err
 	}
-	dir := filepath.Join(root, string(turn))
-	if executor.Exists(filepath.Join(dir, "result.json")) {
-		return nil
-	}
-	_, err = executor.Call(ctx, dir, executor.Control{Op: "cancel"})
-	if err != nil {
-		executor.AssertOwner(dir)
-	}
-	_, waitErr := Wait(ctx, executor.Describe(dir, true), nil)
-	if errors.Is(waitErr, context.Canceled) {
-		waitErr = nil
-	}
-	return errors.Join(err, waitErr)
+	_, err = Wait(ctx, d, nil)
+	return err
 }

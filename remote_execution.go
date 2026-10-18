@@ -93,8 +93,6 @@ func remoteProcessResult(ctx context.Context, s *scope, id string, out, stderr *
 		}
 		captureErr = errors.Join(captureErr, e, c.close())
 	}
-	var ack effects.Reply
-	captureErr = errors.Join(captureErr, effects.Call(ctx, effects.Endpoint(ctx), "ack", effects.Target{Run: filepath.Base(s.run.dir), ID: id}, &ack))
 	var e error
 	ended.Stdout, e = out.result(s.run.dir, ended.StdoutFile)
 	captureErr = errors.Join(captureErr, e)

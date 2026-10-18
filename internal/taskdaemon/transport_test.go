@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func TestSuccessfulResultDespiteEventOutage(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-func TestRetentionRequiresReleaseAndReaderConsumption(t *testing.T) {
+func TestBridgeRetentionPreservesExecutorFiles(t *testing.T) {
 	d := New()
 	req := processRequest(t, "run", "", "task", "printf bytes", false)
 	if err := d.process(req); err != nil {
@@ -44,6 +45,7 @@ func TestRetentionRequiresReleaseAndReaderConsumption(t *testing.T) {
 	}
 	task := d.tasks[key("run", "task")]
 	<-task.done
+	output := task.captures["stdout"]
 	task.mu.Lock()
 	task.completed = time.Now().Add(-6 * time.Minute)
 	task.mu.Unlock()
@@ -60,5 +62,9 @@ func TestRetentionRequiresReleaseAndReaderConsumption(t *testing.T) {
 	}
 	if p := d.poll(effects.Poll{Run: "run", ID: "task"}); p.Error != "task payload expired" {
 		t.Fatalf("missing expired response %+v", p)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil || string(data) != "bytes" {
+		t.Fatalf("executor output retired with bridge projection: %q %v", data, err)
 	}
 }

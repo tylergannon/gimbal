@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -25,9 +26,11 @@ type Request struct {
 	Args        []string           `json:"args"`
 	Workdir     string             `json:"workdir"`
 	Environment []string           `json:"environment"`
+	Grace       time.Duration      `json:"grace,omitempty"`
 	Timeout     time.Duration      `json:"timeout"`
 }
 type Result struct {
+	Forced    bool      `json:"forced,omitempty"`
 	NotFound  bool      `json:"not_found,omitempty"`
 	ExitCode  int       `json:"exit_code"`
 	Error     string    `json:"error,omitempty"`
@@ -48,6 +51,7 @@ func init() {
 			os.Exit(1)
 		}
 		if err := Run(os.Args[2], req); err != nil {
+			executor.RejectStartup(err)
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -84,21 +88,22 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if info, e := os.Stat(sibling); e == nil && info.Mode().IsRegular() {
 		binary = sibling
 	}
-	return executor.Launch(binary, []string{workerArg, root}, req, root)
+	d, err := executor.Launch(binary, []string{workerArg, root}, req, root)
+	if err != nil {
+		dir := filepath.Join(root, string(req.ID))
+		if executor.Match(dir, acceptedCommand(req)) == nil {
+			executor.AssertOwner(dir)
+			return executor.Describe(dir, false), nil
+		}
+	}
+	return d, err
 }
 func Run(root string, req Request) error {
 	if err := executor.Validate(string(req.ID), "command_"); err != nil {
 		return err
 	}
 	dir := filepath.Join(root, string(req.ID))
-	accepted := struct {
-		ID              executor.CommandID
-		Command         string
-		Args            []string
-		Workdir         string
-		EnvironmentHash string
-		Timeout         time.Duration
-	}{req.ID, req.Command, req.Args, req.Workdir, fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(req.Environment, "\x00")))), req.Timeout}
+	accepted := acceptedCommand(req)
 	lease, err := executor.Claim(dir, accepted)
 	if err != nil {
 		return err
@@ -132,13 +137,13 @@ func Run(root string, req Request) error {
 		return err
 	}
 	defer stderr.Close()
+	if err = executor.Write(filepath.Join(dir, "deadline.json"), time.Now().Add(req.Timeout)); err != nil {
+		return err
+	}
 	if err = executor.Accept(dir, accepted); err != nil {
 		return err
 	}
-	// The accepted timeout starts here and is never changed by a lookup.
-	if err = executor.Write(filepath.Join(dir, "deadline.json"), time.Now().Add(req.Timeout)); err != nil {
-		panic(err)
-	}
+
 	_ = executor.Startup(executor.Describe(dir, false))
 	cmd := exec.CommandContext(ctx, req.Command, req.Args...)
 	cmd.Dir = req.Workdir
@@ -146,20 +151,43 @@ func Run(root string, req Request) error {
 	cmd.Stdout = out
 	cmd.Stderr = stderr
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	var forced atomic.Bool
 	cmd.Cancel = func() error {
-		err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		signal := syscall.SIGKILL
+		if req.Grace > 0 {
+			signal = syscall.SIGINT
+		}
+		err := syscall.Kill(-cmd.Process.Pid, signal)
 		if errors.Is(err, syscall.ESRCH) {
 			return os.ErrProcessDone
 		}
-		return err
+		if err != nil || req.Grace <= 0 {
+			return err
+		}
+		grace := time.NewTimer(req.Grace)
+		defer grace.Stop()
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			if errors.Is(syscall.Kill(-cmd.Process.Pid, 0), syscall.ESRCH) {
+				return nil
+			}
+			select {
+			case <-ticker.C:
+			case <-grace.C:
+				forced.Store(true)
+				return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			}
+		}
 	}
+
 	err = cmd.Run()
 	// A command owns its process group. Its ordinary children cannot outlive
 	// terminal publication, including when the group leader exits first.
 	if cmd.Process != nil {
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
-	result := Result{ExitCode: -1, Completed: time.Now(), NotFound: errors.Is(err, exec.ErrNotFound)}
+	result := Result{ExitCode: -1, Completed: time.Now(), NotFound: errors.Is(err, exec.ErrNotFound), Forced: forced.Load()}
 	if cmd.ProcessState != nil {
 		result.ExitCode = cmd.ProcessState.ExitCode()
 	}
@@ -172,6 +200,9 @@ func Run(root string, req Request) error {
 		if !errors.As(err, &exit) {
 			result.Error = err.Error()
 		}
+	}
+	if result.Forced {
+		result.Error = "process exceeded SIGINT cleanup grace; external resource cleanup unconfirmed"
 	}
 	if e := errors.Join(out.Sync(), stderr.Sync()); e != nil {
 		result.Error = errors.Join(err, e).Error()
@@ -254,4 +285,16 @@ func CLI(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	return json.NewEncoder(stdout).Encode(d)
+}
+
+func acceptedCommand(req Request) any {
+	return struct {
+		ID              executor.CommandID
+		Command         string
+		Args            []string
+		Workdir         string
+		EnvironmentHash string
+		Timeout         time.Duration
+		Grace           time.Duration
+	}{req.ID, req.Command, req.Args, req.Workdir, fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(req.Environment, "\x00")))), req.Timeout, req.Grace}
 }

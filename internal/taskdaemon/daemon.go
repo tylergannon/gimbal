@@ -1,4 +1,4 @@
-// Package taskdaemon owns native work in this process. HTTP is only one caller
+// Package taskdaemon bridges task requests to independent native executors. HTTP is only one caller
 // of these handlers; provisioning and workflow observation remain elsewhere.
 package taskdaemon
 
@@ -36,7 +36,6 @@ type task struct {
 	released     bool
 	captures     map[string]string
 	completed    time.Time
-	acknowledged bool
 	expired      bool
 }
 type session struct {

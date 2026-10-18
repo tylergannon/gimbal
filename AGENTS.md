@@ -96,8 +96,8 @@ such as DOM integration, never for copying or synchronizing application state.
   Smoke-test inputs must match the index. Run broader affected tests, analysis,
   generators, builds, and browser proof explicitly or in CI; never in push hooks.
 - Live runs you start to see something work use the cheapest models:
-  Codex `gpt-5.6-luna`, Claude Haiku, Gemini flash. Say which model a run
-  used.
+  Codex `luna`, Claude `haiku`, Gemini `flash`. Use unversioned aliases,
+  never hard-coded model versions. Say which model a run used.
 - Ports from `ephemeral/legacy/` are rewritten against the new contract by
   hand, never spliced by script.
 - No reflection and no `runtime.Caller` to recover a call site. Every node

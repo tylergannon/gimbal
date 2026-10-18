@@ -4,8 +4,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/tylergannon/gimbal/internal/commandexecutor"
 	"os"
+
+	"github.com/tylergannon/gimbal/internal/commandexecutor"
 )
 
 func main() {

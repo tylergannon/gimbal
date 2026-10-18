@@ -110,3 +110,43 @@ func TestCloseUnusedSessionIsIdempotentAndRejectsLaterTurns(t *testing.T) {
 		t.Fatalf("closed session accepted a turn: %v", err)
 	}
 }
+
+func TestIdleSessionCanSteerAndCloseAfterTurnVacuum(t *testing.T) {
+	root := t.TempDir()
+	a := Adapter{root: root, harness: "claude"}
+	id, err := a.CreateSession(t.Context(), "unused", "", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn := executor.NewTurnID()
+	dir := filepath.Join(root, string(turn))
+	if err = os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err = executor.Accept(dir, Request{ID: turn, Session: executor.SessionID(id)}); err != nil {
+		t.Fatal(err)
+	}
+	if err = executor.Write(filepath.Join(dir, "result.json"), Result{Completed: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if err = executor.Write(filepath.Join(sessionDir(root, executor.SessionID(id)), "active.json"), turn); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-8 * 24 * time.Hour)
+	if err = os.Chtimes(filepath.Join(dir, "result.json"), old, old); err != nil {
+		t.Fatal(err)
+	}
+	if err = executor.Vacuum(root, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if landed, err := a.Steer(t.Context(), id, "no turn"); err != nil || landed {
+		t.Fatalf("steer=%v %v", landed, err)
+	}
+	executor.AssertOwner(dir)
+	if err = a.Close(t.Context(), id); err != nil {
+		t.Fatal(err)
+	}
+	if executor.Exists(dir) {
+		t.Fatal("vacuumed turn directory was recreated")
+	}
+}

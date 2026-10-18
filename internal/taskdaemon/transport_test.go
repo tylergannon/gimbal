@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -66,5 +67,23 @@ func TestBridgeRetentionPreservesExecutorFiles(t *testing.T) {
 	data, err := os.ReadFile(output)
 	if err != nil || string(data) != "bytes" {
 		t.Fatalf("executor output retired with bridge projection: %q %v", data, err)
+	}
+}
+
+func TestCommandExecutableIsRelativeToItsWorkdir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "task"), []byte("#!/bin/sh\nprintf RELATIVE611"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	d := New()
+	request := effects.Process{Owner: effects.Owner{Run: "relative", Task: "command"}, Command: "./task", Workdir: root}
+	if err := d.process(request); err != nil {
+		t.Fatal(err)
+	}
+	task := d.tasks[key("relative", "command")]
+	<-task.done
+	output, err := os.ReadFile(task.captures["stdout"])
+	if err != nil || string(output) != "RELATIVE611" {
+		t.Fatalf("%q %v", output, err)
 	}
 }

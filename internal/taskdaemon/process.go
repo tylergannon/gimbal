@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,7 +61,11 @@ func (d *Daemon) process(req effects.Process) error {
 	if d.tasks[id] != nil {
 		return errors.New("command already started; read its result")
 	}
-	if _, err := exec.LookPath(req.Command); err != nil {
+	executable := req.Command
+	if strings.ContainsRune(executable, os.PathSeparator) && !filepath.IsAbs(executable) {
+		executable = filepath.Join(d.workdir(req.Workdir), executable)
+	}
+	if _, err := exec.LookPath(executable); err != nil {
 		return err
 	}
 	environment := os.Environ()

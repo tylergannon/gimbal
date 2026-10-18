@@ -155,13 +155,9 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if req.Timeout <= 0 {
 		req.Timeout = 20 * time.Minute
 	}
-	binary := os.Getenv("GIMBAL_EXECUTABLE")
-	if binary == "" {
-		var err error
-		binary, err = os.Executable()
-		if err != nil {
-			return executor.Descriptor{}, err
-		}
+	binary, err := os.Executable()
+	if err != nil {
+		return executor.Descriptor{}, err
 	}
 	d, err := executor.Launch(binary, []string{"--gimbal-agent-worker", root}, req, root)
 	if err != nil {
@@ -360,6 +356,9 @@ func Run(root string, req Request) error {
 	if err = executor.Write(filepath.Join(dir, "result.json"), saved); err != nil {
 		panic(err)
 	}
+	// Remove the live pointer while holding the session lease. The result is
+	// already authoritative; old retained sessions also tolerate a vacuumed turn.
+	_ = os.Remove(filepath.Join(sdir, "active.json"))
 	server.Notify()
 	return nil
 }
@@ -516,7 +515,7 @@ func (a *Adapter) Steer(ctx context.Context, id, message string) (bool, error) {
 		return false, err
 	}
 	dir := filepath.Join(root, string(turn))
-	if executor.Exists(filepath.Join(dir, "result.json")) {
+	if !executor.Exists(filepath.Join(dir, "request.json")) || executor.Exists(filepath.Join(dir, "result.json")) {
 		return false, nil
 	}
 	reply, err := executor.Call(ctx, dir, executor.Control{Op: "steer", Message: message})
@@ -540,6 +539,9 @@ func (a *Adapter) Fork(ctx context.Context, id string) (string, error) {
 		return "", err
 	}
 	req := Request{ID: executor.NewTurnID(), Session: config.ID, Fork: true, Timeout: 20 * time.Minute}
+	if err = executor.Write(filepath.Join(sessionDir(root, config.ID), "fork.json"), req.ID); err != nil {
+		return "", err
+	}
 	d, err := Submit(root, req)
 	if err != nil {
 		return "", err
@@ -563,7 +565,7 @@ func (a *Adapter) Close(ctx context.Context, id string) error {
 	var turn executor.TurnID
 	if err = executor.Read(filepath.Join(sdir, "active.json"), &turn); err == nil {
 		dir := filepath.Join(root, string(turn))
-		if !executor.Exists(filepath.Join(dir, "result.json")) {
+		if executor.Exists(filepath.Join(dir, "request.json")) && !executor.Exists(filepath.Join(dir, "result.json")) {
 			_, err = executor.Call(ctx, dir, executor.Control{Op: "cancel"})
 			if err != nil && !executor.Exists(filepath.Join(dir, "result.json")) {
 				executor.AssertOwner(dir)

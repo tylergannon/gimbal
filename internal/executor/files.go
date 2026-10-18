@@ -133,16 +133,37 @@ func Match(dir string, input any) error {
 // AssertOwner rechecks the authoritative result after acquiring the lease;
 // socket/connection failure alone is never evidence of owner loss.
 func AssertOwner(dir string) {
-	lease, err := Lock(dir)
+	request := filepath.Join(dir, "request.json")
+	result := filepath.Join(dir, "result.json")
+	if !Exists(request) {
+		return
+	}
+	violation := func() {
+		panic(fmt.Sprintf("executor invariant violation: accepted operation %s has neither a live owner nor a terminal result", dir))
+	}
+	file, err := os.OpenFile(filepath.Join(dir, "owner.lock"), os.O_RDWR, 0)
+	if os.IsNotExist(err) {
+		if Exists(request) && !Exists(result) {
+			violation()
+		}
+		return
+	}
 	if err != nil {
 		panic(fmt.Sprintf("executor ownership check %s: %v", dir, err))
 	}
-	if lease == nil {
+	lease := &Lease{file}
+	err = unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
+	if errors.Is(err, unix.EWOULDBLOCK) {
+		_ = file.Close()
 		return
 	}
+	if err != nil {
+		_ = file.Close()
+		panic(fmt.Sprintf("executor ownership check %s: %v", dir, err))
+	}
 	defer lease.Close()
-	if Exists(filepath.Join(dir, "request.json")) && !Exists(filepath.Join(dir, "result.json")) {
-		panic(fmt.Sprintf("executor invariant violation: accepted operation %s has neither a live owner nor a terminal result", dir))
+	if Exists(request) && !Exists(result) {
+		violation()
 	}
 }
 

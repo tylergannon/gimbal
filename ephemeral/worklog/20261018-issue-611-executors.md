@@ -12,3 +12,4 @@ correction: Tyler subsequently excluded OpenCode from this migration and priorit
 decision: Explicit session close retains each harness's existing cleanup, while turn completion detaches for continuation. Pi forks require separately owned history roots so closing a parent cannot delete a child's history.
 friction: A two-second socket deadline was shorter than Pi's native steering receipt, which arrives at the next model step -> controls carry their caller deadline; change-notification waits remain short.
 decision: The old task-host acknowledgement API is removed. Retiring a bridge projection never deletes executor-owned files; the executor vacuum controls their retention.
+decision: Session controls tolerate the completed turn's directory being vacuumed. Ownership checks never create operation directories; completing a turn clears the session's live pointer.

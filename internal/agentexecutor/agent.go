@@ -16,6 +16,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/agy"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/claude"
 	"github.com/tylergannon/gimbal/codex"
 
@@ -324,7 +325,14 @@ func Run(root string, req Request) error {
 			return nil
 		})
 	}
-	if id != "" {
+	released := false
+	if _, unconfirmed := errors.AsType[*backend.DeliveryUncertain](turnErr); unconfirmed {
+		// A native adapter's unconfirmed stop is not a terminal cancellation.
+		// Retain this owner and retry native cleanup, never the model assignment.
+		turnErr = finishInterruption(ctx, a, id)
+		released = true
+	}
+	if id != "" && !released {
 		if req.Close || !executor.Exists(checkpoint) {
 			cleanupCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 			turnErr = errors.Join(turnErr, a.Close(cleanupCtx, id))
@@ -336,8 +344,8 @@ func Run(root string, req Request) error {
 			stop()
 		}
 	}
-	if req.Close && turnErr == nil {
-		turnErr = executor.Write(filepath.Join(sdir, "closed.json"), time.Now())
+	if (req.Close && turnErr == nil) || released {
+		turnErr = errors.Join(turnErr, executor.Write(filepath.Join(sdir, "closed.json"), time.Now()))
 	}
 
 	saved := Result{Output: result.Output, Usage: result.Usage, Completed: time.Now(), InvalidOutput: errors.Is(turnErr, gimbal.ErrInvalidOutput), Cancelled: errors.Is(ctx.Err(), context.Canceled), TimedOut: errors.Is(ctx.Err(), context.DeadlineExceeded)}
@@ -589,4 +597,26 @@ func (a *Adapter) Close(ctx context.Context, id string) error {
 	}
 	_, err = Wait(ctx, d, nil)
 	return err
+}
+
+// finishInterruption keeps the accepted turn owned until native Close confirms
+// cessation. A reader may leave; only the native owner can settle this stop.
+func finishInterruption(ctx context.Context, a nativeAdapter, id string) error {
+	reported := false
+	for {
+		cleanupCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+		err := a.Close(cleanupCtx, id)
+		stop()
+		if err == nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			return context.Canceled
+		}
+		if !reported {
+			fmt.Fprintf(os.Stderr, "agent executor: native stop %s is unconfirmed; retaining ownership and retrying cleanup: %v\n", id, err)
+			reported = true
+		}
+		time.Sleep(time.Second)
+	}
 }

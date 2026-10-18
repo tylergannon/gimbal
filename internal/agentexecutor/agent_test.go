@@ -150,3 +150,31 @@ func TestIdleSessionCanSteerAndCloseAfterTurnVacuum(t *testing.T) {
 		t.Fatal("vacuumed turn directory was recreated")
 	}
 }
+
+type pendingNativeClose struct {
+	nativeAdapter
+	calls int
+	t     *testing.T
+}
+
+func (a *pendingNativeClose) Close(ctx context.Context, _ string) error {
+	a.calls++
+	if ctx.Err() != nil {
+		a.t.Error("native cleanup inherited cancellation")
+	}
+	if a.calls == 1 {
+		return errors.New("native stop not yet confirmed")
+	}
+	return nil
+}
+func TestUnconfirmedNativeStopRemainsOwnedUntilCleanupConfirms(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	native := &pendingNativeClose{t: t}
+	if err := finishInterruption(ctx, native, "native-session"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("%v", err)
+	}
+	if native.calls != 2 {
+		t.Fatalf("cleanup attempts=%d", native.calls)
+	}
+}

@@ -13,3 +13,4 @@ decision: Explicit session close retains each harness's existing cleanup, while 
 friction: A two-second socket deadline was shorter than Pi's native steering receipt, which arrives at the next model step -> controls carry their caller deadline; change-notification waits remain short.
 decision: The old task-host acknowledgement API is removed. Retiring a bridge projection never deletes executor-owned files; the executor vacuum controls their retention.
 decision: Session controls tolerate the completed turn's directory being vacuumed. Ownership checks never create operation directories; completing a turn clears the session's live pointer.
+decision: A native adapter reporting an unconfirmed stop does not produce a terminal cancellation. Its executor retains ownership and retries native Close, never the model assignment, until cleanup confirms cessation.

@@ -8,11 +8,13 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"syscall"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/commandexecutor"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/envfile"
+	"github.com/tylergannon/gimbal/internal/executor"
+	"path/filepath"
 )
 
 func (d *Daemon) process(req effects.Process) error {
@@ -58,103 +60,58 @@ func (d *Daemon) process(req effects.Process) error {
 	if d.tasks[id] != nil {
 		return errors.New("command already started; read its result")
 	}
-	out, err := os.CreateTemp("", "gimbal-command-out-*")
-	if err != nil {
+	if _, err := exec.LookPath(req.Command); err != nil {
 		return err
 	}
-	stderr, err := os.CreateTemp("", "gimbal-command-err-*")
-	if err != nil {
-		_ = out.Close()
-		_ = os.Remove(out.Name())
-		return err
-	}
-	cmd := exec.Command(req.Command, req.Args...)
-	cmd.Dir = d.workdir(req.Workdir)
-	cmd.Env = os.Environ()
-	// Inspection helpers must distinguish requested directories from a daemon
-	// that overrides every task cwd. This contains no provider credentials.
-	cmd.Env = append(cmd.Env, "GIMBAL_DESKTOP_FIXED_WORKDIR="+d.Workdir)
+	environment := os.Environ()
+	environment = append(environment, "GIMBAL_DESKTOP_FIXED_WORKDIR="+d.Workdir)
 	for name, value := range req.Environment {
-		cmd.Env = append(cmd.Env, name+"="+value)
+		environment = append(environment, name+"="+value)
 	}
 	for name, value := range values {
-		cmd.Env = append(cmd.Env, name+"="+value)
+		environment = append(environment, name+"="+value)
 	}
 	if producer {
-		cmd.Env = append(cmd.Env, "ENV_FILE="+envPath)
+		environment = append(environment, "ENV_FILE="+envPath)
 	}
-	cmd.Stdout = out
-	cmd.Stderr = stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
-		_ = out.Close()
-		_ = stderr.Close()
-		_ = os.Remove(out.Name())
-		_ = os.Remove(stderr.Name())
+	root, err := executor.Root("")
+	if err != nil {
+		return err
+	}
+	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Timeout: 20 * time.Minute}
+	// The bridge records host-local identity; it never sends these paths to callers.
+	if err = os.MkdirAll(filepath.Join(root, "submissions"), 0700); err != nil {
+		return err
+	}
+	if err = executor.Write(filepath.Join(root, "submissions", string(request.ID)+".json"), request.ID); err != nil {
+		return err
+	}
+	descriptor, err := commandexecutor.Submit(root, request)
+	if err != nil {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t := &task{owner: req.Owner, service: req.Service, started: time.Now(), cancel: cancel, done: make(chan struct{}), captures: map[string]string{"stdout": out.Name(), "stderr": stderr.Name()}}
+	t := &task{owner: req.Owner, service: req.Service, started: time.Now(), cancel: cancel, done: make(chan struct{}), captures: map[string]string{"stdout": descriptor.Stdout, "stderr": descriptor.Stderr}}
 	started = true
-	nativeDone := make(chan struct{})
-	var stopMu sync.Mutex
-	var stopFailure error
 	t.stop = func(ctx context.Context) error {
-		stopMu.Lock()
-		defer stopMu.Unlock()
-		if stopFailure != nil {
-			return stopFailure
-		}
-		signal := func(sig syscall.Signal) error {
-			err := syscall.Kill(-cmd.Process.Pid, sig)
-			if errors.Is(err, syscall.ESRCH) {
-				return nil
-			}
-			return err
-		}
-		if err := signal(syscall.SIGINT); err != nil {
-			return err
-		}
-		grace := time.NewTimer(10 * time.Second)
-		defer grace.Stop()
-		ticker := time.NewTicker(20 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-nativeDone:
-				if errors.Is(syscall.Kill(-cmd.Process.Pid, 0), syscall.ESRCH) {
-					return nil
-				}
-			default:
-			}
-			select {
-			case <-ctx.Done():
-				return fmt.Errorf("process group cleanup unconfirmed: %w", ctx.Err())
-			case <-grace.C:
-				if err := signal(syscall.SIGKILL); err != nil {
-					return err
-				}
-				stopFailure = fmt.Errorf("process exceeded SIGINT cleanup grace; external resource cleanup unconfirmed")
-				return stopFailure
-			case <-ticker.C:
-			}
-		}
+		err := commandexecutor.Cancel(ctx, descriptor)
+		_, waitErr := commandexecutor.Wait(ctx, descriptor)
+		return errors.Join(err, waitErr)
 	}
+
 	d.tasks[id] = t
 	go func() {
-		waitErr := cmd.Wait()
-		close(nativeDone)
-		captureErr := errors.Join(out.Close(), stderr.Close())
-		result := effects.ProcessResult{ExitCode: cmd.ProcessState.ExitCode(), Interrupted: ctx.Err() != nil}
-		if captureErr != nil {
-			result.Error = captureErr.Error()
-		} else if waitErr != nil {
-			if _, ok := errors.AsType[*exec.ExitError](waitErr); !ok {
-				result.Error = waitErr.Error()
-			}
+		saved, waitErr := commandexecutor.Wait(context.Background(), descriptor)
+		result := effects.ProcessResult{ExitCode: saved.ExitCode, Interrupted: saved.Cancelled || saved.TimedOut, Error: saved.Error}
+		if waitErr != nil {
+			result.Error = waitErr.Error()
 		}
+		if result.Interrupted {
+			result.Error = ""
+		}
+
 		if req.Service && !result.Interrupted {
-			result.Error = fmt.Sprintf("required service %s exited unexpectedly: %s", req.Task, cmd.ProcessState.String())
+			result.Error = fmt.Sprintf("required service %s exited unexpectedly: %s", req.Task, fmt.Sprintf("exit %d", result.ExitCode))
 		}
 		if producer && !req.Service && result.ExitCode == 0 && !result.Interrupted && result.Error == "" {
 			if err := d.publishProducer(ctx, req, envPath); err != nil {

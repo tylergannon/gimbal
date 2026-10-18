@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/pi"
+	"github.com/tylergannon/gimbal/internal/agentexecutor"
 )
 
 func TestRolesShareABindingAndNameTheMissingFlag(t *testing.T) {
@@ -84,8 +84,8 @@ func TestPiModelBindsForPromptAndRolesWithoutDefaultEffort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := binding.Adapter.(*pi.Adapter); !ok {
-		t.Fatalf("adapter = %T, want *pi.Adapter", binding.Adapter)
+	if _, ok := binding.Adapter.(*agentexecutor.Adapter); !ok {
+		t.Fatalf("adapter = %T, want *agentexecutor.Adapter", binding.Adapter)
 	}
 	if binding.Model != "diffusion/glm-5.3-flash" || binding.Effort != "" {
 		t.Fatalf("binding = model %q, effort %q", binding.Model, binding.Effort)

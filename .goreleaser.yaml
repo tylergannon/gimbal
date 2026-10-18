@@ -16,9 +16,21 @@ builds:
     ldflags:
       - -s -w -X main.version=v{{ .Version }} -X main.commit={{ .Commit }} -X main.date={{ .Date }}
 
+  - id: gimbal-command
+    main: ./cmd/gimbal-command
+    binary: gimbal-command
+    flags:
+      - -trimpath
+    env:
+      - CGO_ENABLED=0
+    targets:
+      - darwin_arm64
+    ldflags:
+      - -s -w
+
 archives:
   - id: gimbal
-    ids: [gimbal]
+    ids: [gimbal, gimbal-command]
     name_template: "gimbal_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     files:

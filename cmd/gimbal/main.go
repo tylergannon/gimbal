@@ -17,6 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/tylergannon/gimbal/internal/agentexecutor"
 	"github.com/tylergannon/gimbal/internal/claimaudit"
 	"github.com/tylergannon/gimbal/internal/gimballint"
 	"github.com/tylergannon/gimbal/internal/invocation"
@@ -106,7 +107,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "generate", "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact", "user":
+		case "agent-executor", "generate", "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact", "user":
 			return true
 		}
 	}
@@ -139,6 +140,7 @@ func run(args []string, stdout, stderr io.Writer, getenv func(string) string) er
 
 func runWithUploaders(args []string, stdout, stderr io.Writer, getenv func(string) string, uploaders artifactUploaderConstructors) error {
 	root := newRootCommand(stdout, stderr, getenv)
+	root.AddCommand(&cobra.Command{Use: "agent-executor", Short: "Accept an independent native turn and print its retained descriptor", DisableFlagParsing: true, RunE: func(_ *cobra.Command, args []string) error { return agentexecutor.CLI(args, stdout, stderr) }})
 	root.AddCommand(newUploadArtifactCommand(stdout, getenv, uploaders))
 	root.SetArgs(args)
 	return root.ExecuteContext(context.Background())

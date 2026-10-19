@@ -87,9 +87,8 @@ func recordStopped(dir, reason string, cleanup bool, saved ...json.RawMessage) e
 		return err
 	}
 	rec := struct {
-		Seq  int64     `json:"seq"`
-		Time time.Time `json:"time"
- "github.com/tylergannon/gimbal/internal/runstate"`
+		Seq   int64             `json:"seq"`
+		Time  time.Time         `json:"time"`
 		Scope string            `json:"scope"`
 		Event map[string]string `json:"event"`
 	}{seq + 1, time.Now().UTC(), "", map[string]string{"kind": "run_ended", "name": s.run.Name, "error": reason}}

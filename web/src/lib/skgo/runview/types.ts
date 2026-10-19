@@ -18,6 +18,7 @@ export type RunItem = {
  * RunRow is the run itself. Times are Unix ms, as every time in a row is.
  */
 export type RunRow = {
+  cleanup_status?: string;
   workflow_environment: string;
   task_environment: string;
   id: string;

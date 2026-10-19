@@ -6,13 +6,13 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/runlog"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // blocking is a HarnessAdapter whose "wait" turns block until their ctx
@@ -209,7 +209,7 @@ func TestRuntimeReachesALiveRunByID(t *testing.T) {
 	if kills[1].Scope != scope || kills[1].Session.Value != "" || kills[1].Event != wantScope {
 		t.Errorf("second Killed record = %+v, want %v placed on the scope", kills[1], wantScope)
 	}
-	if !strings.HasSuffix(id, ".registry") {
-		t.Errorf("run id = %q, want <ulid>.registry", id)
+	if !runstore.ValidID(id) {
+		t.Errorf("run id = %q, want bare ULID", id)
 	}
 }

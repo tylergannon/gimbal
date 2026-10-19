@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/runstate"
@@ -191,6 +192,9 @@ func TestOrphanWithoutRunnerLockDoesNotInferDeath(t *testing.T) {
 	if after := recordCount(t, f, id); after != before {
 		t.Fatalf("in-process death inferred: %d -> %d", before, after)
 	}
+	if settled, err := cleanupStopped(state, id, &operation{Action: "scope"}, f); settled || err == nil {
+		t.Fatalf("explicit stop reported success without runner: %v %v", settled, err)
+	}
 }
 func TestIncompleteStoreDoesNotAcquireLivenessOrDispatch(t *testing.T) {
 	state := t.TempDir()
@@ -204,5 +208,88 @@ func TestIncompleteStoreDoesNotAcquireLivenessOrDispatch(t *testing.T) {
 	}
 	if _, e := os.Stat(filepath.Join(filepath.Dir(dir), "runner.lock")); !errors.Is(e, os.ErrNotExist) {
 		t.Fatal("liveness lock was created", e)
+	}
+}
+
+// A background cleanup episode retains its request identity across owner opens.
+type episodeMessages struct {
+	requests []backend.MessageRequest
+	fail     bool
+}
+
+func (m *episodeMessages) PublishRequest(_ context.Context, r backend.MessageRequest) error {
+	m.requests = append(m.requests, r)
+	return nil
+}
+func (*episodeMessages) PublishEvent(context.Context, backend.MessageEvent) error { return nil }
+func (m *episodeMessages) ListenEvents(_ context.Context, s backend.MessageSelection, _ time.Time, fn func(backend.MessageEvent) error) error {
+	r := m.requests[len(m.requests)-1]
+	result := &backend.MessageResult{}
+	if m.fail {
+		result.Unresolved = true
+		result.Error = "still stopping"
+	}
+	return fn(backend.MessageEvent{ID: string(runstore.NewRecordID()), RequestID: r.ID, Owner: r.Owner, Created: time.Now(), Kind: "completed", Result: result})
+}
+func TestOrphanCleanupRecordsTheIdentityAdmittedByMessaging(t *testing.T) {
+	bus := &episodeMessages{fail: true}
+	name := "orphan-identity-test"
+	if err := gimbal.DefaultRegistry.RegisterBackend(gimbal.BackendDefinition{ExecutionIdentity: true, Name: name, ConfigurationSchema: json.RawMessage(`{}`), ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {
+		return backend.Connection{Messages: bus}, nil
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	state, id, f, owner := orphanFixture(t, "")
+	route, _ := json.Marshal(backend.Route{Name: name})
+	if err := os.WriteFile(filepath.Join(state, "runs", id, "task-route"), route, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := owner.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if settled, err := cleanupStopped(state, id, nil, f); settled || err == nil {
+			t.Fatalf("lost failed cleanup: %v %v", settled, err)
+		}
+	}
+	bus.fail = false
+	if settled, err := cleanupStopped(state, id, nil, f); !settled || err != nil {
+		t.Fatalf("cleanup: %v %v", settled, err)
+	}
+	r, err := f.Open(t.Context(), runstore.RunID(id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	records, err := r.Read(t.Context(), 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recorded backend.ExecutionIdentity
+	for _, rec := range records {
+		if rec.Kind == "intent" {
+			var intent struct {
+				Route backend.Route `json:"route"`
+			}
+			if err = json.Unmarshal(rec.Payload, &intent); err != nil {
+				t.Fatal(err)
+			}
+			if intent.Route.Name != name {
+				t.Fatalf("wrong owner route: %+v", intent.Route)
+			}
+		}
+		if rec.Kind == "binding" {
+			if err = json.Unmarshal(rec.Payload, &recorded); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if len(bus.requests) != 3 || recorded.RequestID == "" || recorded.ActionID != recorded.RequestID {
+		t.Fatalf("missing admissions/binding: %d %+v", len(bus.requests), recorded)
+	}
+	for _, request := range bus.requests {
+		if request.ID != recorded.RequestID || request.Run != id {
+			t.Fatalf("unrecorded admission: %+v binding %+v", request, recorded)
+		}
 	}
 }

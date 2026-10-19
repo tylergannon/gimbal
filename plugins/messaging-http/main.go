@@ -84,6 +84,9 @@ func (b *connection) post(ctx context.Context, endpoint, path string, value any)
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		reason, _ := io.ReadAll(io.LimitReader(response.Body, 8192))
+		if request, ok := value.(backend.MessageRequest); ok && backend.Identified(request.Kind) && (response.StatusCode == 400 || response.StatusCode == 404 || response.StatusCode == 405) {
+			return &backend.ContractRejected{Message: fmt.Sprintf("unsupported %s: HTTP %d", request.Kind, response.StatusCode)}
+		}
 		return fmt.Errorf("http-sse %s: HTTP %d: %s", endpoint, response.StatusCode, strings.TrimSpace(string(reason)))
 	}
 	return nil

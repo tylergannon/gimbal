@@ -17,7 +17,8 @@ func TestMissingRequirementsPreventNativeAdmission(t *testing.T) {
 	project := t.TempDir()
 	marker := filepath.Join(project, "must-not-exist")
 	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "missing-secret", nil, func(ctx context.Context) error {
-		return Check(WithRequirements(ctx, DefaultStore, "MISSING"), "probe", project, "touch", marker)
+		ctx = WithRequirements(ctx, DefaultStore, "MISSING")
+		return Check(ctx, "probe", project, "touch", marker)
 	})
 	if err == nil {
 		t.Fatal("missing requirement admitted work")

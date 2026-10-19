@@ -22,9 +22,7 @@ func RecordTerminatedOwned(ctx context.Context, r runstore.Run, dir, reason stri
 		return nil
 	}
 	raw, e := json.Marshal(struct {
-		Time time.Time `json:"time"
- "os"
- "path/filepath"`
+		Time  time.Time         `json:"time"`
 		Scope string            `json:"scope"`
 		Event map[string]string `json:"event"`
 	}{time.Now().UTC(), "", map[string]string{"kind": "run_ended", "name": summary.Header.Workflow, "error": reason}})
@@ -67,5 +65,5 @@ func ReleasedProjection(dir string) bool {
 		return false
 	}
 	var rows []RunRow
-	return json.Unmarshal(raw, &rows) == nil && len(rows) == 1 && rows[0].Status != StatusRunning && rows[0].Status != "" && rows[0].CleanupStatus == "released"
+	return json.Unmarshal(raw, &rows) == nil && len(rows) == 1 && rows[0].Status != StatusRunning && rows[0].Status != "" && rows[0].CleanupStatus.Present && rows[0].CleanupStatus.Value == "released"
 }

@@ -881,10 +881,10 @@ func cloneSession(row SessionRow) SessionRow {
 func (s *Store) CleanupStatus(status, message string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.run.CleanupStatus == status {
+	if s.run.CleanupStatus.Present && s.run.CleanupStatus.Value == status {
 		return nil
 	}
-	s.run.CleanupStatus = status
+	s.run.CleanupStatus = polytype.Optional[string]{Present: true, Value: status}
 	if s.run.Cancellation.Present {
 		s.run.Cancellation.Value.Cleanup = "completed"
 		if status != "released" {

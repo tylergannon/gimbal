@@ -23,3 +23,13 @@ correction: Supervisor attachment names the next turn before dispatch; reserve t
 decision: New-format readers never take runner.lock or terminalize a run. Orphan mutation takes the store writer before the pre-existing runner lock; status is read-only. Background cleanup keeps one episode and suppresses unchanged facts. Positive terminal/released projections skip Store.Open.
 
 correction: Service task failure does not prove cleanup failure. Track actually unconfirmed service cessation separately, join descendant service output after ancestor cleanup, and retain recording ownership until known pending resources finish.
+
+correction: The independent review found malformed terminal-projection JSON tags and an orphan cleanup identity minted after its intent. Correct the tags; commit orphan intent plus binding atomically and derive each retained episode's request identity from its stored action. Explicit stop without a runner now reports unavailable rather than claiming success.
+
+correction: HTTP messaging's explicit 400/404/405 rejection of an identified request was wrapped as uncertain delivery. Preserve ContractRejected through the transport; check no old-operation fallback or polling for commands, turns and helper receipts, including failed binding release before explicit retry.
+
+proof: Focused integration checks now replay saved lifecycle/agent/cleanup facts once into a fresh reducer after a failed command and invalid-answer/correction sequence, comparing the complete snapshot including usage and transcripts. A 1 MiB command-output test removes executor-spool and verifies exact stdout/stderr through OpenBlob in a separate process, while RunCommand remains bounded to excerpts. An in-memory Store drives the engine and retained cleanup without a directory-backend state directory.
+
+correction: Full build requires CleanupStatus to use polytype.Optional and generated transport outputs; ordinary omitempty is outside the type grammar. Full Go validation also exposed web tests assuming name-suffixed run IDs and live reads of unaccepted initialization; update those expectations to explicit ULIDs and incomplete reservations.
+
+friction: The globally installed vp resolves a different Vite runtime than this workspace and fails test startup with vite_ssr_environment_not_runnable. The pinned web/node_modules/.bin/vp test --run executes all 201 tests successfully. No application configuration change is needed.

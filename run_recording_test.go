@@ -5,10 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -71,12 +75,14 @@ func TestIdentityTreeBehindOrdinaryWorkflow(t *testing.T) {
 			}
 		}
 		g := Group(ctx, "branches")
-		for range 2 {
-			g.Go("check", func(ctx context.Context) error {
-				_, _, _, e := RunCommand(ctx, "echo", project, "printf", "ok")
-				return e
-			})
-		}
+		g.Go("check", func(ctx context.Context) error {
+			_, _, _, e := RunCommand(ctx, "echo", project, "printf", "ok")
+			return e
+		})
+		g.Go("check", func(ctx context.Context) error {
+			_, _, _, e := RunCommand(ctx, "echo", project, "printf", "ok")
+			return e
+		})
 		return g.Wait()
 	}
 	if e := Run(Project(t.Context(), project), id, "identity", bind(adapter, "test", "coder"), body); e != nil {
@@ -290,7 +296,7 @@ func TestRetainedCleanupOwnsStoreAndAppendsAfterImmutableOutcome(t *testing.T) {
 		t.Fatal(summary.Cleanup)
 	}
 	snapshot, e := registry.Snapshot(string(id))
-	if e != nil || snapshot.Run.CleanupStatus != "released" {
+	if e != nil || (!snapshot.Run.CleanupStatus.Present || snapshot.Run.CleanupStatus.Value != "released") {
 		t.Fatalf("stale live registry cleanup: %+v %v", snapshot.Run, e)
 	}
 	failed, succeeded := 0, 0
@@ -362,5 +368,201 @@ func TestNewFormatObservationReadsDoNotInferDeathOrMutate(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSavedFactsRebuildTheSameObservationAfterCorrectionAndFailedCommand(t *testing.T) {
+	project := t.TempDir()
+	id := string(runstore.NewRunID())
+	registry := observation.NewRegistry(project)
+	calls := 0
+	adapter := &fake{report: map[string]Usage{"test": {Tokens: Tokens{Input: 11, Output: 3}}}, answer: func(_ context.Context, _, prompt string, _ json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		calls++
+		if err := emit(AgentEvent{Type: "session.step.started", NativeRef: json.RawMessage(fmt.Sprintf(`{"provider":"fixture","sessionID":"native-1","messageID":"message-%d"}`, calls)), Data: json.RawMessage(fmt.Sprintf(`{"sessionID":"native-1","assistantMessageID":"message-%d","model":{"id":"test","providerID":"fixture"}}`, calls))}); err != nil {
+			return "", err
+		}
+		if err := emit(AgentEvent{Type: "session.step.ended", NativeRef: json.RawMessage(fmt.Sprintf(`{"provider":"fixture","sessionID":"native-1","messageID":"message-%d"}`, calls)), Data: json.RawMessage(fmt.Sprintf(`{"sessionID":"native-1","assistantMessageID":"message-%d","finish":"stop","cost":0,"tokens":{"input":11,"output":3,"reasoning":0,"cache":{"read":0,"write":0}}}`, calls))}); err != nil {
+			return "", err
+		}
+		if calls == 1 {
+			return `{"n":"bad"}`, nil
+		}
+		if !strings.Contains(prompt, "previous answer was invalid") {
+			t.Error("missing correction")
+		}
+		return `{"n":2}`, nil
+	}}
+	ctx := observation.WithRegistry(Project(t.Context(), project), registry)
+	if err := Run(ctx, id, "reducer", bind(adapter, "test", "agent"), func(ctx context.Context) error {
+		code, _, _, err := RunCommand(ctx, "failed", project, "sh", "-c", "printf failure >&2; exit 3")
+		if err != nil {
+			return err
+		}
+		if code != 3 {
+			t.Fatalf("exit=%d", code)
+		}
+		_, err = NewSession(ctx, "agent", project).Generate[schemaOnlyAnswer](ctx, "answer")
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	original, err := registry.Snapshot(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := (directory.Store{Root: filepath.Join(project, "runs")}).Open(t.Context(), runstore.RunID(id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	rebuilt, err := observation.Open(nil, id, "reducer", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rebuilt.Close()
+	var cursor uint64
+	agents := 0
+	for {
+		records, err := r.Read(t.Context(), cursor, 128)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(records) == 0 {
+			break
+		}
+		for _, rec := range records {
+			cursor = rec.Sequence
+			raw, err := runstate.Payload(t.Context(), r, rec.Payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch rec.Kind {
+			case "lifecycle":
+				if err = rebuilt.Lifecycle(raw); err != nil {
+					t.Fatal(err)
+				}
+			case "agent":
+				var v AgentRecord
+				if err = json.Unmarshal(raw, &v); err != nil {
+					t.Fatal(err)
+				}
+				envelope, _ := json.Marshal(v.Event)
+				if err = rebuilt.Event(observation.Placement{Scope: v.Scope, Session: v.Session, Turn: v.Turn}, envelope, v.NativeRef); err != nil {
+					t.Fatal(err)
+				}
+				agents++
+			case "cleanup-state":
+				var v runstate.CleanupState
+				if err = json.Unmarshal(raw, &v); err != nil {
+					t.Fatal(err)
+				}
+				if err = rebuilt.CleanupStatus(v.Status, v.Error); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+	}
+	got := rebuilt.Snapshot()
+	original.Stream = ""
+	got.Stream = ""
+	original.Position = 0
+	got.Position = 0
+	if calls != 2 || agents < 4 || len(got.Turns) != 2 || len(got.Commands) != 1 || len(got.TurnUsage) != 2 {
+		t.Fatalf("scenario missing: calls=%d agents=%d turns=%d usage=%d", calls, agents, len(got.Turns), len(got.TurnUsage))
+	}
+	a, _ := json.Marshal(original)
+	b, _ := json.Marshal(got)
+	if !bytes.Equal(a, b) {
+		t.Fatalf("saved facts changed projection:\n%s\n%s", a, b)
+	}
+}
+
+func TestCommandOutputSurvivesSpoolRemovalInFreshProcess(t *testing.T) {
+	if os.Getenv("GIMBAL_OUTPUT_READBACK_CHILD") == "1" {
+		project, id := os.Getenv("GIMBAL_OUTPUT_READBACK_ROOT"), os.Getenv("GIMBAL_OUTPUT_READBACK_ID")
+		r, err := (directory.Store{Root: filepath.Join(project, "runs")}).Open(t.Context(), runstore.RunID(id))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		var cursor uint64
+		found := false
+		for {
+			records, err := r.Read(t.Context(), cursor, 128)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(records) == 0 {
+				break
+			}
+			for _, rec := range records {
+				cursor = rec.Sequence
+				if rec.Kind != "outcome" {
+					continue
+				}
+				raw, err := runstate.Payload(t.Context(), r, rec.Payload)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var out struct {
+					Result struct {
+						ExitCode int                         `json:"exit_code"`
+						Output   map[string]runstore.BlobRef `json:"output"`
+					} `json:"result"`
+				}
+				if err = json.Unmarshal(raw, &out); err != nil {
+					t.Fatal(err)
+				}
+				if out.Result.Output == nil {
+					continue
+				}
+				found = true
+				for name, ref := range out.Result.Output {
+					reader, err := r.OpenBlob(t.Context(), ref)
+					if err != nil {
+						t.Fatal(err)
+					}
+					data, err := io.ReadAll(reader)
+					err = errors.Join(err, reader.Close())
+					if err != nil {
+						t.Fatal(err)
+					}
+					want := []byte("err")
+					if name == "stdout" {
+						want = bytes.Repeat([]byte("x"), 1<<20)
+					}
+					if !bytes.Equal(data, want) {
+						t.Fatalf("%s output changed: %d bytes", name, len(data))
+					}
+				}
+			}
+		}
+		if !found {
+			t.Fatal("no complete command result")
+		}
+		return
+	}
+	project := t.TempDir()
+	id := string(runstore.NewRunID())
+	if err := Run(Project(t.Context(), project), id, "large-output", nil, func(ctx context.Context) error {
+		code, out, _, err := RunCommand(ctx, "large", project, "sh", "-c", `head -c 1048576 /dev/zero | tr '\000' x; printf err >&2`)
+		if code != 0 || len(out) >= 1<<20 {
+			t.Fatalf("output was not bounded: code=%d length=%d", code, len(out))
+		}
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(project, "runs", id, "executor-spool")); err != nil {
+		t.Fatal(err)
+	}
+	executable, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := exec.CommandContext(t.Context(), executable, "-test.run=^TestCommandOutputSurvivesSpoolRemovalInFreshProcess$")
+	child.Env = append(os.Environ(), "GIMBAL_OUTPUT_READBACK_CHILD=1", "GIMBAL_OUTPUT_READBACK_ROOT="+project, "GIMBAL_OUTPUT_READBACK_ID="+id)
+	if output, err := child.CombinedOutput(); err != nil {
+		t.Fatalf("fresh process readback: %v\n%s", err, output)
 	}
 }

@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/tylergannon/gimbal"
@@ -88,5 +90,32 @@ func TestRecordedBindingsMatchAcceptedHTTPExecution(t *testing.T) {
 		if saved, ok := bindings[id]; !ok || saved != identity {
 			t.Fatalf("unrecorded or changed admission: %+v saved %+v", identity, saved)
 		}
+	}
+}
+
+func TestOldDaemonRejectsWorkflowTurnWithoutFallbackOrPolling(t *testing.T) {
+	var starts, polls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/tasks/session", "/tasks/turn":
+			starts.Add(1)
+		case "/tasks/result":
+			polls.Add(1)
+		case "/tasks/cleanup":
+			_ = json.NewEncoder(w).Encode(backend.Reply{})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	project := t.TempDir()
+	ctx := effects.WithEndpoint(gimbal.Project(t.Context(), project), server.URL)
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "old-turn", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Endpoint: server.URL, Name: "test"}, Model: "test"}}, func(ctx context.Context) error {
+		_, err := gimbal.NewSession(ctx, "agent", project).Generate[gimbal.Text](ctx, "reply")
+		return err
+	})
+	var rejected *backend.ContractRejected
+	if !errors.As(err, &rejected) || starts.Load() != 0 || polls.Load() != 0 {
+		t.Fatalf("unsafe old-daemon turn: %v starts=%d polls=%d", err, starts.Load(), polls.Load())
 	}
 }

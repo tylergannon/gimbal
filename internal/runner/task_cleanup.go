@@ -25,7 +25,7 @@ func cleanupExitedLegacy(state, id string) (bool, error) {
 	dir := filepath.Join(state, "runs", id)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	connection, endpoint, err := taskConnection(ctx, state, id)
+	connection, endpoint, _, err := taskConnection(ctx, state, id)
 	defer func() { _ = connection.Close() }()
 	if errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil && connection.Messages == nil) {
 		return false, nil
@@ -78,22 +78,22 @@ func orphanCall(ctx context.Context, endpoint, run string, op operation) (bool, 
 	}
 }
 
-func taskConnection(ctx context.Context, state, id string) (backend.Connection, string, error) {
+func taskConnection(ctx context.Context, state, id string) (backend.Connection, string, backend.Route, error) {
 	dir := filepath.Join(state, "runs", id)
 	raw, err := os.ReadFile(filepath.Join(dir, "task-route"))
 	if err == nil {
 		var route backend.Route
 		if err := json.Unmarshal(raw, &route); err != nil {
-			return backend.Connection{}, "", err
+			return backend.Connection{}, "", backend.Route{}, err
 		}
 		connection, err := gimbal.DefaultRegistry.Connect(ctx, route)
-		return connection, "", err
+		return connection, "", route, err
 	}
 	if !errors.Is(err, os.ErrNotExist) {
-		return backend.Connection{}, "", err
+		return backend.Connection{}, "", backend.Route{}, err
 	}
 	endpoint, err := os.ReadFile(filepath.Join(dir, "task-owner"))
-	return backend.Connection{}, string(endpoint), err
+	return backend.Connection{}, string(endpoint), effects.Route(effects.WithEndpoint(ctx, string(endpoint))), err
 }
 
 func CleanupExited(state, id string) (bool, error) {
@@ -125,6 +125,9 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 	defer func() { retErr = errors.Join(retErr, r.Close()) }()
 	lock, err := os.OpenFile(filepath.Join(dir, "runner.lock"), os.O_RDWR, 0)
 	if errors.Is(err, os.ErrNotExist) {
+		if op != nil {
+			return false, fmt.Errorf("no runner for this run")
+		}
 		return true, nil
 	}
 	if err != nil {
@@ -156,7 +159,7 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 		}
 		parent = n.ID
 	}
-	connection, endpoint, err := taskConnection(ctx, state, id)
+	connection, endpoint, route, err := taskConnection(ctx, state, id)
 	defer connection.Close()
 	noRoute := errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil && connection.Messages == nil)
 	if noRoute {
@@ -177,7 +180,7 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 	if err != nil {
 		return false, err
 	}
-	ctx = effects.WithConnection(ctx, connection)
+	ctx = effects.WithRoute(effects.WithEndpoint(effects.WithConnection(ctx, connection), endpoint), route)
 	var action runstore.Node
 	if op == nil {
 		action, err = r.EnsureNode(ctx, runstore.NodeSpec{Slot: runstore.Slot{Parent: parent, Kind: runstore.Action, Name: "cleanup-episode", Ordinal: 1}, DisplayKey: target + "/cleanup-episode.1"})
@@ -187,13 +190,25 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 	if err != nil {
 		return false, err
 	}
+	identity := backend.ExecutionIdentity{ScopeID: string(parent), ActionID: string(action.ID), RequestID: string(action.ID)}
 	if !summary.Intents[action.ID] {
-		if err = runstate.Append(ctx, r, action.ID, parent, "intent", map[string]any{"operation": "cleanup", "target": target, "episode_id": action.ID, "route": endpoint}); err != nil {
+		intent, marshalErr := json.Marshal(map[string]any{"operation": "cleanup", "target": target, "episode_id": action.ID, "route": effects.Route(ctx), "identity": identity})
+		if marshalErr != nil {
+			return false, marshalErr
+		}
+		binding, marshalErr := json.Marshal(identity)
+		if marshalErr != nil {
+			return false, marshalErr
+		}
+		if _, err = r.Append(ctx, []runstore.Fact{
+			{Version: 1, ID: runstore.NewRecordID(), Node: action.ID, Scope: parent, Kind: "intent", Payload: intent},
+			{Version: 1, ID: runstore.NewRecordID(), Node: action.ID, Scope: parent, Kind: "binding", Payload: binding},
+		}, runstore.Committed); err != nil {
 			return false, err
 		}
 	}
 	if !summary.Outcomes[action.ID] {
-		cleanupErr := effects.Cleanup(ctx, endpoint, id, target, backend.NewExecutionIdentity("control").RequestID)
+		cleanupErr := effects.Cleanup(ctx, endpoint, id, target, identity.RequestID)
 		current := runstate.CleanupState{Status: "released"}
 		if cleanupErr != nil {
 			current.Status = "pending"

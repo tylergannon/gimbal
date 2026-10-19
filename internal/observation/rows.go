@@ -36,7 +36,7 @@ func (u Usage) add(other Usage) Usage {
 
 // RunRow is the run itself. Times are Unix ms, as every time in a row is.
 type RunRow struct {
-	CleanupStatus       string                               `json:"cleanup_status,omitempty"`
+	CleanupStatus       polytype.Optional[string]            `json:"cleanup_status,omitzero"`
 	WorkflowEnvironment string                               `json:"workflow_environment"`
 	TaskEnvironment     string                               `json:"task_environment"`
 	ID                  string                               `json:"id"`

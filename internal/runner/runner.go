@@ -221,7 +221,7 @@ func Connect(state, id string) (live.Controller, error) {
 	if err != nil {
 		connectCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		connection, endpoint, e := taskConnection(connectCtx, state, id)
+		connection, endpoint, _, e := taskConnection(connectCtx, state, id)
 		defer func() { _ = connection.Close() }()
 		if e == nil && (endpoint != "" || connection.Execution != nil || connection.Messages != nil) {
 			lock, e := os.OpenFile(filepath.Join(state, "runs", id, "runner.lock"), os.O_RDWR, 0)
@@ -259,7 +259,7 @@ func (c remote) call(ctx context.Context, op operation) (bool, error) {
 			if observation.ReleasedProjection(filepath.Join(c.state, "runs", c.runID)) {
 				return false, nil
 			}
-			connection, endpoint, err := taskConnection(ctx, c.state, c.runID)
+			connection, endpoint, _, err := taskConnection(ctx, c.state, c.runID)
 			if err != nil {
 				return true, err
 			}
@@ -271,7 +271,7 @@ func (c remote) call(ctx context.Context, op operation) (bool, error) {
 			err = effects.Call(effects.WithConnection(ctx, connection), endpoint, "state", effects.Scope{Run: c.runID}, &pending)
 			return err != nil || pending.Pending > 0, err
 		}
-		connection, endpoint, err := taskConnection(ctx, c.state, c.runID)
+		connection, endpoint, _, err := taskConnection(ctx, c.state, c.runID)
 		if err != nil {
 			return false, err
 		}

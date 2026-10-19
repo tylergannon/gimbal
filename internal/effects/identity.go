@@ -2,6 +2,7 @@ package effects
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/tylergannon/gimbal/backend"
 )
 
@@ -33,10 +34,14 @@ func WithRoute(ctx context.Context, r backend.Route) context.Context {
 	return context.WithValue(ctx, routeKey{}, r)
 }
 func Route(ctx context.Context) backend.Route {
-	if r, ok := ctx.Value(routeKey{}).(backend.Route); ok {
+	if r, ok := ctx.Value(routeKey{}).(backend.Route); ok && r.Name != "" {
 		return r
 	}
 	if ep := Endpoint(ctx); ep != "" {
+		if ep != "backend" {
+			raw, _ := json.Marshal(map[string]string{"endpoint": ep})
+			return backend.Route{Name: "http", Configuration: raw, Environment: Environment(ctx)}
+		}
 		return backend.Route{Name: ep, Environment: Environment(ctx)}
 	}
 	return backend.Route{Name: "local"}

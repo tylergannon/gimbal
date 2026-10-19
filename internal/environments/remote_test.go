@@ -3,6 +3,7 @@ package environments
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimbal"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -209,5 +211,77 @@ func TestFailedReadinessReleasesOnlyItsRetainedProbeOwnership(t *testing.T) {
 	_, e = s.Inspect(ctx, Target{Machine: Machine{ID: "q", Name: "Q", Kind: KindRoute, Route: &route}}, "/")
 	if e == nil || provisioner.released.Load() != 1 {
 		t.Fatalf("failed-readiness ownership lost: %v, released=%d", e, provisioner.released.Load())
+	}
+}
+
+func TestOldDaemonHelperRejectionSettlesReceiptAndRetainsOnlyRelease(t *testing.T) {
+	for _, failRelease := range []bool{false, true} {
+		t.Run(fmt.Sprint(failRelease), func(t *testing.T) {
+			var starts, polls, identified, releases atomic.Int32
+			var fail atomic.Bool
+			fail.Store(failRelease)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/tasks/identified-process":
+					identified.Add(1)
+					http.NotFound(w, r)
+				case "/tasks/process":
+					starts.Add(1)
+					_ = json.NewEncoder(w).Encode(backend.Reply{})
+				case "/tasks/result":
+					polls.Add(1)
+					http.NotFound(w, r)
+				case "/tasks/cleanup":
+					releases.Add(1)
+					reply := backend.Reply{}
+					if fail.Load() {
+						reply.Error = "binding release failed"
+					}
+					_ = json.NewEncoder(w).Encode(reply)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+			s := testService(t)
+			target := Target{Machine: Machine{ID: "old", Name: "Old daemon", Kind: KindAddress, Address: server.URL}, Directory: "/work"}
+			check := func(pending bool) {
+				t.Helper()
+				raw, err := os.ReadFile(filepath.Join(s.options.InstanceDir, "environment-operations", "prepare-old123.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				var receipt operation
+				if err = json.Unmarshal(raw, &receipt); err != nil {
+					t.Fatal(err)
+				}
+				if receipt.Result != nil || receipt.Error != "" || receipt.Attempted || receipt.CleanupPending != pending {
+					t.Fatalf("rejection cached as work: %+v", receipt)
+				}
+			}
+			_, err := s.Prepare(t.Context(), target, Checkout{SharedCheckout: true}, "old123")
+			var rejected *backend.ContractRejected
+			var uncertain *backend.DeliveryUncertain
+			if !errors.As(err, &rejected) || errors.As(err, &uncertain) {
+				t.Fatalf("rejection lost: %v", err)
+			}
+			check(failRelease)
+			if starts.Load() != 0 || polls.Load() != 0 || identified.Load() != 1 || releases.Load() != 1 {
+				t.Fatalf("unexpected dispatch: legacy=%d polls=%d identified=%d release=%d", starts.Load(), polls.Load(), identified.Load(), releases.Load())
+			}
+			fail.Store(false)
+			_, err = s.Prepare(t.Context(), target, Checkout{SharedCheckout: true}, "old123")
+			if !errors.As(err, &rejected) {
+				t.Fatalf("explicit retry returned cached failure: %v", err)
+			}
+			check(false)
+			wantRelease := int32(2)
+			if failRelease {
+				wantRelease = 3
+			}
+			if identified.Load() != 2 || releases.Load() != wantRelease || starts.Load() != 0 || polls.Load() != 0 {
+				t.Fatalf("receipt did not release/retry safely: %d %d", identified.Load(), releases.Load())
+			}
+		})
 	}
 }

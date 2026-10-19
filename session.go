@@ -301,29 +301,29 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, s.node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
 			return nil, err
 		}
-		id, err := s.adapter.CreateSession(createCtx, s.model, s.effort, s.workdir)
-		if id != "" {
-			s.mu.Lock()
-			s.native = id
-			s.mu.Unlock()
+		if err := s.admissionError(ctx); err != nil {
+			return nil, err
 		}
+		id, err := s.adapter.CreateSession(createCtx, s.model, s.effort, s.workdir)
 		recordErr := s.owner.run.finishAction(s.owner.node, s.node, s.node, map[string]string{"native": id}, err)
-		if err != nil || recordErr != nil {
-			return nil, errors.Join(err, recordErr)
+		adoptErr := s.adoptNative(id)
+		if err != nil || recordErr != nil || adoptErr != nil {
+			return nil, errors.Join(err, recordErr, adoptErr)
 		}
 		if err = s.owner.run.nativeBinding(s.owner.node, s.node, s.node, id); err != nil {
 			return nil, err
 		}
-		s.mu.Lock()
-		s.native, native = id, id
-		s.mu.Unlock()
+		native = id
 	}
 	if onEvent == nil {
 		onEvent = func(AgentEvent) error { return nil }
 	}
 	logf("%s: turn started (%s)", s.id, s.model)
 	start := time.Now()
-	scope, _ := current(ctx)
+	scope, scopeErr := current(ctx)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
 	if scope != nil {
 		event := TurnStarted{Prompt: prompt, OutputType: outputType}
 		if started != nil {
@@ -408,6 +408,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 				url, finishCallback, err = secretcallback.Open(turnCtx, secrets, owner, effects.Requirements(ctx))
 				nativePrompt += "\n\nRequired stores are available for this operation as JSON via GET " + url + ". Call this endpoint when you need the values."
 			}
+		}
+		if err == nil {
+			err = s.admissionError(turnCtx)
 		}
 		if err == nil {
 			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, wrapped)
@@ -661,6 +664,51 @@ func (s *Session) usable() error {
 	return nil
 }
 
+// admissionError rechecks lifetime after committing an intent, before dispatch.
+func (s *Session) admissionError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+	}
+	return nil
+}
+
+// adoptNative and scope teardown exchange ownership under the same mutex. If
+// teardown already saw an empty native ID, this admission owns its release.
+func (s *Session) adoptNative(id string) error {
+	if id == "" {
+		return nil
+	}
+	s.mu.Lock()
+	s.native = id
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return errors.Join(fmt.Errorf("gimbal: session %s was created after its scope ended", s.id), s.stopNative())
+	}
+	return nil
+}
+
+func (s *Session) stopNative() error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.owner.ctx), s.owner.run.cleanupTimeoutOr(closeTimeout))
+	defer cancel()
+	err := s.closeNative(ctx)
+	if err != nil {
+		s.owner.run.recordCloseFailure(s.id, err)
+		s.owner.run.closeMu.Lock()
+		if s.owner.run.pendingClose == nil {
+			s.owner.run.pendingClose = make(map[string]*Session)
+		}
+		s.owner.run.pendingClose[s.id] = s
+		s.owner.run.closeMu.Unlock()
+	}
+	return err
+}
+
 // Steer injects a message into the turn that is running on this session.
 // It is called from another goroutine while Generate blocks. The message
 // lands at the worker's next model call, and landed reports that it did.
@@ -756,11 +804,14 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 		if err = scope.run.prepareAction(forkCtx, scope.node, fork.node, node, "fork", map[string]string{"source_session": native}, identity); err != nil {
 			return nil, err
 		}
-		fork.native, err = s.adapter.Fork(forkCtx, native)
-		recordErr := scope.run.finishAction(scope.node, fork.node, node, map[string]string{"native": fork.native}, err)
-		err = errors.Join(err, recordErr)
+		if err = fork.admissionError(ctx); err != nil {
+			return nil, err
+		}
+		id, nativeErr := s.adapter.Fork(forkCtx, native)
+		recordErr := scope.run.finishAction(scope.node, fork.node, node, map[string]string{"native": id}, nativeErr)
+		err = errors.Join(nativeErr, recordErr, fork.adoptNative(id))
 		if err == nil {
-			err = scope.run.nativeBinding(scope.node, fork.node, node, fork.native)
+			err = scope.run.nativeBinding(scope.node, fork.node, node, id)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("gimbal: fork %s: %w", s.id, err)

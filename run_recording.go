@@ -213,9 +213,11 @@ func (s *Session) closeNative(ctx context.Context) error {
 	// Explicit stop must still reach known native work after recording failure.
 	err := s.adapter.Close(callCtx, s.native)
 	if recordErr == nil {
-		recordErr = owner.run.finishAction(owner.node, s.node, node, struct{}{}, err)
+		_ = owner.run.finishAction(owner.node, s.node, node, struct{}{}, err)
 	}
-	return errors.Join(err, recordErr)
+	// Recording failures are latched on the run. Only native cessation decides
+	// whether this session still needs cleanup.
+	return err
 }
 
 func (r *run) pendingCleanupError() error {

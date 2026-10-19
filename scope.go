@@ -287,18 +287,7 @@ func (s *scope) stopOwnedWork() error {
 		session.mu.Unlock()
 		var closeErr error
 		if native != "" {
-			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.run.cleanupTimeoutOr(closeTimeout))
-			closeErr = session.closeNative(closeCtx)
-			cancel()
-			if closeErr != nil {
-				s.run.recordCloseFailure(session.id, closeErr)
-				s.run.closeMu.Lock()
-				if s.run.pendingClose == nil {
-					s.run.pendingClose = make(map[string]*Session)
-				}
-				s.run.pendingClose[session.id] = session
-				s.run.closeMu.Unlock()
-			}
+			closeErr = session.stopNative()
 		}
 		s.run.event(s.key, session.id, "", SessionClosed{Error: errString(closeErr)})
 	}

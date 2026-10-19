@@ -34,3 +34,10 @@ The last implementation revision is
 Available runtime evidence is indexed at
 `/Users/tyler/.codex/visualizations/2026/10/19/01a1522a-1e4c-7942-bdce-772e9ed181e2/recording-foundation/review-evidence.md`.
 Earlier review artifacts are under `ephemeral/reviews/`.
+
+## Follow-up authorization
+
+After round 01 the human instructed: "fix where requested, and then prove the
+case again". Later rounds review the entire current branch at HEAD against the
+same requirements and latest priorities, including the current implementation
+and proof. The revision range above identifies the original round-01 target.

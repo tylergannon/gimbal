@@ -159,8 +159,10 @@ func TestFailedInitializationDoesNotExecuteOrReserveLiveRun(t *testing.T) {
 
 type faultStore struct {
 	runstore.Store
-	failKind string
-	failNode bool
+	failKind     string
+	failNode     bool
+	afterCreate  func() error
+	beforeAppend func([]runstore.Fact) error
 }
 type faultRun struct {
 	runstore.Run
@@ -172,6 +174,12 @@ func (s faultStore) Create(ctx context.Context, h runstore.Header) (runstore.Run
 	if e != nil {
 		return nil, e
 	}
+	if s.afterCreate != nil {
+		if err := s.afterCreate(); err != nil {
+			_ = r.Close()
+			return nil, err
+		}
+	}
 	return faultRun{r, s}, nil
 }
 func (r faultRun) EnsureNode(ctx context.Context, n runstore.NodeSpec) (runstore.Node, error) {
@@ -181,6 +189,11 @@ func (r faultRun) EnsureNode(ctx context.Context, n runstore.NodeSpec) (runstore
 	return r.Run.EnsureNode(ctx, n)
 }
 func (r faultRun) Append(ctx context.Context, f []runstore.Fact, d runstore.Durability) ([]runstore.Record, error) {
+	if r.owner.beforeAppend != nil {
+		if err := r.owner.beforeAppend(f); err != nil {
+			return nil, err
+		}
+	}
 	for _, fact := range f {
 		if fact.Kind == r.owner.failKind {
 			return nil, errors.New("injected " + fact.Kind + " failure")

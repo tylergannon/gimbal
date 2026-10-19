@@ -214,6 +214,12 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 	// owns a private store and writes the same table files, so observation
 	// does not depend on who started the run.
 	var records runstore.Run
+	initialized := false
+	defer func() {
+		if records != nil && !initialized {
+			_ = records.Close()
+		}
+	}()
 	store, storeErr := observation.Open(observation.FromContext(ctx), id, name, dir, func() error {
 		var err error
 		records, err = runstate.Resolve(ctx, project).Create(ctx, runstore.Header{RunID: runstore.RunID(id), Workflow: name})
@@ -221,7 +227,6 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 			return err
 		}
 		if err = os.MkdirAll(dir, 0700); err != nil {
-			_ = records.Close()
 			return err
 		}
 		return os.WriteFile(filepath.Join(dir, "recording-format"), []byte("1\n"), 0600)
@@ -232,7 +237,6 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
 	header, headerErr := records.Header(ctx)
 	if headerErr != nil {
-		_ = records.Close()
 		_ = store.Close()
 		if w != nil {
 			_ = w.close()
@@ -273,6 +277,7 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 	if hook := live.FromContext(ctx); hook != nil {
 		release = hook(id, r)
 	}
+	initialized = true
 	return r, release, nil
 }
 

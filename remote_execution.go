@@ -50,9 +50,8 @@ func (s *scope) remoteCleanup() error {
 	recordErr := s.run.prepareAction(ctx, s.node, "", node, "cleanup", map[string]string{"scope": s.key}, identity)
 	err := effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key, identity.RequestID)
 	if recordErr == nil {
-		recordErr = s.run.finishAction(s.node, "", node, struct{}{}, err)
+		_ = s.run.finishAction(s.node, "", node, struct{}{}, err)
 	}
-	err = errors.Join(err, recordErr)
 	s.run.closeMu.Lock()
 	if err != nil {
 		if s.run.pendingScopes == nil {

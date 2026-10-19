@@ -8,13 +8,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
 )
@@ -135,4 +138,77 @@ func TestProjectionMarkerFailureReleasesStoreWriter(t *testing.T) {
 		t.Fatalf("failed initialization leaked writer: %v", err)
 	}
 	_ = reopened.Close()
+}
+
+func TestLateServiceResultRetainsWriterUntilExplicitCleanup(t *testing.T) {
+	project := t.TempDir()
+	id := runstore.NewRunID()
+	resultReady := make(chan struct{})
+	var resultOnce sync.Once
+	release := func() { resultOnce.Do(func() { close(resultReady) }) }
+	defer release()
+	var submissions atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/tasks/identified-process":
+			submissions.Add(1)
+			_ = json.NewEncoder(w).Encode(backend.Reply{})
+		case "/tasks/cleanup":
+			_ = json.NewEncoder(w).Encode(backend.Reply{})
+		case "/tasks/result":
+			<-resultReady
+			_ = json.NewEncoder(w).Encode(backend.Result{Done: true, Result: json.RawMessage(`{"ExitCode":0,"Interrupted":true}`)})
+		case "/tasks/bytes":
+			w.WriteHeader(http.StatusOK)
+		default:
+			t.Errorf("unexpected dispatch: %s", request.URL.Path)
+			http.NotFound(w, request)
+		}
+	}))
+	defer func() { release(); server.Close() }()
+	liveRuns := live.NewRuns()
+	registry := observation.NewRegistry(project)
+	ctx := live.WithHook(observation.WithRegistry(Project(t.Context(), project), registry), liveRuns.Hook)
+	ctx = effects.WithEndpoint(WithCleanupTimeout(ctx, 50*time.Millisecond), server.URL)
+	var service *ownedService
+	err := Run(ctx, string(id), "late-service", nil, func(ctx context.Context) error {
+		if err := Service(ctx, "server", project, "serve"); err != nil {
+			return err
+		}
+		s, _ := current(ctx)
+		service = s.services[0]
+		return nil
+	})
+	if err == nil || service == nil {
+		t.Fatalf("expected retained service cleanup: %v", err)
+	}
+	factory := directory.Store{Root: filepath.Join(project, "runs")}
+	if _, err := factory.Open(t.Context(), id); !errors.Is(err, runstore.ErrBusy) {
+		t.Fatalf("pending result lost writer: %v", err)
+	}
+	release()
+	<-service.done
+	controller, err := liveRuns.InProgress(string(id))
+	if err != nil || !controller.CleanupPending() {
+		t.Fatalf("status query abandoned cleanup owner: %v", err)
+	}
+	if err := controller.CancelScope("", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := liveRuns.InProgress(string(id)); err == nil {
+		t.Fatal("released controller remained live")
+	}
+	reopened, err := factory.Open(t.Context(), id)
+	if err != nil {
+		t.Fatalf("late service completion leaked writer: %v", err)
+	}
+	defer func() { _ = reopened.Close() }()
+	summary, err := runstate.Inspect(t.Context(), reopened)
+	if err != nil || summary.Cleanup[summary.Header.Root].Status != "released" || submissions.Load() != 1 {
+		t.Fatalf("cleanup=%v submissions=%d err=%v", summary.Cleanup, submissions.Load(), err)
+	}
+	snapshot, err := registry.Snapshot(string(id))
+	if err != nil || !snapshot.Run.CleanupStatus.Present || snapshot.Run.CleanupStatus.Value != "released" {
+		t.Fatalf("cleanup projection was not released: %+v %v", snapshot.Run, err)
+	}
 }

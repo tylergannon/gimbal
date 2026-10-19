@@ -209,7 +209,13 @@ func TestPersistenceFailurePreventsDispatchAndDoesNotRepeatCompletedWork(t *test
 			s := faultStore{Store: directory.Store{Root: filepath.Join(project, "runs")}, failKind: failure, failNode: failure == "node"}
 			ctx := WithRunStore(Project(t.Context(), project), s)
 			err := Run(ctx, string(runstore.NewRunID()), "fault", nil, func(ctx context.Context) error {
-				_, _, _, e := RunCommand(ctx, "mark", project, "sh", "-c", "printf x >> submissions")
+				code, _, _, e := RunCommand(ctx, "mark", project, "sh", "-c", "printf x >> submissions")
+				if e == nil {
+					t.Error("RunCommand hid recording failure from the workflow")
+				}
+				if failure == "outcome" && code != 0 {
+					t.Errorf("lost completed command exit code: %d", code)
+				}
 				return e
 			})
 			if err == nil {

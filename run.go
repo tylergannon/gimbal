@@ -501,14 +501,11 @@ func (r *run) CancelScope(key string, cause error) error {
 
 // CleanupPending is the internal live table's retained-ownership check. A
 // terminal workflow with failed remote cleanup remains reachable for stop.
+// Released services stay owned until explicit cleanup records release and
+// closes the writer; a status query does not discard that bookkeeping.
 func (r *run) CleanupPending() bool {
 	r.closeMu.Lock()
 	defer r.closeMu.Unlock()
-	for id, service := range r.pendingServices {
-		if service.released() {
-			delete(r.pendingServices, id)
-		}
-	}
 	return len(r.pendingClose) != 0 || len(r.pendingScopes) != 0 || len(r.pendingServices) != 0
 }
 

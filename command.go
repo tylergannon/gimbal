@@ -105,7 +105,7 @@ func openCommandCapture(r *run, id, stream string) (*commandCapture, string, err
 // streams are returned exactly. A stream over 64 KiB is a bounded head/tail
 // excerpt with an absolute path to the complete run-owned file. A nonzero exit
 // is not an error. err is for a command that could not start, its ctx
-// cancelled, or output could not be captured; then the exit code is -1 except
+// cancelled, or output could not be captured or recorded; then the exit code is -1 except
 // when the process's own exit status is known.
 //
 // Every command that starts streams stdout and stderr into separate files
@@ -116,8 +116,8 @@ func RunCommand(ctx context.Context, name, workdir, command string, args ...stri
 	if err != nil {
 		return -1, "", "", err
 	}
-	_, ended, err, _ := runCommand(ctx, s, name, workdir, command, args)
-	return ended.ExitCode, ended.Stdout, ended.Stderr, err
+	_, ended, commandErr, recordErr := runCommand(ctx, s, name, workdir, command, args)
+	return ended.ExitCode, ended.Stdout, ended.Stderr, errors.Join(commandErr, recordErr)
 }
 
 // Check runs command and records its result under key in the current scope's

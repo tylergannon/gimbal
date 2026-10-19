@@ -536,7 +536,7 @@ func (r *run) retryCleanup() error {
 		}
 	}
 	for id, session := range pending {
-		ctx, cancel := context.WithTimeout(context.Background(), r.cleanupTimeoutOr(closeTimeout))
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(session.owner.ctx), r.cleanupTimeoutOr(closeTimeout))
 		err := session.closeNative(ctx)
 		cancel()
 		if err != nil {

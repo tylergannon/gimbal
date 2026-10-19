@@ -269,6 +269,7 @@ func TestRetainedCleanupOwnsStoreAndAppendsAfterImmutableOutcome(t *testing.T) {
 		return nil
 	}}
 	ctx := live.WithHook(observation.WithRegistry(Project(t.Context(), project), registry), func(_ string, c live.Controller) func() { owner = c.(*run); return func() {} })
+	ctx = effects.WithRoute(ctx, backend.Route{Name: "retained-route"})
 	err := Run(ctx, string(id), "retained", bind(adapter, "test", "agent"), func(ctx context.Context) error {
 		_, e := NewSession(ctx, "agent", project).Generate[Text](ctx, "work")
 		return e
@@ -311,6 +312,18 @@ func TestRetainedCleanupOwnsStoreAndAppendsAfterImmutableOutcome(t *testing.T) {
 		}
 		for _, rec := range records {
 			cursor = rec.Sequence
+			if rec.Kind == "intent" {
+				var intent struct {
+					Operation string        `json:"operation"`
+					Route     backend.Route `json:"route"`
+				}
+				if e = json.Unmarshal(rec.Payload, &intent); e != nil {
+					t.Fatal(e)
+				}
+				if intent.Operation == "close" && intent.Route.Name != "retained-route" {
+					t.Fatalf("retained close lost its route: %+v", intent.Route)
+				}
+			}
 			if rec.Kind != "outcome" {
 				continue
 			}

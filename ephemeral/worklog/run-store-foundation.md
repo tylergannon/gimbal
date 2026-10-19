@@ -33,3 +33,10 @@ proof: Focused integration checks now replay saved lifecycle/agent/cleanup facts
 correction: Full build requires CleanupStatus to use polytype.Optional and generated transport outputs; ordinary omitempty is outside the type grammar. Full Go validation also exposed web tests assuming name-suffixed run IDs and live reads of unaccepted initialization; update those expectations to explicit ULIDs and incomplete reservations.
 
 friction: The globally installed vp resolves a different Vite runtime than this workspace and fails test startup with vite_ssr_environment_not_runnable. The pinned web/node_modules/.bin/vp test --run executes all 201 tests successfully. No application configuration change is needed.
+
+
+correction: Capturing messaging admissions plus their stored owner routes exposed session-close cleanup contexts constructed from Background. Execution still reached the adapter's connection, but the stored close intent mislabeled its route as local. Preserve the owning scope's values with WithoutCancel for initial and retained closes; verify HTTP fork and messaging create/turn/close admissions, as well as the retained close route.
+
+friction: Do not run generators concurrently with skgo build. Its input fingerprint correctly rejects a build if generation rewrites inputs during frontend compilation. Run generation to completion before the full build.
+
+friction: The runtime worktree disappeared externally during final validation, after five commits were pushed. Restored the same branch at the same path and reconstructed the last uncommitted context fix and tests; verify them again before committing. Keep disposable live-proof fixtures outside the checkout so removing the checkout cannot erase their run stores.

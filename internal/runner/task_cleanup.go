@@ -208,7 +208,14 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 		}
 	}
 	if !summary.Outcomes[action.ID] {
-		cleanupErr := effects.Cleanup(ctx, endpoint, id, target, identity.RequestID)
+		requestID := identity.RequestID
+		if _, attempted := summary.Cleanup[action.ID]; op == nil && attempted {
+			// The committed identity names the episode and its first delivery.
+			// Later sweeps are transient housekeeping deliveries: reusing the
+			// first ID would replay its retained failure from a messaging bus.
+			requestID = backend.NewExecutionIdentity("control").RequestID
+		}
+		cleanupErr := effects.Cleanup(ctx, endpoint, id, target, requestID)
 		current := runstate.CleanupState{Status: "released"}
 		if cleanupErr != nil {
 			current.Status = "pending"

@@ -40,3 +40,6 @@ correction: Capturing messaging admissions plus their stored owner routes expose
 friction: Do not run generators concurrently with skgo build. Its input fingerprint correctly rejects a build if generation rewrites inputs during frontend compilation. Run generation to completion before the full build.
 
 friction: The runtime worktree disappeared externally during final validation, after five commits were pushed. Restored the same branch at the same path and reconstructed the last uncommitted context fix and tests; verify them again before committing. Keep disposable live-proof fixtures outside the checkout so removing the checkout cannot erase their run stores.
+
+
+correction: Orphan cleanup has a stable stored episode and first-delivery identity, but repeated housekeeping deliveries need fresh IDs. Otherwise real messaging deduplication retains the first failed completion forever. Design paragraph 111 explicitly permits transient delivery IDs without an attempt-by-attempt audit. The fixture now retains each request's original completion as a real bus does; failed sweeps remain fact-stable and eventual success remains possible. The first native admission is still committed in intent/binding before dispatch.

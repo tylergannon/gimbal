@@ -211,21 +211,28 @@ func TestIncompleteStoreDoesNotAcquireLivenessOrDispatch(t *testing.T) {
 	}
 }
 
-// A background cleanup episode retains its request identity across owner opens.
+// A background cleanup episode retains its first admission across owner opens.
 type episodeMessages struct {
 	requests []backend.MessageRequest
 	fail     bool
+	results  map[string]bool
 }
 
 func (m *episodeMessages) PublishRequest(_ context.Context, r backend.MessageRequest) error {
 	m.requests = append(m.requests, r)
+	if m.results == nil {
+		m.results = map[string]bool{}
+	}
+	if _, ok := m.results[r.ID]; !ok {
+		m.results[r.ID] = m.fail
+	}
 	return nil
 }
 func (*episodeMessages) PublishEvent(context.Context, backend.MessageEvent) error { return nil }
 func (m *episodeMessages) ListenEvents(_ context.Context, s backend.MessageSelection, _ time.Time, fn func(backend.MessageEvent) error) error {
 	r := m.requests[len(m.requests)-1]
 	result := &backend.MessageResult{}
-	if m.fail {
+	if m.results[r.ID] {
 		result.Unresolved = true
 		result.Error = "still stopping"
 	}
@@ -287,9 +294,14 @@ func TestOrphanCleanupRecordsTheIdentityAdmittedByMessaging(t *testing.T) {
 	if len(bus.requests) != 3 || recorded.RequestID == "" || recorded.ActionID != recorded.RequestID {
 		t.Fatalf("missing admissions/binding: %d %+v", len(bus.requests), recorded)
 	}
+	if bus.requests[0].ID != recorded.RequestID {
+		t.Fatalf("unrecorded first admission: %+v binding %+v", bus.requests[0], recorded)
+	}
+	seen := map[string]bool{}
 	for _, request := range bus.requests {
-		if request.ID != recorded.RequestID || request.Run != id {
-			t.Fatalf("unrecorded admission: %+v binding %+v", request, recorded)
+		if !runstore.ValidID(request.ID) || seen[request.ID] || request.Run != id {
+			t.Fatalf("cleanup delivery did not get a fresh transient identity: %+v", request)
 		}
+		seen[request.ID] = true
 	}
 }

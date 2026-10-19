@@ -23,10 +23,12 @@ codesign_args=()
 if [[ -n "${MACOS_KEYCHAIN_PATH:-}" ]]; then
   codesign_args+=(--keychain "$MACOS_KEYCHAIN_PATH")
 fi
-codesign --force --timestamp --options runtime "${codesign_args[@]}" \
-  --entitlements scripts/macos-cli.entitlements.plist \
-  --sign "$MACOS_SIGNING_IDENTITY" "$binary"
-codesign --verify --strict --verbose=2 "$binary"
+for executable in "$binary" "$work/unpacked/gimbal-command"; do
+  codesign --force --timestamp --options runtime "${codesign_args[@]}" \
+    --entitlements scripts/macos-cli.entitlements.plist \
+    --sign "$MACOS_SIGNING_IDENTITY" "$executable"
+  codesign --verify --strict --verbose=2 "$executable"
+done
 
 # Apple notarizes a ZIP containing the signed CLI. The downloadable tarball
 # itself cannot be stapled, so users need network access for first Gatekeeper

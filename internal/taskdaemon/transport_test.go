@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +15,7 @@ import (
 )
 
 func TestSuccessfulResultDespiteEventOutage(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	handler := d.Handler()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/tasks/events" {
@@ -36,14 +39,15 @@ func TestSuccessfulResultDespiteEventOutage(t *testing.T) {
 		t.Fatal(err)
 	}
 }
-func TestRetentionRequiresReleaseAndReaderConsumption(t *testing.T) {
-	d := New()
+func TestBridgeRetentionPreservesExecutorFiles(t *testing.T) {
+	d := New(t.TempDir())
 	req := processRequest(t, "run", "", "task", "printf bytes", false)
 	if err := d.process(req); err != nil {
 		t.Fatal(err)
 	}
 	task := d.tasks[key("run", "task")]
 	<-task.done
+	output := task.captures["stdout"]
 	task.mu.Lock()
 	task.completed = time.Now().Add(-6 * time.Minute)
 	task.mu.Unlock()
@@ -60,5 +64,40 @@ func TestRetentionRequiresReleaseAndReaderConsumption(t *testing.T) {
 	}
 	if p := d.poll(effects.Poll{Run: "run", ID: "task"}); p.Error != "task payload expired" {
 		t.Fatalf("missing expired response %+v", p)
+	}
+	data, err := os.ReadFile(output)
+	if err != nil || string(data) != "bytes" {
+		t.Fatalf("executor output retired with bridge projection: %q %v", data, err)
+	}
+}
+
+func TestCommandExecutableIsRelativeToItsWorkdir(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "task"), []byte("#!/bin/sh\nprintf RELATIVE611"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	d := New(t.TempDir())
+	request := effects.Process{Owner: effects.Owner{Run: "relative", Task: "command"}, Command: "./task", Workdir: root}
+	if err := d.process(request); err != nil {
+		t.Fatal(err)
+	}
+	task := d.tasks[key("relative", "command")]
+	<-task.done
+	output, err := os.ReadFile(task.captures["stdout"])
+	if err != nil || string(output) != "RELATIVE611" {
+		t.Fatalf("%q %v", output, err)
+	}
+}
+
+func TestTaskHostPassesDeclaredCommandDeadlineToSupervisor(t *testing.T) {
+	root := t.TempDir()
+	d := New(root)
+	owner := effects.Owner{Run: "deadline", Task: "command"}
+	if err := d.process(effects.Process{Owner: owner, Command: "sh", Args: []string{"-c", "exec sleep 30"}, Workdir: root, Deadline: time.Now().Add(100 * time.Millisecond)}); err != nil {
+		t.Fatal(err)
+	}
+	result := waitTask(t, d, owner)
+	if !result.Interrupted || !strings.Contains(result.Error, "deadline exceeded") {
+		t.Fatalf("deadline result=%+v", result)
 	}
 }

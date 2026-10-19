@@ -49,7 +49,7 @@ func TestProspectiveRemoteDirectoryOperationsIgnoreInvalidConfigSiblings(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(t.TempDir())
 	server := httptest.NewServer(daemon.Handler())
 	defer server.Close()
 	machine := map[string]any{"id": "valid", "name": "Valid remote", "kind": "address", "address": server.URL, "executable": os.Args[0], "future": map[string]any{"keep": []any{1, "opaque"}}}

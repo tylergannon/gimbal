@@ -27,7 +27,7 @@ func (h *filesHarness) RunTurn(ctx context.Context, id, prompt string, schema js
 	return gimbal.TurnResult{Output: json.RawMessage(`"ok"`)}, nil
 }
 func TestConnectionExecutesWithIndependentEventsAndExplicitNativeFiles(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	native := &filesHarness{read: make(chan string, 1)}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	connection := d.Connection()
@@ -52,7 +52,7 @@ func TestConnectionExecutesWithIndependentEventsAndExplicitNativeFiles(t *testin
 }
 
 func TestMaterializedTaskFileKeepsFormatExtension(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	owner := backend.Owner{Run: "format", Scope: "format", Task: "read"}
 	file := backend.Artifact{Owner: owner, Name: "report.pdf"}
 	if err := d.writeBytes(file, strings.NewReader("%PDF-1.4\n")); err != nil {

@@ -33,7 +33,7 @@ func waitTask(t *testing.T, d *Daemon, o backend.Owner) backend.ProcessResult {
 	return r
 }
 func TestProducerAdmissionAndScopedCleanup(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	d.Secrets = backend.NewMemorySecrets()
 	ctx := context.Background()
 	producer := backend.Process{Run: "run", Scope: "outer", Task: "producer", Command: "sh", Args: []string{"-c", `printf 'TOKEN=from-producer\nUNDECLARED=no\n' > "$ENV_FILE"`}, Produces: true, Yields: []string{"TOKEN"}, Store: "private"}
@@ -72,7 +72,7 @@ func TestProducerAdmissionAndScopedCleanup(t *testing.T) {
 	}
 }
 func TestEmptyServiceWaitsForReadinessAndCleansUp(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	p := backend.Process{Run: "run", Task: "service", Command: "sh", Args: []string{"-c", `trap 'exit 0' INT; sleep .15; touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; while :; do sleep .1; done`}, Service: true}
 	start := time.Now()
 	if err := d.process(p); err != nil {
@@ -97,7 +97,7 @@ func (f failedPublish) Publish(context.Context, backend.Scope, backend.StoreWrit
 	return errors.New("publication uncertain")
 }
 func TestPublicationFailurePreventsReadiness(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	d.Secrets = failedPublish{backend.NewMemorySecrets()}
 	p := backend.Process{Run: "run", Task: "bad", Command: "sh", Args: []string{"-c", `trap 'exit 0' INT; printf 'TOKEN=x\n' > "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; while :; do sleep .1; done`}, Service: true, Yields: []string{"TOKEN"}}
 	if err := d.process(p); err == nil || !strings.Contains(err.Error(), "publication uncertain") {
@@ -128,7 +128,7 @@ func (h *callbackHarness) RunTurn(_ context.Context, _, prompt string, _ json.Ra
 	return gimbal.TurnResult{Output: json.RawMessage(`"done"`)}, err
 }
 func TestAgentCallbackUsesConsumingScopeAndWholeStore(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	d.Secrets = backend.NewMemorySecrets()
 	ctx := context.Background()
 	for scope, values := range map[string][]backend.NamedValue{"": {{Name: "TOKEN", Value: "parent"}}, "child": {{Name: "TOKEN", Value: "child-secret"}, {Name: "EXTRA", Value: "whole-store"}}} {
@@ -161,7 +161,7 @@ func TestAgentCallbackUsesConsumingScopeAndWholeStore(t *testing.T) {
 }
 
 func TestCancelServiceBeforeReadiness(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	owner := backend.Owner{Run: "run", Scope: "child", Task: "service"}
 	result := make(chan error, 1)
 	go func() {

@@ -11,10 +11,11 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/commandexecutor"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/internal/executor"
 )
 
 const commandOutputLimit = 64 << 10
@@ -269,50 +270,64 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		return "", "", envErr
 	}
 	defer cleanup()
-	cmd := exec.CommandContext(ctx, command, args...)
-	cmd.Env = environment
-	cmd.Dir = workdir
-	cmd.WaitDelay = commandWaitDelay
-	var killed atomic.Bool
-	cmd.Cancel = func() error {
-		err := cmd.Process.Kill()
-		killed.Store(err == nil)
-		return err
+	if err = ctx.Err(); err != nil {
+		_ = out.close()
+		_ = errOut.close()
+		return "", "", err
 	}
-	cmd.Stdout, cmd.Stderr = out, errOut
-	startErr := cmd.Start()
-	var runErr error
-	if startErr == nil {
-		runErr = cmd.Wait()
+	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: command, Args: args, Workdir: workdir, Environment: environment}
+	if deadline, ok := ctx.Deadline(); ok {
+		request.Deadline = deadline
 	}
-	closeErr := errors.Join(out.close(), errOut.close())
-	stdout, stdoutErr := out.result(r.dir, ended.StdoutFile)
-	stderr, stderrErr := errOut.result(r.dir, ended.StderrFile)
-	captureErr := errors.Join(closeErr, stdoutErr, stderrErr)
-	if captureErr != nil {
-		r.recordFailure("capture command output "+id, captureErr)
+	// Record the executor identity before submission, separately from graph names.
+	manifest := filepath.Join(r.dir, filepath.FromSlash(ended.StdoutFile)+".executor.json")
+	if err = executor.Write(manifest, request.ID); err != nil {
+		_ = out.close()
+		_ = errOut.close()
+		return "", "", err
 	}
-
-	switch {
-	case captureErr != nil:
-		if cmd.ProcessState != nil {
-			ended.ExitCode = cmd.ProcessState.ExitCode()
+	descriptor, submitErr := commandexecutor.Submit(filepath.Join(r.dir, "artifacts", "commands"), request)
+	if submitErr != nil {
+		_ = out.close()
+		_ = errOut.close()
+		return "", "", submitErr
+	}
+	_ = out.close()
+	_ = errOut.close()
+	_ = os.Remove(out.file.Name())
+	_ = os.Remove(errOut.file.Name())
+	result, waitErr := commandexecutor.Wait(ctx, descriptor)
+	if ctx.Err() != nil {
+		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		stopErr := commandexecutor.Cancel(stopCtx, descriptor)
+		result, waitErr = commandexecutor.Wait(stopCtx, descriptor)
+		cancel()
+		waitErr = errors.Join(ctx.Err(), stopErr, waitErr)
+	}
+	// The supervisor streams directly into run-owned files, so observation never
+	// buffers output and a dead workflow leaves the complete files intact.
+	ended.StdoutFile, _ = filepath.Rel(r.dir, descriptor.Stdout)
+	ended.StderrFile, _ = filepath.Rel(r.dir, descriptor.Stderr)
+	ended.StdoutFile = filepath.ToSlash(ended.StdoutFile)
+	ended.StderrFile = filepath.ToSlash(ended.StderrFile)
+	excerpt := func(path string) (string, error) {
+		info, e := os.Stat(path)
+		if e != nil {
+			return "", e
 		}
-		err = fmt.Errorf("gimbal: %s: capture output: %w", id, captureErr)
-	case killed.Load() || cmd.ProcessState == nil && errors.Is(startErr, ctx.Err()):
-		cause := context.Cause(ctx)
-		if cause != ctx.Err() {
-			cause = fmt.Errorf("%w: %w", ctx.Err(), cause)
-		}
-		err = fmt.Errorf("gimbal: %s: %w", id, cause)
-		ended.Interrupted = true
-	case cmd.ProcessState == nil:
-		err = fmt.Errorf("gimbal: %s: %w", id, startErr)
-	default:
-		ended.ExitCode = cmd.ProcessState.ExitCode()
-		var exitErr *exec.ExitError
-		if runErr != nil && !errors.As(runErr, &exitErr) && !errors.Is(runErr, exec.ErrWaitDelay) {
-			err = fmt.Errorf("gimbal: %s: %w", id, runErr)
+		capture := commandCapture{size: info.Size()}
+		relative, _ := filepath.Rel(r.dir, path)
+		return capture.result(r.dir, relative)
+	}
+	stdout, stdoutErr := excerpt(descriptor.Stdout)
+	stderr, stderrErr := excerpt(descriptor.Stderr)
+	err = errors.Join(waitErr, stdoutErr, stderrErr)
+	ended.ExitCode = result.ExitCode
+	ended.Interrupted = result.Cancelled || result.TimedOut || ctx.Err() != nil
+	if result.Error != "" && err == nil {
+		err = errors.New(result.Error)
+		if result.NotFound {
+			err = errors.Join(exec.ErrNotFound, err)
 		}
 	}
 	if err == nil && envFile != "" {

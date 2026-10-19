@@ -24,7 +24,7 @@ func TestNativeMessagingWorkflowInputsContinuityAndCleanup(t *testing.T) {
 	agent, sa := newProducer(t, func(*producer, backend.MessageRequest) error { return nil })
 	c := config{URL: sa.URL}
 	agent.bus.config = c
-	agent.handle = taskdaemon.New().Messages(agent.bus)
+	agent.handle = taskdaemon.New(t.TempDir()).Messages(agent.bus)
 	bus := backend.Messaging(&connection{config: c, client: sa.Client()})
 	token := "input-" + ulid.Make().String()
 	project := t.TempDir()

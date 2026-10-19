@@ -36,7 +36,7 @@ func messagingOwner(t *testing.T) (*Daemon, *directMessages, context.Context) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
-	d := New()
+	d := New(t.TempDir())
 	bus := &directMessages{Store: store, ctx: ctx}
 	bus.handle = d.Messages(bus)
 	return d, bus, effects.WithConnection(ctx, backend.Connection{Messages: bus})

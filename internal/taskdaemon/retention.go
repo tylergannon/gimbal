@@ -1,7 +1,6 @@
 package taskdaemon
 
 import (
-	"os"
 	"time"
 )
 
@@ -11,12 +10,11 @@ const retention = 5 * time.Minute
 func (d *Daemon) retireLocked(t *task) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if !t.released || (!t.acknowledged && time.Since(t.completed) < retention) {
+	if !t.released || time.Since(t.completed) < retention {
 		return
 	}
-	for _, p := range t.captures {
-		_ = os.Remove(p)
-	}
+	// Executor-owned files retire only through the executor vacuum.
+
 	t.expired = true
 	t.captures = nil
 	t.events = nil

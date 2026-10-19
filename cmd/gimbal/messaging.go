@@ -59,7 +59,7 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		if _, err := fmt.Fprintln(c.OutOrStdout(), "Messaging worker:", route.Name); err != nil {
 			return err
 		}
-		daemon := taskdaemon.New()
+		daemon := taskdaemon.New("")
 		daemon.Secrets = connection.Secrets
 		if daemon.Secrets == nil {
 			daemon.Secrets = backend.NewMemorySecrets()

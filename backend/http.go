@@ -71,7 +71,6 @@ func (h HTTP) Pending(c context.Context, v Scope) (State, error) {
 	e := h.call(c, "/tasks/state", v, &r)
 	return r, e
 }
-func (h HTTP) Acknowledge(c context.Context, v Target) error { _, e := h.reply(c, "ack", v); return e }
 func (h HTTP) ReadEvents(c context.Context, v Poll) (Events, error) {
 	var r Events
 	e := h.call(c, "/tasks/events", v, &r)

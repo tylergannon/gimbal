@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"time"
 )
 
 type Owner struct{ Run, Scope, Task string }
 type Process struct {
+	Deadline time.Time `json:",omitzero"`
 	Owner
 	Workdir, Command string
 	Args             []string
@@ -36,6 +38,7 @@ type TaskFile struct {
 	Bytes     []byte
 }
 type Turn struct {
+	Deadline time.Time `json:",omitzero"`
 	Files    []TaskFile
 	Requires Requirements `json:",omitempty"`
 	Owner
@@ -132,7 +135,6 @@ type Execution interface {
 	Close(context.Context, Target) error
 	Cleanup(context.Context, Scope) error
 	Pending(context.Context, Scope) (State, error)
-	Acknowledge(context.Context, Target) error
 	ReadBytes(context.Context, Artifact) (io.ReadCloser, error)
 	WriteBytes(context.Context, Artifact, io.Reader) error
 	StartWorkflow(context.Context, Workflow) (WorkflowStatus, error)

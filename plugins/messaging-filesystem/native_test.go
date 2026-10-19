@@ -30,7 +30,9 @@ func TestNativeMessagingWorkflowInputsContinuityAndCleanup(t *testing.T) {
 	workerCtx, stop := context.WithCancel(ctx)
 	defer stop()
 	done := make(chan error, 1)
-	go func() { done <- worker(workerCtx, raw, backend.Dependencies{}, taskdaemon.New().Messages(bus)) }()
+	go func() {
+		done <- worker(workerCtx, raw, backend.Dependencies{}, taskdaemon.New(t.TempDir()).Messages(bus))
+	}()
 	defer func() { stop(); <-done }()
 	token := "input-" + ulid.Make().String()
 	project := t.TempDir()

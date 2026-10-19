@@ -11,6 +11,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/taskdaemon"
 )
 
 func TestExecutionRoutesProvideScopedSecrets(t *testing.T) {
@@ -22,7 +23,7 @@ func TestExecutionRoutesProvideScopedSecrets(t *testing.T) {
 	if err := listener.Close(); err != nil {
 		t.Fatal(err)
 	}
-	stop, err := serveEnvironment(t.Context(), address, "", nil)
+	stop, err := serveEnvironmentOptions(t.Context(), address, "", nil, "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -30,9 +31,16 @@ func TestExecutionRoutesProvideScopedSecrets(t *testing.T) {
 	configuration, _ := json.Marshal(map[string]string{"endpoint": "http://" + address})
 	for _, route := range []backend.Route{{Name: "local"}, {Name: "http", Configuration: configuration}} {
 		t.Run(route.Name, func(t *testing.T) {
-			connection, err := gimbal.DefaultRegistry.Connect(t.Context(), route)
-			if err != nil {
-				t.Fatal(err)
+			var connection backend.Connection
+			if route.Name == "local" {
+				daemon := taskdaemon.New(t.TempDir())
+				daemon.Secrets = backend.NewMemorySecrets()
+				connection = daemon.Connection()
+			} else {
+				connection, err = gimbal.DefaultRegistry.Connect(t.Context(), route)
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()

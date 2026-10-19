@@ -2,6 +2,7 @@ origin := env("ORIGIN", "http://127.0.0.1:8080")
 
 build: build-assets
     go build -o bin/gimbal ./cmd/gimbal
+    go build -o bin/gimbal-command ./cmd/gimbal-command
 
 # Reuse current dependency, generation and frontend outputs automatically.
 build-assets:
@@ -45,6 +46,7 @@ e2e run="run":
 vet:
     go vet ./...
     go build -o bin/gimbal ./cmd/gimbal
+    go build -o bin/gimbal-command ./cmd/gimbal-command
     ./bin/gimbal lint ./...
 
 # Repository-wide checks belong in explicit validation and CI, not commit/push hooks.

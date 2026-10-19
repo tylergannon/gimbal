@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
@@ -72,7 +73,7 @@ func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 		return h.messageTurn(ctx, t, o, prompt, schema, onEvent)
 	}
 	files := effects.TaskFiles(ctx)
-	reply, err := h.call(ctx, "turn", effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files, Requires: effects.Requirements(ctx)})
+	reply, err := h.call(ctx, "turn", effects.Turn{Deadline: turnDeadline(ctx), Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files, Requires: effects.Requirements(ctx)})
 	if err != nil {
 		if reply.Error != "" {
 			return gimbal.TurnResult{}, err
@@ -139,7 +140,7 @@ func (h *Harness) Close(ctx context.Context, id string) error {
 func (h *Harness) messageTurn(ctx context.Context, t effects.Target, o effects.Owner, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	r := effects.Request("turn", o)
 	r.SessionID = t.ID
-	r.Turn = &effects.Turn{Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: effects.TaskFiles(ctx), Requires: effects.Requirements(ctx)}
+	r.Turn = &effects.Turn{Deadline: turnDeadline(ctx), Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: effects.TaskFiles(ctx), Requires: effects.Requirements(ctx)}
 	if err := effects.Submit(ctx, r); err != nil {
 		return gimbal.TurnResult{}, err
 	}
@@ -172,3 +173,5 @@ func (h *Harness) messageTurn(ctx context.Context, t effects.Target, o effects.O
 	}
 	return result, err
 }
+
+func turnDeadline(ctx context.Context) time.Time { deadline, _ := ctx.Deadline(); return deadline }

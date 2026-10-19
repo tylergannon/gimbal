@@ -10,12 +10,9 @@ import (
 	"strings"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/agy"
-	"github.com/tylergannon/gimbal/claude"
-	"github.com/tylergannon/gimbal/codex"
+	"github.com/tylergannon/gimbal/internal/agentexecutor"
 	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/opencode"
-	"github.com/tylergannon/gimbal/pi"
 )
 
 // Parse reads "model" or "model:effort", resolves the model through
@@ -50,16 +47,10 @@ func resolve(spec string) (modelalias.ResolvedSelection, error) {
 // Adapter is the harness of that name.
 func Adapter(harness string) (gimbal.HarnessAdapter, error) {
 	switch harness {
-	case "agy":
-		return agy.New(), nil
-	case "claude":
-		return claude.New(), nil
-	case "codex":
-		return codex.New(), nil
+	case "agy", "claude", "codex", "pi":
+		return agentexecutor.New(harness), nil
 	case "opencode":
 		return opencode.New(), nil
-	case "pi":
-		return pi.New(), nil
 	default:
 		return nil, fmt.Errorf("unknown harness %q", harness)
 	}

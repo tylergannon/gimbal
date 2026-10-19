@@ -17,14 +17,14 @@ import (
 )
 
 func serveEnvironment(ctx context.Context, address, root string, dirs []string) (func(), error) {
-	return serveEnvironmentOptions(ctx, address, root, dirs, "")
+	return serveEnvironmentOptions(ctx, address, root, dirs, "", "")
 }
-func serveEnvironmentOptions(ctx context.Context, address, root string, dirs []string, workdir string) (func(), error) {
+func serveEnvironmentOptions(ctx context.Context, address, root string, dirs []string, workdir, executorRoot string) (func(), error) {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return nil, err
 	}
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(executorRoot)
 	daemon.Workdir = workdir
 	daemon.Secrets = backend.NewMemorySecrets()
 	mux := http.NewServeMux()
@@ -37,7 +37,7 @@ func serveEnvironmentOptions(ctx context.Context, address, root string, dirs []s
 	return func() { _ = server.Close() }, nil
 }
 func newDaemonCommand() *cobra.Command {
-	var address, root, workdir string
+	var address, root, workdir, executorRoot string
 	var dirs []string
 	c := &cobra.Command{Use: "daemon", Short: "Execute agent sessions, commands and scope-owned services", Long: "Run a task daemon independently of central. Pass its HTTP endpoint as --task-endpoint when starting a workflow. Workflow and task workspaces belong to this environment; remote command artifacts are transferred as bytes. Provider configuration belongs to this daemon. Use loopback or a private container network; this endpoint executes trusted workflow requests. Release active scopes before stopping this daemon; task-daemon crash recovery is not supported.", RunE: func(c *cobra.Command, _ []string) error {
 		ctx, cancel := signal.NotifyContext(c.Context(), os.Interrupt, syscall.SIGTERM)
@@ -45,7 +45,7 @@ func newDaemonCommand() *cobra.Command {
 		if err := invocation.LoadPlugins(dirs); err != nil {
 			return err
 		}
-		stop, err := serveEnvironmentOptions(ctx, address, root, dirs, workdir)
+		stop, err := serveEnvironmentOptions(ctx, address, root, dirs, workdir, executorRoot)
 		if err != nil {
 			return err
 		}
@@ -56,6 +56,7 @@ func newDaemonCommand() *cobra.Command {
 		<-ctx.Done()
 		return nil
 	}}
+	c.Flags().StringVar(&executorRoot, "executor-state-dir", "", "independent executor state directory")
 	c.Flags().StringVar(&workdir, "workdir", "", "task repository workdir in this environment")
 	c.Flags().StringVar(&root, "workspace-root", "", "workflow workspace root on this daemon")
 	c.Flags().StringSliceVar(&dirs, "plugin-dir", nil, "native workflow/backend plugin directories on this daemon")

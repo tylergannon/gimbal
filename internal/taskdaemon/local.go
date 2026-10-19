@@ -9,7 +9,7 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 )
 
-// Local connects the same native owner directly, without a per-task process or HTTP listener.
+// Local connects the same task-host handlers directly, without HTTP.
 type Local struct{ *Daemon }
 
 func (d *Daemon) Connection() backend.Connection {
@@ -32,7 +32,6 @@ func (l Local) Cleanup(c context.Context, v backend.Scope) error        { return
 func (l Local) Pending(c context.Context, v backend.Scope) (backend.State, error) {
 	return l.state(v), nil
 }
-func (l Local) Acknowledge(c context.Context, v backend.Target) error { return l.acknowledge(v) }
 func (l Local) ReadEvents(c context.Context, v backend.Poll) (backend.Events, error) {
 	p := l.poll(v)
 	return backend.Events{Events: p.Events, Cursor: v.After + len(p.Events), Gap: p.Error != "", Error: p.Error}, nil

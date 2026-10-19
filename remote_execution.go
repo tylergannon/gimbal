@@ -61,7 +61,7 @@ func (s *scope) remoteCleanup() error {
 func startRemoteProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, out, stderr *commandCapture, service bool) error {
 	store, yields, produces := effects.Yields(ctx)
 	var reply effects.Reply
-	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}, &reply)
+	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Deadline: operationDeadline(ctx), Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}, &reply)
 	if err != nil {
 		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id})
 	}
@@ -93,8 +93,6 @@ func remoteProcessResult(ctx context.Context, s *scope, id string, out, stderr *
 		}
 		captureErr = errors.Join(captureErr, e, c.close())
 	}
-	var ack effects.Reply
-	captureErr = errors.Join(captureErr, effects.Call(ctx, effects.Endpoint(ctx), "ack", effects.Target{Run: filepath.Base(s.run.dir), ID: id}, &ack))
 	var e error
 	ended.Stdout, e = out.result(s.run.dir, ended.StdoutFile)
 	captureErr = errors.Join(captureErr, e)
@@ -147,7 +145,7 @@ func executionFor(ctx context.Context) backend.Execution {
 func startMessageProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, service bool) (backend.MessageRequest, error) {
 	r := effects.Request("process", effectOwner(s, id))
 	store, yields, produces := effects.Yields(ctx)
-	r.Process = &backend.Process{Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}
+	r.Process = &backend.Process{Deadline: operationDeadline(ctx), Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}
 	return r, effects.Submit(ctx, r)
 }
 func messageProcessResult(ctx context.Context, s *scope, r backend.MessageRequest, out, stderr *commandCapture, ended *CommandEnded) error {
@@ -210,3 +208,5 @@ func messageService(ctx context.Context, s *scope, name, id, workdir, command st
 	}()
 	return nil
 }
+
+func operationDeadline(ctx context.Context) time.Time { deadline, _ := ctx.Deadline(); return deadline }

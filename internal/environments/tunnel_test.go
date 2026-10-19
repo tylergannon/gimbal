@@ -90,7 +90,7 @@ func verifyTunnelReplacement(t *testing.T, host string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(t.TempDir())
 	handler := daemon.Handler()
 	var admissions atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

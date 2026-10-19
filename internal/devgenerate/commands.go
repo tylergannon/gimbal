@@ -80,7 +80,7 @@ func (g *Generator) openapi(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer os.RemoveAll(scratch)
+	defer func() { _ = os.RemoveAll(scratch) }()
 	temporary := filepath.Join(scratch, "types.gen.go")
 	// oapi-codegen's configured output overrides -o. Override only the fixed
 	// output in a private configuration; otherwise the CLI writes the real

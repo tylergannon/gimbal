@@ -9,45 +9,57 @@ export type Graph = {
   /**
    * Name is the workflow's name, which is also the run's name.
    */
-  "name": string;
+  name: string;
   /**
    * Source anchors the entry function.
    */
-  "source": Source;
+  source: Source;
   /**
    * Services are the long-lived commands the root scope owns, in source order. They are declarations on the scope, not ordered operations.
    */
-  "services": Array<Service>;
+  services: Array<Service>;
   /**
    * Body is the entry function's operations, in source order.
    */
-  "body": Array<Omit<AgentCall, "kind"> & {
-    "kind": "agent_call";
-  } | Omit<Command, "kind"> & {
-    "kind": "command";
-  } | Omit<Condition, "kind"> & {
-    "kind": "condition";
-  } | Omit<Group, "kind"> & {
-    "kind": "group";
-  } | Omit<Interview, "kind"> & {
-    "kind": "interview";
-  } | Omit<Iterate, "kind"> & {
-    "kind": "iterate";
-  } | Omit<PromiseLoop, "kind"> & {
-    "kind": "promise_loop";
-  } | Omit<Repeat, "kind"> & {
-    "kind": "repeat";
-  } | Omit<Scope, "kind"> & {
-    "kind": "scope";
-  } | Omit<Session, "kind"> & {
-    "kind": "session";
-  } | Omit<Set, "kind"> & {
-    "kind": "set";
-  }>;
+  body: Array<
+    | (Omit<AgentCall, "kind"> & {
+        kind: "agent_call";
+      })
+    | (Omit<Command, "kind"> & {
+        kind: "command";
+      })
+    | (Omit<Condition, "kind"> & {
+        kind: "condition";
+      })
+    | (Omit<Group, "kind"> & {
+        kind: "group";
+      })
+    | (Omit<Interview, "kind"> & {
+        kind: "interview";
+      })
+    | (Omit<Iterate, "kind"> & {
+        kind: "iterate";
+      })
+    | (Omit<PromiseLoop, "kind"> & {
+        kind: "promise_loop";
+      })
+    | (Omit<Repeat, "kind"> & {
+        kind: "repeat";
+      })
+    | (Omit<Scope, "kind"> & {
+        kind: "scope";
+      })
+    | (Omit<Session, "kind"> & {
+        kind: "session";
+      })
+    | (Omit<Set, "kind"> & {
+        kind: "set";
+      })
+  >;
   /**
    * Diagnostics records what the extractor could not read. A graph with diagnostics has honest holes; it is never completed by a guess.
    */
-  "diagnostics": Array<Diagnostic>;
+  diagnostics: Array<Diagnostic>;
 };
 
 /**
@@ -57,8 +69,8 @@ export type Source = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
+  file: string;
+  line: number;
 };
 
 /**
@@ -68,19 +80,19 @@ export type Service = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "requirements": Array<StoreDeclaration>;
-  "yields": Array<StoreDeclaration>;
-  "name": string;
+  file: string;
+  line: number;
+  requirements: Array<StoreDeclaration>;
+  yields: Array<StoreDeclaration>;
+  name: string;
 };
 
 /**
  * StoreDeclaration names a store and the values an operation declares. The empty store name is the workflow's default store. Values are never recorded.
  */
 export type StoreDeclaration = {
-  "store": string;
-  "names": Array<string>;
+  store: string;
+  names: Array<string>;
 };
 
 /**
@@ -90,19 +102,19 @@ export type AgentCall = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "requirements": Array<StoreDeclaration>;
-  "session": string;
-  "role": string;
+  file: string;
+  line: number;
+  requirements: Array<StoreDeclaration>;
+  session: string;
+  role: string;
   /**
    * Prompt is the constant the source passes (#230). The scope's context the run appends to it is the run's record.
    */
-  "prompt": string;
+  prompt: string;
   /**
    * Supervisors watch this call. They are unordered and are not steps in the body. Their looks and steers are the run's record.
    */
-  "supervisors": Array<Supervisor>;
+  supervisors: Array<Supervisor>;
 };
 
 /**
@@ -112,12 +124,12 @@ export type Supervisor = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "session": string;
-  "role": string;
-  "instruction": string;
-  "supervisors": Array<Supervisor>;
+  file: string;
+  line: number;
+  session: string;
+  role: string;
+  instruction: string;
+  supervisors: Array<Supervisor>;
 };
 
 /**
@@ -127,11 +139,11 @@ export type Command = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "requirements": Array<StoreDeclaration>;
-  "yields": Array<StoreDeclaration>;
-  "name": string;
+  file: string;
+  line: number;
+  requirements: Array<StoreDeclaration>;
+  yields: Array<StoreDeclaration>;
+  name: string;
 };
 
 /**
@@ -141,9 +153,9 @@ export type Condition = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "branches": Array<Branch>;
+  file: string;
+  line: number;
+  branches: Array<Branch>;
 };
 
 /**
@@ -153,33 +165,45 @@ export type Branch = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "case": string;
-  "exits": boolean;
-  "body": Array<Omit<AgentCall, "kind"> & {
-    "kind": "agent_call";
-  } | Omit<Command, "kind"> & {
-    "kind": "command";
-  } | Omit<Condition, "kind"> & {
-    "kind": "condition";
-  } | Omit<Group, "kind"> & {
-    "kind": "group";
-  } | Omit<Interview, "kind"> & {
-    "kind": "interview";
-  } | Omit<Iterate, "kind"> & {
-    "kind": "iterate";
-  } | Omit<PromiseLoop, "kind"> & {
-    "kind": "promise_loop";
-  } | Omit<Repeat, "kind"> & {
-    "kind": "repeat";
-  } | Omit<Scope, "kind"> & {
-    "kind": "scope";
-  } | Omit<Session, "kind"> & {
-    "kind": "session";
-  } | Omit<Set, "kind"> & {
-    "kind": "set";
-  }>;
+  file: string;
+  line: number;
+  case: string;
+  exits: boolean;
+  body: Array<
+    | (Omit<AgentCall, "kind"> & {
+        kind: "agent_call";
+      })
+    | (Omit<Command, "kind"> & {
+        kind: "command";
+      })
+    | (Omit<Condition, "kind"> & {
+        kind: "condition";
+      })
+    | (Omit<Group, "kind"> & {
+        kind: "group";
+      })
+    | (Omit<Interview, "kind"> & {
+        kind: "interview";
+      })
+    | (Omit<Iterate, "kind"> & {
+        kind: "iterate";
+      })
+    | (Omit<PromiseLoop, "kind"> & {
+        kind: "promise_loop";
+      })
+    | (Omit<Repeat, "kind"> & {
+        kind: "repeat";
+      })
+    | (Omit<Scope, "kind"> & {
+        kind: "scope";
+      })
+    | (Omit<Session, "kind"> & {
+        kind: "session";
+      })
+    | (Omit<Set, "kind"> & {
+        kind: "set";
+      })
+  >;
 };
 
 /**
@@ -189,10 +213,10 @@ export type Group = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "name": string;
-  "children": Array<GroupChild>;
+  file: string;
+  line: number;
+  name: string;
+  children: Array<GroupChild>;
 };
 
 /**
@@ -202,33 +226,45 @@ export type GroupChild = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "name": string;
-  "services": Array<Service>;
-  "body": Array<Omit<AgentCall, "kind"> & {
-    "kind": "agent_call";
-  } | Omit<Command, "kind"> & {
-    "kind": "command";
-  } | Omit<Condition, "kind"> & {
-    "kind": "condition";
-  } | Omit<Group, "kind"> & {
-    "kind": "group";
-  } | Omit<Interview, "kind"> & {
-    "kind": "interview";
-  } | Omit<Iterate, "kind"> & {
-    "kind": "iterate";
-  } | Omit<PromiseLoop, "kind"> & {
-    "kind": "promise_loop";
-  } | Omit<Repeat, "kind"> & {
-    "kind": "repeat";
-  } | Omit<Scope, "kind"> & {
-    "kind": "scope";
-  } | Omit<Session, "kind"> & {
-    "kind": "session";
-  } | Omit<Set, "kind"> & {
-    "kind": "set";
-  }>;
+  file: string;
+  line: number;
+  name: string;
+  services: Array<Service>;
+  body: Array<
+    | (Omit<AgentCall, "kind"> & {
+        kind: "agent_call";
+      })
+    | (Omit<Command, "kind"> & {
+        kind: "command";
+      })
+    | (Omit<Condition, "kind"> & {
+        kind: "condition";
+      })
+    | (Omit<Group, "kind"> & {
+        kind: "group";
+      })
+    | (Omit<Interview, "kind"> & {
+        kind: "interview";
+      })
+    | (Omit<Iterate, "kind"> & {
+        kind: "iterate";
+      })
+    | (Omit<PromiseLoop, "kind"> & {
+        kind: "promise_loop";
+      })
+    | (Omit<Repeat, "kind"> & {
+        kind: "repeat";
+      })
+    | (Omit<Scope, "kind"> & {
+        kind: "scope";
+      })
+    | (Omit<Session, "kind"> & {
+        kind: "session";
+      })
+    | (Omit<Set, "kind"> & {
+        kind: "set";
+      })
+  >;
 };
 
 /**
@@ -238,11 +274,11 @@ export type Interview = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "requirements": Array<StoreDeclaration>;
-  "name": string;
-  "session": string;
+  file: string;
+  line: number;
+  requirements: Array<StoreDeclaration>;
+  name: string;
+  session: string;
 };
 
 /**
@@ -252,33 +288,45 @@ export type Iterate = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "name": string;
-  "services": Array<Service>;
-  "body": Array<Omit<AgentCall, "kind"> & {
-    "kind": "agent_call";
-  } | Omit<Command, "kind"> & {
-    "kind": "command";
-  } | Omit<Condition, "kind"> & {
-    "kind": "condition";
-  } | Omit<Group, "kind"> & {
-    "kind": "group";
-  } | Omit<Interview, "kind"> & {
-    "kind": "interview";
-  } | Omit<Iterate, "kind"> & {
-    "kind": "iterate";
-  } | Omit<PromiseLoop, "kind"> & {
-    "kind": "promise_loop";
-  } | Omit<Repeat, "kind"> & {
-    "kind": "repeat";
-  } | Omit<Scope, "kind"> & {
-    "kind": "scope";
-  } | Omit<Session, "kind"> & {
-    "kind": "session";
-  } | Omit<Set, "kind"> & {
-    "kind": "set";
-  }>;
+  file: string;
+  line: number;
+  name: string;
+  services: Array<Service>;
+  body: Array<
+    | (Omit<AgentCall, "kind"> & {
+        kind: "agent_call";
+      })
+    | (Omit<Command, "kind"> & {
+        kind: "command";
+      })
+    | (Omit<Condition, "kind"> & {
+        kind: "condition";
+      })
+    | (Omit<Group, "kind"> & {
+        kind: "group";
+      })
+    | (Omit<Interview, "kind"> & {
+        kind: "interview";
+      })
+    | (Omit<Iterate, "kind"> & {
+        kind: "iterate";
+      })
+    | (Omit<PromiseLoop, "kind"> & {
+        kind: "promise_loop";
+      })
+    | (Omit<Repeat, "kind"> & {
+        kind: "repeat";
+      })
+    | (Omit<Scope, "kind"> & {
+        kind: "scope";
+      })
+    | (Omit<Session, "kind"> & {
+        kind: "session";
+      })
+    | (Omit<Set, "kind"> & {
+        kind: "set";
+      })
+  >;
 };
 
 /**
@@ -288,39 +336,51 @@ export type PromiseLoop = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "requirements": Array<StoreDeclaration>;
-  "name": string;
-  "planner": string;
-  "supervisors": Array<Supervisor>;
+  file: string;
+  line: number;
+  requirements: Array<StoreDeclaration>;
+  name: string;
+  planner: string;
+  supervisors: Array<Supervisor>;
   /**
    * Services belong to each task scope described by Body.
    */
-  "services": Array<Service>;
-  "body": Array<Omit<AgentCall, "kind"> & {
-    "kind": "agent_call";
-  } | Omit<Command, "kind"> & {
-    "kind": "command";
-  } | Omit<Condition, "kind"> & {
-    "kind": "condition";
-  } | Omit<Group, "kind"> & {
-    "kind": "group";
-  } | Omit<Interview, "kind"> & {
-    "kind": "interview";
-  } | Omit<Iterate, "kind"> & {
-    "kind": "iterate";
-  } | Omit<PromiseLoop, "kind"> & {
-    "kind": "promise_loop";
-  } | Omit<Repeat, "kind"> & {
-    "kind": "repeat";
-  } | Omit<Scope, "kind"> & {
-    "kind": "scope";
-  } | Omit<Session, "kind"> & {
-    "kind": "session";
-  } | Omit<Set, "kind"> & {
-    "kind": "set";
-  }>;
+  services: Array<Service>;
+  body: Array<
+    | (Omit<AgentCall, "kind"> & {
+        kind: "agent_call";
+      })
+    | (Omit<Command, "kind"> & {
+        kind: "command";
+      })
+    | (Omit<Condition, "kind"> & {
+        kind: "condition";
+      })
+    | (Omit<Group, "kind"> & {
+        kind: "group";
+      })
+    | (Omit<Interview, "kind"> & {
+        kind: "interview";
+      })
+    | (Omit<Iterate, "kind"> & {
+        kind: "iterate";
+      })
+    | (Omit<PromiseLoop, "kind"> & {
+        kind: "promise_loop";
+      })
+    | (Omit<Repeat, "kind"> & {
+        kind: "repeat";
+      })
+    | (Omit<Scope, "kind"> & {
+        kind: "scope";
+      })
+    | (Omit<Session, "kind"> & {
+        kind: "session";
+      })
+    | (Omit<Set, "kind"> & {
+        kind: "set";
+      })
+  >;
 };
 
 /**
@@ -330,32 +390,44 @@ export type Repeat = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "cond": string;
-  "body": Array<Omit<AgentCall, "kind"> & {
-    "kind": "agent_call";
-  } | Omit<Command, "kind"> & {
-    "kind": "command";
-  } | Omit<Condition, "kind"> & {
-    "kind": "condition";
-  } | Omit<Group, "kind"> & {
-    "kind": "group";
-  } | Omit<Interview, "kind"> & {
-    "kind": "interview";
-  } | Omit<Iterate, "kind"> & {
-    "kind": "iterate";
-  } | Omit<PromiseLoop, "kind"> & {
-    "kind": "promise_loop";
-  } | Omit<Repeat, "kind"> & {
-    "kind": "repeat";
-  } | Omit<Scope, "kind"> & {
-    "kind": "scope";
-  } | Omit<Session, "kind"> & {
-    "kind": "session";
-  } | Omit<Set, "kind"> & {
-    "kind": "set";
-  }>;
+  file: string;
+  line: number;
+  cond: string;
+  body: Array<
+    | (Omit<AgentCall, "kind"> & {
+        kind: "agent_call";
+      })
+    | (Omit<Command, "kind"> & {
+        kind: "command";
+      })
+    | (Omit<Condition, "kind"> & {
+        kind: "condition";
+      })
+    | (Omit<Group, "kind"> & {
+        kind: "group";
+      })
+    | (Omit<Interview, "kind"> & {
+        kind: "interview";
+      })
+    | (Omit<Iterate, "kind"> & {
+        kind: "iterate";
+      })
+    | (Omit<PromiseLoop, "kind"> & {
+        kind: "promise_loop";
+      })
+    | (Omit<Repeat, "kind"> & {
+        kind: "repeat";
+      })
+    | (Omit<Scope, "kind"> & {
+        kind: "scope";
+      })
+    | (Omit<Session, "kind"> & {
+        kind: "session";
+      })
+    | (Omit<Set, "kind"> & {
+        kind: "set";
+      })
+  >;
 };
 
 /**
@@ -365,33 +437,45 @@ export type Scope = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "name": string;
-  "services": Array<Service>;
-  "body": Array<Omit<AgentCall, "kind"> & {
-    "kind": "agent_call";
-  } | Omit<Command, "kind"> & {
-    "kind": "command";
-  } | Omit<Condition, "kind"> & {
-    "kind": "condition";
-  } | Omit<Group, "kind"> & {
-    "kind": "group";
-  } | Omit<Interview, "kind"> & {
-    "kind": "interview";
-  } | Omit<Iterate, "kind"> & {
-    "kind": "iterate";
-  } | Omit<PromiseLoop, "kind"> & {
-    "kind": "promise_loop";
-  } | Omit<Repeat, "kind"> & {
-    "kind": "repeat";
-  } | Omit<Scope, "kind"> & {
-    "kind": "scope";
-  } | Omit<Session, "kind"> & {
-    "kind": "session";
-  } | Omit<Set, "kind"> & {
-    "kind": "set";
-  }>;
+  file: string;
+  line: number;
+  name: string;
+  services: Array<Service>;
+  body: Array<
+    | (Omit<AgentCall, "kind"> & {
+        kind: "agent_call";
+      })
+    | (Omit<Command, "kind"> & {
+        kind: "command";
+      })
+    | (Omit<Condition, "kind"> & {
+        kind: "condition";
+      })
+    | (Omit<Group, "kind"> & {
+        kind: "group";
+      })
+    | (Omit<Interview, "kind"> & {
+        kind: "interview";
+      })
+    | (Omit<Iterate, "kind"> & {
+        kind: "iterate";
+      })
+    | (Omit<PromiseLoop, "kind"> & {
+        kind: "promise_loop";
+      })
+    | (Omit<Repeat, "kind"> & {
+        kind: "repeat";
+      })
+    | (Omit<Scope, "kind"> & {
+        kind: "scope";
+      })
+    | (Omit<Session, "kind"> & {
+        kind: "session";
+      })
+    | (Omit<Set, "kind"> & {
+        kind: "set";
+      })
+  >;
 };
 
 /**
@@ -401,10 +485,10 @@ export type Session = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "name": string;
-  "from": string;
+  file: string;
+  line: number;
+  name: string;
+  from: string;
 };
 
 /**
@@ -414,15 +498,15 @@ export type Set = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
-  "file": string;
-  "line": number;
-  "key": string;
+  file: string;
+  line: number;
+  key: string;
 };
 
 /**
  * Diagnostic is one thing the extractor could not read.
  */
 export type Diagnostic = {
-  "source": Source;
-  "message": string;
+  source: Source;
+  message: string;
 };

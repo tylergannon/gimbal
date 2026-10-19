@@ -263,7 +263,7 @@ func Run(root string, req Request) error {
 	if err != nil {
 		return err
 	}
-	defer events.Close()
+	defer func() { _ = events.Close() }()
 	if executor.Exists(filepath.Join(sdir, "closed.json")) && !req.Close {
 		var closed Result
 		if err := executor.Read(filepath.Join(sdir, "closed.json"), &closed); err != nil {
@@ -304,7 +304,7 @@ func Run(root string, req Request) error {
 			if err != nil {
 				return "", err
 			}
-			defer a.DetachSession(context.Background(), parent)
+			defer func() { _ = a.DetachSession(context.Background(), parent) }()
 			return a.Fork(ctx, parent)
 		}
 		return a.CreateSession(ctx, config.Model, config.Effort, config.Workdir)
@@ -411,7 +411,7 @@ func ReadEvents(path string, offset *int64, sequence *int64, onEvent func(Event)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	if _, err = file.Seek(*offset, io.SeekStart); err != nil {
 		return err
 	}

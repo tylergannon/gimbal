@@ -78,10 +78,6 @@ func pageGuide(p sourcePage, info entryInfo, roles []string, defaults map[string
 	return p, nil
 }
 
-func writeWorkflowPages(root string, pages []sourcePage, inputs []stockData) error {
-	var p publication
-	return writeWorkflowPagesResult(root, pages, inputs, &p)
-}
 func writeWorkflowPagesResult(root string, pages []sourcePage, inputs []stockData, published *publication) error {
 	base := filepath.Join(root, "web", "src", "lib", "workflow-design", "generated")
 	if err := os.MkdirAll(base, 0755); err != nil {

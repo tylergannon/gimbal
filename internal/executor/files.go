@@ -56,7 +56,7 @@ func Write(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if err = f.Chmod(0600); err == nil {
 		_, err = f.Write(raw)
 	}
@@ -74,8 +74,8 @@ func Write(path string, value any) error {
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
-	return dir.Sync()
+	err = dir.Sync()
+	return errors.Join(err, dir.Close())
 }
 func Read(path string, value any) error {
 	raw, err := os.ReadFile(path)
@@ -97,7 +97,7 @@ func Lock(dir string) (*Lease, error) {
 		return nil, err
 	}
 	if err = unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
-		f.Close()
+		_ = f.Close()
 		if errors.Is(err, unix.EWOULDBLOCK) {
 			return nil, nil
 		}
@@ -210,15 +210,15 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 	if err != nil {
 		return d, err
 	}
-	defer log.Close()
+	defer func() { _ = log.Close() }()
 	read, write, err := os.Pipe()
 	if err != nil {
 		return d, err
 	}
-	defer read.Close()
+	defer func() { _ = read.Close() }()
 	raw, err := json.Marshal(input)
 	if err != nil {
-		write.Close()
+		_ = write.Close()
 		return d, err
 	}
 	cmd := exec.Command(binary, args...)
@@ -228,10 +228,10 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 	cmd.ExtraFiles = []*os.File{write}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 	if err = cmd.Start(); err != nil {
-		write.Close()
+		_ = write.Close()
 		return d, err
 	}
-	write.Close()
+	_ = write.Close()
 	go func() { _ = cmd.Wait() }()
 	_ = read.SetReadDeadline(time.Now().Add(2 * time.Minute))
 	var response struct {
@@ -276,7 +276,7 @@ func Listen(dir string, control func(Control) Reply) (*Server, error) {
 		return nil, err
 	}
 	if err = os.Chmod(path, 0600); err != nil {
-		listener.Close()
+		_ = listener.Close()
 		return nil, err
 	}
 	s := &Server{dir: dir, listener: listener, changed: make(chan struct{}), done: make(chan struct{})}
@@ -301,7 +301,7 @@ func (s *Server) Close() {
 	s.once.Do(func() { close(s.done); _ = s.listener.Close(); _ = os.Remove(s.listener.Addr().String()); s.Notify() })
 }
 func (s *Server) serve(c net.Conn, control func(Control) Reply) {
-	defer c.Close()
+	defer func() { _ = c.Close() }()
 	_ = c.SetDeadline(time.Now().Add(30 * time.Second))
 	var req Control
 	if json.NewDecoder(c).Decode(&req) != nil {
@@ -334,7 +334,7 @@ func Call(ctx context.Context, dir string, request Control) (Reply, error) {
 	if err != nil {
 		return reply, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 	deadline := time.Now().Add(30 * time.Second)
 	if request.Op == "wait" {
 		deadline = time.Now().Add(2 * time.Second)
@@ -475,7 +475,7 @@ func Startup(d Descriptor) error {
 	if f == nil {
 		return errors.New("startup descriptor is missing")
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	return json.NewEncoder(f).Encode(d)
 }
 
@@ -486,7 +486,7 @@ func RejectStartup(err error) {
 	if f == nil {
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	_ = json.NewEncoder(f).Encode(struct {
 		Error string `json:"error"`
 	}{err.Error()})

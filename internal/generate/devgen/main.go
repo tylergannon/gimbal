@@ -17,7 +17,7 @@ func main() {
 		var generator *devgenerate.Generator
 		generator, err = devgenerate.New(root)
 		if err == nil {
-			defer generator.Close()
+			defer func() { _ = generator.Close() }()
 			err = devgen.Serve(context.Background(), generator.Generate)
 		}
 	}

@@ -37,7 +37,9 @@ func TestEventCatchUpToleratesReplayAndPartialTail(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = f.Write(second[len(second)/2:])
-	f.Close()
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}

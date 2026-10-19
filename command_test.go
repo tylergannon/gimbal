@@ -46,7 +46,9 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 			return err
 		}
 		record("missing.1")(RunCommand(ctx, "missing", workdir, "gimbal-no-such-command"))
-		cancelled, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		// Leave startup time for the independent executor before testing that
+		// deadline cancellation preserves bytes the command already wrote.
+		cancelled, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 		record("wait.1")(RunCommand(cancelled, "wait", workdir, "sh", "-c", "printf partial; exec sleep 30"))
 

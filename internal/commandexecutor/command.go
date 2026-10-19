@@ -143,12 +143,12 @@ func Run(root string, req Request) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 	stderr, err := os.OpenFile(filepath.Join(dir, "stderr.log"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
 	}
-	defer stderr.Close()
+	defer func() { _ = stderr.Close() }()
 	if err = executor.Write(filepath.Join(dir, "deadline.json"), deadline); err != nil {
 		return err
 	}

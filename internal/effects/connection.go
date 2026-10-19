@@ -54,7 +54,6 @@ func dispatch(ctx context.Context, c backend.Connection, op string, in, out any)
 		value = Reply{}
 	case "state":
 		value, err = c.Execution.Pending(ctx, in.(Scope))
-		value = Reply{}
 	default:
 		return fmt.Errorf("unsupported concrete task operation %s", op)
 	}

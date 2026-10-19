@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/executor"
 )
 
@@ -98,14 +100,14 @@ func TestSessionConflictsAndValidation(t *testing.T) {
 func TestCloseUnusedSessionIsIdempotentAndRejectsLaterTurns(t *testing.T) {
 	root := t.TempDir()
 	a := Adapter{Root: root, harness: "claude"}
-	id, err := a.CreateSession(t.Context(), "unused", "", root)
+	id, err := a.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "unused", "", root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = a.Close(t.Context(), id); err != nil {
+	if err = a.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
-	if err = a.Close(t.Context(), id); err != nil {
+	if err = a.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
 	if !executor.Exists(filepath.Join(sessionDir(root, executor.SessionID(id)), "closed.json")) {
@@ -120,7 +122,7 @@ func TestCloseUnusedSessionIsIdempotentAndRejectsLaterTurns(t *testing.T) {
 func TestIdleSessionCanSteerAndCloseAfterTurnVacuum(t *testing.T) {
 	root := t.TempDir()
 	a := Adapter{Root: root, harness: "claude"}
-	id, err := a.CreateSession(t.Context(), "unused", "", root)
+	id, err := a.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "unused", "", root)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +151,7 @@ func TestIdleSessionCanSteerAndCloseAfterTurnVacuum(t *testing.T) {
 		t.Fatalf("steer=%v %v", landed, err)
 	}
 	executor.AssertOwner(dir)
-	if err = a.Close(t.Context(), id); err != nil {
+	if err = a.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
 	if executor.Exists(dir) {

@@ -91,6 +91,9 @@ func (d *Daemon) admit(o effects.Owner) error {
 	return nil
 }
 func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) {
+	if err := req.ExecutionIdentity.Validate("session"); err != nil {
+		return "", err
+	}
 	d.mu.Lock()
 	if err := d.admit(req.Owner); err != nil {
 		d.mu.Unlock()
@@ -109,7 +112,7 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 			return "", errors.New("parent session not found")
 		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(effects.WithExecutionIdentity(effects.WithOwner(context.Background(), req.Owner), req.ExecutionIdentity), 30*time.Second)
 	s := &session{owner: req.Owner, ready: make(chan struct{}), cancel: cancel}
 	d.sessions[id] = s
 	d.mu.Unlock()
@@ -153,6 +156,9 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 }
 func (d *Daemon) turn(req effects.Turn) error { return d.turnEvents(req, nil) }
 func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error {
+	if err := req.ExecutionIdentity.Validate("turn"); err != nil {
+		return err
+	}
 	_, finish, err := d.acquire(context.Background(), req.Owner, req.Requires)
 	defer finish()
 	if err != nil {
@@ -213,6 +219,7 @@ func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error 
 		cancel()
 		ctx, cancel = context.WithDeadline(context.Background(), req.Deadline)
 	}
+	ctx = effects.WithExecutionIdentity(effects.WithOwner(ctx, req.Owner), req.ExecutionIdentity)
 	t := &task{owner: req.Owner, cancel: cancel, done: make(chan struct{})}
 	d.tasks[id] = t
 	closeCallback := func() {}
@@ -311,6 +318,10 @@ func (d *Daemon) steer(ctx context.Context, req effects.Target) (bool, error) {
 	}
 }
 func (d *Daemon) closeSession(ctx context.Context, req effects.Target) error {
+	if err := req.ExecutionIdentity.Validate("close"); err != nil {
+		return err
+	}
+	ctx = effects.WithExecutionIdentity(ctx, req.ExecutionIdentity)
 	d.mu.Lock()
 	s := d.sessions[key(req.Run, req.ID)]
 	d.mu.Unlock()
@@ -364,7 +375,7 @@ func (d *Daemon) cleanupNative(ctx context.Context, req effects.Scope) error {
 	}
 	for _, s := range d.sessions {
 		if s.owner.Run == req.Run && within(s.owner.Scope, req.Scope) {
-			sessions = append(sessions, effects.Target{Run: req.Run, ID: s.owner.Task})
+			sessions = append(sessions, effects.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: req.Run, ID: s.owner.Task})
 		}
 	}
 	for artifact, path := range d.files {

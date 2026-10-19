@@ -287,7 +287,7 @@ func (s *scope) stopOwnedWork() error {
 		var closeErr error
 		if native != "" {
 			closeCtx, cancel := context.WithTimeout(context.Background(), s.run.cleanupTimeoutOr(closeTimeout))
-			closeErr = session.adapter.Close(closeCtx, native)
+			closeErr = session.closeNative(closeCtx)
 			cancel()
 			if closeErr != nil {
 				s.run.recordCloseFailure(session.id, closeErr)

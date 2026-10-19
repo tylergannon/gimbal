@@ -19,6 +19,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/web"
 
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/runstore"
 )
 
@@ -146,7 +148,7 @@ func Example_bakeOff() {
 		proposals := make([]gimbal.Text, 2)
 		group := gimbal.Group(ctx, "candidates")
 		group.Go("candidate", func(ctx context.Context) error {
-			coder, err := researcher.Fork(ctx, "coder")
+			coder, err := researcher.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "coder")
 			if err != nil {
 				return err
 			}
@@ -154,7 +156,7 @@ func Example_bakeOff() {
 			return err
 		})
 		group.Go("candidate", func(ctx context.Context) error {
-			coder, err := researcher.Fork(ctx, "coder")
+			coder, err := researcher.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "coder")
 			if err != nil {
 				return err
 			}
@@ -310,14 +312,14 @@ func Example_loopWithPlanner() {
 		if _, err := researcher.Generate[gimbal.Text](ctx, loopResearchPrompt); err != nil {
 			return err
 		}
-		planner, err := researcher.Fork(ctx, "planner")
+		planner, err := researcher.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "planner")
 		if err != nil {
 			return err
 		}
 		loop := gimbal.PromiseLoop(ctx, "work", "The config loader in "+repo+" reads its file once per process, and a test shows it.", planner)
 		for ctx, task := range loop.Tasks {
 			fmt.Println("task:", task.Name)
-			coder, err := researcher.Fork(ctx, "coder")
+			coder, err := researcher.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "coder")
 			if err != nil {
 				return err
 			}

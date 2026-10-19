@@ -113,7 +113,7 @@ func TestMessagingOrphanCleanupOwnsConnectionUntilOperationEnds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{Name: name, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage, resources backend.Dependencies) (backend.Messaging, error) {
+	err = gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: name, ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(ctx context.Context, _ json.RawMessage, resources backend.Dependencies) (backend.Messaging, error) {
 		if resources.Secrets == nil {
 			return nil, fmt.Errorf("cleanup connection lost its dependency")
 		}

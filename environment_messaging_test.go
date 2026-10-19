@@ -57,7 +57,7 @@ func newRoutingFixture(t *testing.T, routing backend.EnvironmentRouting) (backen
 	base := newRoutingMessages(t)
 	buses := map[string]*routingMessages{"one": newRoutingMessages(t), "two": newRoutingMessages(t)}
 	registry := &Registry{}
-	err := registry.RegisterMessaging(MessagingDefinition{Name: "alternate", ValidateConfiguration: func(raw json.RawMessage) error {
+	err := registry.RegisterMessaging(MessagingDefinition{ExecutionIdentity: true, Name: "alternate", ValidateConfiguration: func(raw json.RawMessage) error {
 		var name string
 		return json.Unmarshal(raw, &name)
 	}, Connect: func(_ context.Context, raw json.RawMessage, deps backend.Dependencies) (backend.Messaging, error) {

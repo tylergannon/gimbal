@@ -12,17 +12,19 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func TestAdapterReleasesDescendantThatInheritedStdout(t *testing.T) {
 	adapter, record := testAdapter(t)
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
 	go func() {
-		result, err := adapter.RunTurn(context.Background(), sessionID, "RESULT_WITH_DESCENDANT", nil, func(gimbal.AgentEvent) error { return nil })
+		result, err := adapter.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "RESULT_WITH_DESCENDANT", nil, func(gimbal.AgentEvent) error { return nil })
 		if err == nil && string(result.Output) != `"OK"` {
 			err = &unexpectedResult{got: string(result.Output)}
 		}

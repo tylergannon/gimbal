@@ -21,7 +21,7 @@ func TestCallerBudgetPreservesAcceptanceUncertainty(t *testing.T) {
 	budget, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	ctx := WithConnection(budget, backend.Connection{Messages: silentMessages{}})
-	r := Request("turn", Owner{Run: "run", Task: "turn"})
+	r := Request(backend.NewExecutionIdentity("turn").RequestID, "identified-turn", Owner{Run: "run", Task: "turn"})
 	_, err := Await(ctx, r, "completed", nil)
 	uncertain, _ := errors.AsType[*backend.DeliveryUncertain](err)
 	if uncertain == nil || uncertain.RequestID != r.ID || !errors.Is(err, context.DeadlineExceeded) {

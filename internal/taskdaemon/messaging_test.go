@@ -48,14 +48,14 @@ func TestMessagingSessionSurvivesTwoCompletedTurns(t *testing.T) {
 	h := &Harness{Name: "fake", Connection: backend.Connection{Messages: bus}}
 	owner := effects.Owner{Run: "run", Scope: "scope", Task: "agent"}
 	ctx = effects.WithOwner(ctx, owner)
-	id, err := h.CreateSession(ctx, "model", "", t.TempDir())
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i := range 2 {
 		owner.Task = fmt.Sprintf("turn.%d", i)
 		turnCtx := effects.WithOwner(ctx, owner)
-		out, err := h.RunTurn(turnCtx, id, "go", nil, nil)
+		out, err := h.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "go", nil, nil)
 		if err != nil || string(out.Output) != `"done"` {
 			t.Fatalf("turn %d: %s %v", i, out.Output, err)
 		}
@@ -63,7 +63,7 @@ func TestMessagingSessionSurvivesTwoCompletedTurns(t *testing.T) {
 	if native.closes.Load() != 0 {
 		t.Fatal("completed turn closed conversation")
 	}
-	if err = h.Close(ctx, id); err != nil {
+	if err = h.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
 	if native.closes.Load() != 1 {
@@ -76,13 +76,16 @@ func TestMessagingInterruptStopsInflightTurn(t *testing.T) {
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	h := &Harness{Name: "fake", Connection: backend.Connection{Messages: bus}}
 	ctx = effects.WithOwner(ctx, effects.Owner{Run: "run", Task: "agent"})
-	id, err := h.CreateSession(ctx, "model", "", t.TempDir())
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	turnCtx, cancel := context.WithCancel(effects.WithOwner(ctx, effects.Owner{Run: "run", Task: "turn"}))
 	done := make(chan error, 1)
-	go func() { _, err := h.RunTurn(turnCtx, id, "wait", nil, nil); done <- err }()
+	go func() {
+		_, err := h.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "wait", nil, nil)
+		done <- err
+	}()
 	<-native.started
 	cancel()
 	select {
@@ -99,8 +102,8 @@ func TestMessagingInterruptStopsInflightTurn(t *testing.T) {
 }
 func TestMessagingServiceEstablishesThenScopeCleanupCompletes(t *testing.T) {
 	_, _, ctx := messagingOwner(t)
-	r := effects.Request("process", effects.Owner{Run: "run", Scope: "scope", Task: "service"})
-	r.Process = &backend.Process{Owner: r.Owner, Command: "sh", Args: []string{"-c", `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; printf ready; sleep 30`}, Service: true}
+	r := effects.Request(backend.NewExecutionIdentity("control").RequestID, "identified-process", effects.Owner{Run: "run", Scope: "scope", Task: "service"})
+	r.Process = &backend.Process{ExecutionIdentity: r.ExecutionIdentity, Owner: r.Owner, Command: "sh", Args: []string{"-c", `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; printf ready; sleep 30`}, Service: true}
 	if err := effects.Submit(ctx, r); err != nil {
 		t.Fatal(err)
 	}
@@ -125,14 +128,14 @@ func TestMessagingPreservesInvalidOutputAndRawBytes(t *testing.T) {
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	h := &Harness{Name: "fake", Connection: backend.Connection{Messages: bus}}
 	ctx = effects.WithOwner(ctx, effects.Owner{Run: "run", Task: "agent"})
-	id, err := h.CreateSession(ctx, "model", "", t.TempDir())
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	schema := json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)
 	for i := 1; i <= 3; i++ {
 		turn := effects.WithOwner(ctx, effects.Owner{Run: "run", Task: fmt.Sprintf("turn.%d", i)})
-		result, err := h.RunTurn(turn, id, "answer", schema, nil)
+		result, err := h.RunTurn(effects.WithExecutionIdentity(turn, backend.NewExecutionIdentity("turn")), id, "answer", schema, nil)
 		if i < 3 && (!errors.Is(err, gimbal.ErrInvalidOutput) || string(result.Output) != `{"n":"wrong"}`) {
 			t.Fatalf("invalid answer %q: %v", result.Output, err)
 		}
@@ -151,8 +154,8 @@ func TestMessagingRejectsContradictionsBeforeEffects(t *testing.T) {
 	}
 	marker := filepath.Join(t.TempDir(), "must-not-exist")
 	owner := backend.Owner{Run: "run", Scope: "scope", Task: "command"}
-	valid := effects.Request("process", owner)
-	valid.Process = &backend.Process{Owner: owner, Command: "sh", Args: []string{"-c", "touch \"" + marker + "\""}}
+	valid := effects.Request(backend.NewExecutionIdentity("process").RequestID, "identified-process", owner)
+	valid.Process = &backend.Process{ExecutionIdentity: valid.ExecutionIdentity, Owner: owner, Command: "sh", Args: []string{"-c", "touch \"" + marker + "\""}}
 	tests := []backend.MessageRequest{}
 	wrongOwner := valid
 	payload := *valid.Process
@@ -169,15 +172,15 @@ func TestMessagingRejectsContradictionsBeforeEffects(t *testing.T) {
 	absent.Process = nil
 	tests = append(tests, absent)
 	multiple := valid
-	multiple.Session = &backend.Session{Owner: owner}
+	multiple.Session = &backend.Session{ExecutionIdentity: multiple.ExecutionIdentity, Owner: owner}
 	tests = append(tests, multiple)
-	session := effects.Request("session", owner)
-	session.Session = &backend.Session{Run: "other", Task: owner.Task}
+	session := effects.Request(backend.NewExecutionIdentity("session").RequestID, "identified-session", owner)
+	session.Session = &backend.Session{ExecutionIdentity: session.ExecutionIdentity, Run: "other", Task: owner.Task}
 	session.SessionID = owner.Task
 	tests = append(tests, session)
-	turn := effects.Request("turn", owner)
+	turn := effects.Request(backend.NewExecutionIdentity("turn").RequestID, "identified-turn", owner)
 	turn.SessionID = "one"
-	turn.Turn = &backend.Turn{Owner: owner, Session: "two"}
+	turn.Turn = &backend.Turn{ExecutionIdentity: turn.ExecutionIdentity, Owner: owner, Session: "two"}
 	tests = append(tests, turn)
 	for _, request := range tests {
 		if err := bus.PublishRequest(ctx, request); err == nil {
@@ -211,13 +214,13 @@ func TestMessagingExplicitBytesReachNativeExecutor(t *testing.T) {
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	h := &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}
 	ctx = effects.WithOwner(ctx, backend.Owner{Run: "run", Task: "agent"})
-	id, err := h.CreateSession(ctx, "model", "", t.TempDir())
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	bytes := []byte("only-in-memory-" + ulid.Make().String())
 	ctx = effects.WithOwner(effects.WithTaskFiles(ctx, []backend.TaskFile{{Name: "unique", Bytes: bytes}}), backend.Owner{Run: "run", Task: "turn"})
-	out, err := h.RunTurn(ctx, id, "read supplied file", nil, nil)
+	out, err := h.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "read supplied file", nil, nil)
 	if err != nil || string(out.Output) != `"ok"` {
 		t.Fatalf("%s %v", out.Output, err)
 	}
@@ -232,7 +235,7 @@ type lostCompletion struct {
 }
 
 func (b *lostCompletion) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
-	if r.Kind == "turn" {
+	if r.Kind == "identified-turn" {
 		b.turnID = r.ID
 	}
 	return b.directMessages.PublishRequest(ctx, r)
@@ -271,7 +274,7 @@ func TestRetainedNativeSuccessSurvivesNormalWorkflowDeliveryLoss(t *testing.T) {
 		if !turn.Unresolved || turn.Interrupted || !turn.EventsUnavailable {
 			t.Fatalf("wrong turn outcome %+v", turn)
 		}
-		native := d.result(backend.Target{Run: "01ARZ3NDEKTSV4RRFFQ69G5FA1", ID: turn.ID})
+		native := d.result(backend.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: "01ARZ3NDEKTSV4RRFFQ69G5FA1", ID: turn.ID})
 		var result backend.TurnResult
 		if !native.Done || native.Error != "" || json.Unmarshal(native.Result, &result) != nil || string(result.Output) != `"done"` {
 			t.Fatalf("native success lost: %+v", native)
@@ -303,8 +306,8 @@ func TestIndependentMessagingInterruptPreservesNativeCancellation(t *testing.T) 
 		t.Fatalf("turns %d", len(snapshot.Turns))
 	}
 	for _, turn := range snapshot.Turns {
-		control := effects.Request("interrupt", backend.Owner{Run: turn.Run, Scope: turn.Scope, Task: "independent-control"})
-		control.Target = &backend.Target{Run: turn.Run, ID: turn.ID}
+		control := effects.Request(backend.NewExecutionIdentity("control").RequestID, "interrupt", backend.Owner{Run: turn.Run, Scope: turn.Scope, Task: "independent-control"})
+		control.Target = &backend.Target{ExecutionIdentity: control.ExecutionIdentity, Run: turn.Run, ID: turn.ID}
 		result, err := effects.MessageCall(ctx, control)
 		if err != nil || result.Result == nil || result.Result.Unresolved {
 			t.Fatalf("interrupt not confirmed: %+v %v", result, err)

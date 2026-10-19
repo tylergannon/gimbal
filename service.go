@@ -48,8 +48,13 @@ func Service(ctx context.Context, name, workdir, command string) error {
 		return fmt.Errorf("gimbal: service %q: %w", name, err)
 	}
 
-	id, _ := scope.nextNode(runstore.Service, name)
+	id, node := scope.nextNode(runstore.Service, name)
+	identity := actionIdentity(scope.node, "", node, "process")
+	ctx = effects.WithExecutionIdentity(effectContext(ctx, scope, id), identity)
 	dir, _ := filepath.Abs(workdir)
+	if err := scope.run.prepareAction(ctx, scope.node, "", node, "service", map[string]any{"command": command, "workdir": dir, "requires": effects.Requirements(ctx)}, identity); err != nil {
+		return err
+	}
 	started := CommandStarted{ID: id, Name: name, Command: "zsh", Args: []string{"-c", command}, Workdir: dir}
 	if err := scope.run.eventResult(scope.key, "", "", started); err != nil {
 		return fmt.Errorf("gimbal: service %s: record start: %w", id, err)
@@ -146,7 +151,7 @@ func Service(ctx context.Context, name, workdir, command string) error {
 func endServiceStartFailure(scope *scope, start time.Time, ended CommandEnded, serviceErr error) error {
 	ended.Error = serviceErr.Error()
 	ended.Duration = time.Since(start)
-	recordErr := scope.run.eventResult(scope.key, "", "", ended)
+	recordErr := errors.Join(scope.run.commandOutcome(scope, ended), scope.run.eventResult(scope.key, "", "", ended))
 	logf("%s: service failed to start after %s: %v", ended.ID, ended.Duration.Round(time.Millisecond), serviceErr)
 	return errors.Join(serviceErr, recordErr)
 }
@@ -230,7 +235,7 @@ func (s *ownedService) wait() {
 		// the exit first, shutdown cannot relabel it as intentional.
 		s.scope.failService(serviceErr)
 	}
-	if err := s.scope.run.eventResult(s.scope.key, "", "", ended); err != nil {
+	if err := errors.Join(s.scope.run.commandOutcome(s.scope, ended), s.scope.run.eventResult(s.scope.key, "", "", ended)); err != nil {
 		s.scope.run.recordFailure("record service end "+s.id, err)
 	}
 	logf("%s: service ended after %s: exit %d: %v", s.id, ended.Duration.Round(time.Millisecond), ended.ExitCode, orNone(serviceErr))

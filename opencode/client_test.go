@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,7 +44,7 @@ func TestClientUsesLegacyProjectScopedSynchronousPrompt(t *testing.T) {
 	defer server.Close()
 
 	client := newClient(server.URL, "user", "secret", workdir, server.Client())
-	session, err := client.CreateSession(context.Background(), SessionCreateInput{})
+	session, err := client.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), SessionCreateInput{})
 	if err != nil || session.Id != "ses_one" {
 		t.Fatalf("CreateSession() = (%q, %v)", session.Id, err)
 	}

@@ -13,12 +13,23 @@ import (
 
 func Messages(ctx context.Context) backend.Messaging { return Connection(ctx).Messages }
 
-func Request(kind string, owner Owner) backend.MessageRequest {
-	return backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now().UTC(), Kind: kind, Owner: owner}
+func Request(id string, kind string, owner Owner) backend.MessageRequest {
+	r := backend.MessageRequest{ID: id, Created: time.Now().UTC(), Kind: kind, Owner: owner}
+	if backend.Identified(kind) {
+		r.ExecutionIdentity = backend.ExecutionIdentity{ActionID: id, RequestID: id, ExecutorOperation: "turn_" + id}
+		switch kind {
+		case "identified-process":
+			r.ExecutionIdentity.ExecutorOperation = "command_" + id
+		case "identified-session":
+			r.ExecutionIdentity.SessionID = id
+			r.ExecutionIdentity.ExecutorSession = "session_" + id
+		}
+	}
+	return r
 }
 
 func Submit(ctx context.Context, r backend.MessageRequest) error {
-	if (r.Kind == "session" || r.Kind == "process") && Connection(ctx).Orchestrator != nil {
+	if (r.Kind == "identified-session" || r.Kind == "identified-process") && Connection(ctx).Orchestrator != nil {
 		if _, err := Connection(ctx).Orchestrator.AcquireEnvironment(ctx, r.Owner, Environment(ctx)); err != nil {
 			return err
 		}
@@ -30,6 +41,10 @@ func Submit(ctx context.Context, r backend.MessageRequest) error {
 		return err
 	}
 	if err := Messages(ctx).PublishRequest(ctx, r); err != nil {
+		var rejected *backend.ContractRejected
+		if errors.As(err, &rejected) {
+			return err
+		}
 		return &backend.DeliveryUncertain{RequestID: r.ID, Err: fmt.Errorf("publication unconfirmed; do not retry as new work: %w", err)}
 	}
 	return nil
@@ -106,7 +121,7 @@ func MessageCall(ctx context.Context, r backend.MessageRequest) (backend.Message
 func InterruptMessage(ctx context.Context, r backend.MessageRequest) error {
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	stop := Request("interrupt", r.Owner)
+	stop := Request(ulid.Make().String(), "interrupt", r.Owner)
 	stop.Target = &Target{Run: r.Run, ID: r.Task}
 	_, err := MessageCall(stopCtx, stop)
 	if err != nil {

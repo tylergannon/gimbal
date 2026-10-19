@@ -205,9 +205,15 @@ func recordCheckResult(s *scope, key string, raw []byte) error {
 }
 
 func runCommand(ctx context.Context, s *scope, name, workdir, command string, args []string) (CommandStarted, CommandEnded, error, error) {
-	id, _ := s.nextNode(runstore.Action, name)
+	id, node := s.nextNode(runstore.Action, name)
+	identity := actionIdentity(s.node, "", node, "process")
+	ctx = effects.WithExecutionIdentity(effectContext(ctx, s, id), identity)
 	dir, _ := filepath.Abs(workdir)
 	started := CommandStarted{ID: id, Name: name, Command: command, Args: args, Workdir: dir}
+	intentErr := s.run.prepareAction(ctx, s.node, "", node, "process", map[string]any{"command": command, "args": args, "workdir": dir, "deadline": operationDeadline(ctx), "requires": effects.Requirements(ctx)}, identity)
+	if intentErr != nil {
+		return started, CommandEnded{ID: id, ExitCode: -1}, intentErr, intentErr
+	}
 	startRecordErr := s.run.eventResult(s.key, "", "", started)
 	logf("%s: command started: %s", id, oneLine(strings.Join(append([]string{command}, args...), " ")))
 	start := time.Now()
@@ -250,7 +256,8 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 		s.run.recordFailure("capture command output "+id, captureErr)
 	}
 	ended.Error, ended.Duration = errString(commandErr), time.Since(start)
-	endRecordErr := s.run.eventResult(s.key, "", "", ended)
+	outcomeErr := s.run.commandOutcome(s, ended)
+	endRecordErr := errors.Join(outcomeErr, s.run.eventResult(s.key, "", "", ended))
 	logf("%s: command ended after %s: exit %d: %v", id, ended.Duration.Round(time.Millisecond), ended.ExitCode, orNone(commandErr))
 	return started, ended, commandErr, errors.Join(startRecordErr, endRecordErr)
 }
@@ -274,27 +281,17 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		_ = errOut.close()
 		return "", "", err
 	}
-	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: command, Args: args, Workdir: workdir, Environment: environment}
+	request := commandexecutor.Request{ID: executor.CommandID(effects.ExecutionIdentityFromContext(ctx).ExecutorOperation), Command: command, Args: args, Workdir: workdir, Environment: environment}
 	if deadline, ok := ctx.Deadline(); ok {
 		request.Deadline = deadline
 	}
-	// Record the executor identity before submission, separately from graph names.
-	manifest := filepath.Join(r.dir, filepath.FromSlash(ended.StdoutFile)+".executor.json")
-	if err = executor.Write(manifest, request.ID); err != nil {
-		_ = out.close()
-		_ = errOut.close()
-		return "", "", err
-	}
-	descriptor, submitErr := commandexecutor.Submit(filepath.Join(r.dir, "artifacts", "commands"), request)
+	descriptor, submitErr := commandexecutor.Submit(filepath.Join(r.dir, "executor-spool"), request)
 	if submitErr != nil {
 		_ = out.close()
 		_ = errOut.close()
 		return "", "", submitErr
 	}
-	_ = out.close()
-	_ = errOut.close()
-	_ = os.Remove(out.file.Name())
-	_ = os.Remove(errOut.file.Name())
+	stopProjection, projectionDone := projectCommandOutput(map[string]*commandCapture{descriptor.Stdout: out, descriptor.Stderr: errOut})
 	result, waitErr := commandexecutor.Wait(ctx, descriptor)
 	if ctx.Err() != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -303,12 +300,8 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		cancel()
 		waitErr = errors.Join(ctx.Err(), stopErr, waitErr)
 	}
-	// The supervisor streams directly into run-owned files, so observation never
-	// buffers output and a dead workflow leaves the complete files intact.
-	ended.StdoutFile, _ = filepath.Rel(r.dir, descriptor.Stdout)
-	ended.StderrFile, _ = filepath.Rel(r.dir, descriptor.Stderr)
-	ended.StdoutFile = filepath.ToSlash(ended.StdoutFile)
-	ended.StderrFile = filepath.ToSlash(ended.StderrFile)
+	close(stopProjection)
+	waitErr = errors.Join(waitErr, <-projectionDone, out.close(), errOut.close())
 	excerpt := func(path string) (string, error) {
 		info, e := os.Stat(path)
 		if e != nil {
@@ -318,8 +311,8 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		relative, _ := filepath.Rel(r.dir, path)
 		return capture.result(r.dir, relative)
 	}
-	stdout, stdoutErr := excerpt(descriptor.Stdout)
-	stderr, stderrErr := excerpt(descriptor.Stderr)
+	stdout, stdoutErr := excerpt(out.file.Name())
+	stderr, stderrErr := excerpt(errOut.file.Name())
 	err = errors.Join(waitErr, stdoutErr, stderrErr)
 	ended.ExitCode = result.ExitCode
 	ended.Interrupted = result.Cancelled || result.TimedOut || ctx.Err() != nil
@@ -341,4 +334,49 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 	}
 	ended.Stdout, ended.Stderr = stdout, stderr
 	return stdout, stderr, err
+}
+
+// Output projections tail file-owned executor output with bounded buffers. The
+// final drain completes before the authoritative outcome owns its blobs.
+func projectCommandOutput(streams map[string]*commandCapture) (chan struct{}, chan error) {
+	stop, done := make(chan struct{}), make(chan error, 1)
+	go func() {
+		ticker := time.NewTicker(20 * time.Millisecond)
+		defer ticker.Stop()
+		drain := func() error {
+			var result error
+			for path, capture := range streams {
+				f, err := os.Open(path)
+				if errors.Is(err, os.ErrNotExist) {
+					continue
+				}
+				if err != nil {
+					result = errors.Join(result, err)
+					continue
+				}
+				capture.mu.Lock()
+				offset := capture.size
+				capture.mu.Unlock()
+				info, err := f.Stat()
+				if err == nil && info.Size() > offset {
+					_, err = io.Copy(capture, io.NewSectionReader(f, offset, info.Size()-offset))
+				}
+				result = errors.Join(result, err, f.Close())
+			}
+			return result
+		}
+		var err error
+		for {
+			if e := drain(); err == nil {
+				err = e
+			}
+			select {
+			case <-stop:
+				done <- errors.Join(err, drain())
+				return
+			case <-ticker.C:
+			}
+		}
+	}()
+	return stop, done
 }

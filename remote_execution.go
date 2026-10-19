@@ -61,9 +61,9 @@ func (s *scope) remoteCleanup() error {
 func startRemoteProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, out, stderr *commandCapture, service bool) error {
 	store, yields, produces := effects.Yields(ctx)
 	var reply effects.Reply
-	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Deadline: operationDeadline(ctx), Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}, &reply)
+	err := effects.Call(ctx, effects.Endpoint(ctx), "identified-process", effects.Process{ExecutionIdentity: effects.ExecutionIdentityFromContext(ctx), Deadline: operationDeadline(ctx), Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}, &reply)
 	if err != nil {
-		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id})
+		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id}, err)
 	}
 	if err == nil && reply.Error != "" {
 		err = errors.New(reply.Error)
@@ -129,6 +129,7 @@ func remoteService(ctx context.Context, s *scope, name, id, workdir, command str
 			}
 			s.failService(err)
 		}
+		_ = s.run.commandOutcome(s, ended)
 		s.run.event(s.key, "", "", ended)
 		close(service.done)
 	}()
@@ -143,9 +144,11 @@ func executionFor(ctx context.Context) backend.Execution {
 }
 
 func startMessageProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, service bool) (backend.MessageRequest, error) {
-	r := effects.Request("process", effectOwner(s, id))
+	identity := effects.ExecutionIdentityFromContext(ctx)
+	r := effects.Request(identity.RequestID, "identified-process", effectOwner(s, id))
+	r.ExecutionIdentity = identity
 	store, yields, produces := effects.Yields(ctx)
-	r.Process = &backend.Process{Deadline: operationDeadline(ctx), Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}
+	r.Process = &backend.Process{ExecutionIdentity: identity, Deadline: operationDeadline(ctx), Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}
 	return r, effects.Submit(ctx, r)
 }
 func messageProcessResult(ctx context.Context, s *scope, r backend.MessageRequest, out, stderr *commandCapture, ended *CommandEnded) error {
@@ -203,6 +206,7 @@ func messageService(ctx context.Context, s *scope, name, id, workdir, command st
 			}
 			s.failService(err)
 		}
+		_ = s.run.commandOutcome(s, ended)
 		s.run.event(s.key, "", "", ended)
 		close(service.done)
 	}()

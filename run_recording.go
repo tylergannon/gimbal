@@ -1,9 +1,15 @@
 package gimbal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
+	"os"
+	"path/filepath"
 
 	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
@@ -67,4 +73,138 @@ func (r *run) activate(node runstore.NodeID) error {
 		return err
 	}
 	return r.recordFact(node, "", "", "activated", struct{}{}, runstore.Committed)
+}
+
+func (r *run) nodeID(key string) runstore.NodeID {
+	r.nodeMu.Lock()
+	defer r.nodeMu.Unlock()
+	return r.nodeByKey[key]
+}
+func actionIdentity(scope, session, action runstore.NodeID, kind string) backend.ExecutionIdentity {
+	i := backend.ExecutionIdentity{ScopeID: string(scope), SessionID: string(session), ActionID: string(action), RequestID: string(action), ExecutorOperation: "turn_" + string(action)}
+	if kind == "process" {
+		i.ExecutorOperation = "command_" + string(action)
+	}
+	if session != "" {
+		i.ExecutorSession = "session_" + string(session)
+	}
+	return i
+}
+func (r *run) prepareAction(ctx context.Context, scope, session, node runstore.NodeID, kind string, input any, identity backend.ExecutionIdentity) error {
+	if err := r.recordingError(); err != nil {
+		return err
+	}
+	intent := map[string]any{"operation": kind, "input": input, "route": effects.Route(ctx), "identity": identity}
+	raw, err := r.payload(intent)
+	if err != nil {
+		return err
+	}
+	binding, err := json.Marshal(identity)
+	if err != nil {
+		return err
+	}
+	_, err = r.records.Append(context.WithoutCancel(ctx), []runstore.Fact{
+		{Version: 1, ID: runstore.NewRecordID(), Node: node, Scope: scope, Session: session, Kind: "intent", Payload: raw},
+		{Version: 1, ID: runstore.NewRecordID(), Node: node, Scope: scope, Session: session, Kind: "binding", Payload: binding},
+	}, runstore.Committed)
+	r.recordFailure("commit action intent", err)
+	return err
+}
+func (r *run) payload(value any) (json.RawMessage, error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		r.recordFailure("encode action", err)
+		return nil, err
+	}
+	if len(raw) < 512<<10 {
+		return raw, nil
+	}
+	ref, err := r.records.PutBlob(context.Background(), bytes.NewReader(raw))
+	r.recordFailure("store payload", err)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(struct {
+		Blob runstore.BlobRef `json:"blob"`
+	}{ref})
+}
+func (r *run) finishAction(scope, session, node runstore.NodeID, result any, nativeErr error) error {
+	raw, err := r.payload(result)
+	if err != nil {
+		return err
+	}
+	category := "success"
+	if nativeErr != nil {
+		category = "error"
+	}
+	if errors.Is(nativeErr, context.Canceled) {
+		category = "cancelled"
+	}
+	var uncertain *backend.DeliveryUncertain
+	if errors.As(nativeErr, &uncertain) {
+		category = "unresolved"
+	}
+	return r.recordFact(node, scope, session, "outcome", struct {
+		Category string          `json:"category"`
+		Error    string          `json:"error,omitempty"`
+		Result   json.RawMessage `json:"result"`
+	}{category, errString(nativeErr), raw}, runstore.Committed)
+}
+func (r *run) nativeBinding(scope, session, node runstore.NodeID, native string) error {
+	return r.recordFact(node, scope, session, "native-binding", map[string]string{"native": native}, runstore.Committed)
+}
+func (r *run) commandOutcome(s *scope, ended CommandEnded) error {
+	refs := map[string]runstore.BlobRef{}
+	for name, path := range map[string]string{"stdout": ended.StdoutFile, "stderr": ended.StderrFile} {
+		if path == "" {
+			continue
+		}
+		f, err := os.Open(filepath.Join(r.dir, filepath.FromSlash(path)))
+		if err != nil {
+			r.recordFailure("open completed output", err)
+			return err
+		}
+		ref, err := r.records.PutBlob(context.Background(), f)
+		err = errors.Join(err, f.Close())
+		if err != nil {
+			r.recordFailure("store completed output", err)
+			return err
+		}
+		refs[name] = ref
+	}
+	return r.finishAction(s.node, "", r.nodeID(ended.ID), struct {
+		ExitCode    int                         `json:"exit_code"`
+		Interrupted bool                        `json:"interrupted"`
+		Output      map[string]runstore.BlobRef `json:"output"`
+	}{ended.ExitCode, ended.Interrupted, refs}, stringError(ended.Error))
+}
+func stringError(message string) error {
+	if message == "" {
+		return nil
+	}
+	return errors.New(message)
+}
+
+func (s *Session) closeNative(ctx context.Context) error {
+	owner := s.owner
+	owner.mu.Lock()
+	key := owner.next("close")
+	ordinal := owner.ordinals["close"]
+	owner.mu.Unlock()
+	node := owner.run.ensureNode(owner.node, runstore.Action, "close", ordinal, key, nil)
+	identity := actionIdentity(owner.node, s.node, node, "close")
+	if node == "" {
+		identity = backend.NewExecutionIdentity("close")
+		identity.ScopeID = string(owner.node)
+		identity.SessionID = string(s.node)
+		identity.ExecutorSession = "session_" + string(s.node)
+	}
+	callCtx := effects.WithExecutionIdentity(effectContext(ctx, owner, key), identity)
+	recordErr := owner.run.prepareAction(callCtx, owner.node, s.node, node, "close", map[string]string{"session": s.native}, identity)
+	// Explicit stop must still reach known native work after recording failure.
+	err := s.adapter.Close(callCtx, s.native)
+	if recordErr == nil {
+		recordErr = owner.run.finishAction(owner.node, s.node, node, struct{}{}, err)
+	}
+	return errors.Join(err, recordErr)
 }

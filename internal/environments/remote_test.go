@@ -48,7 +48,7 @@ func TestRemoteHTTPHelperUsesActualDirectoryAndRetainsMutationIdentity(t *testin
 	var processes atomic.Int32
 	handler := daemon.Handler()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/tasks/process" {
+		if r.URL.Path == "/tasks/identified-process" {
 			processes.Add(1)
 		}
 		handler.ServeHTTP(w, r)
@@ -116,7 +116,7 @@ type helperMessages struct {
 }
 
 func (m *helperMessages) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
-	if r.Kind == "process" {
+	if r.Kind == "identified-process" {
 		m.processes.Add(1)
 	}
 	if r.Kind == "cleanup" && m.cleanupFailure {
@@ -135,7 +135,7 @@ func TestMessagingHelpersReadRetainedStdoutAndKeepCleanupResponsibility(t *testi
 	daemon := taskdaemon.New(t.TempDir())
 	bus.handler = daemon.Messages(bus)
 	registry := &gimbal.Registry{}
-	if e = registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "test-messages", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+	if e = registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: "test-messages", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
 		return bus, nil
 	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }}); e != nil {
 		t.Fatal(e)
@@ -195,7 +195,7 @@ func TestFailedReadinessReleasesOnlyItsRetainedProbeOwnership(t *testing.T) {
 	bus.handler = taskdaemon.New(t.TempDir()).Messages(bus)
 	provisioner := &failingProvisioner{}
 	registry := &gimbal.Registry{}
-	if e = registry.RegisterBackend(gimbal.BackendDefinition{Name: "failed-ready", ConfigurationSchema: json.RawMessage(`{}`), ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {
+	if e = registry.RegisterBackend(gimbal.BackendDefinition{ExecutionIdentity: true, Name: "failed-ready", ConfigurationSchema: json.RawMessage(`{}`), ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {
 		return backend.Connection{Messages: bus, Orchestrator: provisioner}, nil
 	}}); e != nil {
 		t.Fatal(e)

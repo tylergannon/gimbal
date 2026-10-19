@@ -20,6 +20,8 @@ import (
 	"github.com/tylergannon/polytype"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/runstore"
 )
 
@@ -699,7 +701,7 @@ func TestFork(t *testing.T) {
 		if _, err := researcher.Generate[Text](ctx, "prime"); err != nil {
 			return err
 		}
-		judge, err := researcher.Fork(ctx, "judge")
+		judge, err := researcher.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "judge")
 		if err != nil {
 			return err
 		}
@@ -1272,7 +1274,7 @@ func TestAttestEventFixture(t *testing.T) {
 			if _, err := researcher.Generate[Text](ctx, "prime"); err != nil {
 				return err
 			}
-			fork, err := researcher.Fork(ctx, "planner")
+			fork, err := researcher.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "planner")
 			if err != nil {
 				return err
 			}
@@ -1689,7 +1691,7 @@ func TestForkRunsOnItsParentsBinding(t *testing.T) {
 	f := &fake{}
 	err := runTest(t, map[WorkflowRole]ModelBinding{"researcher": {Adapter: f, Model: "parent-model", Effort: "high"}}, func(ctx context.Context) error {
 		researcher := NewSession(ctx, "researcher", ".")
-		coder, err := researcher.Fork(ctx, "coder")
+		coder, err := researcher.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "coder")
 		if err != nil {
 			return err
 		}

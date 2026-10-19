@@ -18,7 +18,7 @@ func TestIndependentSecretsSelection(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	if err := registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "test", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(_ context.Context, _ json.RawMessage, deps backend.Dependencies) (backend.Messaging, error) {
+	if err := registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: "test", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(_ context.Context, _ json.RawMessage, deps backend.Dependencies) (backend.Messaging, error) {
 		calls++
 		if deps.Secrets == nil {
 			t.Fatal("selected secrets missing")
@@ -57,7 +57,7 @@ func TestLocalOrchestratorRejectsProcessPrivateSecrets(t *testing.T) {
 		t.Fatal(err)
 	}
 	calls := 0
-	if err := registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "test", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+	if err := registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: "test", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
 		calls++
 		return selectionMessages{}, nil
 	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }}); err != nil {

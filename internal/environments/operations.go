@@ -78,7 +78,9 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 	if in.Operation == "prepare" {
 		owner = backend.Owner{Run: id, Scope: id + "/prepare", Task: "prepare"}
 	}
-	req := effects.Request("process", owner)
+	identity := backend.NewExecutionIdentity("process")
+	req := effects.Request(identity.RequestID, "identified-process", owner)
+	req.ExecutionIdentity = identity
 	record := operation{Request: req, Input: in, Target: t}
 	journal := filepath.Join(s.options.InstanceDir, "environment-operations", in.Operation+"-"+id+".json")
 	if mutation {
@@ -95,18 +97,19 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 			if string(a) != string(b) || string(ta) != string(tb) {
 				return HelperResult{}, fmt.Errorf("operation identity already belongs to different placement/choices")
 			}
-			if record.Result != nil || record.Error != "" {
-				if record.CleanupPending {
-					b, e := s.binding(ctx, t, record.Request.Owner, false)
-					if e == nil {
-						e = s.cleanupBinding(ctx, b)
-					}
-					if e != nil {
-						return HelperResult{}, &backend.DeliveryUncertain{RequestID: record.Request.ID, Err: e}
-					}
-					record.CleanupPending = false
-					_ = writeReceipt(journal, record)
+			if record.CleanupPending {
+				b, e := s.binding(ctx, t, record.Request.Owner, false)
+				if e == nil {
+					e = s.cleanupBinding(ctx, b)
 				}
+				if e != nil {
+					return HelperResult{}, &backend.DeliveryUncertain{RequestID: record.Request.ID, Err: e}
+				}
+				record.CleanupPending = false
+				_ = writeReceipt(journal, record)
+			}
+			if record.Result != nil || record.Error != "" {
+
 				if record.Error != "" {
 					return HelperResult{}, errors.New(record.Error)
 				}
@@ -139,7 +142,7 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 		executable = "gimbal"
 	}
 	raw, _ := json.Marshal(in)
-	p := backend.Process{Owner: record.Request.Owner, Command: executable, Args: []string{"desktop-environment", string(raw)}}
+	p := backend.Process{ExecutionIdentity: record.Request.ExecutionIdentity, Owner: record.Request.Owner, Command: executable, Args: []string{"desktop-environment", string(raw)}}
 	record.Request.Process = &p
 	cleanup := func() error {
 		e := s.cleanupBinding(ctx, b)
@@ -159,7 +162,13 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 	} else {
 		defer func() {
 			if retErr != nil {
-				if helperFailed {
+				var rejected *backend.ContractRejected
+				if errors.As(retErr, &rejected) {
+					record.Result = nil
+					record.Error = ""
+					record.Attempted = false
+					retErr = errors.Join(retErr, cleanup(), writeReceipt(journal, record))
+				} else if helperFailed {
 					record.Error = retErr.Error()
 					retErr = errors.Join(retErr, cleanup())
 				} else {
@@ -209,7 +218,11 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 				}
 			}
 			if e = b.Connection.Execution.Process(ctx, p); e != nil {
-				if reconcile := effects.ConfirmStarted(requestCtx, "backend", target); reconcile != nil {
+				if reconcile := effects.ConfirmStarted(requestCtx, "backend", target, e); reconcile != nil {
+					var rejected *backend.ContractRejected
+					if errors.As(reconcile, &rejected) {
+						return HelperResult{}, reconcile
+					}
 					return HelperResult{}, &backend.DeliveryUncertain{RequestID: id, Err: errors.Join(e, reconcile)}
 				}
 			}

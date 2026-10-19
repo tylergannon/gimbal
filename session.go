@@ -279,7 +279,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	native := s.native
 	ordinal := s.turns
 	s.mu.Unlock()
-	s.owner.run.ensureNode(s.node, runstore.Action, "turn", ordinal, turnID, nil)
+	turnNode := s.owner.run.ensureNode(s.node, runstore.Action, "turn", ordinal, turnID, nil)
 	if err := s.owner.run.recordingError(); err != nil {
 		s.mu.Lock()
 		s.running = false
@@ -296,9 +296,23 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}()
 
 	if native == "" {
-		id, err := s.adapter.CreateSession(effectContext(ctx, s.owner, s.id), s.model, s.effort, s.workdir)
-		if err != nil {
-			return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
+		identity := actionIdentity(s.owner.node, s.node, s.node, "session")
+		createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
+		if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, s.node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
+			return nil, err
+		}
+		id, err := s.adapter.CreateSession(createCtx, s.model, s.effort, s.workdir)
+		if id != "" {
+			s.mu.Lock()
+			s.native = id
+			s.mu.Unlock()
+		}
+		recordErr := s.owner.run.finishAction(s.owner.node, s.node, s.node, map[string]string{"native": id}, err)
+		if err != nil || recordErr != nil {
+			return nil, errors.Join(err, recordErr)
+		}
+		if err = s.owner.run.nativeBinding(s.owner.node, s.node, s.node, id); err != nil {
+			return nil, err
 		}
 		s.mu.Lock()
 		s.native, native = id, id
@@ -375,10 +389,17 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	var result TurnResult
 	if err == nil {
-		turnContext := effects.WithTaskFiles(effectContext(turnCtx, scope, turnID), files)
+		identity := actionIdentity(scope.node, s.node, turnNode, "turn")
+		turnContext := effects.WithTaskFiles(effects.WithExecutionIdentity(effectContext(turnCtx, scope, turnID), identity), files)
+		err = scope.run.prepareAction(turnContext, scope.node, s.node, turnNode, "turn", struct {
+			Prompt   string
+			Schema   json.RawMessage
+			Files    []backend.TaskFile
+			Requires backend.Requirements
+		}{prompt, schema, files, effects.Requirements(ctx)}, identity)
 		nativePrompt := prompt
 		finishCallback := func() {}
-		if effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {
+		if err == nil && effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {
 			secrets := effects.Connection(ctx).Secrets
 			owner := effectOwner(scope, turnID)
 			_, err = secrets.Acquire(turnCtx, backend.Scope{Run: owner.Run, Scope: owner.Scope}, effects.Requirements(ctx))
@@ -394,6 +415,11 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		finishCallback()
 	}
 	if scope != nil {
+		rawOutcome := struct {
+			Output []byte           `json:"output"`
+			Usage  map[string]Usage `json:"usage"`
+		}{result.Output, result.Usage}
+		err = errors.Join(err, scope.run.finishAction(scope.node, s.node, turnNode, rawOutcome, err))
 		scope.run.removeTurn(turnID)
 	}
 	stopped := context.Cause(turnCtx)
@@ -724,7 +750,19 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 		return nil, err
 	}
 	if native != "" {
-		if fork.native, err = s.adapter.Fork(effectContext(ctx, scope, fork.id), native); err != nil {
+		key, node := scope.nextNode(runstore.Action, "fork")
+		identity := actionIdentity(scope.node, fork.node, node, "session")
+		forkCtx := effects.WithExecutionIdentity(effectContext(ctx, scope, key), identity)
+		if err = scope.run.prepareAction(forkCtx, scope.node, fork.node, node, "fork", map[string]string{"source_session": native}, identity); err != nil {
+			return nil, err
+		}
+		fork.native, err = s.adapter.Fork(forkCtx, native)
+		recordErr := scope.run.finishAction(scope.node, fork.node, node, map[string]string{"native": fork.native}, err)
+		err = errors.Join(err, recordErr)
+		if err == nil {
+			err = scope.run.nativeBinding(scope.node, fork.node, node, fork.native)
+		}
+		if err != nil {
 			return nil, fmt.Errorf("gimbal: fork %s: %w", s.id, err)
 		}
 	}

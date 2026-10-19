@@ -58,21 +58,21 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			}
 			if err != nil {
 				result.Error = err.Error()
-				result.Interrupted = r.Kind == "turn" && errors.Is(err, context.Canceled)
-				result.Unresolved = r.Kind == "cleanup" || r.Kind == "interrupt" || r.Kind == "close"
+				result.Interrupted = r.Kind == "identified-turn" && errors.Is(err, context.Canceled)
+				result.Unresolved = r.Kind == "cleanup" || r.Kind == "interrupt" || r.Kind == "identified-close"
 				result.InvalidOutput = errors.Is(err, gimbal.ErrInvalidOutput)
 			}
 			return publish("completed", &result, nil)
 		}
 		var err error
 		switch r.Kind {
-		case "session":
+		case "identified-session":
 			if r.Session == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("session payload required"))
 			}
 			id, err := d.create(ctx, *r.Session)
 			return complete(backend.MessageResult{ID: id}, err)
-		case "turn":
+		case "identified-turn":
 			if r.Turn == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("turn payload required"))
 			}
@@ -81,7 +81,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 					log.Printf("request %s activity delivery: %v", r.ID, e)
 				}
 			})
-		case "process":
+		case "identified-process":
 			if r.Process == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("process payload required"))
 			}
@@ -89,7 +89,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if err == nil && r.Process.Service {
 				err = publish("established", nil, nil)
 			}
-		case "close":
+		case "identified-close":
 			if r.Target == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("close target required"))
 			}
@@ -157,7 +157,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			maps.Copy(captures, t.captures)
 			t.mu.Unlock()
 			var result backend.MessageResult
-			if r.Kind == "turn" {
+			if r.Kind == "identified-turn" {
 				var turn backend.TurnResult
 				nativeErr = errors.Join(nativeErr, json.Unmarshal(raw, &turn))
 				result.Output, result.Usage = turn.Output, turn.Usage

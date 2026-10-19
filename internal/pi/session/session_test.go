@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/pi/agent"
 	"github.com/tylergannon/gimbal/internal/pi/config"
 	"github.com/tylergannon/gimbal/internal/pi/history"
@@ -224,7 +226,7 @@ func TestForkIsIndependent(t *testing.T) {
 		t.Fatalf("parent prompt: %v", err)
 	}
 
-	child, err := session.Fork(context.Background())
+	child, err := session.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")))
 	if err != nil {
 		t.Fatalf("fork: %v", err)
 	}

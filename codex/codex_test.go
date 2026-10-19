@@ -2,6 +2,8 @@ package codex
 
 import (
 	"context"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,10 +16,10 @@ import (
 // contain the id, so Close returns before it ever touches the connection.
 func TestCloseIsIdempotentForAnUnknownSession(t *testing.T) {
 	ad := New().(*adapter)
-	if err := ad.Close(context.Background(), "unknown-thread"); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), "unknown-thread"); err != nil {
 		t.Fatalf("first Close = %v, want nil", err)
 	}
-	if err := ad.Close(context.Background(), "unknown-thread"); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), "unknown-thread"); err != nil {
 		t.Fatalf("second Close = %v, want nil", err)
 	}
 }
@@ -36,7 +38,7 @@ func TestCloseOnADeadConnectionRetainsOwnership(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := ad.Close(ctx, "thread-1"); err == nil {
+	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), "thread-1"); err == nil {
 		t.Fatal("Close = nil, want an error: the archive could not run on a cancelled cleanup context")
 	}
 	if n := len(ad.sessions); n != 1 {
@@ -73,7 +75,7 @@ func TestCloseNeverStartsAStoppedDaemon(t *testing.T) {
 	ad.sharedConn = conn
 	ad.sessions["thread-1"] = &session{}
 
-	if err := ad.Close(context.Background(), "thread-1"); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), "thread-1"); err != nil {
 		t.Fatalf("Close = %v, want nil for confirmed stopped daemon", err)
 	}
 	if n := len(ad.sessions); n != 0 {

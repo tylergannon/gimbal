@@ -17,6 +17,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/runstore"
 )
 
@@ -254,7 +256,7 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 		// thread/fork subscribes the fork's thread immediately; forking
 		// without ever running a turn on it still leaves something for
 		// Close to release when the scope ends.
-		if _, err := session.Fork(ctx, "forked"); err != nil {
+		if _, err := session.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "forked"); err != nil {
 			return err
 		}
 		return nil
@@ -411,12 +413,12 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 	defer cancel()
 
 	first := New().(*adapter)
-	thread, err := first.CreateSession(ctx, "gpt-5.6-luna", "low", workdir)
+	thread, err := first.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "gpt-5.6-luna", "low", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	token := "cobalt-7319"
-	if _, err := first.RunTurn(ctx, thread, "Remember the token "+token+". Reply only READY.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+	if _, err := first.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), thread, "Remember the token "+token+". Reply only READY.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	beforeSocket, running, err := daemonStatus(ctx)
@@ -432,11 +434,11 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := second.Close(context.Background(), thread); err != nil {
+		if err := second.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), thread); err != nil {
 			t.Errorf("archive resumed test thread: %v", err)
 		}
 	}()
-	result, err := second.RunTurn(ctx, thread, "What token did I ask you to remember? Reply with only the token.", nil, func(gimbal.AgentEvent) error { return nil })
+	result, err := second.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), thread, "What token did I ask you to remember? Reply with only the token.", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +516,7 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("archive parent out of band: %w", err)
 		}
-		_, err = session.Fork(ctx, "forked")
+		_, err = session.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "forked")
 		if !errors.Is(err, errThreadArchived) {
 			return fmt.Errorf("fork of an archived parent returned %v, want errThreadArchived", err)
 		}

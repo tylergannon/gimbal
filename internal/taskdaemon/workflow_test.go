@@ -24,7 +24,7 @@ func TestLostProcessReplyPreservesCommandResultWithoutReplay(t *testing.T) {
 	native := d.Handler()
 	var starts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/tasks/process" {
+		if r.URL.Path != "/tasks/identified-process" {
 			native.ServeHTTP(w, r)
 			return
 		}

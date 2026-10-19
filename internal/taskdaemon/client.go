@@ -27,7 +27,9 @@ func (h *Harness) call(ctx context.Context, op string, in any) (effects.Reply, e
 	}
 	var out effects.Reply
 	if effects.Messages(ctx) != nil {
-		r := effects.Request(op, effects.Identity(ctx))
+		identity := effects.ExecutionIdentityFromContext(ctx)
+		r := effects.Request(identity.RequestID, op, effects.Identity(ctx))
+		r.ExecutionIdentity = identity
 		switch v := in.(type) {
 		case effects.Session:
 			r.Session = &v
@@ -56,7 +58,10 @@ func (h *Harness) call(ctx context.Context, op string, in any) (effects.Reply, e
 }
 func (h *Harness) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	o := effects.Identity(ctx)
-	r, err := h.call(ctx, "session", effects.Session{Owner: o, Harness: h.Name, Model: model, Effort: effort, Workdir: workdir})
+	r, err := h.call(ctx, "identified-session", effects.Session{ExecutionIdentity: effects.ExecutionIdentityFromContext(ctx), Owner: o, Harness: h.Name, Model: model, Effort: effort, Workdir: workdir})
+	if r.ID == "" {
+		return "", err
+	}
 	return key(o.Run, r.ID), err
 }
 func target(id string) effects.Target {
@@ -73,12 +78,12 @@ func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 		return h.messageTurn(ctx, t, o, prompt, schema, onEvent)
 	}
 	files := effects.TaskFiles(ctx)
-	reply, err := h.call(ctx, "turn", effects.Turn{Deadline: turnDeadline(ctx), Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files, Requires: effects.Requirements(ctx)})
+	reply, err := h.call(ctx, "identified-turn", effects.Turn{Deadline: turnDeadline(ctx), ExecutionIdentity: effects.ExecutionIdentityFromContext(ctx), Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: files, Requires: effects.Requirements(ctx)})
 	if err != nil {
 		if reply.Error != "" {
 			return gimbal.TurnResult{}, err
 		}
-		if reconcile := effects.ConfirmStarted(ctx, h.Endpoint, effects.Target{Run: o.Run, ID: o.Task}); reconcile != nil {
+		if reconcile := effects.ConfirmStarted(ctx, h.Endpoint, effects.Target{Run: o.Run, ID: o.Task}, err); reconcile != nil {
 			return gimbal.TurnResult{}, fmt.Errorf("%v; %w", err, reconcile)
 		}
 	}
@@ -129,18 +134,25 @@ func (h *Harness) Steer(ctx context.Context, id, message string) (bool, error) {
 func (h *Harness) Fork(ctx context.Context, id string) (string, error) {
 	o := effects.Identity(ctx)
 	t := target(id)
-	r, err := h.call(ctx, "session", effects.Session{Owner: o, Parent: t.ID})
+	r, err := h.call(ctx, "identified-session", effects.Session{ExecutionIdentity: effects.ExecutionIdentityFromContext(ctx), Owner: o, Parent: t.ID})
+	if r.ID == "" {
+		return "", err
+	}
 	return key(o.Run, r.ID), err
 }
 func (h *Harness) Close(ctx context.Context, id string) error {
-	_, err := h.call(ctx, "close", target(id))
+	t := target(id)
+	t.ExecutionIdentity = effects.ExecutionIdentityFromContext(ctx)
+	_, err := h.call(ctx, "identified-close", t)
 	return err
 }
 
 func (h *Harness) messageTurn(ctx context.Context, t effects.Target, o effects.Owner, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
-	r := effects.Request("turn", o)
+	identity := effects.ExecutionIdentityFromContext(ctx)
+	r := effects.Request(identity.RequestID, "identified-turn", o)
+	r.ExecutionIdentity = identity
 	r.SessionID = t.ID
-	r.Turn = &effects.Turn{Deadline: turnDeadline(ctx), Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: effects.TaskFiles(ctx), Requires: effects.Requirements(ctx)}
+	r.Turn = &effects.Turn{Deadline: turnDeadline(ctx), ExecutionIdentity: effects.ExecutionIdentityFromContext(ctx), Owner: o, Session: t.ID, Prompt: prompt, Schema: schema, Files: effects.TaskFiles(ctx), Requires: effects.Requirements(ctx)}
 	if err := effects.Submit(ctx, r); err != nil {
 		return gimbal.TurnResult{}, err
 	}

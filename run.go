@@ -520,7 +520,7 @@ func (r *run) retryCleanup() error {
 	}
 	for id, session := range pending {
 		ctx, cancel := context.WithTimeout(context.Background(), r.cleanupTimeoutOr(closeTimeout))
-		err := session.adapter.Close(ctx, session.native)
+		err := session.closeNative(ctx)
 		cancel()
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", id, err))

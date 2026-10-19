@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func TestNativeTurnHistoryReconciliationLive(t *testing.T) {
@@ -16,16 +18,16 @@ func TestNativeTurnHistoryReconciliationLive(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 	a := New().(*adapter)
-	id, err := a.CreateSession(ctx, "gpt-5.6-luna", "", t.TempDir())
+	id, err := a.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "gpt-5.6-luna", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := a.Close(ctx, id); err != nil {
+		if err := a.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), id); err != nil {
 			t.Error(err)
 		}
 	}()
-	result, err := a.RunTurn(ctx, id, "Reply exactly HISTORY_OK", nil, func(gimbal.AgentEvent) error { return nil })
+	result, err := a.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "Reply exactly HISTORY_OK", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

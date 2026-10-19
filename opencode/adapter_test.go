@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func TestAdapterContractAndRawCapture(t *testing.T) {
@@ -33,29 +35,29 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 
 	workOne := t.TempDir()
 	workTwo := t.TempDir()
-	one, err := ad.CreateSession(t.Context(), "anthropic/claude-test", "low", workOne)
+	one, err := ad.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "anthropic/claude-test", "low", workOne)
 	if err != nil {
 		t.Fatal(err)
 	}
-	two, err := ad.CreateSession(t.Context(), "native-test", "", workTwo)
+	two, err := ad.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "native-test", "", workTwo)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		_ = ad.Close(context.Background(), one)
-		_ = ad.Close(context.Background(), two)
+		_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), one)
+		_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), two)
 	})
 
 	t.Run("text schema and continuation", func(t *testing.T) {
 		var events []gimbal.AgentEvent
-		text, err := ad.RunTurn(t.Context(), one, "remember pear", nil, func(event gimbal.AgentEvent) error {
+		text, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), one, "remember pear", nil, func(event gimbal.AgentEvent) error {
 			events = append(events, event)
 			return nil
 		})
 		if err != nil || string(text.Output) != `"remember pear"` {
 			t.Fatalf("text turn = (%s, %v)", text.Output, err)
 		}
-		continued, err := ad.RunTurn(t.Context(), one, "CONTINUE", nil, func(gimbal.AgentEvent) error { return nil })
+		continued, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), one, "CONTINUE", nil, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(continued.Output) != `"pear"` {
 			t.Fatalf("continued turn = (%s, %v)", continued.Output, err)
 		}
@@ -67,7 +69,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 		}
 
 		schema := json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}`)
-		structured, err := ad.RunTurn(t.Context(), one, "SCHEMA", schema, func(gimbal.AgentEvent) error { return nil })
+		structured, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), one, "SCHEMA", schema, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(structured.Output) != `{"answer":"valid"}` {
 			t.Fatalf("schema turn = (%s, %v)", structured.Output, err)
 		}
@@ -81,7 +83,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 			id, prompt string
 		}{{one, "ONE"}, {two, "TWO"}} {
 			group.Go(func() {
-				_, runErr := ad.RunTurn(t.Context(), item.id, item.prompt, nil, func(event gimbal.AgentEvent) error {
+				_, runErr := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), item.id, item.prompt, nil, func(event gimbal.AgentEvent) error {
 					var data struct {
 						SessionID string `json:"sessionID"`
 					}
@@ -103,21 +105,21 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 			}
 		}
 
-		fork, err := ad.Fork(t.Context(), one)
+		fork, err := ad.Fork(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), one)
 		if err != nil || fork == one {
 			t.Fatalf("Fork() = (%q, %v)", fork, err)
 		}
-		forked, err := ad.RunTurn(t.Context(), fork, "CONTINUE", nil, func(gimbal.AgentEvent) error { return nil })
+		forked, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), fork, "CONTINUE", nil, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(forked.Output) != `"pear"` {
 			t.Fatalf("fork continuation = (%s, %v)", forked.Output, err)
 		}
-		if err := ad.Close(t.Context(), fork); err != nil {
+		if err := ad.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), fork); err != nil {
 			t.Fatal(err)
 		}
-		if err := ad.Close(t.Context(), one); err != nil {
+		if err := ad.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), one); err != nil {
 			t.Fatal(err)
 		}
-		stillUsable, err := ad.RunTurn(t.Context(), two, "STILL", nil, func(gimbal.AgentEvent) error { return nil })
+		stillUsable, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), two, "STILL", nil, func(gimbal.AgentEvent) error { return nil })
 		if err != nil || string(stillUsable.Output) != `"STILL"` {
 			t.Fatalf("other session after close = (%s, %v)", stillUsable.Output, err)
 		}
@@ -127,7 +129,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 		ad.mu.Lock()
 		capturePath := ad.capture.path
 		ad.mu.Unlock()
-		if _, err := ad.RunTurn(t.Context(), two, "UNKNOWN", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+		if _, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), two, "UNKNOWN", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 			t.Fatal(err)
 		}
 		deadline := time.Now().Add(2 * time.Second)
@@ -152,7 +154,7 @@ func TestAdapterContractAndRawCapture(t *testing.T) {
 
 	t.Run("observation failure does not overrule POST success", func(t *testing.T) {
 		observationErr := errors.New("recording unavailable")
-		result, err := ad.RunTurn(t.Context(), two, "GAP", nil, func(gimbal.AgentEvent) error {
+		result, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), two, "GAP", nil, func(gimbal.AgentEvent) error {
 			return observationErr
 		})
 		if err != nil || string(result.Output) != `"GAP"` {
@@ -170,18 +172,20 @@ func TestAdapterSteeringAndCancellationAbortActivePrompt(t *testing.T) {
 			return newClient(fake.server.URL, "user", "secret", workdir, fake.server.Client()), nil
 		},
 	})
-	sessionID, err := ad.CreateSession(t.Context(), "native-test", "", t.TempDir())
+	sessionID, err := ad.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "native-test", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = ad.Close(context.Background(), sessionID) })
+	t.Cleanup(func() {
+		_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID)
+	})
 
 	result := make(chan struct {
 		turn gimbal.TurnResult
 		err  error
 	}, 1)
 	go func() {
-		turn, runErr := ad.RunTurn(context.Background(), sessionID, "BLOCK", nil, func(gimbal.AgentEvent) error { return nil })
+		turn, runErr := ad.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "BLOCK", nil, func(gimbal.AgentEvent) error { return nil })
 		result <- struct {
 			turn gimbal.TurnResult
 			err  error
@@ -200,7 +204,7 @@ func TestAdapterSteeringAndCancellationAbortActivePrompt(t *testing.T) {
 	cancelCtx, cancel := context.WithCancel(context.Background())
 	cancelled := make(chan error, 1)
 	go func() {
-		_, runErr := ad.RunTurn(cancelCtx, sessionID, "WAIT", nil, func(gimbal.AgentEvent) error { return nil })
+		_, runErr := ad.RunTurn(effects.WithExecutionIdentity(cancelCtx, backend.NewExecutionIdentity("turn")), sessionID, "WAIT", nil, func(gimbal.AgentEvent) error { return nil })
 		cancelled <- runErr
 	}()
 	fake.waitStarted(t, "WAIT")
@@ -229,11 +233,13 @@ func TestAdapterSteerWaitsForAbortSettlementBeforeContinuation(t *testing.T) {
 			return newClient(fake.server.URL, "user", "secret", workdir, fake.server.Client()), nil
 		},
 	})
-	sessionID, err := ad.CreateSession(t.Context(), "native-test", "", t.TempDir())
+	sessionID, err := ad.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "native-test", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = ad.Close(context.Background(), sessionID) })
+	t.Cleanup(func() {
+		_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID)
+	})
 
 	type runResult struct {
 		turn gimbal.TurnResult
@@ -241,7 +247,7 @@ func TestAdapterSteerWaitsForAbortSettlementBeforeContinuation(t *testing.T) {
 	}
 	runDone := make(chan runResult, 1)
 	go func() {
-		turn, runErr := ad.RunTurn(context.Background(), sessionID, "NATURAL", nil, func(gimbal.AgentEvent) error { return nil })
+		turn, runErr := ad.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "NATURAL", nil, func(gimbal.AgentEvent) error { return nil })
 		runDone <- runResult{turn: turn, err: runErr}
 	}()
 	fake.waitStarted(t, "NATURAL")

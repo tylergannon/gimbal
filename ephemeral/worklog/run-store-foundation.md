@@ -9,3 +9,9 @@ decision: Unit tests cover meaningful ownership, persistence, identity and failu
 decision: Launchers allocate bare ULIDs, the runner forwards invocation.Request.RunID, and the engine accepts only its explicit Run argument. Scope/session/action identity is separate from existing prefix-based display/control addresses. Constructor I/O happens outside scope.mu.
 
 correction: Registry.add previously replaced a live object on duplicate registration, and IDs listed bare directories. Reserve without replacement and distinguish missing runs from incomplete initialization before opening an external projection.
+
+decision: Productive HTTP/messaging operation names are identified-session/turn/process/close. In-tree registrations declare identity support; unsupported HTTP operations are definitive pre-admission contract rejections and do not enter result polling. Environment mutation receipts settle such rejection before binding release writes them.
+
+decision: Action intents and executor bindings commit together before native admission. Command output projections tail a separate executor spool and authoritative outcomes own streamed blobs; retaining executor paths alone would not meet independent readback.
+
+correction: A rejected remote session creation must return an empty native binding, rather than a nonempty run-plus-empty-ID transport key that creates a false cleanup obligation.

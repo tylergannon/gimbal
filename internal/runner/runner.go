@@ -72,7 +72,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	registry := observation.NewRegistry(state)
 	runs := live.NewRuns()
 	runs.Resolve = func(id string) (live.Controller, error) { return Connect(state, id) }
-	ctx := observation.WithRegistry(context.Background(), registry)
+	ctx := observation.WithRegistry(effects.WithRoute(context.Background(), request.TaskRoute), registry)
 	ctx = live.WithRuns(ctx, runs)
 	ctx = effects.WithEnvironment(effects.WithEndpoint(ctx, request.TaskEndpoint), request.TaskRoute.Environment)
 	if len(connections) > 0 && (connections[0].Execution != nil || connections[0].Messages != nil) {

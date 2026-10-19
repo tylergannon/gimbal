@@ -139,7 +139,7 @@ func storeError(err error) error {
 func (t *transport) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
 	queue := t.config.Queue
 	switch r.Kind {
-	case "interrupt", "close", "cleanup":
+	case "interrupt", "identified-close", "cleanup":
 		queue = t.config.ControlQueue
 	}
 	// Native work is admission-only. Neither normal errors nor crash rescue may
@@ -298,7 +298,7 @@ func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependenc
 }
 
 func Register(registry *gimbal.Registry) error {
-	return registry.RegisterMessaging(gimbal.MessagingDefinition{
+	return registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true,
 		Name:                  "river",
 		ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err },
 		Connect: func(ctx context.Context, raw json.RawMessage, _ backend.Dependencies) (backend.Messaging, error) {

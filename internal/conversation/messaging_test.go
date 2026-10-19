@@ -48,15 +48,15 @@ func (b *conversationBus) PublishRequest(ctx context.Context, r backend.MessageR
 		return b.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: request.ID, Created: time.Now().UTC(), Owner: request.Owner, SessionID: request.SessionID, Kind: "completed", Result: result})
 	}
 	switch r.Kind {
-	case "process":
+	case "identified-process":
 		var in environments.HelperRequest
 		_ = json.Unmarshal([]byte(r.Process.Args[1]), &in)
 		out := environments.HelperResult{Directory: environments.Directory{Path: in.Path, Exists: true, ExecutionDirectory: in.Path}, Prepared: environments.Prepared{Directory: in.Path}, Harnesses: []environments.Harness{{ID: "claude", Default: "claude-haiku-4-5", Models: []string{"claude-haiku-4-5"}, State: environments.HarnessReady}}}
 		raw, _ := json.Marshal(out)
 		return emit(r, &backend.MessageResult{Process: &backend.ProcessResult{}, Stdout: raw})
-	case "session":
+	case "identified-session":
 		return emit(r, &backend.MessageResult{ID: r.Task})
-	case "turn":
+	case "identified-turn":
 		b.admissions++
 		b.turns[r.Task] = r
 		if b.admissions > 1 {
@@ -86,7 +86,7 @@ func TestMessagingConversationQueuesAndStopsByRetainedEnvelopeIdentity(t *testin
 	}
 	bus := &conversationBus{Store: store, requests: map[string]backend.MessageRequest{}, turns: map[string]backend.MessageRequest{}}
 	registry := &gimbal.Registry{}
-	err = registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "fixture-messaging", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+	err = registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: "fixture-messaging", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
 		return bus, nil
 	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }})
 	if err != nil {

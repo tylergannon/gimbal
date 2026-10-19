@@ -14,6 +14,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/auth"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func openStore(t *testing.T, dir string) *store {
@@ -65,10 +67,10 @@ func TestUsersConcurrentProvisioningAndRestart(t *testing.T) {
 		}
 	}
 	session := auth.Session{Hash: strings.Repeat("a", 64), UserID: id, ExpiresAt: time.Now().Add(time.Hour).UTC()}
-	if err := s.CreateSession(ctx, session); err != nil {
+	if err := s.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), session); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateSession(ctx, session); err == nil {
+	if err := s.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), session); err == nil {
 		t.Fatal("duplicate session hash accepted")
 	}
 	if err := s.Close(); err != nil {
@@ -107,7 +109,7 @@ func TestUsersConcurrentProvisioningAndRestart(t *testing.T) {
 	if err != nil || u.ID() == id {
 		t.Fatalf("recreated user reused old ID: %v", err)
 	}
-	if err := s.CreateSession(ctx, auth.Session{Hash: strings.Repeat("b", 64), UserID: id, ExpiresAt: time.Now().Add(time.Hour)}); !errors.Is(err, auth.ErrNotFound) {
+	if err := s.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), auth.Session{Hash: strings.Repeat("b", 64), UserID: id, ExpiresAt: time.Now().Add(time.Hour)}); !errors.Is(err, auth.ErrNotFound) {
 		t.Fatal("session issued to deleted user:", err)
 	}
 	for _, path := range []string{dir, filepath.Join(dir, "state.json"), filepath.Join(dir, ".lock")} {
@@ -131,7 +133,7 @@ func TestSessionRevocationIsDurable(t *testing.T) {
 		t.Fatal(err)
 	}
 	hash := strings.Repeat("c", 64)
-	if err := s.CreateSession(ctx, auth.Session{Hash: hash, UserID: u.ID(), ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+	if err := s.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), auth.Session{Hash: hash, UserID: u.ID(), ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.DeleteSession(ctx, hash); err != nil {
@@ -168,7 +170,7 @@ func TestStoreOwnershipContextsAndUnavailableState(t *testing.T) {
 	if err := s.DeleteUser(ctx, "u1"); !errors.Is(err, context.Canceled) {
 		t.Fatal("DeleteUser ignored canceled context:", err)
 	}
-	if err := s.CreateSession(ctx, auth.Session{}); !errors.Is(err, context.Canceled) {
+	if err := s.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), auth.Session{}); !errors.Is(err, context.Canceled) {
 		t.Fatal("CreateSession ignored canceled context:", err)
 	}
 	if _, err := s.Session(ctx, "hash"); !errors.Is(err, context.Canceled) {
@@ -241,7 +243,7 @@ func TestFilesCrashHelper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.CreateSession(context.Background(), auth.Session{Hash: strings.Repeat("d", 64), UserID: u.ID(), ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+	if err := s.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), auth.Session{Hash: strings.Repeat("d", 64), UserID: u.ID(), ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
 	os.Exit(0) // The process ends without releasing the lock or closing the store.

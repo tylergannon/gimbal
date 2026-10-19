@@ -20,6 +20,7 @@ import (
 	"github.com/tylergannon/gimbal/claude"
 	"github.com/tylergannon/gimbal/codex"
 
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/executor"
 	"github.com/tylergannon/gimbal/pi"
 )
@@ -488,12 +489,16 @@ type Adapter struct {
 
 func New(harness string) *Adapter         { return &Adapter{harness: harness} }
 func (a *Adapter) state() (string, error) { return executor.Root(a.Root) }
-func (a *Adapter) CreateSession(_ context.Context, model, effort, workdir string) (string, error) {
+func (a *Adapter) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	root, err := a.state()
 	if err != nil {
 		return "", err
 	}
-	id := executor.NewSessionID()
+	identity := effects.OperationIdentity(ctx, "session")
+	if err := identity.Validate("session"); err != nil {
+		return "", err
+	}
+	id := executor.SessionID(identity.ExecutorSession)
 	err = Create(root, Session{ID: id, Harness: a.harness, Model: model, Effort: effort, Workdir: workdir})
 	return string(id), err
 }
@@ -508,7 +513,11 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 	if err != nil {
 		return gimbal.TurnResult{}, err
 	}
-	req := Request{ID: executor.NewTurnID(), Session: executor.SessionID(id), Prompt: prompt, Schema: schema}
+	identity := effects.OperationIdentity(ctx, "turn")
+	if err := identity.Validate("turn"); err != nil {
+		return gimbal.TurnResult{}, err
+	}
+	req := Request{ID: executor.TurnID(identity.ExecutorOperation), Session: executor.SessionID(id), Prompt: prompt, Schema: schema}
 	if deadline, ok := ctx.Deadline(); ok {
 		req.Deadline = deadline
 	}
@@ -575,11 +584,15 @@ func (a *Adapter) Fork(ctx context.Context, id string) (string, error) {
 		return "", err
 	}
 	config.Parent = executor.SessionID(id)
-	config.ID = executor.NewSessionID()
+	identity := effects.OperationIdentity(ctx, "session")
+	if err := identity.Validate("session"); err != nil {
+		return "", err
+	}
+	config.ID = executor.SessionID(identity.ExecutorSession)
 	if err = Create(root, config); err != nil {
 		return "", err
 	}
-	req := Request{ID: executor.NewTurnID(), Session: config.ID, Fork: true}
+	req := Request{ID: executor.TurnID(identity.ExecutorOperation), Session: config.ID, Fork: true}
 	if deadline, ok := ctx.Deadline(); ok {
 		req.Deadline = deadline
 	}
@@ -623,7 +636,11 @@ func (a *Adapter) Close(ctx context.Context, id string) error {
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	request := Request{ID: executor.NewTurnID(), Session: sid, Close: true, Timeout: 30 * time.Second}
+	identity := effects.OperationIdentity(ctx, "close")
+	if err := identity.Validate("close"); err != nil {
+		return err
+	}
+	request := Request{ID: executor.TurnID(identity.ExecutorOperation), Session: sid, Close: true, Timeout: 30 * time.Second}
 	if err = executor.Write(filepath.Join(sdir, "close.json"), request.ID); err != nil {
 		return err
 	}

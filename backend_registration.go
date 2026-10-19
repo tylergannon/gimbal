@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	definition := BackendDefinition{Name: "http", ConfigurationSchema: json.RawMessage(`{"type":"object","properties":{"endpoint":{"type":"string"}},"required":["endpoint"],"additionalProperties":false}`), ValidateConfiguration: func(raw json.RawMessage) error {
+	definition := BackendDefinition{ExecutionIdentity: true, Name: "http", ConfigurationSchema: json.RawMessage(`{"type":"object","properties":{"endpoint":{"type":"string"}},"required":["endpoint"],"additionalProperties":false}`), ValidateConfiguration: func(raw json.RawMessage) error {
 		var config struct {
 			Endpoint string `json:"endpoint"`
 		}

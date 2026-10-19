@@ -4,10 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
 
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
@@ -101,7 +106,7 @@ func TestIdentityTreeBehindOrdinaryWorkflow(t *testing.T) {
 			counts[n.Kind]++
 		}
 	}
-	if counts[runstore.Scope] != 4 || counts[runstore.Session] != 1 || counts[runstore.Action] != 4 {
+	if counts[runstore.Scope] != 4 || counts[runstore.Session] != 1 || counts[runstore.Action] != 5 {
 		t.Fatal(counts)
 	}
 	for _, n := range nodes {
@@ -139,5 +144,102 @@ func TestFailedInitializationDoesNotExecuteOrReserveLiveRun(t *testing.T) {
 	}
 	if _, ok := registry.Live(id); ok {
 		t.Fatal("failed initialization remained live")
+	}
+}
+
+type faultStore struct {
+	runstore.Store
+	failKind string
+	failNode bool
+}
+type faultRun struct {
+	runstore.Run
+	owner faultStore
+}
+
+func (s faultStore) Create(ctx context.Context, h runstore.Header) (runstore.Run, error) {
+	r, e := s.Store.Create(ctx, h)
+	if e != nil {
+		return nil, e
+	}
+	return faultRun{r, s}, nil
+}
+func (r faultRun) EnsureNode(ctx context.Context, n runstore.NodeSpec) (runstore.Node, error) {
+	if r.owner.failNode && n.Kind == runstore.Action {
+		return runstore.Node{}, errors.New("injected node failure")
+	}
+	return r.Run.EnsureNode(ctx, n)
+}
+func (r faultRun) Append(ctx context.Context, f []runstore.Fact, d runstore.Durability) ([]runstore.Record, error) {
+	for _, fact := range f {
+		if fact.Kind == r.owner.failKind {
+			return nil, errors.New("injected " + fact.Kind + " failure")
+		}
+	}
+	return r.Run.Append(ctx, f, d)
+}
+func TestPersistenceFailurePreventsDispatchAndDoesNotRepeatCompletedWork(t *testing.T) {
+	for _, failure := range []string{"node", "intent", "outcome"} {
+		t.Run(failure, func(t *testing.T) {
+			project := t.TempDir()
+			marker := filepath.Join(project, "submissions")
+			s := faultStore{Store: directory.Store{Root: filepath.Join(project, "runs")}, failKind: failure, failNode: failure == "node"}
+			ctx := WithRunStore(Project(t.Context(), project), s)
+			err := Run(ctx, string(runstore.NewRunID()), "fault", nil, func(ctx context.Context) error {
+				_, _, _, e := RunCommand(ctx, "mark", project, "sh", "-c", "printf x >> submissions")
+				return e
+			})
+			if err == nil {
+				t.Fatal("failure hidden")
+			}
+			data, e := os.ReadFile(marker)
+			if failure == "outcome" {
+				if e != nil || string(data) != "x" {
+					t.Fatalf("completed command was lost/repeated: %q %v", data, e)
+				}
+			} else if !errors.Is(e, os.ErrNotExist) {
+				t.Fatalf("work started after persistence failure: %q %v", data, e)
+			}
+		})
+	}
+}
+func TestOldDaemonRejectsIdentifiedWorkWithoutPollingOrFallback(t *testing.T) {
+	var starts, polls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/tasks/process":
+			starts.Add(1)
+		case "/tasks/result":
+			polls.Add(1)
+		case "/tasks/cleanup":
+			_ = json.NewEncoder(w).Encode(backend.Reply{})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+	project := t.TempDir()
+	ctx := effects.WithEndpoint(Project(t.Context(), project), server.URL)
+	err := Run(ctx, string(runstore.NewRunID()), "old-daemon", nil, func(ctx context.Context) error { _, _, _, e := RunCommand(ctx, "command", project, "true"); return e })
+	var rejected *backend.ContractRejected
+	if !errors.As(err, &rejected) || starts.Load() != 0 || polls.Load() != 0 {
+		t.Fatalf("rejected=%v starts=%d polls=%d", err, starts.Load(), polls.Load())
+	}
+}
+
+func TestUnidentifiedBackendRejectedBeforeConnection(t *testing.T) {
+	registry := &Registry{}
+	var connected atomic.Int32
+	err := registry.RegisterBackend(BackendDefinition{Name: "old", ConfigurationSchema: json.RawMessage(`{"type":"object"}`), ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {
+		connected.Add(1)
+		return backend.Connection{}, nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = registry.Connect(t.Context(), backend.Route{Name: "old"})
+	var rejected *backend.ContractRejected
+	if !errors.As(err, &rejected) || connected.Load() != 0 {
+		t.Fatalf("unidentified backend connected: %v %d", err, connected.Load())
 	}
 }

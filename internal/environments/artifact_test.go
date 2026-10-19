@@ -23,7 +23,7 @@ func TestSuccessfulHTTPMutationReconcilesLostStdoutWithoutReplay(t *testing.T) {
 			handler := daemon.Handler()
 			var admissions, stdoutReads atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path == "/tasks/process" {
+				if r.URL.Path == "/tasks/identified-process" {
 					admissions.Add(1)
 				}
 				if r.URL.Path == "/tasks/bytes" && stdoutReads.Add(1) == 1 {

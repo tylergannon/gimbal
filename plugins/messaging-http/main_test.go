@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,13 +33,21 @@ func newProducer(t *testing.T, handle func(*producer, backend.MessageRequest) er
 	return p, server
 }
 func request(kind string) backend.MessageRequest {
+	if kind == "turn" || kind == "process" {
+		kind = "identified-" + kind
+	}
 	r := backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now().UTC(), Run: "run", Scope: "root", Task: ulid.Make().String(), Kind: kind}
+	if backend.Identified(kind) {
+		identity := backend.NewExecutionIdentity(strings.TrimPrefix(kind, "identified-"))
+		r.ID = identity.RequestID
+		r.ExecutionIdentity = identity
+	}
 	switch kind {
-	case "turn":
+	case "identified-turn":
 		r.SessionID = "session"
-		r.Turn = &backend.Turn{Owner: r.Owner, Session: r.SessionID}
-	case "process":
-		r.Process = &backend.Process{Owner: r.Owner}
+		r.Turn = &backend.Turn{ExecutionIdentity: r.ExecutionIdentity, Owner: r.Owner, Session: r.SessionID}
+	case "identified-process":
+		r.Process = &backend.Process{ExecutionIdentity: r.ExecutionIdentity, Owner: r.Owner}
 	case "cleanup":
 		r.ScopeTarget = &backend.Scope{Run: r.Run, Scope: r.Scope}
 	}

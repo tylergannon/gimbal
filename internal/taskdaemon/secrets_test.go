@@ -36,14 +36,14 @@ func TestProducerAdmissionAndScopedCleanup(t *testing.T) {
 	d := New(t.TempDir())
 	d.Secrets = backend.NewMemorySecrets()
 	ctx := context.Background()
-	producer := backend.Process{Run: "run", Scope: "outer", Task: "producer", Command: "sh", Args: []string{"-c", `printf 'TOKEN=from-producer\nUNDECLARED=no\n' > "$ENV_FILE"`}, Produces: true, Yields: []string{"TOKEN"}, Store: "private"}
+	producer := backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Run: "run", Scope: "outer", Task: "producer", Command: "sh", Args: []string{"-c", `printf 'TOKEN=from-producer\nUNDECLARED=no\n' > "$ENV_FILE"`}, Produces: true, Yields: []string{"TOKEN"}, Store: "private"}
 	if err := d.process(producer); err != nil {
 		t.Fatal(err)
 	}
 	if r := waitTask(t, d, producer.Owner); r.Error != "" || r.ExitCode != 0 {
 		t.Fatal(r)
 	}
-	consumer := backend.Process{Run: "run", Scope: "outer/child", Task: "consumer", Command: "sh", Args: []string{"-c", `test "$TOKEN" = from-producer && test -z "$UNDECLARED"`}, Requires: backend.Requirements{{Store: "private", Names: []string{"TOKEN"}}}}
+	consumer := backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Run: "run", Scope: "outer/child", Task: "consumer", Command: "sh", Args: []string{"-c", `test "$TOKEN" = from-producer && test -z "$UNDECLARED"`}, Requires: backend.Requirements{{Store: "private", Names: []string{"TOKEN"}}}}
 	if err := d.process(consumer); err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestProducerAdmissionAndScopedCleanup(t *testing.T) {
 }
 func TestEmptyServiceWaitsForReadinessAndCleansUp(t *testing.T) {
 	d := New(t.TempDir())
-	p := backend.Process{Run: "run", Task: "service", Command: "sh", Args: []string{"-c", `trap 'exit 0' INT; sleep .15; touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; while :; do sleep .1; done`}, Service: true}
+	p := backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Run: "run", Task: "service", Command: "sh", Args: []string{"-c", `trap 'exit 0' INT; sleep .15; touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; while :; do sleep .1; done`}, Service: true}
 	start := time.Now()
 	if err := d.process(p); err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func (f failedPublish) Publish(context.Context, backend.Scope, backend.StoreWrit
 func TestPublicationFailurePreventsReadiness(t *testing.T) {
 	d := New(t.TempDir())
 	d.Secrets = failedPublish{backend.NewMemorySecrets()}
-	p := backend.Process{Run: "run", Task: "bad", Command: "sh", Args: []string{"-c", `trap 'exit 0' INT; printf 'TOKEN=x\n' > "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; while :; do sleep .1; done`}, Service: true, Yields: []string{"TOKEN"}}
+	p := backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Run: "run", Task: "bad", Command: "sh", Args: []string{"-c", `trap 'exit 0' INT; printf 'TOKEN=x\n' > "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; while :; do sleep .1; done`}, Service: true, Yields: []string{"TOKEN"}}
 	if err := d.process(p); err == nil || !strings.Contains(err.Error(), "publication uncertain") {
 		t.Fatal(err)
 	}
@@ -138,11 +138,11 @@ func TestAgentCallbackUsesConsumingScopeAndWholeStore(t *testing.T) {
 	}
 	h := &callbackHarness{}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return h, nil }
-	if _, err := d.create(ctx, backend.Session{Run: "run", Task: "agent"}); err != nil {
+	if _, err := d.create(ctx, backend.Session{ExecutionIdentity: backend.NewExecutionIdentity("session"), Run: "run", Task: "agent"}); err != nil {
 		t.Fatal(err)
 	}
 	o := backend.Owner{Run: "run", Scope: "child", Task: "turn"}
-	if err := d.turn(backend.Turn{Owner: o, Session: "agent", Requires: backend.Requirements{{Store: "private", Names: []string{"TOKEN"}}}}); err != nil {
+	if err := d.turn(backend.Turn{ExecutionIdentity: backend.NewExecutionIdentity("turn"), Owner: o, Session: "agent", Requires: backend.Requirements{{Store: "private", Names: []string{"TOKEN"}}}}); err != nil {
 		t.Fatal(err)
 	}
 	task := d.tasks[key("run", "turn")]
@@ -165,7 +165,7 @@ func TestCancelServiceBeforeReadiness(t *testing.T) {
 	owner := backend.Owner{Run: "run", Scope: "child", Task: "service"}
 	result := make(chan error, 1)
 	go func() {
-		result <- d.process(backend.Process{Owner: owner, Command: "sh", Args: []string{"-c", "exec sleep 60"}, Service: true})
+		result <- d.process(backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Owner: owner, Command: "sh", Args: []string{"-c", "exec sleep 60"}, Service: true})
 	}()
 	deadline := time.After(time.Second)
 	for {

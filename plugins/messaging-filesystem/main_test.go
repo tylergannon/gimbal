@@ -29,7 +29,7 @@ func TestConcurrentControlAndSameRequestIdentity(t *testing.T) {
 	var starts atomic.Int32
 	go func() {
 		done <- worker(ctx, raw, backend.Dependencies{}, func(_ context.Context, r backend.MessageRequest) error {
-			if r.Kind == "turn" {
+			if r.Kind == "identified-turn" {
 				starts.Add(1)
 				close(started)
 				<-release
@@ -39,7 +39,7 @@ func TestConcurrentControlAndSameRequestIdentity(t *testing.T) {
 			return nil
 		})
 	}()
-	action := backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now(), Kind: "turn"}
+	action := backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now(), Kind: "identified-turn"}
 	if err = bus.PublishRequest(ctx, action); err != nil {
 		t.Fatal(err)
 	}

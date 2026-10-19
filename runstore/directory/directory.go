@@ -599,7 +599,7 @@ func (r *run) flush(ctx context.Context, closing bool) error {
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
 	r.mu.Lock()
-	if e := r.check(ctx); e != nil && !(closing && r.closing && !r.closed && ctx.Err() == nil && r.poison == nil) {
+	if e := r.check(ctx); e != nil && (!closing || !r.closing || r.closed || ctx.Err() != nil || r.poison != nil) {
 		r.mu.Unlock()
 		return e
 	}

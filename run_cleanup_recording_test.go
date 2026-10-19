@@ -168,7 +168,11 @@ func TestMissingRemoteServiceResultReleasesLocalHandles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("writer retained after unavailable result: %v", err)
 	}
-	defer writer.Close()
+	defer func() {
+		if err := writer.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 	records, err := writer.Read(t.Context(), 0, 100)
 	if err != nil {
 		t.Fatal(err)

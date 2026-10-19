@@ -435,7 +435,7 @@ func (r *run) validate(f runstore.Fact, internal bool) error {
 			}
 		} else if parent, ok := r.nodes[n.Parent]; !ok {
 			return fmt.Errorf("runstore: missing parent")
-		} else if parent.Kind != runstore.Scope && !(n.Kind == runstore.Action && parent.Kind == runstore.Session) {
+		} else if parent.Kind != runstore.Scope && (n.Kind != runstore.Action || parent.Kind != runstore.Session) {
 			return fmt.Errorf("runstore: invalid parent kind")
 		}
 	} else if _, ok := r.nodes[f.Node]; !ok {
@@ -718,7 +718,7 @@ func (r *run) PutBlob(ctx context.Context, src io.Reader) (runstore.BlobRef, err
 	if e != nil {
 		return runstore.BlobRef{}, e
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	hash := sha256.New()
 	size, e := io.Copy(io.MultiWriter(f, hash), contextReader{ctx, src})
 	if e != nil {

@@ -93,7 +93,7 @@ func TestIdentityTreeBehindOrdinaryWorkflow(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	records, e := r.Read(t.Context(), 0, 100)
 	if e != nil {
 		t.Fatal(e)
@@ -288,7 +288,7 @@ func TestRetainedCleanupOwnsStoreAndAppendsAfterImmutableOutcome(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	summary, e := runstate.Inspect(t.Context(), r)
 	if e != nil {
 		t.Fatal(e)
@@ -354,7 +354,7 @@ func TestNewFormatObservationReadsDoNotInferDeathOrMutate(t *testing.T) {
 		if e != nil {
 			return e
 		}
-		defer lock.Close()
+		defer func() { _ = lock.Close() }()
 		path := filepath.Join(dir, "state", "00000000.segment")
 		before, e := os.ReadFile(path)
 		if e != nil {
@@ -427,12 +427,12 @@ func TestSavedFactsRebuildTheSameObservationAfterCorrectionAndFailedCommand(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	rebuilt, err := observation.Open(nil, id, "reducer", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer rebuilt.Close()
+	defer func() { _ = rebuilt.Close() }()
 	var cursor uint64
 	agents := 0
 	for {
@@ -497,7 +497,7 @@ func TestCommandOutputSurvivesSpoolRemovalInFreshProcess(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer r.Close()
+		defer func() { _ = r.Close() }()
 		var cursor uint64
 		found := false
 		for {

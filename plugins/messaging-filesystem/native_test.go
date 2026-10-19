@@ -33,7 +33,12 @@ func TestNativeMessagingWorkflowInputsContinuityAndCleanup(t *testing.T) {
 	go func() {
 		done <- worker(workerCtx, raw, backend.Dependencies{}, taskdaemon.New(t.TempDir()).Messages(bus))
 	}()
-	defer func() { stop(); <-done }()
+	defer func() {
+		stop()
+		if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("worker shutdown: %v", err)
+		}
+	}()
 	token := "input-" + ulid.Make().String()
 	project := t.TempDir()
 	runID := ulid.Make().String()

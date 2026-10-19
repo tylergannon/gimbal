@@ -133,7 +133,7 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 	if err != nil {
 		return false, err
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		if op != nil {
 			return false, runstore.ErrBusy
@@ -160,7 +160,7 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 		parent = n.ID
 	}
 	connection, endpoint, route, err := taskConnection(ctx, state, id)
-	defer connection.Close()
+	defer func() { _ = connection.Close() }()
 	noRoute := errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil && connection.Messages == nil)
 	if noRoute {
 		if target != "" {

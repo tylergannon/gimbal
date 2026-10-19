@@ -71,7 +71,13 @@ func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
 				t.Fatalf("completion: %+v, %v", snapshot.Run, err)
 			}
 			select {
-			case <-done:
+			case runErr := <-done:
+				if !timeout && runErr != nil {
+					t.Fatalf("child completion: %v", runErr)
+				}
+				if timeout && runErr == nil {
+					t.Fatal("timed out child returned success")
+				}
 			case <-time.After(3 * time.Second):
 				t.Fatal("child did not settle")
 			}

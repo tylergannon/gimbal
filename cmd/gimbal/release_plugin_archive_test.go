@@ -136,16 +136,16 @@ func TestReleaseCLIPlugin(t *testing.T) {
 				}
 			case <-ctx.Done():
 				_ = cmd.Process.Kill()
-				<-wait
-				t.Fatal("archived CLI did not stop after interrupt")
+				waitErr := <-wait
+				t.Fatalf("archived CLI did not stop after interrupt: %v", waitErr)
 			}
 			return
 		case err := <-wait:
 			t.Fatalf("archived CLI exited before plugin startup: %v; stderr: %s", err, stderr.String())
 		case <-ctx.Done():
 			_ = cmd.Process.Kill()
-			<-wait
-			t.Fatalf("timed out waiting for plugin startup: %s", stderr.String())
+			waitErr := <-wait
+			t.Fatalf("timed out waiting for plugin startup: %s; process: %v", stderr.String(), waitErr)
 		}
 	}
 }
@@ -184,10 +184,15 @@ func checkReleaseWeb(t *testing.T, cli, work string) {
 		wait := make(chan error, 1)
 		go func() { wait <- cmd.Wait() }()
 		select {
-		case <-wait:
+		case err := <-wait:
+			if err != nil {
+				t.Errorf("server shutdown: %v", err)
+			}
 		case <-time.After(5 * time.Second):
 			cancel()
-			<-wait
+			if err := <-wait; err != nil {
+				t.Logf("server forced shutdown: %v", err)
+			}
 		}
 	}()
 	ready := make(chan string, 1)

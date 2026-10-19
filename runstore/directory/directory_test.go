@@ -49,7 +49,7 @@ func TestOwnershipAndFreshProcessReadback(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		defer r.Close()
+		defer func() { _ = r.Close() }()
 		records, e := r.Read(ctx, 0, 20)
 		if e != nil || len(records) != 3 {
 			t.Fatalf("records=%v error=%v", records, e)
@@ -63,7 +63,7 @@ func TestOwnershipAndFreshProcessReadback(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		defer f.Close()
+		defer func() { _ = f.Close() }()
 		raw, _ := io.ReadAll(f)
 		if string(raw) != "output" {
 			t.Fatal(string(raw))
@@ -189,7 +189,7 @@ func TestInterruptedTailAndCorruption(t *testing.T) {
 			if e != nil {
 				t.Fatal(e)
 			}
-			defer opened.Close()
+			defer func() { _ = opened.Close() }()
 			st, e = os.Stat(path)
 			if e != nil || st.Size() != size {
 				t.Fatalf("tail not truncated: %v %v", st, e)
@@ -296,7 +296,7 @@ func TestLostCommitAcknowledgmentReopensExactContents(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer opened.Close()
+	defer func() { _ = opened.Close() }()
 	rec, e := opened.Append(ctx, []runstore.Fact{f}, runstore.Committed)
 	if e != nil || rec[0].Sequence != 2 {
 		t.Fatalf("%v %v", rec, e)

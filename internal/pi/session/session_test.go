@@ -37,7 +37,10 @@ func TestPromptConcurrentGuard(t *testing.T) {
 
 	session.Abort()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("prompt after abort: %v", err)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("first prompt did not finish after abort")
 	}
@@ -59,7 +62,9 @@ func TestFollowUpWhileStreaming(t *testing.T) {
 		t.Fatalf("pending = %d, want 1", got)
 	}
 	session.Abort()
-	<-done
+	if err := <-done; err != nil {
+		t.Fatalf("prompt after abort: %v", err)
+	}
 }
 
 func TestPromptAfterPreviousCompletes(t *testing.T) {
@@ -143,7 +148,10 @@ func TestSteerIsDeliveredToNextModelCall(t *testing.T) {
 	close(control.release)
 
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("prompt: %v", err)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("prompt did not finish")
 	}

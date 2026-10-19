@@ -74,7 +74,7 @@ func TestRecordedBindingsMatchAcceptedHTTPExecution(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	records, e := r.Read(t.Context(), 0, 100)
 	if e != nil {
 		t.Fatal(e)
@@ -179,7 +179,7 @@ func TestRecordedBindingsMatchAcceptedMessagingExecution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	records, err := r.Read(t.Context(), 0, 200)
 	if err != nil {
 		t.Fatal(err)

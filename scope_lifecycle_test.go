@@ -37,7 +37,9 @@ func TestLocalScopeEarlyReturnCancelsOpenChild(t *testing.T) {
 			t.Error("child remained active after parent body returned")
 			// Release the child even when the regression is present.
 			root.cancel(nil)
-			<-childDone
+			if err := <-childDone; !errors.Is(err, context.Canceled) {
+				t.Errorf("child cleanup: %v", err)
+			}
 		}
 		return nil
 	})

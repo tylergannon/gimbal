@@ -191,8 +191,8 @@ func TestConnectionViewClosesOnlyItsSubscriptionAndRejectsLateArrival(t *testing
 		t.Fatal("closed view retained its progress subscription")
 	}
 	select {
-	case <-doneB:
-		t.Fatal("closing one view stopped another view")
+	case err := <-doneB:
+		t.Fatalf("closing one view stopped another view: %v", err)
 	default:
 	}
 	yielded := false

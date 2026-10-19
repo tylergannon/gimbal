@@ -43,7 +43,9 @@ func TestRetainedLateOlderEventAndIndependentReaders(t *testing.T) {
 		t.Fatal("late older event skipped")
 	}
 	cancel()
-	<-done
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("listener cancellation: %v", err)
+	}
 	for range 2 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()

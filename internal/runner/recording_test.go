@@ -77,7 +77,7 @@ func recordCount(t *testing.T, f runstore.Store, id string) int {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	count := 0
 	var cursor uint64
 	for {
@@ -165,7 +165,7 @@ func TestSweeperRetainsOneEpisodeAndSuppressesUnchangedFacts(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	summary, e := runstate.Inspect(t.Context(), r)
 	if e != nil {
 		t.Fatal(e)
@@ -267,7 +267,7 @@ func TestOrphanCleanupRecordsTheIdentityAdmittedByMessaging(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	records, err := r.Read(t.Context(), 0, 100)
 	if err != nil {
 		t.Fatal(err)

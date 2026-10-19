@@ -43,3 +43,6 @@ friction: The runtime worktree disappeared externally during final validation, a
 
 
 correction: Orphan cleanup has a stable stored episode and first-delivery identity, but repeated housekeeping deliveries need fresh IDs. Otherwise real messaging deduplication retains the first failed completion forever. Design paragraph 111 explicitly permits transient delivery IDs without an attempt-by-attempt audit. The fixture now retains each request's original completion as a real bus does; failed sweeps remain fact-stable and eventual success remains possible. The first native admission is still committed in intent/binding before dispatch.
+
+
+correction: Independent round 02 confirmed the functional seam and found no new-format application bypass, but release qualification additionally runs golangci-lint. Make intentional best-effort deferred closes/removal explicit and simplify the equivalent parent-kind predicate. Clear existing unchecked test-channel receives revealed by unbounded lint reporting as well, so the repository's full lint gate passes rather than reporting only workflow lint.

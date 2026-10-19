@@ -258,7 +258,7 @@ func TestEngineUsesInjectedStoreThroughRetainedCleanup(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	defer r.Close()
+	defer func() { _ = r.Close() }()
 	records, e := r.Read(t.Context(), 0, 512)
 	if e != nil {
 		t.Fatal(e)

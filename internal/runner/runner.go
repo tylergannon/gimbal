@@ -263,7 +263,7 @@ func (c remote) call(ctx context.Context, op operation) (bool, error) {
 			if err != nil {
 				return true, err
 			}
-			defer connection.Close()
+			defer func() { _ = connection.Close() }()
 			if connection.Messages != nil {
 				return true, nil
 			}

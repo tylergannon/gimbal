@@ -45,12 +45,12 @@ func TestEventGapSurvivesRuntimeStampAndRecoversWithoutStoppingTurn(t *testing.T
 	defer server.Close()
 	project := t.TempDir()
 	registry := observation.NewRegistry(project)
-	ctx := observation.WithRegistry(effects.WithRunID(gimbal.Project(context.Background(), project), "run-gap"), registry)
+	ctx := observation.WithRegistry(gimbal.Project(context.Background(), project), registry)
 	ctx = effects.WithEndpoint(ctx, server.URL)
 	sessions := make(chan *gimbal.Session, 1)
 	done := make(chan error, 1)
 	go func() {
-		done <- gimbal.Run(ctx, "gap", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Endpoint: server.URL, Name: "test"}, Model: "test"}}, func(ctx context.Context) error {
+		done <- gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FA0", "gap", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Endpoint: server.URL, Name: "test"}, Model: "test"}}, func(ctx context.Context) error {
 			s := gimbal.NewSession(ctx, "agent", t.TempDir())
 			sessions <- s
 			value, err := s.Generate[gimbal.Text](ctx, "work")
@@ -65,7 +65,7 @@ func TestEventGapSurvivesRuntimeStampAndRecoversWithoutStoppingTurn(t *testing.T
 		t.Helper()
 		deadline := time.Now().Add(3 * time.Second)
 		for time.Now().Before(deadline) {
-			snapshot, err := registry.Snapshot("run-gap")
+			snapshot, err := registry.Snapshot("01ARZ3NDEKTSV4RRFFQ69G5FA0")
 			if err == nil {
 				for _, turn := range snapshot.Turns {
 					if turn.EventsUnavailable == unavailable && (unavailable || turn.Started != 0) {
@@ -95,7 +95,7 @@ func TestEventGapSurvivesRuntimeStampAndRecoversWithoutStoppingTurn(t *testing.T
 	case <-time.After(3 * time.Second):
 		t.Fatal("successful result blocked by events")
 	}
-	snapshot, err := registry.Snapshot("run-gap")
+	snapshot, err := registry.Snapshot("01ARZ3NDEKTSV4RRFFQ69G5FA0")
 	if err != nil {
 		t.Fatal(err)
 	}

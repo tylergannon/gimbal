@@ -14,6 +14,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/runlog"
 	"github.com/tylergannon/gimbal/workflow"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type implementationHarness struct {
@@ -97,7 +99,7 @@ func TestImplementRecoversQAProtocolFailureAndRecordsEachAttempt(t *testing.T) {
 				gimbal.RoleArchitecturalCritique: {Adapter: h, Model: "model"},
 				gimbal.RoleQAOrchestration:       {Adapter: h, Model: "model"},
 			}
-			err := gimbal.Run(gimbal.Project(t.Context(), project), "implementation-test", models,
+			err := gimbal.Run(gimbal.Project(t.Context(), project), string(runstore.NewRunID()), "implementation-test", models,
 				func(ctx context.Context) error { return Implement(ctx, env, params) })
 			if test.wantSuccess && err != nil {
 				t.Fatal(err)
@@ -167,7 +169,7 @@ func runImplementation(t *testing.T, h *implementationHarness, env gimbal.Env, p
 		gimbal.RoleArchitecturalCritique: {Adapter: h, Model: "model"},
 		gimbal.RoleQAOrchestration:       {Adapter: h, Model: "model"},
 	}
-	return gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), "implementation-test", models,
+	return gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "implementation-test", models,
 		func(ctx context.Context) error { return Implement(ctx, env, params) })
 }
 

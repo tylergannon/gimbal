@@ -7,13 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"os"
-	"path/filepath"
-	"time"
-
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
@@ -21,6 +14,12 @@ import (
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"golang.org/x/sys/unix"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 type Response struct {
@@ -73,7 +72,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	registry := observation.NewRegistry(state)
 	runs := live.NewRuns()
 	runs.Resolve = func(id string) (live.Controller, error) { return Connect(state, id) }
-	ctx := observation.WithRegistry(effects.WithRunID(context.Background(), request.RunID), registry)
+	ctx := observation.WithRegistry(context.Background(), registry)
 	ctx = live.WithRuns(ctx, runs)
 	ctx = effects.WithEnvironment(effects.WithEndpoint(ctx, request.TaskEndpoint), request.TaskRoute.Environment)
 	if len(connections) > 0 && (connections[0].Execution != nil || connections[0].Messages != nil) {
@@ -153,7 +152,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 				err = fmt.Errorf("workflow panic: %v", value)
 			}
 		}()
-		return gimbal.Run(gimbal.Project(ctx, state), request.Workflow, models, body)
+		return gimbal.Run(gimbal.Project(ctx, state), request.RunID, request.Workflow, models, body)
 	}()
 	for controller != nil && controller.CleanupPending() {
 		time.Sleep(200 * time.Millisecond)

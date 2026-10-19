@@ -9,12 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestMissingRequirementsPreventNativeAdmission(t *testing.T) {
 	project := t.TempDir()
 	marker := filepath.Join(project, "must-not-exist")
-	err := Run(Project(t.Context(), project), "missing-secret", nil, func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "missing-secret", nil, func(ctx context.Context) error {
 		return Check(WithRequirements(ctx, DefaultStore, "MISSING"), "probe", project, "touch", marker)
 	})
 	if err == nil {

@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/polytype"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // waiting is a fake whose "wait" prompts block until their ctx ends and
@@ -63,7 +65,7 @@ func TestKillScopeClosesEverySessionAndReportsTheCause(t *testing.T) {
 	var scopeErr, turnOne, turnTwo, seen error
 	var killErr error
 	var killWG sync.WaitGroup
-	err := Run(Project(t.Context(), project), "test", bind(f, "m", "one", "two"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "test", bind(f, "m", "one", "two"), func(ctx context.Context) error {
 		r, _ := current(ctx)
 		killWG.Go(func() {
 			runningTurns(t, f, 2)
@@ -124,7 +126,7 @@ func TestKillTurnEndsOnlyThatTurn(t *testing.T) {
 	var unknownErr error
 	var killErr error
 	var killWG sync.WaitGroup
-	err := Run(Project(t.Context(), project), "test", bind(f, "m", "coder"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "test", bind(f, "m", "coder"), func(ctx context.Context) error {
 		return Scope(ctx, "lap", func(ctx context.Context) error {
 			r, _ := current(ctx)
 			unknownErr = r.run.CancelTurn("lap.1/coder.1/turn.9", kill)
@@ -262,7 +264,7 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 	var killErr error
 	var killWG sync.WaitGroup
 	var laps []error
-	err := Run(Project(t.Context(), project), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
 		r, _ := current(ctx)
 		planner := NewSession(ctx, "planner", t.TempDir())
 		loop := PromiseLoop(ctx, "sprint", "ship", planner)
@@ -313,7 +315,7 @@ func TestLoopKilledTaskIsAFailedTaskNotABrokenLoop(t *testing.T) {
 func TestCancelledTurnLeavesTheSessionUsable(t *testing.T) {
 	f := waiting()
 	project := t.TempDir()
-	err := Run(Project(t.Context(), project), "test", bind(f, "m", "coder"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "test", bind(f, "m", "coder"), func(ctx context.Context) error {
 		s := NewSession(ctx, "coder", "/w")
 		turnCtx, cancel := context.WithCancel(ctx)
 		go func() {

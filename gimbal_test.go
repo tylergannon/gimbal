@@ -19,6 +19,8 @@ import (
 	"github.com/tylergannon/gimbal/internal/runlog"
 	"github.com/tylergannon/polytype"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // fake is a HarnessAdapter whose turns are answered by a function.
@@ -108,7 +110,7 @@ func (f *fake) Close(ctx context.Context, session string) error {
 
 func runTest(t *testing.T, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
 	t.Helper()
-	return Run(Project(t.Context(), t.TempDir()), "test", models, body)
+	return Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "test", models, body)
 }
 
 // bind binds each role to one fake harness, for a test that cares about the
@@ -181,7 +183,7 @@ func fakeAgentEvent(eventType, session, message string, fields map[string]any) A
 func TestRunLogCanBeRead(t *testing.T) {
 	project := t.TempDir()
 	var dir string
-	if err := Run(Project(t.Context(), project), "reader", nil, func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "reader", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		return nil
 	}); err != nil {
@@ -326,7 +328,7 @@ func TestGenerateRecordsPromptAndScopeContextSeparately(t *testing.T) {
 	}}
 	project := t.TempDir()
 	var dir string
-	err := Run(Project(t.Context(), project), "turn-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "turn-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		Set(ctx, "first", "one")
 		Set(ctx, "shared", "parent")
@@ -399,7 +401,7 @@ func TestScopeTemplateRecordsCompletenessFromSentText(t *testing.T) {
 		return "done", nil
 	}}
 	var dir string
-	err := Run(Project(t.Context(), t.TempDir()), "template-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "template-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		Set(ctx, "artifact", artifact)
 		Set(ctx, "empty", "")
@@ -498,7 +500,7 @@ func TestGenerateRecordsAggregateSpillFromSentRepresentation(t *testing.T) {
 		sent = prompt
 		return "done", nil
 	}}
-	err := Run(Project(t.Context(), t.TempDir()), "aggregate-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "aggregate-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		Set(ctx, "small", "kept whole")
 		for i := range 7 {
@@ -561,7 +563,7 @@ func TestGenerateRecordsEmptyDefaultIndexAsIncomplete(t *testing.T) {
 		sent = prompt
 		return "done", nil
 	}}
-	err := Run(Project(t.Context(), t.TempDir()), "indexed-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "indexed-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		Set(ctx, "empty", "")
 		for i := range 70 {
@@ -632,7 +634,7 @@ func TestGenerateRecordsShortenedContextWithoutChangingAdapterPrompt(t *testing.
 		sent = prompt
 		return "done", nil
 	}}
-	err := Run(Project(t.Context(), t.TempDir()), "short-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "short-context", bind(adapter, "m", "worker"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		Set(ctx, "large", strings.Repeat("scope context ", 20_000))
 		expected = appendScopeText(ctx, "inspect")
@@ -840,7 +842,7 @@ func TestSuperviseCancelsAndJoinsLook(t *testing.T) {
 				joined = true
 				return "", ctx.Err()
 			}}
-			err := Run(Project(ctx, t.TempDir()), "join", bind(f, "m", "reviewer", "worker"), func(ctx context.Context) error {
+			err := Run(Project(ctx, t.TempDir()), string(runstore.NewRunID()), "join", bind(f, "m", "reviewer", "worker"), func(ctx context.Context) error {
 				worker := NewSession(ctx, "worker", ".")
 				reviewer := NewSession(ctx, "reviewer", ".")
 				result, err := worker.Generate[Text](ctx, "work", WithSupervisor(reviewer, "watch"))
@@ -879,7 +881,7 @@ func TestLoopCarriesStructuredTaskAndFeedback(t *testing.T) {
 	var tasks []Task
 	var taskKeys []string
 	var parentText string
-	err := Run(Project(t.Context(), project), "test", bind(f, "m", "planner"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "test", bind(f, "m", "planner"), func(ctx context.Context) error {
 		Set(ctx, "constraint", "keep the public API small")
 		planner := NewSession(ctx, "planner", t.TempDir())
 		loop := PromiseLoop(ctx, "sprint", "ship", planner)
@@ -1205,7 +1207,7 @@ func TestLoopEndsTaskScopeOnCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	var taskCtx context.Context
 	var worker *Session
-	err := Run(Project(ctx, t.TempDir()), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
+	err := Run(Project(ctx, t.TempDir()), string(runstore.NewRunID()), "test", bind(f, "m", "planner", "worker"), func(ctx context.Context) error {
 		planner := NewSession(ctx, "planner", t.TempDir())
 		loop := PromiseLoop(ctx, "work", "wait", planner)
 		for ctx := range loop.Tasks {
@@ -1261,7 +1263,7 @@ func TestAttestEventFixture(t *testing.T) {
 	runsGroup, runCtx := errgroup.WithContext(ctx)
 	defer func() { cancel(); _ = runsGroup.Wait() }()
 	runsGroup.Go(func() error {
-		return Run(Project(runCtx, project), "attest", bind(f, "m", "researcher", "reviewer", "worker"), func(ctx context.Context) error {
+		return Run(Project(runCtx, project), string(runstore.NewRunID()), "attest", bind(f, "m", "researcher", "reviewer", "worker"), func(ctx context.Context) error {
 			if runDir(ctx) == "" {
 				return errors.New("run directory was empty inside a run")
 			}
@@ -1560,7 +1562,7 @@ func TestRunWritesTheTables(t *testing.T) {
 		return "done", nil
 	}}
 	var dir string
-	if err := Run(Project(t.Context(), t.TempDir()), "tables", bind(f, "m", "coder"), func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "tables", bind(f, "m", "coder"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		// A session created at the root and used inside a group: the turn
 		// belongs to the scope it ran in, not the one it was made in.
@@ -1632,7 +1634,7 @@ func TestTurnRecordsValidationFailure(t *testing.T) {
 		return `{"objections": "not a list"}`, nil
 	}}
 	var dir string
-	if err := Run(Project(t.Context(), t.TempDir()), "validate", bind(f, "m", "coder"), func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "validate", bind(f, "m", "coder"), func(ctx context.Context) error {
 		dir = runDir(ctx)
 		s := NewSession(ctx, "coder", "/w")
 		if _, err := s.Generate[review](ctx, "review"); err == nil {

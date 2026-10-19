@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // TestRunTurnAfterRedialResumesThread proves finding 1's fix live: killing
@@ -51,7 +53,7 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 	defer cancel()
 	ctx = gimbal.Project(ctx, dir)
 
-	err := gimbal.Run(ctx, "daemon-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 
 		first, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: one.")
@@ -244,7 +246,7 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	defer cancel()
 	ctx = gimbal.Project(ctx, dir)
 
-	err = gimbal.Run(ctx, "daemon-close-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
@@ -350,7 +352,7 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 	ctx = gimbal.Project(ctx, dir)
 
 	var dead *connection
-	err = gimbal.Run(ctx, "daemon-close-redial-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-redial-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
@@ -495,7 +497,7 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 	loadedBefore := loadedSet(t, probe)
 
 	var parent string
-	err = gimbal.Run(ctx, "daemon-fork-archived-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-fork-archived-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: parent."); err != nil {
 			return err
@@ -648,7 +650,7 @@ func TestActiveTurnReconnectPreservesToolEffectLive(t *testing.T) {
 		}
 	}()
 	validations := 0
-	err := gimbal.Run(gimbal.Project(ctx, dir), "active-reconnect-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coding": {Adapter: ad, Model: "gpt-5.6-luna"}, "qa": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(gimbal.Project(ctx, dir), string(runstore.NewRunID()), "active-reconnect-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coding": {Adapter: ad, Model: "gpt-5.6-luna"}, "qa": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		for taskCtx, stage := range gimbal.Iterate(ctx, "outcome", []string{"first", "second", "third"}) {
 			gimbal.Set(taskCtx, "stage", stage)
 			gimbal.Set(taskCtx, "effect file", effect)

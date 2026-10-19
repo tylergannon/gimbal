@@ -251,16 +251,16 @@ func TestRetainedNativeSuccessSurvivesNormalWorkflowDeliveryLoss(t *testing.T) {
 	bus := &lostCompletion{directMessages: direct}
 	project := t.TempDir()
 	registry := observation.NewRegistry(project)
-	ctx = observation.WithRegistry(effects.WithRunID(gimbal.Project(ctx, project), "lost-success"), registry)
+	ctx = observation.WithRegistry(gimbal.Project(ctx, project), registry)
 	ctx = effects.WithConnection(ctx, backend.Connection{Messages: bus})
-	err := gimbal.Run(ctx, "lost-success", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}, Model: "test"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FA1", "01ARZ3NDEKTSV4RRFFQ69G5FA1", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}, Model: "test"}}, func(ctx context.Context) error {
 		_, err := gimbal.NewSession(ctx, "agent", t.TempDir()).Generate[gimbal.Text](ctx, "work")
 		return err
 	})
 	if _, ok := errors.AsType[*backend.DeliveryUncertain](err); !ok {
 		t.Fatalf("not unresolved: %v", err)
 	}
-	snapshot, err := registry.Snapshot("lost-success")
+	snapshot, err := registry.Snapshot("01ARZ3NDEKTSV4RRFFQ69G5FA1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +271,7 @@ func TestRetainedNativeSuccessSurvivesNormalWorkflowDeliveryLoss(t *testing.T) {
 		if !turn.Unresolved || turn.Interrupted || !turn.EventsUnavailable {
 			t.Fatalf("wrong turn outcome %+v", turn)
 		}
-		native := d.result(backend.Target{Run: "lost-success", ID: turn.ID})
+		native := d.result(backend.Target{Run: "01ARZ3NDEKTSV4RRFFQ69G5FA1", ID: turn.ID})
 		var result backend.TurnResult
 		if !native.Done || native.Error != "" || json.Unmarshal(native.Result, &result) != nil || string(result.Output) != `"done"` {
 			t.Fatalf("native success lost: %+v", native)
@@ -285,17 +285,17 @@ func TestIndependentMessagingInterruptPreservesNativeCancellation(t *testing.T) 
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	project := t.TempDir()
 	registry := observation.NewRegistry(project)
-	ctx = observation.WithRegistry(effects.WithRunID(gimbal.Project(ctx, project), "independent-interrupt"), registry)
+	ctx = observation.WithRegistry(gimbal.Project(ctx, project), registry)
 	ctx = effects.WithConnection(ctx, backend.Connection{Messages: bus})
 	done := make(chan error, 1)
 	go func() {
-		done <- gimbal.Run(ctx, "interrupt", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}, Model: "test"}}, func(ctx context.Context) error {
+		done <- gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FA2", "interrupt", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: &Harness{Name: "test", Connection: backend.Connection{Messages: bus}}, Model: "test"}}, func(ctx context.Context) error {
 			_, err := gimbal.NewSession(ctx, "agent", project).Generate[gimbal.Text](ctx, "wait for independent interrupt")
 			return err
 		})
 	}()
 	<-native.started
-	snapshot, err := registry.Snapshot("independent-interrupt")
+	snapshot, err := registry.Snapshot("01ARZ3NDEKTSV4RRFFQ69G5FA2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -321,7 +321,7 @@ func TestIndependentMessagingInterruptPreservesNativeCancellation(t *testing.T) 
 	if ctx.Err() != nil {
 		t.Fatal("independent control cancelled workflow caller context")
 	}
-	snapshot, err = registry.Snapshot("independent-interrupt")
+	snapshot, err = registry.Snapshot("01ARZ3NDEKTSV4RRFFQ69G5FA2")
 	if err != nil {
 		t.Fatal(err)
 	}

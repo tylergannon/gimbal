@@ -14,6 +14,8 @@ import (
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/skgo"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type controlledRun struct {
@@ -128,7 +130,7 @@ func TestCancelRunThatEndsDuringControlReturnsLocalNotFound(t *testing.T) {
 		return release
 	})
 	go func() {
-		result <- gimbal.Run(ctx, "local-end-race", nil, func(context.Context) error {
+		result <- gimbal.Run(ctx, string(runstore.NewRunID()), "local-end-race", nil, func(context.Context) error {
 			close(entered)
 			<-end
 			return nil

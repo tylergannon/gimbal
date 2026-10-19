@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 var (
@@ -47,9 +48,7 @@ func Service(ctx context.Context, name, workdir, command string) error {
 		return fmt.Errorf("gimbal: service %q: %w", name, err)
 	}
 
-	scope.mu.Lock()
-	id := scope.next(name)
-	scope.mu.Unlock()
+	id, _ := scope.nextNode(runstore.Service, name)
 	dir, _ := filepath.Abs(workdir)
 	started := CommandStarted{ID: id, Name: name, Command: "zsh", Args: []string{"-c", command}, Workdir: dir}
 	if err := scope.run.eventResult(scope.key, "", "", started); err != nil {

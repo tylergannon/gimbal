@@ -778,7 +778,9 @@ func isWorkflowOperation(name string) bool {
 
 func callbackArgument(name string) (int, bool) {
 	switch name {
-	case "Run", "Scope":
+	case "Run":
+		return 4, true
+	case "Scope":
 		return 2, true
 	case "Go":
 		return 1, true

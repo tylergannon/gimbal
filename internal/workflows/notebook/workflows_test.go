@@ -7,6 +7,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type scriptedHarness struct {
@@ -39,7 +41,7 @@ func TestSprintRevisionUsesOriginalBriefAndReview(t *testing.T) {
 	plan := Sprint{Goal: "local trial", Tasks: []Task{{"baseline", "local", []string{}, "blocked infrastructure"}, {"trial", "two stacks", []string{"baseline"}, "no cross access"}, {"cleanup", "stop", []string{"trial"}, "within 10 seconds"}}}
 	a := &scriptedHarness{answers: []any{plan, Review{Findings: []string{"observe the trial live"}}, plan, Review{Findings: []string{}}}}
 	bindings := map[gimbal.WorkflowRole]gimbal.ModelBinding{gimbal.RoleSprintPlanning: {Adapter: a}, gimbal.RoleCodeReview: {Adapter: a}}
-	err := gimbal.Run(gimbal.Project(context.Background(), t.TempDir()), "test-sprint", bindings, func(ctx context.Context) error {
+	err := gimbal.Run(gimbal.Project(context.Background(), t.TempDir()), string(runstore.NewRunID()), "test-sprint", bindings, func(ctx context.Context) error {
 		_, err := SprintPlan(ctx, gimbal.Env{WorkDir: t.TempDir()}, "original bounded fixture")
 		return err
 	})
@@ -57,7 +59,7 @@ func TestSprintStopsAfterOneRejectedRevision(t *testing.T) {
 	plan := Sprint{Goal: "trial", Tasks: []Task{{"a", "baseline", []string{}, "run"}, {"b", "trial", []string{"a"}, "check"}, {"c", "cleanup", []string{"b"}, "stop"}}}
 	a := &scriptedHarness{answers: []any{plan, Review{Findings: []string{"gap"}}, plan, Review{Findings: []string{"still unresolved"}}}}
 	bindings := map[gimbal.WorkflowRole]gimbal.ModelBinding{gimbal.RoleSprintPlanning: {Adapter: a}, gimbal.RoleCodeReview: {Adapter: a}}
-	err := gimbal.Run(gimbal.Project(context.Background(), t.TempDir()), "test-sprint-rejected", bindings, func(ctx context.Context) error {
+	err := gimbal.Run(gimbal.Project(context.Background(), t.TempDir()), string(runstore.NewRunID()), "test-sprint-rejected", bindings, func(ctx context.Context) error {
 		result, err := SprintPlan(ctx, gimbal.Env{WorkDir: t.TempDir()}, "fixture")
 		if len(result.Tasks) != 3 {
 			t.Fatal("rejected candidate lost")

@@ -54,7 +54,7 @@ func TestPanicRetainsCleanupController(t *testing.T) {
 	defer func() { _ = read.Close() }()
 	done := make(chan error, 1)
 	go func() {
-		done <- run(invocation.Request{Project: project, Workflow: "panic"}, write, map[gimbal.WorkflowRole]gimbal.ModelBinding{"worker": {Adapter: adapter, Model: "fake"}}, func(ctx context.Context) error {
+		done <- run(invocation.Request{RunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", Project: project, Workflow: "panic"}, write, map[gimbal.WorkflowRole]gimbal.ModelBinding{"worker": {Adapter: adapter, Model: "fake"}}, func(ctx context.Context) error {
 			session := gimbal.NewSession(ctx, gimbal.WorkflowRole("worker"), project)
 			_, _ = session.Generate[testOutput](ctx, "one turn")
 			panic("workflow failed")

@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestCleanupTimeoutIsCapturedPerRunAndUsedForRetry(t *testing.T) {
@@ -47,7 +49,7 @@ func TestCleanupTimeoutIsCapturedPerRunAndUsedForRetry(t *testing.T) {
 				},
 			}
 			var owner *run
-			err := Run(ctx, tc.name, bind(adapter, "model", "worker"), func(ctx context.Context) error {
+			err := Run(ctx, string(runstore.NewRunID()), tc.name, bind(adapter, "model", "worker"), func(ctx context.Context) error {
 				s, err := current(ctx)
 				if err != nil {
 					return err

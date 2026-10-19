@@ -18,6 +18,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/web"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // script is the fake harness of the shape examples: answer is called with
@@ -134,7 +136,7 @@ func Example_bakeOff() {
 	codex := says("Cache the parsed config on the loader and return it from Load.")
 	claude := says(`{"winner":2,"why":"It changes one file and keeps Load's signature."}`)
 
-	err := gimbal.Run(ctx, "bakeoff", map[gimbal.WorkflowRole]gimbal.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "bakeoff", map[gimbal.WorkflowRole]gimbal.ModelBinding{"judge": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimbal.Set(ctx, "repository", repo)
 		researcher := gimbal.NewSession(ctx, "researcher", repo)
 		if _, err := researcher.Generate[gimbal.Text](ctx, bakeOffResearchPrompt); err != nil {
@@ -205,7 +207,7 @@ func Example_critiqueRound() {
 		return `{"defects":[]}`, nil
 	}}
 
-	err := gimbal.Run(ctx, "critique", map[gimbal.WorkflowRole]gimbal.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "critique", map[gimbal.WorkflowRole]gimbal.ModelBinding{"critic": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}, "writer": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimbal.Set(ctx, "notes file", note)
 		writer := gimbal.NewSession(ctx, "writer", repo)
 		critic := gimbal.NewSession(ctx, "critic", repo)
@@ -259,7 +261,7 @@ func Example_supervisedWorker() {
 	codex := says("Done: Parse in config/parse.go, one test in config/parse_test.go, uncommitted.")
 	claude := says(`{"objections":[]}`)
 
-	err := gimbal.Run(ctx, "supervised", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "supervised", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}, "taste": {Adapter: claude, Model: "claude-haiku-4-5-20251001"}}, func(ctx context.Context) error {
 		gimbal.Set(ctx, "repository", repo)
 		coder := gimbal.NewSession(ctx, "coder", repo)
 		taste := gimbal.NewSession(ctx, "taste", repo)
@@ -302,7 +304,7 @@ func Example_loopWithPlanner() {
 		return `{"tasks":[],"next":null}`, nil
 	}}
 
-	err := gimbal.Run(ctx, "loop", map[gimbal.WorkflowRole]gimbal.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "loop", map[gimbal.WorkflowRole]gimbal.ModelBinding{"researcher": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimbal.Set(ctx, "repository", repo)
 		researcher := gimbal.NewSession(ctx, "researcher", repo)
 		if _, err := researcher.Generate[gimbal.Text](ctx, loopResearchPrompt); err != nil {
@@ -350,7 +352,7 @@ func Example_worktreePerCandidate() {
 	repo := repoDir()
 	codex := says("Done: the loader reads its file once; the test is in config/load_test.go.")
 
-	err := gimbal.Run(ctx, "worktrees", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "worktrees", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		group := gimbal.Group(ctx, "candidates")
 		group.Go("candidate", func(ctx context.Context) error {
 			dir, err := os.MkdirTemp("", "candidate-")
@@ -429,7 +431,7 @@ func Example_validationCommand() {
 	codex := says("Done: Load caches the parsed config.")
 	check := "go test ./config/..."
 
-	err := gimbal.Run(ctx, "validated", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "validated", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: codex, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		gimbal.Set(ctx, "repository", repo)
 		gimbal.Set(ctx, "check command", check)
 		coder := gimbal.NewSession(ctx, "coder", repo)

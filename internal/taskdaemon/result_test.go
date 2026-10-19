@@ -11,6 +11,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestInvalidOutputClassificationPreservesRawResult(t *testing.T) {
@@ -94,7 +96,7 @@ func TestRemoteGenerateBoundsInvalidOutputReasks(t *testing.T) {
 	defer server.Close()
 	h := &Harness{Endpoint: server.URL, Name: "fake"}
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
-	err := gimbal.Run(ctx, "remote-invalid-output", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: h, Model: "m"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "remote-invalid-output", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: h, Model: "m"}}, func(ctx context.Context) error {
 		_, err := gimbal.NewSession(ctx, "coder", t.TempDir()).Generate[remoteAnswer](ctx, "answer")
 		return err
 	})

@@ -59,6 +59,7 @@ type openCall struct {
 // every detachment goes through mu, so a snapshot and the suffix behind it
 // come from one cut.
 type Store struct {
+	initializing bool
 	source       backend.RunObservations
 	sourceCursor string
 	id           string
@@ -140,8 +141,11 @@ func newStreamID() string {
 // a recording failure: the store itself is usable either way.
 func Open(registry *Registry, id, name, dir string, createDir ...func() error) (*Store, error) {
 	s := newStore(registry, id, name, dir)
+	s.initializing = true
 	if registry != nil {
-		registry.add(s)
+		if err := registry.add(s); err != nil {
+			return nil, err
+		}
 	}
 	if len(createDir) != 0 {
 		if err := createDir[0](); err != nil {
@@ -153,6 +157,7 @@ func Open(registry *Registry, id, name, dir string, createDir ...func() error) (
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.initializing = false
 	if err := s.writeAllTablesLocked(); err != nil {
 		return s, err
 	}

@@ -11,6 +11,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/codex"
 	"github.com/tylergannon/gimbal/internal/runlog"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // TestLivePromiseLoopSupervisor checks that a real supervisor's objection
@@ -26,7 +28,7 @@ func TestLivePromiseLoopSupervisor(t *testing.T) {
 	ctx = gimbal.Project(ctx, project)
 	adapter := codex.New()
 	var selected string
-	err := gimbal.Run(ctx, "planner-supervision", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "planner-supervision", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		"planner": {Adapter: adapter, Model: "gpt-5.6-luna"},
 		"watcher": {Adapter: adapter, Model: "gpt-5.6-luna"},
 	}, func(ctx context.Context) error {

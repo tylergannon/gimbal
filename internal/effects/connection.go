@@ -66,11 +66,3 @@ func dispatch(ctx context.Context, c backend.Connection, op string, in, out any)
 	}
 	return json.Unmarshal(raw, out)
 }
-
-type runIDKey struct{}
-
-// WithRunID threads central admission identity into the independent runner.
-func WithRunID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, runIDKey{}, id)
-}
-func RunID(ctx context.Context) string { id, _ := ctx.Value(runIDKey{}).(string); return id }

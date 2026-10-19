@@ -19,6 +19,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/workflows/implementation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // This isolated daemon speaks the real WebSocket JSON-RPC transport. A tool
@@ -267,7 +269,7 @@ func TestImplementRecoversActiveCodexTurnWithoutReplayingOutcomes(t *testing.T) 
 			}
 			result := make(chan error, 1)
 			go func() {
-				result <- gimbal.Run(gimbal.Project(ctx, dir), "implement-recovery", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+				result <- gimbal.Run(gimbal.Project(ctx, dir), string(runstore.NewRunID()), "implement-recovery", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 					gimbal.RoleSprintPlanning: {Adapter: ad, Model: "planning"}, "coding": {Adapter: ad, Model: "coding"}, gimbal.RoleQAOrchestration: {Adapter: ad, Model: "qa"}, gimbal.RoleArchitecturalCritique: {Adapter: ad, Model: "coach"},
 				}, func(ctx context.Context) error {
 					return implementation.Implement(ctx, gimbal.Env{WorkDir: dir}, implementation.Params{OutcomesFile: path, MaxTasksPerOutcome: 1})

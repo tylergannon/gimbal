@@ -36,11 +36,10 @@ func TestNativeMessagingWorkflowInputsContinuityAndCleanup(t *testing.T) {
 	defer func() { stop(); <-done }()
 	token := "input-" + ulid.Make().String()
 	project := t.TempDir()
-	runID := "native-" + ulid.Make().String()
-	ctx = effects.WithRunID(ctx, runID)
+	runID := ulid.Make().String()
 	ctx = effects.WithConnection(gimbal.Project(ctx, project), backend.Connection{Messages: bus})
 	h := &taskdaemon.Harness{Name: "codex", Connection: backend.Connection{Messages: bus}}
-	err = gimbal.Run(ctx, "native-messaging", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: h, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, runID, "native-messaging", map[gimbal.WorkflowRole]gimbal.ModelBinding{"agent": {Adapter: h, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "agent", project)
 		first, err := session.Generate[gimbal.Text](gimbal.WithTaskFiles(ctx, backend.TaskFile{Name: "unique", Bytes: []byte(token)}), "Read the supplied task file unique. Remember its entire content for later. Return exactly that content, with no quotes or explanation.")
 		if err != nil {

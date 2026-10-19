@@ -3,6 +3,7 @@ package observation
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // Registry is a project's runs: the one the web runtime puts in the context
@@ -50,13 +52,17 @@ func FromContext(ctx context.Context) *Registry {
 	return registry
 }
 
-func (r *Registry) add(s *Store) {
+func (r *Registry) add(s *Store) error {
 	if r == nil {
-		return
+		return nil
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, exists := r.runs[s.id]; exists {
+		return fmt.Errorf("observation: run %s already registered", s.id)
+	}
 	r.runs[s.id] = s
+	return nil
 }
 
 func (r *Registry) remove(s *Store) {
@@ -99,6 +105,12 @@ func (r *Registry) Snapshot(id string) (RunSnapshot, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if store, ok := r.runs[id]; ok {
+		store.mu.Lock()
+		initializing := store.initializing
+		store.mu.Unlock()
+		if initializing {
+			return RunSnapshot{}, runstore.ErrIncomplete
+		}
 		if store.external {
 			if err := store.refresh(); err != nil {
 				return RunSnapshot{}, err
@@ -123,6 +135,12 @@ func (r *Registry) Snapshot(id string) (RunSnapshot, error) {
 	dir, err := r.runDir(id)
 	if err != nil {
 		return RunSnapshot{}, err
+	}
+	if !recognizedProjection(dir) {
+		if _, err := os.Stat(dir); errors.Is(err, os.ErrNotExist) {
+			return RunSnapshot{}, ErrNoRun
+		}
+		return RunSnapshot{}, runstore.ErrIncomplete
 	}
 	store, err := open(r, id, dir, true)
 	if err != nil {
@@ -157,7 +175,7 @@ func (r *Registry) IDs() ([]string, error) {
 		return nil, err
 	}
 	for _, entry := range entries {
-		if entry.IsDir() {
+		if entry.IsDir() && recognizedProjection(filepath.Join(r.dir, "runs", entry.Name())) {
 			seen[entry.Name()] = true
 		}
 	}
@@ -170,6 +188,16 @@ func (r *Registry) IDs() ([]string, error) {
 			seen[strings.TrimSuffix(entry.Name(), ".json")] = true
 		}
 	}
+	r.mu.RLock()
+	for id, s := range r.runs {
+		s.mu.Lock()
+		initializing := s.initializing
+		s.mu.Unlock()
+		if !initializing {
+			seen[id] = true
+		}
+	}
+	r.mu.RUnlock()
 	ids := make([]string, 0, len(seen))
 	for id := range seen {
 		ids = append(ids, id)
@@ -183,4 +211,14 @@ func (r *Registry) decorate(id string, snapshot RunSnapshot) RunSnapshot {
 		snapshot.Run.WorkflowEnvironment, snapshot.Run.TaskEnvironment = r.Placement(id)
 	}
 	return snapshot
+}
+
+// Bare and incompletely initialized store directories are not historical runs.
+func recognizedProjection(dir string) bool {
+	for _, name := range []string{"run.json", "run.jsonl", snapshotFile} {
+		if info, err := os.Stat(filepath.Join(dir, name)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
 }

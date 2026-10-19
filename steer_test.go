@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // TestSteerReportsLandedOrDropped covers the outcomes Session.Steer reports
@@ -41,7 +43,7 @@ func TestSteerReportsLandedOrDropped(t *testing.T) {
 			}
 			var during, after bool
 			var duringErr, afterErr error
-			err := Run(Project(t.Context(), project), "steer", bind(f, "model", "worker"), func(ctx context.Context) error {
+			err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "steer", bind(f, "model", "worker"), func(ctx context.Context) error {
 				worker := NewSession(ctx, "worker", project)
 				group, groupCtx := errgroup.WithContext(ctx)
 				group.Go(func() error {

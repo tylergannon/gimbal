@@ -11,6 +11,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
@@ -31,7 +33,7 @@ func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
 				return func() {}
 			})
 			go func() {
-				done <- gimbal.Run(ctx, "child", nil, func(ctx context.Context) error {
+				done <- gimbal.Run(ctx, string(runstore.NewRunID()), "child", nil, func(ctx context.Context) error {
 					select {
 					case <-finish:
 						return nil

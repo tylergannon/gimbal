@@ -18,6 +18,8 @@ import (
 	"github.com/tylergannon/gimbal/internal/pi/model"
 	"github.com/tylergannon/gimbal/internal/pi/session"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestProjectedEventsUseGimbalCompatibleNativeRefs(t *testing.T) {
@@ -500,7 +502,7 @@ func TestSchemaCandidateFeedsGimbalValidation(t *testing.T) {
 	a := newAdapter(Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }})
 	workdir := t.TempDir()
 	var got schemaAnswer
-	err := gimbal.Run(gimbal.Project(context.Background(), workdir), "pi-schema-reask", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+	err := gimbal.Run(gimbal.Project(context.Background(), workdir), string(runstore.NewRunID()), "pi-schema-reask", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		"pi": {Adapter: a, Model: "diffusion/deepseek-4.1-flash"},
 	}, func(ctx context.Context) error {
 		var err error

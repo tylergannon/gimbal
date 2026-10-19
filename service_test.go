@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestServiceLivesForItsDeclaringScopeAcrossIterations(t *testing.T) {
@@ -21,7 +23,7 @@ func TestServiceLivesForItsDeclaringScopeAcrossIterations(t *testing.T) {
 	termFile := filepath.Join(workdir, "term")
 	var pids []string
 	var dir string
-	err := Run(Project(t.Context(), t.TempDir()), "service-scope", nil, func(ctx context.Context) error {
+	err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "service-scope", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		return Scope(ctx, "preview", func(ctx context.Context) error {
 			command := "print $$ > " + shellQuote(pidFile) + "; trap 'print INT >> " + shellQuote(termFile) + "; exit 0' INT; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; while true; do sleep 0.05; done"
@@ -79,7 +81,7 @@ func TestServiceCancellationStopsTheProcessGroupWithSIGINT(t *testing.T) {
 	readyFile := filepath.Join(workdir, "ready")
 	termFile := filepath.Join(workdir, "term")
 	runCtx, cancel := context.WithCancel(t.Context())
-	err := Run(Project(runCtx, t.TempDir()), "service-cancel", nil, func(ctx context.Context) error {
+	err := Run(Project(runCtx, t.TempDir()), string(runstore.NewRunID()), "service-cancel", nil, func(ctx context.Context) error {
 		command := "trap 'print INT > " + shellQuote(termFile) + "; exit 0' INT; print ready > " + shellQuote(readyFile) + "; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; while true; do sleep 0.05; done"
 		if err := Service(ctx, "server", workdir, command); err != nil {
 			return err
@@ -136,7 +138,7 @@ func TestDerivedCallContextDoesNotOwnTheServiceLifetime(t *testing.T) {
 func TestUnexpectedServiceExitFailsAndCancelsItsScope(t *testing.T) {
 	var cancelled error
 	var dir string
-	err := Run(Project(t.Context(), t.TempDir()), "service-exit", nil, func(ctx context.Context) error {
+	err := Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "service-exit", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		if err := Service(ctx, "server", "", "print gone; : > \"$ENV_FILE.tmp\"; mv \"$ENV_FILE.tmp\" \"$ENV_FILE\"; sleep 0.05; exit 0"); err != nil {
 			return err

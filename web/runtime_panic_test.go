@@ -10,6 +10,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/observation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestDirectRunStillPanicsAfterRecordingFailure(t *testing.T) {
@@ -28,7 +30,7 @@ func TestDirectRunStillPanicsAfterRecordingFailure(t *testing.T) {
 		var recovered any
 		func() {
 			defer func() { recovered = recover() }()
-			_ = gimbal.Run(gimbal.Project(t.Context(), project), tc.name, nil, tc.body)
+			_ = gimbal.Run(gimbal.Project(t.Context(), project), string(runstore.NewRunID()), tc.name, nil, tc.body)
 		}()
 		if recovered == nil || !strings.Contains(fmt.Sprint(recovered), tc.panicText) {
 			t.Fatalf("direct %s panic = %v", tc.name, recovered)

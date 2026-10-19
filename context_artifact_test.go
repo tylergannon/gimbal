@@ -11,6 +11,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/tylergannon/gimbal/internal/observation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestFileBackedScopeValuesStayContainedAndReplay(t *testing.T) {
@@ -20,7 +22,7 @@ func TestFileBackedScopeValuesStayContainedAndReplay(t *testing.T) {
 	largeText := strings.Repeat("before ", 6000) + "TEXT-SENTINEL" + strings.Repeat(" after", 6000)
 	largeJSON := review{Objections: []string{strings.Repeat("json ", 10_000) + "JSON-SENTINEL"}}
 	var dir string
-	if err := Run(ctx, "artifacts", nil, func(ctx context.Context) error {
+	if err := Run(ctx, string(runstore.NewRunID()), "artifacts", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		return Scope(ctx, "../../child", func(ctx context.Context) error {
 			Set(ctx, "../../text", largeText)
@@ -105,7 +107,7 @@ func TestFileBackedScopeValuesStayContainedAndReplay(t *testing.T) {
 		var recovered any
 		func() {
 			defer func() { recovered = recover() }()
-			_ = Run(Project(t.Context(), project), "write-failure", nil, func(ctx context.Context) error {
+			_ = Run(Project(t.Context(), project), string(runstore.NewRunID()), "write-failure", nil, func(ctx context.Context) error {
 				if err := os.WriteFile(filepath.Join(runDir(ctx), "artifacts"), []byte("not a directory"), 0o644); err != nil {
 					return err
 				}

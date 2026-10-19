@@ -8,14 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"os"
-	"path/filepath"
-	"sync"
-	"time"
-
-	"golang.org/x/sys/unix"
-
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/conversation"
@@ -25,7 +17,15 @@ import (
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/promises"
 	"github.com/tylergannon/gimbal/internal/runner"
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/internal/transcript"
+	"github.com/tylergannon/gimbal/runstore"
+	"golang.org/x/sys/unix"
+	"log"
+	"os"
+	"path/filepath"
+	"sync"
+	"time"
 )
 
 type Owner struct {
@@ -298,6 +298,9 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	if ctx == nil {
 		return errors.New("gimbal: run context is nil")
 	}
+	if runstate.Override(ctx) != nil {
+		return errors.New("gimbal: application runs require the project-configured run store")
+	}
 	if body == nil {
 		return errors.New("gimbal: run body is nil")
 	}
@@ -321,7 +324,7 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	runCtx = observation.WithRegistry(runCtx, p.registry)
 	runCtx = live.WithRuns(runCtx, p.runs)
 	runCtx = live.WithHook(runCtx, p.runs.Hook)
-	err = gimbal.Run(gimbal.Project(runCtx, p.dir), name, models, body)
+	err = gimbal.Run(gimbal.Project(runCtx, p.dir), string(runstore.NewRunID()), name, models, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}

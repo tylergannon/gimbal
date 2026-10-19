@@ -15,6 +15,7 @@ import (
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // closeTimeout bounds one adapter's Close call, on a context independent of
@@ -32,6 +33,7 @@ type taskKey struct{}
 // scope is one instance of a named span of the workflow. Nothing is in the
 // ctx but a pointer to it.
 type scope struct {
+	node   runstore.NodeID
 	run    *run
 	parent *scope
 	name   string
@@ -122,19 +124,33 @@ func (s *scope) next(name string) string {
 }
 
 func (s *scope) child(name string) *scope {
+	key, node := s.nextNode(runstore.Scope, name)
+	child := &scope{run: s.run, parent: s, name: name, key: key, node: node}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	child := &scope{run: s.run, parent: s, name: name, key: s.next(name)}
 	s.children = append(s.children, child)
+	s.mu.Unlock()
 	return child
 }
 
 // adopt makes session belong to s, which closes it when s ends.
 func (s *scope) adopt(session *Session) {
+	session.owner = s
+	s.mu.Lock()
+	session.id = s.next(session.name)
+	ordinal := s.ordinals[session.name]
+	ended := s.ended
+	s.mu.Unlock()
+	var metadata any
+	if session.source != "" {
+		metadata = map[string]any{"source_session": session.source}
+	}
+	session.node = s.run.ensureNode(s.node, runstore.Session, session.name, ordinal, session.id, metadata)
+	if ended {
+		s.run.recordFailure("adopt session", fmt.Errorf("scope %q ended", s.key))
+	}
+	_ = s.run.activate(session.node)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	session.owner = s
-	session.id = s.next(session.name)
 	session.closed = s.ended
 	s.sessions = append(s.sessions, session)
 }
@@ -178,6 +194,9 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 		}
 		err = s.finish(err)
 	}()
+	if err := s.run.recordingError(); err != nil {
+		return err
+	}
 	return body(ctx)
 }
 
@@ -186,6 +205,7 @@ func (s *scope) begin(ctx context.Context) context.Context {
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
 	s.ctx = ctx
 	context.AfterFunc(ctx, func() { _ = s.end() })
+	_ = s.run.activate(s.node)
 	s.run.addScope(s)
 	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
 	if task, ok := ctx.Value(taskKey{}).(Task); ok {

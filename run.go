@@ -18,9 +18,10 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 
-	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runstate"
+	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/workflow"
 )
 
@@ -65,6 +66,10 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
+	records       runstore.Run
+	rootNode      runstore.NodeID
+	nodeMu        sync.Mutex
+	nodeByKey     map[string]runstore.NodeID
 	dir           string                        // <project>/runs/<id>
 	models        map[WorkflowRole]ModelBinding // what each role the workflow names runs on
 	writer        *eventWriter
@@ -162,8 +167,8 @@ func (r *run) closeError() error {
 // admitted to a concurrently running instance; shared-state use has no
 // supported contract. Hosted runs are submitted to an instance with a
 // workflow compiled into its binary.
-func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
-	r, release, err := beginRun(ctx, name, models)
+func Run(ctx context.Context, runID string, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
+	r, release, err := beginRun(ctx, runID, name, models)
 	if err != nil {
 		return err
 	}
@@ -184,7 +189,7 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 
 // beginRun allocates the existing run recorder/control owner without invoking
 // a workflow body. Run owns the matching completion.
-func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBinding) (*run, func(), error) {
+func beginRun(ctx context.Context, runID string, name string, models map[WorkflowRole]ModelBinding) (*run, func(), error) {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return nil, nil, errors.New("gimbal: Run needs gimbal.Project in its ctx")
@@ -193,12 +198,9 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	if err != nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
-	id := effects.RunID(ctx)
-	if id == "" {
-		id = ulid.Make().String() + "." + name
-	}
-	if filepath.Base(id) != id || id == "." || id == ".." {
-		return nil, nil, errors.New("gimbal: invalid assigned run identity")
+	id := runID
+	if !runstore.ValidID(id) {
+		return nil, nil, errors.New("gimbal: Run requires a valid ULID run ID")
 	}
 	dir := filepath.Join(project, "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
@@ -208,8 +210,18 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	// registered there and the page can read it; without one the run still
 	// owns a private store and writes the same table files, so observation
 	// does not depend on who started the run.
+	var records runstore.Run
 	store, storeErr := observation.Open(observation.FromContext(ctx), id, name, dir, func() error {
-		return os.Mkdir(dir, 0o755)
+		var err error
+		records, err = runstate.Resolve(ctx, project).Create(ctx, runstore.Header{RunID: runstore.RunID(id), Workflow: name})
+		if err != nil {
+			return err
+		}
+		if err = os.MkdirAll(dir, 0700); err != nil {
+			_ = records.Close()
+			return err
+		}
+		return nil
 	})
 	if store == nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", storeErr)
@@ -217,9 +229,17 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
 	if err != nil {
 		_ = store.Close()
+		_ = records.Close()
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
-	r := &run{finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	header, headerErr := records.Header(ctx)
+	if headerErr != nil {
+		_ = records.Close()
+		_ = store.Close()
+		_ = w.close()
+		return nil, nil, headerErr
+	}
+	r := &run{records: records, rootNode: header.Root, nodeByKey: map[string]runstore.NodeID{"": header.Root}, finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	r.cleanupTimeout, _ = ctx.Value(cleanupTimeoutKey{}).(time.Duration)
 	r.store = store
 	if d, ok := DefaultRegistry.Workflow(name); ok {
@@ -288,7 +308,7 @@ func (r *run) root(ctx context.Context, name string, body func(ctx context.Conte
 		connection.Secrets = backend.NewMemorySecrets()
 		ctx = effects.WithConnection(ctx, connection)
 	}
-	return (&scope{run: r}).do(ctx, body)
+	return (&scope{run: r, node: r.rootNode}).do(ctx, body)
 }
 
 // finish writes the run's terminal records and closes what it holds:
@@ -313,6 +333,9 @@ func (r *run) finish(name string, err error) error {
 	}
 	r.event("", "", "", Complete{RecordingError: errString(r.recordingError())})
 	r.recordFailure("close run log", r.writer.close())
+	if !r.CleanupPending() {
+		r.recordFailure("close run store", r.records.Close())
+	}
 	err = errors.Join(err, r.recordingError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
@@ -361,18 +384,14 @@ type interviewWaiter struct {
 	answer chan string
 }
 
-func (r *run) registerInterviewQuestion() (string, *interviewWaiter) {
+func (r *run) registerInterviewQuestion(scope *scope, name string) (string, *interviewWaiter) {
+	_, node := scope.nextNode(runstore.Question, name)
+	id := string(node)
+	_ = r.activate(node)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.interviews == nil {
 		r.interviews = make(map[string]*interviewWaiter)
-	}
-	var id string
-	for {
-		id = ulid.Make().String()
-		if r.interviews[id] == nil {
-			break
-		}
 	}
 	waiter := &interviewWaiter{answer: make(chan string, 1)}
 	r.interviews[id] = waiter
@@ -514,7 +533,11 @@ func (r *run) retryCleanup() error {
 	// The original terminal error remains in history. This stop request reports
 	// its own current delivery result and never invokes the workflow again.
 	result := errors.Join(failures...)
-	return errors.Join(result, observation.RecordCleanup(r.dir, result))
+	recordErr := observation.RecordCleanup(r.dir, result)
+	if !r.CleanupPending() {
+		recordErr = errors.Join(recordErr, r.records.Close())
+	}
+	return errors.Join(result, recordErr)
 }
 
 func (r *run) cancelScopeLocked(key string, cause error) error {

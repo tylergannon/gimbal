@@ -8,7 +8,7 @@ func Set[V any](context.Context, string, V)                          {}
 func SetJSON[V any](context.Context, string, V)                      {}
 func Check(context.Context, string, string, string, ...string) error { return nil }
 
-func Run(ctx context.Context, _ string, body func(context.Context) error) error {
+func Run(ctx context.Context, _, _ string, _ any, body func(context.Context) error) error {
 	return body(ctx)
 }
 

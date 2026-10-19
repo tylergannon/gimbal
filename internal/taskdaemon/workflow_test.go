@@ -15,6 +15,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/live"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestLostProcessReplyPreservesCommandResultWithoutReplay(t *testing.T) {
@@ -45,7 +47,7 @@ func TestLostProcessReplyPreservesCommandResultWithoutReplay(t *testing.T) {
 	}))
 	defer server.Close()
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
-	err := gimbal.Run(ctx, "lost-process-reply", nil, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "lost-process-reply", nil, func(ctx context.Context) error {
 		code, stdout, stderr, err := gimbal.RunCommand(ctx, "command", t.TempDir(), "zsh", "-c", "printf actual-output; printf actual-error >&2; exit 7")
 		if err != nil {
 			return err
@@ -109,7 +111,7 @@ func TestWorkflowScopeUnwindsRemoteResources(t *testing.T) {
 						t.Fatalf("unexpected panic: %v", p)
 					}
 				}()
-				err = gimbal.Run(ctx, "remote-scope", nil, body)
+				err = gimbal.Run(ctx, string(runstore.NewRunID()), "remote-scope", nil, body)
 			}()
 			if mode == "return" && err != nil {
 				t.Fatal(err)
@@ -129,7 +131,7 @@ func TestUnexpectedRemoteServiceExitFailsScope(t *testing.T) {
 	server := httptest.NewServer(d.Handler())
 	defer server.Close()
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
-	err := gimbal.Run(ctx, "remote-failure", nil, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "remote-failure", nil, func(ctx context.Context) error {
 		if err := gimbal.Service(ctx, "dependency", t.TempDir(), `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; sleep 0.1; exit 0`); err != nil {
 			return err
 		}
@@ -170,7 +172,7 @@ func TestSuccessfulAncestorCleanupClearsFailedChildOwnership(t *testing.T) {
 	var controller live.Controller
 	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c; return func() {} })
 	ctx = gimbal.WithCleanupTimeout(ctx, 250*time.Millisecond)
-	err := gimbal.Run(ctx, "cleanup-retry", nil, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "cleanup-retry", nil, func(ctx context.Context) error {
 		return gimbal.Scope(ctx, "child", func(ctx context.Context) error {
 			return gimbal.Service(ctx, "dependency", t.TempDir(), `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`)
 		})

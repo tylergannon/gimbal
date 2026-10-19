@@ -14,11 +14,14 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/secretcallback"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
+	source  runstore.NodeID
+	node    runstore.NodeID
 	owner   *scope
 	adapter HarnessAdapter
 	name    string
@@ -274,7 +277,16 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	turnID := fmt.Sprintf("%s/turn.%d", s.id, s.turns)
 	s.turnID = turnID
 	native := s.native
+	ordinal := s.turns
 	s.mu.Unlock()
+	s.owner.run.ensureNode(s.node, runstore.Action, "turn", ordinal, turnID, nil)
+	if err := s.owner.run.recordingError(); err != nil {
+		s.mu.Lock()
+		s.running = false
+		s.turnID = ""
+		s.mu.Unlock()
+		return nil, err
+	}
 	defer func() {
 		s.mu.Lock()
 		s.running = false
@@ -706,8 +718,11 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	fork := &Session{adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
+	fork := &Session{source: s.node, adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
 	scope.adopt(fork)
+	if err := scope.run.recordingError(); err != nil {
+		return nil, err
+	}
 	if native != "" {
 		if fork.native, err = s.adapter.Fork(effectContext(ctx, scope, fork.id), native); err != nil {
 			return nil, fmt.Errorf("gimbal: fork %s: %w", s.id, err)

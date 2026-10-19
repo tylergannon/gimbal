@@ -16,6 +16,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/commandexecutor"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/executor"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 const commandOutputLimit = 64 << 10
@@ -204,9 +205,7 @@ func recordCheckResult(s *scope, key string, raw []byte) error {
 }
 
 func runCommand(ctx context.Context, s *scope, name, workdir, command string, args []string) (CommandStarted, CommandEnded, error, error) {
-	s.mu.Lock()
-	id := s.next(name)
-	s.mu.Unlock()
+	id, _ := s.nextNode(runstore.Action, name)
 	dir, _ := filepath.Abs(workdir)
 	started := CommandStarted{ID: id, Name: name, Command: command, Args: args, Workdir: dir}
 	startRecordErr := s.run.eventResult(s.key, "", "", started)

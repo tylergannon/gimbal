@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/tylergannon/gimbal/workflow"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestRegisteredGraphReturnsCompiledWorkflow(t *testing.T) {
@@ -38,7 +40,7 @@ func TestRunSavesTheDesignerSourcePageBesideItsGraph(t *testing.T) {
 		t.Fatal(err)
 	}
 	project := t.TempDir()
-	if err := Run(Project(t.Context(), project), name, nil, func(context.Context) error { return nil }); err != nil {
+	if err := Run(Project(t.Context(), project), string(runstore.NewRunID()), name, nil, func(context.Context) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	saved, err := filepath.Glob(filepath.Join(project, "runs", "*", "source.json"))

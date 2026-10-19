@@ -14,7 +14,7 @@ import (
 )
 
 func TestInvalidOutputClassificationPreservesRawResult(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	done := make(chan struct{})
 	close(done)
 	output := []byte(" \n {\"n\":\"wrong\"} \t")
@@ -55,7 +55,7 @@ func (h *invalidNativeHarness) RunTurn(_ context.Context, _, _ string, schema js
 	return result, gimbal.ValidateTurnResult(schema, result)
 }
 func TestRemoteHarnessReturnsInvalidClassificationAndExactNativeOutput(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	native := &invalidNativeHarness{}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	server := httptest.NewServer(d.Handler())
@@ -87,7 +87,7 @@ func (remoteAnswer) Schema() json.RawMessage {
 	return json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)
 }
 func TestRemoteGenerateBoundsInvalidOutputReasks(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	native := &invalidNativeHarness{alwaysInvalid: true}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	server := httptest.NewServer(d.Handler())

@@ -18,7 +18,7 @@ import (
 )
 
 func TestLostProcessReplyPreservesCommandResultWithoutReplay(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	native := d.Handler()
 	var starts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +63,7 @@ func TestLostProcessReplyPreservesCommandResultWithoutReplay(t *testing.T) {
 func TestWorkflowScopeUnwindsRemoteResources(t *testing.T) {
 	for _, mode := range []string{"return", "error", "panic", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
-			d := New()
+			d := New(t.TempDir())
 			server := httptest.NewServer(d.Handler())
 			defer server.Close()
 			ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
@@ -125,7 +125,7 @@ func TestWorkflowScopeUnwindsRemoteResources(t *testing.T) {
 }
 
 func TestUnexpectedRemoteServiceExitFailsScope(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	server := httptest.NewServer(d.Handler())
 	defer server.Close()
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
@@ -146,7 +146,7 @@ func TestUnexpectedRemoteServiceExitFailsScope(t *testing.T) {
 }
 
 func TestSuccessfulAncestorCleanupClearsFailedChildOwnership(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	native := d.Handler()
 	var failed atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

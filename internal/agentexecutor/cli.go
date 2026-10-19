@@ -32,7 +32,7 @@ func CLI(args []string, stdout, stderr io.Writer) error {
 	flags.StringVar(&promptFile, "prompt-file", "", "snapshot prompt from file")
 	flags.StringVar(&schema, "schema", "", "output JSON Schema")
 	flags.StringVar(&schemaFile, "schema-file", "", "snapshot schema from file")
-	flags.DurationVar(&timeout, "timeout", 20*time.Minute, "accepted execution deadline")
+	flags.DurationVar(&timeout, "timeout", 20*time.Minute, "accepted execution deadline; 0 disables")
 	flags.StringVar(&lookup, "lookup", "", "look up turn identity")
 	flags.StringVar(&cancel, "cancel", "", "cancel turn identity")
 	flags.StringVar(&steer, "steer", "", "steer message for --lookup turn")
@@ -52,15 +52,12 @@ func CLI(args []string, stdout, stderr io.Writer) error {
 		return executor.Vacuum(root, time.Now())
 	}
 	if closeSession != "" {
-		adapter := Adapter{root: root}
+		adapter := Adapter{Root: root}
 		if err = adapter.Close(context.Background(), closeSession); err != nil {
 			return err
 		}
-		var turn executor.TurnID
-		if err = executor.Read(filepath.Join(sessionDir(root, executor.SessionID(closeSession)), "close.json"), &turn); err != nil {
-			return err
-		}
-		return json.NewEncoder(stdout).Encode(executor.Describe(filepath.Join(root, string(turn)), true))
+		sdir := sessionDir(root, executor.SessionID(closeSession))
+		return json.NewEncoder(stdout).Encode(executor.Descriptor{State: "completed", Socket: nil, Events: filepath.Join(sdir, "closed-events.jsonl"), Result: filepath.Join(sdir, "closed.json")})
 	}
 
 	if lookup != "" || cancel != "" {

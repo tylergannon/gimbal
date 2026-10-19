@@ -80,7 +80,8 @@ func TestVacuumRetainsActiveAndSessionState(t *testing.T) {
 	root := t.TempDir()
 	now := time.Now()
 	old := now.Add(-8 * 24 * time.Hour)
-	for _, name := range []string{"expired", "active", "recent", "sessions/kept"} {
+	names := map[string]string{"expired": string(NewCommandID()), "active": string(NewTurnID()), "recent": string(NewCommandID()), "session": "sessions/kept"}
+	for label, name := range names {
 		dir := filepath.Join(root, name)
 		if err := os.MkdirAll(dir, 0700); err != nil {
 			t.Fatal(err)
@@ -88,29 +89,38 @@ func TestVacuumRetainsActiveAndSessionState(t *testing.T) {
 		if err := Write(filepath.Join(dir, "result.json"), json.RawMessage(`{}`)); err != nil {
 			t.Fatal(err)
 		}
-		if name != "recent" {
+		if label != "recent" {
 			if err := os.Chtimes(filepath.Join(dir, "result.json"), old, old); err != nil {
 				t.Fatal(err)
 			}
 		}
 	}
-	lease, err := Lock(filepath.Join(root, "active"))
+	lease, err := Lock(filepath.Join(root, names["active"]))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer lease.Close()
+	submissions := filepath.Join(root, "submissions")
+	if err = os.MkdirAll(submissions, 0700); err != nil {
+		t.Fatal(err)
+	}
+	manifest := filepath.Join(submissions, names["expired"]+".json")
+	if err = Write(manifest, names["expired"]); err != nil {
+		t.Fatal(err)
+	}
 	if err = Vacuum(root, now); err != nil {
 		t.Fatal(err)
 	}
-	if Exists(filepath.Join(root, "expired")) {
-		t.Fatal("expired operation retained")
+	if Exists(filepath.Join(root, names["expired"])) || Exists(manifest) {
+		t.Fatal("expired operation or submission retained")
 	}
-	for _, name := range []string{"active", "recent", "sessions/kept"} {
-		if !Exists(filepath.Join(root, name, "result.json")) {
-			t.Fatalf("removed %s", name)
+	for _, label := range []string{"active", "recent", "session"} {
+		if !Exists(filepath.Join(root, names[label], "result.json")) {
+			t.Fatalf("removed %s", label)
 		}
 	}
 }
+
 func TestIdentityPrefixes(t *testing.T) {
 	for id, prefix := range map[string]string{string(NewCommandID()): "command_", string(NewSessionID()): "session_", string(NewTurnID()): "turn_"} {
 		if err := Validate(id, prefix); err != nil {

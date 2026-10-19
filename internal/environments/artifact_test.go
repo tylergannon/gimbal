@@ -19,7 +19,7 @@ func TestSuccessfulHTTPMutationReconcilesLostStdoutWithoutReplay(t *testing.T) {
 	for _, kind := range []string{"prepare", "clone"} {
 		t.Run(kind, func(t *testing.T) {
 			ctx := context.Background()
-			daemon := taskdaemon.New()
+			daemon := taskdaemon.New(t.TempDir())
 			handler := daemon.Handler()
 			var admissions, stdoutReads atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

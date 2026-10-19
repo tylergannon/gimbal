@@ -177,6 +177,9 @@ type Descriptor struct {
 }
 
 func Describe(dir string, agent bool) Descriptor {
+	if !Exists(filepath.Join(dir, "request.json")) {
+		panic(fmt.Sprintf("executor: cannot describe an unaccepted operation %s", dir))
+	}
 	socket := SocketPath(dir)
 	d := Descriptor{State: "running", Socket: &socket, Result: filepath.Join(dir, "result.json")}
 	if agent {
@@ -388,11 +391,14 @@ func Vacuum(root string, now time.Time) error {
 		return err
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() || entry.Name() == "sessions" {
+		if !entry.IsDir() || (Validate(entry.Name(), "command_") != nil && Validate(entry.Name(), "turn_") != nil) {
 			continue
 		}
 		dir := filepath.Join(root, entry.Name())
 		info, err := os.Stat(filepath.Join(dir, "result.json"))
+		if os.IsNotExist(err) && !Exists(filepath.Join(dir, "request.json")) {
+			info, err = entry.Info()
+		}
 		if err != nil || now.Sub(info.ModTime()) < 7*24*time.Hour {
 			continue
 		}
@@ -403,7 +409,17 @@ func Vacuum(root string, now time.Time) error {
 		if lease == nil {
 			continue
 		}
+		var accepted struct {
+			Session string `json:"session"`
+		}
+		_ = Read(filepath.Join(dir, "request.json"), &accepted)
 		err = os.RemoveAll(dir)
+		if err == nil {
+			_ = os.Remove(filepath.Join(root, "submissions", entry.Name()+".json"))
+			if Validate(accepted.Session, "session_") == nil {
+				_ = os.Remove(filepath.Join(root, "sessions", accepted.Session, "submissions", entry.Name()+".json"))
+			}
+		}
 		lease.Close()
 		if err != nil {
 			return err

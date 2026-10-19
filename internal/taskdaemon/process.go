@@ -79,11 +79,11 @@ func (d *Daemon) process(req effects.Process) error {
 	if producer {
 		environment = append(environment, "ENV_FILE="+envPath)
 	}
-	root, err := executor.Root("")
+	root, err := executor.Root(d.executorRoot)
 	if err != nil {
 		return err
 	}
-	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Timeout: 20 * time.Minute, Grace: 10 * time.Second}
+	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Deadline: req.Deadline, Grace: 10 * time.Second}
 	// The bridge records host-local identity; it never sends these paths to callers.
 	if err = os.MkdirAll(filepath.Join(root, "submissions"), 0700); err != nil {
 		return err
@@ -114,7 +114,7 @@ func (d *Daemon) process(req effects.Process) error {
 		if waitErr != nil {
 			result.Error = waitErr.Error()
 		}
-		if result.Interrupted && !saved.Forced {
+		if result.Interrupted && !saved.Forced && !saved.TimedOut {
 			result.Error = ""
 		}
 

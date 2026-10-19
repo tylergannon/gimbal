@@ -157,3 +157,18 @@ func TestGracefulStopAndForcedStopAreDistinguished(t *testing.T) {
 		})
 	}
 }
+
+func TestNoImplicitDeadlineForProgrammaticSubmission(t *testing.T) {
+	root := t.TempDir()
+	d, err := Submit(root, Request{ID: executor.NewCommandID(), Command: "sh", Args: []string{"-c", "printf unlimited"}, Environment: os.Environ()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Wait(t.Context(), d); err != nil {
+		t.Fatal(err)
+	}
+	deadline, err := os.ReadFile(filepath.Join(filepath.Dir(d.Result), "deadline.json"))
+	if err != nil || strings.TrimSpace(string(deadline)) != "null" {
+		t.Fatalf("implicit deadline %s: %v", deadline, err)
+	}
+}

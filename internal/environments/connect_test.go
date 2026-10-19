@@ -28,7 +28,7 @@ func TestConnectSSHObservesTheTunnelBeforeReportingHealthAndHelperFacts(t *testi
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(t.TempDir())
 	handler := daemon.Handler()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
@@ -104,7 +104,7 @@ func TestConnectSSHStopsAtTheActualFatalCheckWithoutSaving(t *testing.T) {
 
 func TestConnectAddressReportsObservedChecksAndRequiresMatchingWarningConfirmation(t *testing.T) {
 	ctx := context.Background()
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(t.TempDir())
 	handler := daemon.Handler()
 	var inspections atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -214,7 +214,7 @@ func TestRouteConnectionUsesActualMessagingHelperFacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	bus := &helperMessages{Store: store, ctx: ctx}
-	bus.handler = taskdaemon.New().Messages(bus)
+	bus.handler = taskdaemon.New(t.TempDir()).Messages(bus)
 	registry := &gimbal.Registry{}
 	if err := registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "connect-messages", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
 		return bus, nil
@@ -245,7 +245,7 @@ func TestRouteConnectionUsesActualMessagingHelperFacts(t *testing.T) {
 
 func TestWarningConfirmationRequiresTheExactAttemptAndRevision(t *testing.T) {
 	ctx := t.Context()
-	handler := taskdaemon.New().Handler()
+	handler := taskdaemon.New(t.TempDir()).Handler()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {
 			w.WriteHeader(200)
@@ -290,7 +290,7 @@ func TestWarningConfirmationRequiresTheExactAttemptAndRevision(t *testing.T) {
 func TestConnectionSerializesConcurrentAttemptsAndConfirmsOnlyOnce(t *testing.T) {
 	ctx := t.Context()
 	entered, release := make(chan struct{}), make(chan struct{})
-	handler := taskdaemon.New().Handler()
+	handler := taskdaemon.New(t.TempDir()).Handler()
 	var healthCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/health" {

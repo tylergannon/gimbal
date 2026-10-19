@@ -52,7 +52,7 @@ func (h *testHarness) Close(context.Context, string) error {
 }
 
 func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	native := &testHarness{}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	server := httptest.NewServer(d.Handler())
@@ -96,7 +96,7 @@ func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
 }
 
 func TestTurnSurvivesReaderDisconnectAndCanBeSteeredAndStopped(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	native := &testHarness{started: make(chan struct{}), steered: make(chan string, 1)}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	o := effects.Owner{Run: "run", Scope: "", Task: "agent.1"}
@@ -131,7 +131,7 @@ func processRequest(t *testing.T, run, scope, id, script string, service bool) e
 	return effects.Process{Run: run, Scope: scope, Task: id, Command: "sh", Args: []string{"-c", script}, Workdir: dir, Service: service}
 }
 func TestProcessMeaningAndScopedAntiClaim(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	server := httptest.NewServer(d.Handler())
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -198,7 +198,7 @@ func (h *blockedCreate) CreateSession(ctx context.Context, _, _, _ string) (stri
 	return "", ctx.Err()
 }
 func TestCreatingSessionDoesNotBlockOtherRunAndCleanupCancelsIt(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	h := &blockedCreate{entered: make(chan struct{})}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return h, nil }
 	done := make(chan error, 1)
@@ -224,7 +224,7 @@ func TestCreatingSessionDoesNotBlockOtherRunAndCleanupCancelsIt(t *testing.T) {
 }
 
 func TestLostStartReplyReconcilesExistingTurnWithoutReplay(t *testing.T) {
-	d := New()
+	d := New(t.TempDir())
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return &testHarness{}, nil }
 	native := d.Handler()
 	var starts atomic.Int32

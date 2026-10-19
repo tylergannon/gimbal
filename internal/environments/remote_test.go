@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 }
 func TestRemoteHTTPHelperUsesActualDirectoryAndRetainsMutationIdentity(t *testing.T) {
 	ctx := context.Background()
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(t.TempDir())
 	var processes atomic.Int32
 	handler := daemon.Handler()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +84,7 @@ func TestRemoteHTTPHelperUsesActualDirectoryAndRetainsMutationIdentity(t *testin
 	}
 }
 func TestRemoteFixedDaemonDirectoryIsReportedAndCannotPrepareElsewhere(t *testing.T) {
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(t.TempDir())
 	fixed := repository(t)
 	daemon.Workdir = fixed
 	server := httptest.NewServer(daemon.Handler())
@@ -132,7 +132,7 @@ func TestMessagingHelpersReadRetainedStdoutAndKeepCleanupResponsibility(t *testi
 		t.Fatal(e)
 	}
 	bus := &helperMessages{Store: store, ctx: ctx}
-	daemon := taskdaemon.New()
+	daemon := taskdaemon.New(t.TempDir())
 	bus.handler = daemon.Messages(bus)
 	registry := &gimbal.Registry{}
 	if e = registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "test-messages", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
@@ -192,7 +192,7 @@ func TestFailedReadinessReleasesOnlyItsRetainedProbeOwnership(t *testing.T) {
 		t.Fatal(e)
 	}
 	bus := &helperMessages{Store: store, ctx: ctx}
-	bus.handler = taskdaemon.New().Messages(bus)
+	bus.handler = taskdaemon.New(t.TempDir()).Messages(bus)
 	provisioner := &failingProvisioner{}
 	registry := &gimbal.Registry{}
 	if e = registry.RegisterBackend(gimbal.BackendDefinition{Name: "failed-ready", ConfigurationSchema: json.RawMessage(`{}`), ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {

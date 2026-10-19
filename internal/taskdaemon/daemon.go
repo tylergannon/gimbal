@@ -16,6 +16,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/agentexecutor"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/secretcallback"
@@ -47,13 +48,14 @@ type session struct {
 	closeMu sync.Mutex
 }
 type Daemon struct {
-	Secrets  backend.SecretsBackend
-	files    map[backend.Artifact]string
-	Workdir  string
-	mu       sync.Mutex
-	closed   map[effects.Scope]time.Time
-	sessions map[string]*session
-	tasks    map[string]*task
+	executorRoot string
+	Secrets      backend.SecretsBackend
+	files        map[backend.Artifact]string
+	Workdir      string
+	mu           sync.Mutex
+	closed       map[effects.Scope]time.Time
+	sessions     map[string]*session
+	tasks        map[string]*task
 	// admitting owns service preflight until native admission finishes. Cleanup
 	// cancels and joins it using the same task boundary, without holding mu in
 	// an externally supplied dependency. It stores no infrastructure leases.
@@ -61,8 +63,16 @@ type Daemon struct {
 	adapter   func(string) (gimbal.HarnessAdapter, error)
 }
 
-func New() *Daemon {
-	return &Daemon{files: map[backend.Artifact]string{}, closed: map[effects.Scope]time.Time{}, sessions: map[string]*session{}, tasks: map[string]*task{}, adapter: binding.Adapter}
+func New(executorRoot string) *Daemon {
+	d := &Daemon{executorRoot: executorRoot, files: map[backend.Artifact]string{}, closed: map[effects.Scope]time.Time{}, sessions: map[string]*session{}, tasks: map[string]*task{}}
+	d.adapter = func(harness string) (gimbal.HarnessAdapter, error) {
+		adapter, err := binding.Adapter(harness)
+		if independent, ok := adapter.(*agentexecutor.Adapter); ok {
+			independent.Root = executorRoot
+		}
+		return adapter, err
+	}
+	return d
 }
 func key(run, id string) string { return run + "\x00" + id }
 func within(child, parent string) bool {
@@ -199,6 +209,10 @@ func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error 
 		return errors.New("turn already started; read its result")
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	if !req.Deadline.IsZero() {
+		cancel()
+		ctx, cancel = context.WithDeadline(context.Background(), req.Deadline)
+	}
 	t := &task{owner: req.Owner, cancel: cancel, done: make(chan struct{})}
 	d.tasks[id] = t
 	closeCallback := func() {}

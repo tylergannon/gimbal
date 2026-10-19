@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"time"
 )
 
 type Owner struct{ Run, Scope, Task string }
 type Process struct {
+	Deadline time.Time `json:",omitzero"`
 	Owner
 	Workdir, Command string
 	Args             []string
@@ -36,6 +38,7 @@ type TaskFile struct {
 	Bytes     []byte
 }
 type Turn struct {
+	Deadline time.Time `json:",omitzero"`
 	Files    []TaskFile
 	Requires Requirements `json:",omitempty"`
 	Owner

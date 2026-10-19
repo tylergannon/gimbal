@@ -288,20 +288,32 @@ agent events are JSONL with increasing sequence numbers. `--lookup ID` reads a
 retained operation; `--cancel ID` explicitly stops it. Agent turns also accept
 `--lookup ID --steer MESSAGE`; `--close SESSION_ID` ends a session and releases
 its native resources. A repeated ID with matching inputs observes the
-same operation; different inputs are rejected. `--timeout` defaults to twenty
-minutes and starts at acceptance; reconnecting does not extend it.
+same operation; different inputs are rejected. `--timeout` on the executor CLI
+defaults to twenty minutes and starts at acceptance; reconnecting does not
+extend it. Go workflow commands and turns inherit their context deadline, with
+no added limit when the workflow sets none. The task-host bridge carries declared
+deadlines to its executors.
 
 State defaults to `~/.gimbal/executors`; `--state-dir` selects another directory.
 An hourly vacuum while executors run, plus vacuum at startup, removes terminal
-operations after seven days. This is also the operation deduplication lifetime.
+operations after seven days, including their diagnostics and submission records.
+Rejected setup directories have the same retention. This is also the operation
+deduplication lifetime. Each operation owns its own diagnostics file.
 `gimbal agent-executor --vacuum` runs the same maintenance on demand. Active
-operations and native session continuation state are never vacuumed. Command
-cancellation stops the owned process group; deliberately daemonizing descendants
+operations and native session continuation state are never vacuumed. Repeated
+session close returns a retained session receipt even after its turn is vacuumed.
+Command cancellation stops the owned process group; deliberately daemonizing descendants
 are outside that boundary. The task-host bridge continues to use its existing
 execution and artifact routes, so callers do not need shared paths. An accepted
 operation with neither an owner nor a saved terminal result is an invariant
 violation: lookup panics with the operation directory. Preserve that directory
 and the diagnostics for investigation; Gimbal never automatically resubmits it.
+If the native harness cannot confirm interruption, the executor keeps ownership
+and reports its cleanup attempts in `cleanup.json`. Each native cleanup call has
+a fifteen-second limit, with one second between attempts. Only confirmed native
+cessation publishes a terminal cancellation; the model assignment is never
+resubmitted. If cessation requires closing the native session, later turns are
+rejected with that reason.
 
 ## Lint workflows
 

@@ -30,7 +30,7 @@ func (h *gapHarness) RunTurn(ctx context.Context, id, _ string, _ json.RawMessag
 }
 func TestEventGapSurvivesRuntimeStampAndRecoversWithoutStoppingTurn(t *testing.T) {
 	native := &gapHarness{release: make(chan struct{}), steered: make(chan string, 1)}
-	d := New()
+	d := New(t.TempDir())
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	var offline atomic.Bool
 	offline.Store(true)

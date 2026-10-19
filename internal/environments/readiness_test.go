@@ -59,7 +59,7 @@ func TestProvisionedProbeBecomesIdleWithoutHidingAnotherOwner(t *testing.T) {
 		t.Fatal(e)
 	}
 	bus := &helperMessages{Store: store, ctx: ctx}
-	bus.handler = taskdaemon.New().Messages(bus)
+	bus.handler = taskdaemon.New(t.TempDir()).Messages(bus)
 	orchestrator := &readinessOrchestrator{owners: map[backend.Owner]bool{}}
 	registry := &gimbal.Registry{}
 	if e = registry.RegisterBackend(gimbal.BackendDefinition{Name: "provisioned-test", ConfigurationSchema: json.RawMessage(`{}`), ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) {

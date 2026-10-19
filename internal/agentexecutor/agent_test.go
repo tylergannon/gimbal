@@ -1,6 +1,7 @@
 package agentexecutor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -49,6 +50,9 @@ func TestEventCatchUpToleratesReplayAndPartialTail(t *testing.T) {
 }
 func TestTerminalPublicationDrainsEventsAndPreservesInvalidAnswer(t *testing.T) {
 	dir := t.TempDir()
+	if err := executor.Accept(dir, struct{}{}); err != nil {
+		t.Fatal(err)
+	}
 	d := executor.Describe(dir, true)
 	event := Event{Sequence: 1, AgentEvent: gimbal.AgentEvent{Type: "message", Data: json.RawMessage(`{}`)}, Native: json.RawMessage(`{"session":"native"}`)}
 	raw, _ := json.Marshal(event)
@@ -91,7 +95,7 @@ func TestSessionConflictsAndValidation(t *testing.T) {
 
 func TestCloseUnusedSessionIsIdempotentAndRejectsLaterTurns(t *testing.T) {
 	root := t.TempDir()
-	a := Adapter{root: root, harness: "claude"}
+	a := Adapter{Root: root, harness: "claude"}
 	id, err := a.CreateSession(t.Context(), "unused", "", root)
 	if err != nil {
 		t.Fatal(err)
@@ -113,7 +117,7 @@ func TestCloseUnusedSessionIsIdempotentAndRejectsLaterTurns(t *testing.T) {
 
 func TestIdleSessionCanSteerAndCloseAfterTurnVacuum(t *testing.T) {
 	root := t.TempDir()
-	a := Adapter{root: root, harness: "claude"}
+	a := Adapter{Root: root, harness: "claude"}
 	id, err := a.CreateSession(t.Context(), "unused", "", root)
 	if err != nil {
 		t.Fatal(err)
@@ -171,10 +175,64 @@ func TestUnconfirmedNativeStopRemainsOwnedUntilCleanupConfirms(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	native := &pendingNativeClose{t: t}
-	if err := finishInterruption(ctx, native, "native-session"); !errors.Is(err, context.Canceled) {
+	if err := finishInterruption(ctx, native, "native-session", t.TempDir()); !errors.Is(err, context.Canceled) {
 		t.Fatalf("%v", err)
 	}
 	if native.calls != 2 {
 		t.Fatalf("cleanup attempts=%d", native.calls)
+	}
+}
+
+func TestProgrammaticAgentOperationHasNoImplicitDeadline(t *testing.T) {
+	root := t.TempDir()
+	id := executor.NewSessionID()
+	if err := Create(root, Session{ID: id, Harness: "claude", Model: "unused", Workdir: root}); err != nil {
+		t.Fatal(err)
+	}
+	d, err := Submit(root, Request{ID: executor.NewTurnID(), Session: id, Close: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Wait(t.Context(), d, nil); err != nil {
+		t.Fatal(err)
+	}
+	deadline, err := os.ReadFile(filepath.Join(filepath.Dir(d.Result), "deadline.json"))
+	if err != nil || strings.TrimSpace(string(deadline)) != "null" {
+		t.Fatalf("implicit deadline %s: %v", deadline, err)
+	}
+}
+
+func TestRepeatedCLICloseUsesSessionReceiptAfterOperationVacuum(t *testing.T) {
+	root := t.TempDir()
+	id := executor.NewSessionID()
+	if err := Create(root, Session{ID: id, Harness: "claude", Model: "unused", Workdir: root}); err != nil {
+		t.Fatal(err)
+	}
+	for attempt := range 2 {
+		var stdout, stderr bytes.Buffer
+		if err := CLI([]string{"--state-dir", root, "--close", string(id)}, &stdout, &stderr); err != nil {
+			t.Fatal(err)
+		}
+		var d executor.Descriptor
+		if err := json.Unmarshal(stdout.Bytes(), &d); err != nil {
+			t.Fatal(err)
+		}
+		if d.State != "completed" || d.Socket != nil {
+			t.Fatalf("invalid closed descriptor %+v", d)
+		}
+		if _, err := Wait(t.Context(), d, nil); err != nil {
+			t.Fatal(err)
+		}
+		if attempt == 0 {
+			dirs, _ := filepath.Glob(filepath.Join(root, "turn_*"))
+			for _, dir := range dirs {
+				if err := os.RemoveAll(dir); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// No dependency on a particular close turn remains, including closure
+			// established while settling an interrupted native turn.
+			_ = os.Remove(filepath.Join(sessionDir(root, id), "close.json"))
+		}
 	}
 }

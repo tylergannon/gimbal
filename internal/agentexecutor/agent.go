@@ -49,23 +49,25 @@ type Session struct {
 	Parent  executor.SessionID `json:"parent,omitempty"`
 }
 type Request struct {
-	ID      executor.TurnID    `json:"id"`
-	Session executor.SessionID `json:"session"`
-	Prompt  string             `json:"prompt"`
-	Schema  json.RawMessage    `json:"schema,omitempty"`
-	Timeout time.Duration      `json:"timeout"`
-	Close   bool               `json:"close,omitempty"`
-	Fork    bool               `json:"fork,omitempty"`
+	Deadline time.Time          `json:"deadline,omitzero"`
+	ID       executor.TurnID    `json:"id"`
+	Session  executor.SessionID `json:"session"`
+	Prompt   string             `json:"prompt"`
+	Schema   json.RawMessage    `json:"schema,omitempty"`
+	Timeout  time.Duration      `json:"timeout"`
+	Close    bool               `json:"close,omitempty"`
+	Fork     bool               `json:"fork,omitempty"`
 }
 type Result struct {
-	Output           []byte                  `json:"output,omitempty"`
-	Usage            map[string]gimbal.Usage `json:"usage,omitempty"`
-	Error            string                  `json:"error,omitempty"`
-	ObservationError string                  `json:"observation_error,omitempty"`
-	InvalidOutput    bool                    `json:"invalid_output"`
-	Cancelled        bool                    `json:"cancelled"`
-	TimedOut         bool                    `json:"timed_out"`
-	Completed        time.Time               `json:"completed"`
+	SessionClosedReason string                  `json:"session_closed_reason,omitempty"`
+	Output              []byte                  `json:"output,omitempty"`
+	Usage               map[string]gimbal.Usage `json:"usage,omitempty"`
+	Error               string                  `json:"error,omitempty"`
+	ObservationError    string                  `json:"observation_error,omitempty"`
+	InvalidOutput       bool                    `json:"invalid_output"`
+	Cancelled           bool                    `json:"cancelled"`
+	TimedOut            bool                    `json:"timed_out"`
+	Completed           time.Time               `json:"completed"`
 }
 type Event struct {
 	Sequence int64 `json:"sequence"`
@@ -153,14 +155,11 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if err := executor.Validate(string(req.Session), "session_"); err != nil {
 		return executor.Descriptor{}, err
 	}
-	if req.Timeout <= 0 {
-		req.Timeout = 20 * time.Minute
-	}
 	binary, err := os.Executable()
 	if err != nil {
 		return executor.Descriptor{}, err
 	}
-	d, err := executor.Launch(binary, []string{"--gimbal-agent-worker", root}, req, root)
+	d, err := executor.Launch(binary, []string{"--gimbal-agent-worker", root}, req, filepath.Join(root, string(req.ID)))
 	if err != nil {
 		dir := filepath.Join(root, string(req.ID))
 		if executor.Match(dir, req) == nil {
@@ -207,7 +206,21 @@ func Run(root string, req Request) error {
 	}
 	stopVacuum := executor.PeriodicVacuum(root)
 	defer stopVacuum()
-	ctx, cancel := context.WithTimeout(context.Background(), req.Timeout)
+	ctx, cancel := context.WithCancel(context.Background())
+	var deadline *time.Time
+	if req.Timeout > 0 {
+		cancel()
+		ctx, cancel = context.WithTimeout(context.Background(), req.Timeout)
+		at, _ := ctx.Deadline()
+		deadline = &at
+	}
+	if !req.Deadline.IsZero() {
+		if deadline == nil || req.Deadline.Before(*deadline) {
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), req.Deadline)
+			deadline = &req.Deadline
+		}
+	}
 	defer cancel()
 	a, err := native(config.Harness)
 	if err != nil {
@@ -252,9 +265,13 @@ func Run(root string, req Request) error {
 	}
 	defer events.Close()
 	if executor.Exists(filepath.Join(sdir, "closed.json")) && !req.Close {
-		return errors.New("session is closed")
+		var closed Result
+		if err := executor.Read(filepath.Join(sdir, "closed.json"), &closed); err != nil {
+			return err
+		}
+		return fmt.Errorf("session is closed: %s", closed.SessionClosedReason)
 	}
-	if err = executor.Write(filepath.Join(dir, "deadline.json"), time.Now().Add(req.Timeout)); err != nil {
+	if err = executor.Write(filepath.Join(dir, "deadline.json"), deadline); err != nil {
 		return err
 	}
 	if err = executor.Write(filepath.Join(sdir, "active.json"), req.ID); err != nil {
@@ -329,7 +346,7 @@ func Run(root string, req Request) error {
 	if _, unconfirmed := errors.AsType[*backend.DeliveryUncertain](turnErr); unconfirmed {
 		// A native adapter's unconfirmed stop is not a terminal cancellation.
 		// Retain this owner and retry native cleanup, never the model assignment.
-		turnErr = finishInterruption(ctx, a, id)
+		turnErr = finishInterruption(ctx, a, id, dir)
 		released = true
 	}
 	if id != "" && !released {
@@ -344,11 +361,24 @@ func Run(root string, req Request) error {
 			stop()
 		}
 	}
+	closedReason := ""
 	if (req.Close && turnErr == nil) || released {
-		turnErr = errors.Join(turnErr, executor.Write(filepath.Join(sdir, "closed.json"), time.Now()))
+		closedReason = "explicit close"
+		if released {
+			closedReason = "native session had to close to confirm an interrupted turn stopped"
+		}
+		receipt := Result{Completed: time.Now(), SessionClosedReason: closedReason}
+		empty, err := os.OpenFile(filepath.Join(sdir, "closed-events.jsonl"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+		if err == nil {
+			err = empty.Close()
+		}
+		if err == nil {
+			err = executor.Write(filepath.Join(sdir, "closed.json"), receipt)
+		}
+		turnErr = errors.Join(turnErr, err)
 	}
 
-	saved := Result{Output: result.Output, Usage: result.Usage, Completed: time.Now(), InvalidOutput: errors.Is(turnErr, gimbal.ErrInvalidOutput), Cancelled: errors.Is(ctx.Err(), context.Canceled), TimedOut: errors.Is(ctx.Err(), context.DeadlineExceeded)}
+	saved := Result{SessionClosedReason: closedReason, Output: result.Output, Usage: result.Usage, Completed: time.Now(), InvalidOutput: errors.Is(turnErr, gimbal.ErrInvalidOutput), Cancelled: errors.Is(ctx.Err(), context.Canceled), TimedOut: errors.Is(ctx.Err(), context.DeadlineExceeded)}
 	if turnErr != nil {
 		saved.Error = turnErr.Error()
 	}
@@ -451,10 +481,13 @@ func Wait(ctx context.Context, d executor.Descriptor, onEvent func(gimbal.AgentE
 	}
 }
 
-type Adapter struct{ harness, root string }
+type Adapter struct {
+	harness string
+	Root    string
+}
 
 func New(harness string) *Adapter         { return &Adapter{harness: harness} }
-func (a *Adapter) state() (string, error) { return executor.Root(a.root) }
+func (a *Adapter) state() (string, error) { return executor.Root(a.Root) }
 func (a *Adapter) CreateSession(_ context.Context, model, effort, workdir string) (string, error) {
 	root, err := a.state()
 	if err != nil {
@@ -475,9 +508,9 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 	if err != nil {
 		return gimbal.TurnResult{}, err
 	}
-	req := Request{ID: executor.NewTurnID(), Session: executor.SessionID(id), Prompt: prompt, Schema: schema, Timeout: 20 * time.Minute}
+	req := Request{ID: executor.NewTurnID(), Session: executor.SessionID(id), Prompt: prompt, Schema: schema}
 	if deadline, ok := ctx.Deadline(); ok {
-		req.Timeout = time.Until(deadline)
+		req.Deadline = deadline
 	}
 	// Persist the turn identity before handing it to a subprocess.
 	submissions := filepath.Join(sessionDir(root, req.Session), "submissions")
@@ -546,7 +579,10 @@ func (a *Adapter) Fork(ctx context.Context, id string) (string, error) {
 	if err = Create(root, config); err != nil {
 		return "", err
 	}
-	req := Request{ID: executor.NewTurnID(), Session: config.ID, Fork: true, Timeout: 20 * time.Minute}
+	req := Request{ID: executor.NewTurnID(), Session: config.ID, Fork: true}
+	if deadline, ok := ctx.Deadline(); ok {
+		req.Deadline = deadline
+	}
 	if err = executor.Write(filepath.Join(sessionDir(root, config.ID), "fork.json"), req.ID); err != nil {
 		return "", err
 	}
@@ -601,12 +637,26 @@ func (a *Adapter) Close(ctx context.Context, id string) error {
 
 // finishInterruption keeps the accepted turn owned until native Close confirms
 // cessation. A reader may leave; only the native owner can settle this stop.
-func finishInterruption(ctx context.Context, a nativeAdapter, id string) error {
+func finishInterruption(ctx context.Context, a nativeAdapter, id, dir string) error {
+	attempt := 0
 	reported := false
 	for {
 		cleanupCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 		err := a.Close(cleanupCtx, id)
 		stop()
+		attempt++
+		status := struct {
+			State   string    `json:"state"`
+			Attempt int       `json:"attempt"`
+			At      time.Time `json:"at"`
+			Error   string    `json:"error,omitempty"`
+		}{State: "stopping", Attempt: attempt, At: time.Now()}
+		if err == nil {
+			status.State = "stopped"
+		} else {
+			status.Error = err.Error()
+		}
+		_ = executor.Write(filepath.Join(dir, "cleanup.json"), status)
 		if err == nil {
 			if ctx.Err() != nil {
 				return ctx.Err()

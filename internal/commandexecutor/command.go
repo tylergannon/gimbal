@@ -21,6 +21,7 @@ import (
 )
 
 type Request struct {
+	Deadline    time.Time          `json:"deadline,omitzero"`
 	ID          executor.CommandID `json:"id"`
 	Command     string             `json:"command"`
 	Args        []string           `json:"args"`
@@ -67,9 +68,6 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if err = executor.Validate(string(req.ID), "command_"); err != nil {
 		return executor.Descriptor{}, err
 	}
-	if req.Timeout <= 0 {
-		req.Timeout = 20 * time.Minute
-	}
 	if req.Workdir == "" {
 		req.Workdir, err = os.Getwd()
 	}
@@ -88,7 +86,7 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if info, e := os.Stat(sibling); e == nil && info.Mode().IsRegular() {
 		binary = sibling
 	}
-	d, err := executor.Launch(binary, []string{workerArg, root}, req, root)
+	d, err := executor.Launch(binary, []string{workerArg, root}, req, filepath.Join(root, string(req.ID)))
 	if err != nil {
 		dir := filepath.Join(root, string(req.ID))
 		if executor.Match(dir, acceptedCommand(req)) == nil {
@@ -114,7 +112,21 @@ func Run(root string, req Request) error {
 	defer lease.Close()
 	stopVacuum := executor.PeriodicVacuum(root)
 	defer stopVacuum()
-	ctx, cancel := context.WithTimeout(context.Background(), req.Timeout)
+	ctx, cancel := context.WithCancel(context.Background())
+	var deadline *time.Time
+	if req.Timeout > 0 {
+		cancel()
+		ctx, cancel = context.WithTimeout(context.Background(), req.Timeout)
+		at, _ := ctx.Deadline()
+		deadline = &at
+	}
+	if !req.Deadline.IsZero() {
+		if deadline == nil || req.Deadline.Before(*deadline) {
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), req.Deadline)
+			deadline = &req.Deadline
+		}
+	}
 	defer cancel()
 	server, err := executor.Listen(dir, func(c executor.Control) executor.Reply {
 		if c.Op != "cancel" {
@@ -137,7 +149,7 @@ func Run(root string, req Request) error {
 		return err
 	}
 	defer stderr.Close()
-	if err = executor.Write(filepath.Join(dir, "deadline.json"), time.Now().Add(req.Timeout)); err != nil {
+	if err = executor.Write(filepath.Join(dir, "deadline.json"), deadline); err != nil {
 		return err
 	}
 	if err = executor.Accept(dir, accepted); err != nil {
@@ -249,7 +261,7 @@ func CLI(args []string, stdout, stderr io.Writer) error {
 	flags.StringVar(&workdir, "workdir", ".", "command directory")
 	flags.StringVar(&lookup, "lookup", "", "look up command identity")
 	flags.StringVar(&cancel, "cancel", "", "cancel command identity")
-	flags.DurationVar(&timeout, "timeout", 20*time.Minute, "accepted execution deadline")
+	flags.DurationVar(&timeout, "timeout", 20*time.Minute, "accepted execution deadline; 0 disables")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -296,5 +308,6 @@ func acceptedCommand(req Request) any {
 		EnvironmentHash string
 		Timeout         time.Duration
 		Grace           time.Duration
-	}{req.ID, req.Command, req.Args, req.Workdir, fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(req.Environment, "\x00")))), req.Timeout, req.Grace}
+		Deadline        time.Time
+	}{req.ID, req.Command, req.Args, req.Workdir, fmt.Sprintf("%x", sha256.Sum256([]byte(strings.Join(req.Environment, "\x00")))), req.Timeout, req.Grace, req.Deadline}
 }

@@ -14,3 +14,7 @@ friction: A two-second socket deadline was shorter than Pi's native steering rec
 decision: The old task-host acknowledgement API is removed. Retiring a bridge projection never deletes executor-owned files; the executor vacuum controls their retention.
 decision: Session controls tolerate the completed turn's directory being vacuumed. Ownership checks never create operation directories; completing a turn clears the session's live pointer.
 decision: A native adapter reporting an unconfirmed stop does not produce a terminal cancellation. Its executor retains ownership and retries native Close, never the model assignment, until cleanup confirms cessation.
+decision: The twenty-minute default belongs to executor CLI flags. Workflow submissions inherit their context deadline without an added default, and the task-host protocol forwards declared deadlines.
+friction: Task-daemon package tests wrote command records into the real home directory -> daemon construction now takes its executor root, and tests use disposable roots. Diagnostics belong to operation directories and vacuum removes submission records with their operation.
+decision: Session closure has its own retained receipt, independent of the close turn's retention. Repeated CLI close reads that receipt rather than describing a vacuumed operation.
+correction: Tyler asked to stop spending time on the speculative cancellation edge and fix concrete problems. Further work stays on the observed close-receipt, deadline, and test-isolation defects.

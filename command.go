@@ -275,9 +275,9 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		_ = errOut.close()
 		return "", "", err
 	}
-	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: command, Args: args, Workdir: workdir, Environment: environment, Timeout: 20 * time.Minute}
+	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: command, Args: args, Workdir: workdir, Environment: environment}
 	if deadline, ok := ctx.Deadline(); ok {
-		request.Timeout = time.Until(deadline)
+		request.Deadline = deadline
 	}
 	// Record the executor identity before submission, separately from graph names.
 	manifest := filepath.Join(r.dir, filepath.FromSlash(ended.StdoutFile)+".executor.json")

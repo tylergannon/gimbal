@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,6 +18,8 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/backend/messagefiles"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
+	"github.com/tylergannon/gimbal/runstore/directory"
 )
 
 type directMessages struct {
@@ -333,4 +336,58 @@ func TestIndependentMessagingInterruptPreservesNativeCancellation(t *testing.T) 
 			t.Fatalf("wrong native outcome: %+v", turn)
 		}
 	}
+}
+
+func TestWorkflowMessageServiceCollectsSavedFinalResult(t *testing.T) {
+	d, _, ctx := messagingOwner(t)
+	project := t.TempDir()
+	id := runstore.NewRunID()
+	ctx = effects.WithEndpoint(gimbal.Project(ctx, project), "backend")
+	err := gimbal.Run(ctx, string(id), "message-service", nil, func(ctx context.Context) error {
+		return gimbal.Service(ctx, "server", project, `printf service-output; touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d.state(effects.Scope{Run: string(id)}).Pending != 0 {
+		t.Fatal("service remained owned after scope exit")
+	}
+	writer, err := (directory.Store{Root: filepath.Join(project, "runs")}).Open(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer writer.Close()
+	records, err := writer.Read(t.Context(), 0, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		if record.Kind != "outcome" {
+			continue
+		}
+		var outcome struct {
+			Result struct {
+				Output map[string]runstore.BlobRef `json:"output"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(record.Payload, &outcome); err != nil {
+			t.Fatal(err)
+		}
+		if ref, ok := outcome.Result.Output["stdout"]; ok {
+			reader, err := writer.OpenBlob(t.Context(), ref)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, readErr := io.ReadAll(reader)
+			closeErr := reader.Close()
+			if err := errors.Join(readErr, closeErr); err != nil {
+				t.Fatal(err)
+			}
+			if string(raw) != "service-output" {
+				t.Fatalf("saved stdout = %q", raw)
+			}
+			return
+		}
+	}
+	t.Fatal("service final output missing from saved outcome")
 }

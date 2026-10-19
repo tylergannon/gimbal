@@ -32,8 +32,8 @@ var errServiceShutdownTimeout = errors.New("service process group did not stop b
 // A service is required for its scope's remaining lifetime. Any exit before
 // that scope starts shutting down, including exit zero, fails and cancels the
 // scope. When the scope ends or its ctx is cancelled, Gimbal sends SIGINT to
-// the service's process group, waits ten seconds, then sends SIGKILL and waits
-// at most five more seconds. This owns descendants which remain in that group;
+// the service's process group and escalates to SIGKILL when necessary.
+// This owns descendants which remain in that group;
 // a command must stay in the foreground and must not daemonize or escape it.
 // Stdout, stderr, status, and failures are recorded with the scope's commands.
 //
@@ -256,7 +256,7 @@ func (s *ownedService) stop() error {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			return s.terminalErr
-		case <-time.After(s.scope.run.cleanupTimeoutOr(closeTimeout)):
+		case <-time.After(10 * time.Second):
 			if s.resultCancel != nil {
 				s.resultCancel()
 			}

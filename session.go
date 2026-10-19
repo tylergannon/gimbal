@@ -694,7 +694,7 @@ func (s *Session) adoptNative(id string) error {
 }
 
 func (s *Session) stopNative() error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.owner.ctx), s.owner.run.cleanupTimeoutOr(closeTimeout))
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.owner.ctx), 10*time.Second)
 	defer cancel()
 	identity := backend.NewExecutionIdentity("close")
 	identity.ScopeID = string(s.owner.node)

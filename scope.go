@@ -18,10 +18,6 @@ import (
 	"github.com/tylergannon/gimbal/runstore"
 )
 
-// closeTimeout bounds one adapter's Close call, on a context independent of
-// the run's own ctx so a cancelled run still releases everything it holds.
-const closeTimeout = 10 * time.Second
-
 // Output is what polytype generates, and what Generate and SetJSON require.
 type Output interface {
 	Schema() json.RawMessage
@@ -234,7 +230,7 @@ func (s *scope) finish(bodyErr error) error {
 	return err
 }
 
-// end stops the scope's services, closes its sessions, then cancels its ctx.
+// end cancels the scope and releases its owned work.
 // Each service is marked as intentionally stopping before any signal is sent,
 // so a concurrent exit is classified by whichever lifecycle transition won.
 // Service cleanup failures are returned because the scope owns that process.
@@ -243,7 +239,7 @@ func (s *scope) finish(bodyErr error) error {
 // can enter while cleanup runs. A session with no native id had nothing
 // allocated by its adapter and gets no Close call, only its SessionClosed
 // event. Close runs on a timeout ctx independent of the run's own, so a
-// cancelled run still releases every native session. A Close failure never
+// cancelled run still attempts native session release. A Close failure never
 // changes the scope's own result (recorded on SessionClosed and folded into
 // this run's aggregate close error instead); Run joins that aggregate into
 // its returned error once the root scope has ended. The scope leaves the
@@ -299,7 +295,7 @@ func (s *scope) stopOwnedWork() error {
 		}
 	}
 	if effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.run.cleanupTimeoutOr(closeTimeout))
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 10*time.Second)
 		if err := effects.Connection(s.ctx).Secrets.Release(cleanupCtx, backend.Scope{Run: effectOwner(s, "").Run, Scope: s.key}); err != nil {
 			serviceErrs = append(serviceErrs, err)
 		}

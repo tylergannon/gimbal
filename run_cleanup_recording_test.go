@@ -143,7 +143,7 @@ func TestMissingRemoteServiceResultReleasesLocalHandles(t *testing.T) {
 	defer server.Close()
 	runs := live.NewRuns()
 	ctx := live.WithHook(Project(t.Context(), project), runs.Hook)
-	ctx = effects.WithEndpoint(WithCleanupTimeout(ctx, 25*time.Millisecond), server.URL)
+	ctx = effects.WithEndpoint(ctx, server.URL)
 	var service *ownedService
 	err := Run(ctx, string(id), "missing-service-result", nil, func(ctx context.Context) error {
 		if err := Service(ctx, "server", project, "serve"); err != nil {
@@ -177,5 +177,32 @@ func TestMissingRemoteServiceResultReleasesLocalHandles(t *testing.T) {
 		if record.Kind == "cleanup-state" {
 			t.Fatal("shutdown created a cleanup ledger")
 		}
+	}
+}
+
+func TestCanceledAgentDiagnosticDoesNotRetryOrFailRecording(t *testing.T) {
+	project := t.TempDir()
+	var attempts atomic.Int32
+	store := faultStore{Store: directory.Store{Root: filepath.Join(project, "runs")}, beforeAppend: func(facts []runstore.Fact) error {
+		for _, fact := range facts {
+			if fact.Kind == "agent" {
+				attempts.Add(1)
+				return context.Canceled
+			}
+		}
+		return nil
+	}}
+	ctx := WithRunStore(Project(t.Context(), project), store)
+	err := Run(ctx, string(runstore.NewRunID()), "canceled-diagnostic", nil, func(ctx context.Context) error {
+		s, _ := current(ctx)
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if err := s.run.sessionEvent(canceled, s.key, "", "", AgentEvent{}); err != nil {
+			return err
+		}
+		return s.run.recordingError()
+	})
+	if err != nil || attempts.Load() != 1 {
+		t.Fatalf("canceled diagnostic: append attempts=%d run error=%v", attempts.Load(), err)
 	}
 }

@@ -168,7 +168,6 @@ func TestSuccessfulAncestorCleanupClearsFailedChildOwnership(t *testing.T) {
 	}))
 	defer server.Close()
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
-	ctx = gimbal.WithCleanupTimeout(ctx, 250*time.Millisecond)
 	err := gimbal.Run(ctx, string(runstore.NewRunID()), "cleanup-retry", nil, func(ctx context.Context) error {
 		return gimbal.Scope(ctx, "child", func(ctx context.Context) error {
 			return gimbal.Service(ctx, "dependency", t.TempDir(), `touch "$ENV_FILE.tmp"; mv "$ENV_FILE.tmp" "$ENV_FILE"; exec sleep 60`)

@@ -208,20 +208,15 @@ func (r *run) sessionEvent(ctx context.Context, scope, session, turn string, eve
 	if r.closed {
 		return context.Canceled
 	}
-	if r == nil {
-		return nil
-	}
 	record := AgentRecord{Time: time.Now().UTC(), Scope: scope, Session: session, Turn: turn, Event: event, NativeRef: event.NativeRef}
 	record.Event.NativeRef = nil
 	raw, err := r.payload(record)
 	if err == nil {
 		facts := []runstore.Fact{{Version: 1, ID: runstore.NewRecordID(), Node: r.nodeID(turn), Scope: r.nodeID(scope), Session: r.nodeID(session), Kind: "agent", Payload: raw}}
 		_, err = r.records.Append(ctx, facts, runstore.Buffered)
-		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
-			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeoutOr(closeTimeout))
-			_, err = r.records.Append(cleanupCtx, facts, runstore.Buffered)
-			cancel()
-		}
+	}
+	if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+		return nil // Cancellation diagnostics need not survive the canceled append.
 	}
 	if err != nil {
 		r.recordFailure("record agent event", err)

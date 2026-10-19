@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
+	"golang.org/x/sys/unix"
 )
 
 type countedStore struct {
@@ -105,8 +107,26 @@ func TestNewCleanupOwnerExcludesLiveWriterAndDispatchesOnce(t *testing.T) {
 	if settled, e := CleanupExited(state, id); settled || e != nil || calls.Load() != 0 {
 		t.Fatalf("live owner bypassed: %v %v %d", settled, e, calls.Load())
 	}
+	if _, err := cleanupStopped(state, id, &operation{Action: "scope"}, f); !errors.Is(err, runstore.ErrBusy) || calls.Load() != 0 {
+		t.Fatalf("explicit stop bypassed live writer: %v calls=%d", err, calls.Load())
+	}
 	if e := owner.Close(); e != nil {
 		t.Fatal(e)
+	}
+	lock, err := os.OpenFile(filepath.Join(state, "runs", id, "runner.lock"), os.O_RDWR, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = lock.Close() }()
+	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := cleanupStopped(state, id, &operation{Action: "scope"}, f); !errors.Is(err, runstore.ErrBusy) || calls.Load() != 0 {
+		t.Fatalf("explicit stop bypassed live runner: %v calls=%d", err, calls.Load())
+	}
+	_ = lock.Close()
+	if _, err := cleanupStopped(state, id, &operation{Action: "scope", Target: "missing.1"}, f); err == nil || calls.Load() != 0 {
+		t.Fatalf("unknown scope dispatched: %v calls=%d", err, calls.Load())
 	}
 	c := remote{state: state, runID: id}
 	if _, e := c.call(t.Context(), operation{Action: "cleanup"}); e != nil {
@@ -124,6 +144,107 @@ func TestNewCleanupOwnerExcludesLiveWriterAndDispatchesOnce(t *testing.T) {
 	var opens atomic.Int32
 	if settled, e := cleanupStopped(state, id, nil, countedStore{f, &opens}); !settled || e != nil || opens.Load() != 0 {
 		t.Fatalf("settled run reopened: %v %v opens=%d", settled, e, opens.Load())
+	}
+}
+
+type cleanupFaultStore struct {
+	runstore.Store
+	failure string
+	err     error
+}
+
+func (s cleanupFaultStore) Open(ctx context.Context, id runstore.RunID) (runstore.Run, error) {
+	r, err := s.Store.Open(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return cleanupFaultRun{Run: r, failure: s.failure, err: s.err}, nil
+}
+
+type cleanupFaultRun struct {
+	runstore.Run
+	failure string
+	err     error
+}
+
+func (r cleanupFaultRun) EnsureNode(ctx context.Context, spec runstore.NodeSpec) (runstore.Node, error) {
+	if r.failure == "node" {
+		return runstore.Node{}, r.err
+	}
+	return r.Run.EnsureNode(ctx, spec)
+}
+
+func (r cleanupFaultRun) Append(ctx context.Context, facts []runstore.Fact, durability runstore.Durability) ([]runstore.Record, error) {
+	for _, fact := range facts {
+		if fact.Kind == r.failure {
+			return nil, r.err
+		}
+	}
+	return r.Run.Append(ctx, facts, durability)
+}
+
+func TestExplicitOrphanStopSurvivesRecordingFailure(t *testing.T) {
+	for _, failure := range []string{"node", "intent"} {
+		for _, target := range []string{"", "child.1"} {
+			t.Run(failure+"/"+target, func(t *testing.T) {
+				var calls atomic.Int32
+				var failStop atomic.Bool
+				targets := make(chan backend.Scope, 2)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+					var scope backend.Scope
+					if err := json.NewDecoder(request.Body).Decode(&scope); err != nil {
+						t.Error(err)
+					}
+					if request.URL.Path != "/tasks/cleanup" || scope.Scope != target {
+						t.Errorf("wrong stop target: %s %+v", request.URL.Path, scope)
+					}
+					calls.Add(1)
+					targets <- scope
+					reply := backend.Reply{}
+					if failStop.Load() {
+						reply.Error = "native stop failed"
+					}
+					_ = json.NewEncoder(w).Encode(reply)
+				}))
+				defer server.Close()
+				state, id, factory, owner := orphanFixture(t, server.URL)
+				if target != "" {
+					header, err := owner.Header(t.Context())
+					if err != nil {
+						t.Fatal(err)
+					}
+					if _, err := owner.EnsureNode(t.Context(), runstore.NodeSpec{Slot: runstore.Slot{Parent: header.Root, Kind: runstore.Scope, Name: "child", Ordinal: 1}, DisplayKey: target}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				_ = owner.Close()
+				injected := errors.New("recording unavailable")
+				faulty := cleanupFaultStore{Store: factory, failure: failure, err: injected}
+				if settled, err := cleanupStopped(state, id, nil, faulty); settled || !errors.Is(err, injected) || calls.Load() != 0 {
+					t.Fatalf("housekeeping dispatched without recording: settled=%v err=%v calls=%d", settled, err, calls.Load())
+				}
+				for _, nativeFailure := range []bool{false, true} {
+					failStop.Store(nativeFailure)
+					before := calls.Load()
+					settled, err := cleanupStopped(state, id, &operation{Action: "scope", Target: target}, faulty)
+					if settled == nativeFailure || !errors.Is(err, injected) || strings.Contains(err.Error(), "native stop failed") != nativeFailure || calls.Load() != before+1 {
+						t.Fatalf("settled=%v err=%v calls=%d", settled, err, calls.Load())
+					}
+					if requested := <-targets; requested.Run != id || requested.Scope != target {
+						t.Fatalf("wrong owned target: %+v", requested)
+					}
+				}
+				reopened, err := factory.Open(t.Context(), runstore.RunID(id))
+				if err != nil {
+					t.Fatal("stop retained writer", err)
+				}
+				defer func() { _ = reopened.Close() }()
+				summary, err := runstate.Inspect(t.Context(), reopened)
+				if err != nil || len(summary.Outcomes) != 0 || summary.Cleanup[summary.Header.Root].Status == "released" {
+					t.Fatalf("unrecorded stop claimed durable acceptance: %+v %v", summary, err)
+				}
+			})
+		}
 	}
 }
 func TestSweeperRetainsOneEpisodeAndSuppressesUnchangedFacts(t *testing.T) {

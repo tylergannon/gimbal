@@ -181,6 +181,15 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 		return false, err
 	}
 	ctx = effects.WithRoute(effects.WithEndpoint(effects.WithConnection(ctx, connection), endpoint), route)
+	stopAfterRecordingFailure := func(recordErr error) (bool, error) {
+		if op == nil {
+			return false, recordErr
+		}
+		// Ownership and target validation already succeeded. An explicit safety
+		// stop still reaches this known target, without claiming durable acceptance.
+		stopErr := effects.Cleanup(ctx, endpoint, id, target, backend.NewExecutionIdentity("control").RequestID)
+		return stopErr == nil, errors.Join(recordErr, stopErr)
+	}
 	var action runstore.Node
 	if op == nil {
 		action, err = r.EnsureNode(ctx, runstore.NodeSpec{Slot: runstore.Slot{Parent: parent, Kind: runstore.Action, Name: "cleanup-episode", Ordinal: 1}, DisplayKey: target + "/cleanup-episode.1"})
@@ -188,23 +197,23 @@ func cleanupStopped(state, id string, op *operation, factory runstore.Store) (se
 		action, err = runstate.NextAction(ctx, r, parent, "cleanup", target)
 	}
 	if err != nil {
-		return false, err
+		return stopAfterRecordingFailure(err)
 	}
 	identity := backend.ExecutionIdentity{ScopeID: string(parent), ActionID: string(action.ID), RequestID: string(action.ID)}
 	if !summary.Intents[action.ID] {
 		intent, marshalErr := json.Marshal(map[string]any{"operation": "cleanup", "target": target, "episode_id": action.ID, "route": effects.Route(ctx), "identity": identity})
 		if marshalErr != nil {
-			return false, marshalErr
+			return stopAfterRecordingFailure(marshalErr)
 		}
 		binding, marshalErr := json.Marshal(identity)
 		if marshalErr != nil {
-			return false, marshalErr
+			return stopAfterRecordingFailure(marshalErr)
 		}
 		if _, err = r.Append(ctx, []runstore.Fact{
 			{Version: 1, ID: runstore.NewRecordID(), Node: action.ID, Scope: parent, Kind: "intent", Payload: intent},
 			{Version: 1, ID: runstore.NewRecordID(), Node: action.ID, Scope: parent, Kind: "binding", Payload: binding},
 		}, runstore.Committed); err != nil {
-			return false, err
+			return stopAfterRecordingFailure(err)
 		}
 	}
 	if !summary.Outcomes[action.ID] {

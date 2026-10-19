@@ -50,6 +50,8 @@ type Header struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Slot locates a node under its owner. Actions may contain child actions,
+// such as provider turns within one Generate invocation.
 type Slot struct {
 	Parent  NodeID `json:"parent,omitempty"`
 	Kind    Kind   `json:"kind"`

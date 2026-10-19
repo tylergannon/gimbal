@@ -63,6 +63,7 @@ type run struct {
 	pendingBytes   int
 	poison         error
 	closed         bool
+	closing        bool
 	stop           chan struct{}
 	done           chan struct{}
 	progress       chan struct{}
@@ -343,7 +344,7 @@ func (r *run) check(ctx context.Context) error {
 	if e := ctx.Err(); e != nil {
 		return e
 	}
-	if r.closed {
+	if r.closed || r.closing {
 		return runstore.ErrClosed
 	}
 	return r.poison
@@ -435,7 +436,7 @@ func (r *run) validate(f runstore.Fact, internal bool) error {
 			}
 		} else if parent, ok := r.nodes[n.Parent]; !ok {
 			return fmt.Errorf("runstore: missing parent")
-		} else if parent.Kind != runstore.Scope && (n.Kind != runstore.Action || parent.Kind != runstore.Session) {
+		} else if parent.Kind != runstore.Scope && (n.Kind != runstore.Action || (parent.Kind != runstore.Session && parent.Kind != runstore.Action)) {
 			return fmt.Errorf("runstore: invalid parent kind")
 		}
 	} else if _, ok := r.nodes[f.Node]; !ok {
@@ -565,7 +566,7 @@ func (r *run) Append(ctx context.Context, f []runstore.Fact, d runstore.Durabili
 		return nil, fmt.Errorf("runstore: invalid durability")
 	}
 	r.mu.Lock()
-	for r.pendingBytes >= pendingLimit && r.poison == nil && !r.closed {
+	for r.pendingBytes >= pendingLimit && r.poison == nil && !r.closed && !r.closing {
 		ch := r.progress
 		r.mu.Unlock()
 		select {
@@ -592,10 +593,13 @@ func (r *run) Append(ctx context.Context, f []runstore.Fact, d runstore.Durabili
 	return rec, nil
 }
 func (r *run) Flush(ctx context.Context) error {
+	return r.flush(ctx, false)
+}
+func (r *run) flush(ctx context.Context, closing bool) error {
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
 	r.mu.Lock()
-	if e := r.check(ctx); e != nil {
+	if e := r.check(ctx); e != nil && !(closing && r.closing && !r.closed && ctx.Err() == nil && r.poison == nil) {
 		r.mu.Unlock()
 		return e
 	}
@@ -677,6 +681,8 @@ func (r *run) Close() error {
 		r.mu.Unlock()
 		return nil
 	}
+	r.closing = true
+	r.signal()
 	done := r.done
 	if done != nil {
 		close(r.stop)
@@ -686,7 +692,7 @@ func (r *run) Close() error {
 	if done != nil {
 		<-done
 	}
-	err := r.Flush(context.Background())
+	err := r.flush(context.Background(), true)
 	r.flushMu.Lock()
 	defer r.flushMu.Unlock()
 	r.mu.Lock()

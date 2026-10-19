@@ -30,12 +30,15 @@ type Session struct {
 	workdir string
 	id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
-	mu      sync.Mutex
-	native  string // the harness's session id, made on the first turn
-	turns   int
-	turnID  string
-	running bool
-	closed  bool
+	mu          sync.Mutex
+	native      string // the harness's session id, made on the first turn
+	turns       int
+	generations int
+	creates     int
+	createErr   error
+	turnID      string
+	running     bool
+	closed      bool
 
 	usage            Usage // the session's running total across its turns
 	canonicalSession string
@@ -49,7 +52,9 @@ type Session struct {
 // binding the run was started with. It cannot fail: the agent process
 // starts on the first turn. A role the run did not bind is a programming
 // error and panics, naming the role. A session created outside Run cannot
-// generate turns or be forked.
+// generate turns or be forked. Admission errors are returned by Generate; a
+// definite rejection permits an explicit retry, while an unknown admission
+// outcome remains an error and is never automatically redispatched.
 func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session {
 	name := string(role)
 	s := &Session{name: name, workdir: workdir}
@@ -217,7 +222,18 @@ func dispatchResponse(ctx context.Context, s *Session, prompt string, opts []Age
 const generateAttempts = 3
 const protocolAttempts = 2
 
+type generationKey struct{}
+
 func generateResponse(ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, started *TurnStarted, output Output) ([]byte, error) {
+	s.mu.Lock()
+	s.generations++
+	ordinal := s.generations
+	s.mu.Unlock()
+	node := s.owner.run.ensureNode(s.node, runstore.Action, "generate", ordinal, fmt.Sprintf("%s/generate.%d", s.id, ordinal), nil)
+	if err := s.owner.run.recordingError(); err != nil {
+		return nil, err
+	}
+	ctx = context.WithValue(ctx, generationKey{}, node)
 	outputType := fmt.Sprintf("%T", output)
 	if named, ok := output.(interface{ outputName() string }); ok {
 		outputType = named.outputName()
@@ -263,6 +279,45 @@ func generateResponse(ctx context.Context, s *Session, prompt string, onEvent fu
 	}
 }
 
+// create keeps session admission and its durable identity behind the execution
+// boundary. Adapter creation may reserve a session; prompt-driven harnesses
+// launch the native conversation on RunTurn. Every definite rejection can be
+// retried explicitly; uncertain admission is never silently redispatched.
+func (s *Session) create(ctx context.Context) error {
+	s.mu.Lock()
+	if s.createErr != nil {
+		err := s.createErr
+		s.mu.Unlock()
+		return err
+	}
+	s.creates++
+	ordinal := s.creates
+	s.mu.Unlock()
+	node := s.owner.run.ensureNode(s.node, runstore.Action, "create", ordinal, fmt.Sprintf("%s/create.%d", s.id, ordinal), nil)
+	identity := actionIdentity(s.owner.node, s.node, node, "session")
+	createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
+	if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
+		return err
+	}
+	if err := s.admissionError(ctx); err != nil {
+		return err
+	}
+	id, err := s.adapter.CreateSession(createCtx, s.model, s.effort, s.workdir)
+	recordErr := s.owner.run.finishAction(s.owner.node, s.node, node, map[string]string{"native": id}, err)
+	adoptErr := s.adoptNative(id)
+	// Only an authoritative rejection proves that trying again is safe.
+	var rejected *backend.ContractRejected
+	if err != nil && !errors.As(err, &rejected) {
+		s.mu.Lock()
+		s.createErr = err
+		s.mu.Unlock()
+	}
+	if err != nil || recordErr != nil || adoptErr != nil {
+		return errors.Join(err, recordErr, adoptErr)
+	}
+	return s.owner.run.nativeBinding(s.owner.node, s.node, node, id)
+}
+
 // turn runs one agent turn and records its outcome. validate, if any, is the
 // typed output's check: the turn is recorded as failed when the result does
 // not validate, because that is what the turn produced.
@@ -279,7 +334,11 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	native := s.native
 	ordinal := s.turns
 	s.mu.Unlock()
-	turnNode := s.owner.run.ensureNode(s.node, runstore.Action, "turn", ordinal, turnID, nil)
+	parent, _ := ctx.Value(generationKey{}).(runstore.NodeID)
+	if parent == "" {
+		parent = s.node
+	}
+	turnNode := s.owner.run.ensureNode(parent, runstore.Action, "turn", ordinal, turnID, nil)
 	if err := s.owner.run.recordingError(); err != nil {
 		s.mu.Lock()
 		s.running = false
@@ -296,24 +355,12 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}()
 
 	if native == "" {
-		identity := actionIdentity(s.owner.node, s.node, s.node, "session")
-		createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
-		if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, s.node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
+		if err := s.create(ctx); err != nil {
 			return nil, err
 		}
-		if err := s.admissionError(ctx); err != nil {
-			return nil, err
-		}
-		id, err := s.adapter.CreateSession(createCtx, s.model, s.effort, s.workdir)
-		recordErr := s.owner.run.finishAction(s.owner.node, s.node, s.node, map[string]string{"native": id}, err)
-		adoptErr := s.adoptNative(id)
-		if err != nil || recordErr != nil || adoptErr != nil {
-			return nil, errors.Join(err, recordErr, adoptErr)
-		}
-		if err = s.owner.run.nativeBinding(s.owner.node, s.node, s.node, id); err != nil {
-			return nil, err
-		}
-		native = id
+		s.mu.Lock()
+		native = s.native
+		s.mu.Unlock()
 	}
 	if onEvent == nil {
 		onEvent = func(AgentEvent) error { return nil }
@@ -658,6 +705,8 @@ func (s *Session) usable() error {
 		return fmt.Errorf("gimbal: session %q was not created in a run", s.name)
 	case s.closed:
 		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+	case s.createErr != nil:
+		return s.createErr
 	case s.running:
 		return fmt.Errorf("gimbal: session %s is already running a turn", s.id)
 	}

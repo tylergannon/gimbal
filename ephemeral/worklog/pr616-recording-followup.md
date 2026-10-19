@@ -1,0 +1,7 @@
+# Recording follow-up
+
+decision: User clarified that storage-dependent cancellation waiting is not inherently a bug. Preserve the existing cancellation ordering; do not add strict timing, cancellation accounting, or release receipts.
+correction: The initially considered eager NewSession error-return migration was withdrawn after the user clarified that prompt-driven harnesses must not be forced to create empty sessions. Preserve native timing and the existing workflow API. Claude CreateSession reserves configuration/UUID; its actual process starts with the first RunTurn. Codex can create a thread eagerly, Pi opens an agent, and distributed executors reserve their own session before accepting a turn. No fake prompt or capability framework is needed.
+decision: Separate logical session, creation action, Generate invocation, and provider turn identities inside the engine. A known ContractRejected admission can be retried explicitly against a fresh create action without changing logical session identity. Unknown admission errors remain session-local and prevent later turn dispatch, including when the adapter returned an ID that remains owned for ordinary release.
+friction: Analyzer testdata was selected as ordinary packages by the CI scope planner. Route every fixture change to its owning package tests, including non-Go fixture inputs.
+decision: Directory Close excludes mutations before its final flush; preserve ordinary writer/flush synchronization rather than adding a persistence framework.

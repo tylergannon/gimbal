@@ -43,7 +43,11 @@ func plan(paths []string) selection {
 		if strings.HasPrefix(name, "web/") {
 			result.Web = true
 		}
-		if strings.HasSuffix(name, ".go") && !strings.HasPrefix(name, ".agents/skills/") {
+		if strings.Contains(name, "/testdata/") {
+			// Fixtures are inputs to the owning package tests, never packages.
+			owner, _, _ := strings.Cut(name, "/testdata/")
+			result.Packages = append(result.Packages, "./"+owner)
+		} else if strings.HasSuffix(name, ".go") && !strings.HasPrefix(name, ".agents/skills/") {
 			// SKGO compiles route Go through generated links; bracketed route
 			// directories are not directly importable Go packages.
 			if strings.HasPrefix(name, "web/src/routes/") {

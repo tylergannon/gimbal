@@ -115,7 +115,7 @@ func TestIdentityTreeBehindOrdinaryWorkflow(t *testing.T) {
 			counts[n.Kind]++
 		}
 	}
-	if counts[runstore.Scope] != 4 || counts[runstore.Session] != 1 || counts[runstore.Action] != 4 {
+	if counts[runstore.Scope] != 4 || counts[runstore.Session] != 1 || counts[runstore.Action] != 7 {
 		t.Fatal(counts)
 	}
 	for _, n := range nodes {
@@ -124,8 +124,8 @@ func TestIdentityTreeBehindOrdinaryWorkflow(t *testing.T) {
 				t.Fatal("missing parent", n)
 			}
 		}
-		if n.Name == "turn" && nodes[n.Parent].Kind != runstore.Session {
-			t.Fatal("turn not owned by session")
+		if n.Name == "turn" && (nodes[n.Parent].Name != "generate" || nodes[nodes[n.Parent].Parent].Kind != runstore.Session) {
+			t.Fatal("turn not owned by session generation")
 		}
 		same, e := r.EnsureNode(t.Context(), n.NodeSpec)
 		if e != nil || same.ID != n.ID {

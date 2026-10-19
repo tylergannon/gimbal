@@ -25,7 +25,10 @@ import (
 func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 	for _, remote := range []bool{false, true} {
 		for _, retry := range []bool{false, true} {
-			for _, boundary := range []string{"intent", "outcome"} {
+			for _, boundary := range []string{"intent", "outcome", "retry-outcome"} {
+				if boundary == "retry-outcome" && !retry {
+					continue
+				}
 				name := "session"
 				if remote {
 					name = "remote-scope"
@@ -39,9 +42,14 @@ func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 					factory := directory.Store{Root: filepath.Join(project, "runs")}
 					injected := errors.New("recording unavailable")
 					var fail atomic.Bool
+					var stops atomic.Int32
+					var failedOnce atomic.Bool
 					store := faultStore{Store: factory, beforeAppend: func(facts []runstore.Fact) error {
 						if fail.Load() {
 							for _, fact := range facts {
+								if boundary == "retry-outcome" && fact.Kind == "outcome" && stops.Load() >= 2 && failedOnce.CompareAndSwap(false, true) {
+									return injected
+								}
 								if fact.Kind == boundary {
 									return injected
 								}
@@ -49,7 +57,6 @@ func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 						}
 						return nil
 					}}
-					var stops atomic.Int32
 					stop := func() error {
 						if stops.Add(1) == 1 && retry {
 							return errors.New("native stop failed")
@@ -86,7 +93,8 @@ func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 					if owner == nil {
 						t.Fatal("run controller missing")
 					}
-					if !errors.Is(err, injected) || owner.CleanupPending() != retry {
+					expectRecordingFailure := boundary != "retry-outcome"
+					if err == nil || errors.Is(err, injected) != expectRecordingFailure || owner.CleanupPending() != retry {
 						t.Fatalf("err=%v pending=%v retry=%v", err, owner.CleanupPending(), retry)
 					}
 					if retry {

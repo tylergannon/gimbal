@@ -576,7 +576,7 @@ func (r *run) retryCleanup() error {
 		r.closeObservers()
 		recordErr = errors.Join(recordErr, r.records.Close())
 	}
-	return errors.Join(result, recordErr, r.observationError())
+	return errors.Join(result, recordErr, r.recordingError(), r.observationError())
 }
 
 func (r *run) cancelScopeLocked(key string, cause error) error {

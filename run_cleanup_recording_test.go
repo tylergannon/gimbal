@@ -159,7 +159,13 @@ func TestLateServiceResultRetainsWriterUntilExplicitCleanup(t *testing.T) {
 			<-resultReady
 			_ = json.NewEncoder(w).Encode(backend.Result{Done: true, Result: json.RawMessage(`{"ExitCode":0,"Interrupted":true}`)})
 		case "/tasks/bytes":
-			w.WriteHeader(http.StatusOK)
+			var artifact backend.Artifact
+			if err := json.NewDecoder(request.Body).Decode(&artifact); err != nil {
+				t.Error(err)
+			}
+			if artifact.Name == "stdout" {
+				_, _ = w.Write([]byte("late output"))
+			}
 		default:
 			t.Errorf("unexpected dispatch: %s", request.URL.Path)
 			http.NotFound(w, request)
@@ -186,6 +192,10 @@ func TestLateServiceResultRetainsWriterUntilExplicitCleanup(t *testing.T) {
 	if _, err := factory.Open(t.Context(), id); !errors.Is(err, runstore.ErrBusy) {
 		t.Fatalf("pending result lost writer: %v", err)
 	}
+	terminal, err := registry.Snapshot(string(id))
+	if err != nil {
+		t.Fatal(err)
+	}
 	release()
 	<-service.done
 	controller, err := liveRuns.InProgress(string(id))
@@ -210,5 +220,21 @@ func TestLateServiceResultRetainsWriterUntilExplicitCleanup(t *testing.T) {
 	snapshot, err := registry.Snapshot(string(id))
 	if err != nil || !snapshot.Run.CleanupStatus.Present || snapshot.Run.CleanupStatus.Value != "released" {
 		t.Fatalf("cleanup projection was not released: %+v %v", snapshot.Run, err)
+	}
+	fresh, err := observation.NewRegistry(project).Snapshot(string(id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, view := range []observation.RunSnapshot{snapshot, fresh} {
+		if view.Run.Status != terminal.Run.Status || view.Run.Error != terminal.Run.Error || view.Run.Ended != terminal.Run.Ended {
+			t.Fatalf("cleanup changed the terminal verdict: %+v", view.Run)
+		}
+		if len(view.Commands) != 1 {
+			t.Fatalf("missing service command: %+v", view.Commands)
+		}
+		command := view.Commands["server.1"]
+		if command.Ended == 0 || command.ExitCode != 0 || !command.Interrupted || command.Stdout != "late output" || command.StdoutFile == "" || command.StderrFile == "" {
+			t.Fatalf("late service result missing from command projection: %+v", command)
+		}
 	}
 }

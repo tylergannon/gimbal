@@ -330,25 +330,28 @@ func (r *run) finish(name string, err error) error {
 	_ = r.recordCleanupState(errString(errors.Join(r.closeError(), r.pendingCleanupError())))
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
-	// The store's tables are already on disk: closing it ends the page's
-	// subscriptions and nothing else. After this the run is no longer live,
-	// and it is served from the store the registry kept.
-	r.observationFailure("close observation", r.store.Close())
-	r.closeSessions()
-	if r.project != nil {
-		r.observationFailure("close project log", r.project.close())
-	}
 	r.event("", "", "", Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))})
-	if r.writer != nil {
-		r.observationFailure("close run log", r.writer.close())
-	}
 	r.recordFailure("flush run store", r.records.Flush(context.Background()))
 	if !r.CleanupPending() {
+		r.closeObservers()
 		r.recordFailure("close run store", r.records.Close())
 	}
 	err = errors.Join(err, r.recordingError(), r.observationError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
+}
+
+// Observation follows the same ownership lifetime as recording so late service
+// results still reach the existing reducers and logs after the body returns.
+func (r *run) closeObservers() {
+	r.observationFailure("close observation", r.store.Close())
+	r.closeSessions()
+	if r.project != nil {
+		r.observationFailure("close project log", r.project.close())
+	}
+	if r.writer != nil {
+		r.observationFailure("close run log", r.writer.close())
+	}
 }
 
 // addScope and removeScope keep the run's table of live scopes: a scope is
@@ -570,9 +573,10 @@ func (r *run) retryCleanup() error {
 	}
 	recordErr = errors.Join(recordErr, r.recordCleanupState(errString(result)))
 	if !r.CleanupPending() {
+		r.closeObservers()
 		recordErr = errors.Join(recordErr, r.records.Close())
 	}
-	return errors.Join(result, recordErr)
+	return errors.Join(result, recordErr, r.observationError())
 }
 
 func (r *run) cancelScopeLocked(key string, cause error) error {

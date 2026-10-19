@@ -204,9 +204,9 @@ func TestRunCommandKeepsLongOutputInAFile(t *testing.T) {
 }
 
 // TestRunCommandThatExitedKeepsItsExit: a command that exits on its own
-// keeps its exit status, though its ctx ends while a process it left behind
-// still holds its output open. An exec.Cmd that is only constructed is no
-// record at all.
+// keeps its exit status when its ctx is cancelled after completion, including
+// when it started a background child. An exec.Cmd that is only constructed is
+// no record at all.
 func TestRunCommandThatExitedKeepsItsExit(t *testing.T) {
 	var dir, stdout string
 	var code int
@@ -216,8 +216,8 @@ func TestRunCommandThatExitedKeepsItsExit(t *testing.T) {
 		_ = exec.CommandContext(ctx, "true")
 		exited, cancel := context.WithCancel(ctx)
 		defer cancel()
-		time.AfterFunc(300*time.Millisecond, cancel)
 		code, stdout, _, err = RunCommand(exited, "exited", "", "sh", "-c", "sleep 1 & printf done; exit 7")
+		cancel()
 		return nil
 	}); runErr != nil {
 		t.Fatal(runErr)

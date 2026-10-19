@@ -47,7 +47,7 @@ func (a *retryClose) RunTurn(context.Context, string, string, json.RawMessage, f
 	return gimbal.TurnResult{Output: json.RawMessage(`{"done":true}`)}, nil
 }
 
-func TestPanicRetainsCleanupController(t *testing.T) {
+func TestPanicReleasesRunnerAfterCloseFailure(t *testing.T) {
 	project := t.TempDir()
 	adapter := &retryClose{}
 	read, write := io.Pipe()
@@ -64,20 +64,6 @@ func TestPanicRetainsCleanupController(t *testing.T) {
 	if err := json.NewDecoder(read).Decode(&response); err != nil {
 		t.Fatal(err)
 	}
-	controller, err := Connect(filepath.Join(project, ".gimbal"), response.RunID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.Now().Add(2 * time.Second)
-	for !controller.CleanupPending() && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if !controller.CleanupPending() {
-		t.Fatal("panic lost retained cleanup")
-	}
-	if err := controller.CancelScope("", gimbal.Killed{By: "person", Reason: "retry"}); err != nil {
-		t.Fatal(err)
-	}
 	select {
 	case err := <-done:
 		if err == nil || !strings.Contains(err.Error(), "workflow failed") {
@@ -86,7 +72,7 @@ func TestPanicRetainsCleanupController(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("runner did not exit after cleanup")
 	}
-	if adapter.attempts.Load() != 2 {
+	if adapter.attempts.Load() != 1 {
 		t.Fatalf("close attempts %d", adapter.attempts.Load())
 	}
 }
@@ -116,7 +102,6 @@ func (c *controlled) CancelTurn(id string, cause error) error {
 	c.last.Store(operation{Action: "turn", Target: id, Message: cause.Error()})
 	return errors.New("turn already ended")
 }
-func (c *controlled) CleanupPending() bool { return true }
 func TestControlTransport(t *testing.T) {
 	listener, err := net.Listen("unix", filepath.Join(t.TempDir(), "control.sock"))
 	if err != nil {
@@ -141,9 +126,6 @@ func TestControlTransport(t *testing.T) {
 	}
 	if err := client.CancelTurn("turn", context.Canceled); err == nil || err.Error() != "turn already ended" || controller.last.Load().(operation).Target != "turn" {
 		t.Fatalf("turn: %+v %v", controller.last, err)
-	}
-	if !client.CleanupPending() {
-		t.Fatal("lost cleanup status")
 	}
 }
 

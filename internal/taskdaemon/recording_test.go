@@ -29,7 +29,7 @@ func TestRecordedBindingsMatchAcceptedHTTPExecution(t *testing.T) {
 	var mu sync.Mutex
 	accepted := map[string]backend.ExecutionIdentity{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if backend.Identified(r.URL.Path[len("/tasks/"):]) {
+		if backend.Identified(r.URL.Path[len("/tasks/"):]) && r.URL.Path != "/tasks/identified-close" {
 			raw, e := io.ReadAll(r.Body)
 			if e != nil {
 				t.Error(e)
@@ -93,7 +93,7 @@ func TestRecordedBindingsMatchAcceptedHTTPExecution(t *testing.T) {
 	}
 	mu.Lock()
 	defer mu.Unlock()
-	if len(accepted) != 7 || len(bindings) != 7 {
+	if len(accepted) != 5 || len(bindings) != 5 {
 		t.Fatalf("accepted=%d bindings=%d", len(accepted), len(bindings))
 	}
 	for id, identity := range accepted {
@@ -138,7 +138,7 @@ type recordedMessages struct {
 }
 
 func (m *recordedMessages) PublishRequest(_ context.Context, r backend.MessageRequest) error {
-	if backend.Identified(r.Kind) {
+	if backend.Identified(r.Kind) && r.Kind != "identified-close" {
 		m.requests[r.ID] = r.ExecutionIdentity
 	}
 	return m.handle(m.ctx, r)
@@ -208,7 +208,7 @@ func TestRecordedBindingsMatchAcceptedMessagingExecution(t *testing.T) {
 			intents[intent.Identity.RequestID] = true
 		}
 	}
-	if len(bus.requests) != 5 {
+	if len(bus.requests) != 4 {
 		t.Fatalf("unexpected admissions: %d", len(bus.requests))
 	}
 	for id, identity := range bus.requests {

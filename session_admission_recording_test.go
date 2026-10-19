@@ -96,8 +96,8 @@ func TestCancellationDuringSessionAdmissionReleasesEveryNativeSession(t *testing
 				closed := append([]string(nil), adapter.closed...)
 				made := adapter.made
 				adapter.mu.Unlock()
-				if len(closed) != want || s.owner.run.CleanupPending() {
-					t.Fatalf("closed=%v want=%d pending=%v", closed, want, s.owner.run.CleanupPending())
+				if len(closed) != want {
+					t.Fatalf("closed=%v want=%d", closed, want)
 				}
 				if operation == "session" && made != want {
 					t.Fatalf("created=%d closed=%v", made, closed)

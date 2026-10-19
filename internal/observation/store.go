@@ -284,23 +284,12 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "run_started":
 		s.run.Name, s.run.Status, s.run.Started = rec.Event.Name, StatusRunning, at
 		changed = append(changed, change{tableRun, ""})
-	case "cancellation_cleanup":
-		if !s.run.Cancellation.Present {
-			s.run.Cancellation.Present = true
-		}
-		s.run.Cancellation.Value.Cleanup = "completed"
-		s.run.Cancellation.Value.CleanupError = rec.Event.Error
-		if rec.Event.Error != "" {
-			s.run.Cancellation.Value.Cleanup = "unconfirmed"
-		}
-		changed = append(changed, change{tableRun, ""})
 	case "killed":
 		if rec.Scope == "" && rec.Turn == "" && rec.Event.Target == "" {
 			if !s.run.Cancellation.Present {
 				s.run.Cancellation.Present = true
 			}
 			s.run.Cancellation.Value.By, s.run.Cancellation.Value.Reason = rec.Event.By, rec.Event.Reason
-			s.run.Cancellation.Value.Cleanup = "pending"
 			changed = append(changed, change{tableRun, ""})
 		}
 	case "run_ended":
@@ -875,22 +864,4 @@ func cloneRun(row RunRow) RunRow {
 func cloneSession(row SessionRow) SessionRow {
 	row.Steers = slices.Clone(row.Steers)
 	return row
-}
-
-// CleanupStatus projects an already committed cleanup-state fact.
-func (s *Store) CleanupStatus(status, message string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.run.CleanupStatus.Present && s.run.CleanupStatus.Value == status {
-		return nil
-	}
-	s.run.CleanupStatus = polytype.Optional[string]{Present: true, Value: status}
-	if s.run.Cancellation.Present {
-		s.run.Cancellation.Value.Cleanup = "completed"
-		if status != "released" {
-			s.run.Cancellation.Value.Cleanup = "unconfirmed"
-		}
-		s.run.Cancellation.Value.CleanupError = message
-	}
-	return s.commitLocked([]change{{tableRun, ""}})
 }

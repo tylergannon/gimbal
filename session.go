@@ -696,15 +696,13 @@ func (s *Session) adoptNative(id string) error {
 func (s *Session) stopNative() error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.owner.ctx), s.owner.run.cleanupTimeoutOr(closeTimeout))
 	defer cancel()
-	err := s.closeNative(ctx)
+	identity := backend.NewExecutionIdentity("close")
+	identity.ScopeID = string(s.owner.node)
+	identity.SessionID = string(s.node)
+	identity.ExecutorSession = "session_" + string(s.node)
+	err := s.adapter.Close(effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity), s.native)
 	if err != nil {
 		s.owner.run.recordCloseFailure(s.id, err)
-		s.owner.run.closeMu.Lock()
-		if s.owner.run.pendingClose == nil {
-			s.owner.run.pendingClose = make(map[string]*Session)
-		}
-		s.owner.run.pendingClose[s.id] = s
-		s.owner.run.closeMu.Unlock()
 	}
 	return err
 }

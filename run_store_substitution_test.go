@@ -216,7 +216,7 @@ func (r *memoryRun) Close() error {
 	return nil
 }
 
-func TestEngineUsesInjectedStoreThroughRetainedCleanup(t *testing.T) {
+func TestEngineUsesInjectedStoreAndReleasesFailedClose(t *testing.T) {
 	project := t.TempDir()
 	factory := &memoryStore{}
 	id := runstore.NewRunID()
@@ -245,12 +245,6 @@ func TestEngineUsesInjectedStoreThroughRetainedCleanup(t *testing.T) {
 	if err == nil || owner == nil {
 		t.Fatalf("%v", err)
 	}
-	if _, e := factory.Open(t.Context(), id); !errors.Is(e, runstore.ErrBusy) {
-		t.Fatalf("lost retained writer: %v", e)
-	}
-	if e := owner.retryCleanup(); e != nil {
-		t.Fatal(e)
-	}
 	if _, e := os.Stat(filepath.Join(project, "runs", string(id), "state")); !errors.Is(e, os.ErrNotExist) {
 		t.Fatal("engine bypassed injected store", e)
 	}
@@ -267,7 +261,7 @@ func TestEngineUsesInjectedStoreThroughRetainedCleanup(t *testing.T) {
 	for _, rec := range records {
 		counts[rec.Kind]++
 	}
-	for _, kind := range []string{"node-created", "intent", "binding", "outcome", "lifecycle", "agent", "cleanup-state"} {
+	for _, kind := range []string{"node-created", "intent", "binding", "outcome", "lifecycle", "agent"} {
 		if counts[kind] == 0 {
 			t.Fatal("seam bypass or missing records", kind, counts)
 		}

@@ -680,14 +680,12 @@ test("an open session hides the guarded run controls the map keeps", async () =>
     .not.toBeInTheDocument();
 });
 
-test("an open session leaves unconfirmed run cleanup controls in the run view", async () => {
+test("recorded runs offer no cleanup retry controls", async () => {
   const snapshot = multiAgentSnapshot();
   snapshot.run.status = "cancelled";
   snapshot.run.cancellation = {
     by: "person",
     reason: "Cancelled",
-    cleanup: "unconfirmed",
-    cleanup_error: "No response",
   };
   for (const turn of Object.values(snapshot.turns)) turn.ended = turn.started + 1;
   const screen = await render(Page, {
@@ -696,7 +694,7 @@ test("an open session leaves unconfirmed run cleanup controls in the run view", 
   await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect
     .element(screen.getByRole("button", { name: "Retry cleanup", exact: true }))
-    .toBeVisible();
+    .not.toBeInTheDocument();
   (await stepButton("preferences")).click();
   openSelectedSession();
   await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();

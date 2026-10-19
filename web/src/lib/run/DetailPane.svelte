@@ -548,7 +548,7 @@
       <div class="footer-row"><Button variant="outline" size="sm" disabled={pending} onclick={() => act(() => onloop?.({ run: snapshot.run.id, scope: scope.key, message: "", wrap_up: true }) ?? Promise.resolve({ ok: false, message: "Loop control is unavailable." }))}>Wrap up</Button><span>Read at the planner’s next decision.</span><Button size="sm" disabled={pending || !loopMessage.trim()} onclick={() => act(() => onloop?.({ run: snapshot.run.id, scope: scope.key, message: loopMessage, wrap_up: false }) ?? Promise.resolve({ ok: false, message: "Loop control is unavailable." }), () => (loopMessage = ""))}>Send</Button></div>
     </footer>
   {:else if snapshot.run.status !== "running" && !turn}
-    <footer class="recorded">{snapshot.run.cancellation?.cleanup === "unconfirmed" ? "The workflow ended. Its resource cleanup can still be retried above." : "This run has ended. Steering, answers, and stop controls are not offered on a record."}</footer>
+    <footer class="recorded">This run has ended. Steering, answers, and stop controls are not offered on a record.</footer>
   {/if}
   {/if}
 </aside>

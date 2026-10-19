@@ -204,7 +204,6 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 func (s *scope) begin(ctx context.Context) context.Context {
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
 	s.ctx = ctx
-	context.AfterFunc(ctx, func() { _ = s.end() })
 	_ = s.run.activate(s.node)
 	s.run.addScope(s)
 	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
@@ -212,6 +211,7 @@ func (s *scope) begin(ctx context.Context) context.Context {
 		e.Task = optionalTask(task)
 	}
 	s.run.event(s.key, "", "", e)
+	context.AfterFunc(ctx, func() { _ = s.end() })
 	return ctx
 }
 
@@ -231,13 +231,6 @@ func (s *scope) finish(bodyErr error) error {
 	}
 	err := errors.Join(bodyErr, serviceCleanupErr)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
-	if s.key == "" && (s.run.rootCancellation() != nil || effects.Endpoint(s.ctx) != "") {
-		cleanupErr := errors.Join(serviceCleanupErr, s.run.closeError())
-		if !s.run.CleanupPending() {
-			cleanupErr = nil
-		}
-		s.run.event("", "", "", CancellationCleanup{Error: errString(cleanupErr)})
-	}
 	return err
 }
 
@@ -269,7 +262,13 @@ func (s *scope) stopOwnedWork() error {
 		service.beginStop()
 	}
 	sessions := s.sessions
+	s.sessions = nil
+	s.services = nil
+	s.values = nil
+	s.keys = nil
+	s.messages = nil
 	children := append([]*scope(nil), s.children...)
+	s.children = nil
 	s.mu.Unlock()
 	if s.cancel != nil {
 		s.cancel(nil)
@@ -297,34 +296,6 @@ func (s *scope) stopOwnedWork() error {
 	for _, service := range slices.Backward(services) {
 		if err := service.stop(); err != nil {
 			serviceErrs = append(serviceErrs, err)
-		}
-		s.run.closeMu.Lock()
-		if !service.released() {
-			if s.run.pendingServices == nil {
-				s.run.pendingServices = map[string]*ownedService{}
-			}
-			s.run.pendingServices[service.id] = service
-		} else {
-			delete(s.run.pendingServices, service.id)
-		}
-		s.run.closeMu.Unlock()
-	}
-	if s.key == "" {
-		s.run.closeMu.Lock()
-		pendingServices := make([]*ownedService, 0, len(s.run.pendingServices))
-		for _, service := range s.run.pendingServices {
-			pendingServices = append(pendingServices, service)
-		}
-		s.run.closeMu.Unlock()
-		for _, service := range pendingServices {
-			if service.remote {
-				_ = service.stop()
-			}
-			if service.released() {
-				s.run.closeMu.Lock()
-				delete(s.run.pendingServices, service.id)
-				s.run.closeMu.Unlock()
-			}
 		}
 	}
 	if effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {

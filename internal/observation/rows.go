@@ -36,7 +36,6 @@ func (u Usage) add(other Usage) Usage {
 
 // RunRow is the run itself. Times are Unix ms, as every time in a row is.
 type RunRow struct {
-	CleanupStatus       polytype.Optional[string]            `json:"cleanup_status,omitzero"`
 	WorkflowEnvironment string                               `json:"workflow_environment"`
 	TaskEnvironment     string                               `json:"task_environment"`
 	ID                  string                               `json:"id"`
@@ -209,11 +208,8 @@ type ModelCallRow struct {
 	Ended   int64 `json:"ended"`
 }
 
-// CancellationState keeps delivery history and the independent local cleanup
-// outcome visible in both live and retained run snapshots.
+// CancellationState records who requested cancellation and why.
 type CancellationState struct {
-	By           string `json:"by"`
-	Reason       string `json:"reason"`
-	Cleanup      string `json:"cleanup"`
-	CleanupError string `json:"cleanup_error"`
+	By     string `json:"by"`
+	Reason string `json:"reason"`
 }

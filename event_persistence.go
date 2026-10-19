@@ -141,6 +141,9 @@ func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) err
 	}
 	r.lifecycleMu.Lock()
 	defer r.lifecycleMu.Unlock()
+	if r.closed {
+		return nil
+	}
 	record := LifecycleRecord{Time: time.Now().UTC(), Scope: scope, Session: optionalString(session), Turn: optionalString(turn), Event: event}
 	node := r.nodeID(scope)
 	if session != "" {
@@ -197,6 +200,14 @@ func (r *run) projectEvent(event LifecycleEvent) {
 }
 
 func (r *run) sessionEvent(ctx context.Context, scope, session, turn string, event AgentEvent) error {
+	if r == nil {
+		return nil
+	}
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	if r.closed {
+		return context.Canceled
+	}
 	if r == nil {
 		return nil
 	}

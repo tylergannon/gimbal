@@ -14,7 +14,6 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/effects"
-	"github.com/tylergannon/gimbal/internal/live"
 
 	"github.com/tylergannon/gimbal/runstore"
 )
@@ -169,8 +168,6 @@ func TestSuccessfulAncestorCleanupClearsFailedChildOwnership(t *testing.T) {
 	}))
 	defer server.Close()
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
-	var controller live.Controller
-	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c; return func() {} })
 	ctx = gimbal.WithCleanupTimeout(ctx, 250*time.Millisecond)
 	err := gimbal.Run(ctx, string(runstore.NewRunID()), "cleanup-retry", nil, func(ctx context.Context) error {
 		return gimbal.Scope(ctx, "child", func(ctx context.Context) error {
@@ -179,8 +176,5 @@ func TestSuccessfulAncestorCleanupClearsFailedChildOwnership(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("original cleanup failure lost")
-	}
-	if controller.CleanupPending() {
-		t.Fatal("successful ancestor cleanup left child ownership pending")
 	}
 }

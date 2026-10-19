@@ -11,7 +11,7 @@ import (
 	"github.com/tylergannon/gimbal/runstore"
 )
 
-func TestCleanupTimeoutIsCapturedPerRunAndUsedForRetry(t *testing.T) {
+func TestCleanupTimeoutIsCapturedPerRun(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		timeout time.Duration
@@ -48,26 +48,17 @@ func TestCleanupTimeoutIsCapturedPerRunAndUsedForRetry(t *testing.T) {
 					return nil
 				},
 			}
-			var owner *run
 			err := Run(ctx, string(runstore.NewRunID()), tc.name, bind(adapter, "model", "worker"), func(ctx context.Context) error {
-				s, err := current(ctx)
-				if err != nil {
-					return err
-				}
-				owner = s.run
 				// A descendant context cannot alter the policy captured by Run.
 				return Scope(WithCleanupTimeout(ctx, time.Nanosecond), "child", func(ctx context.Context) error {
 					_, err := NewSession(ctx, "worker", t.TempDir()).Generate[Text](ctx, "work")
 					return err
 				})
 			})
-			if !errors.Is(err, failed) || !owner.CleanupPending() {
-				t.Fatalf("failed cleanup = %v; pending = %v", err, owner.CleanupPending())
+			if !errors.Is(err, failed) || calls.Load() != 1 {
+				t.Fatalf("cleanup error=%v calls=%d", err, calls.Load())
 			}
-			if err := owner.retryCleanup(); err != nil || owner.CleanupPending() {
-				t.Fatalf("retry = %v; pending = %v", err, owner.CleanupPending())
-			}
-			for range 2 {
+			for range 1 {
 				got := <-remaining
 				if got <= tc.want/2 || got > tc.want {
 					t.Errorf("cleanup deadline remaining = %v, want approximately %v", got, tc.want)

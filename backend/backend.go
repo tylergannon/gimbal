@@ -121,7 +121,6 @@ type Workflow struct {
 type Control struct{ Run, Action, Target, Message, By string }
 type WorkflowStatus struct {
 	ID, State, Error string
-	CleanupPending   bool
 }
 type Observation struct {
 	Snapshot         json.RawMessage

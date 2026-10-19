@@ -221,10 +221,6 @@ func (c routedController) CancelScope(id string, cause error) error {
 func (c routedController) CancelTurn(id string, cause error) error {
 	return c.cancel("turn", id, cause)
 }
-func (c routedController) CleanupPending() bool {
-	value, err := c.call(context.Background(), "cleanup", "", "", "")
-	return value || err != nil
-}
 
 // RestoreProjects restores only the central's retained catalog, without submitting work.
 func (o *Owner) RestoreProjects() error {

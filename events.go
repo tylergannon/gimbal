@@ -287,14 +287,6 @@ type AgentRecord struct {
 	NativeRef json.RawMessage `json:"native_ref,omitempty"`
 }
 
-// CancellationCleanup reports the local owner's completed cleanup attempt.
-// An error is retained separately from the cancellation/body error.
-type CancellationCleanup struct {
-	Error string `json:"error"`
-}
-
-func (CancellationCleanup) lifecycleEvent() {}
-
 // ResourceReady records a supplied dependency's observed declared readiness
 // and consumer access. It is a runtime diagnostic, not a provider-native event
 // or a guarantee of continued availability. Addresses and handles are omitted.

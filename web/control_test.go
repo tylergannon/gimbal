@@ -28,7 +28,6 @@ func (*controlledRun) AnswerInterview(string, string) error { return nil }
 func (*controlledRun) Steer(context.Context, string, string) (bool, error) {
 	return false, nil
 }
-func (*controlledRun) CleanupPending() bool           { return false }
 func (*controlledRun) SteerLoop(string, string) error { return nil }
 func (r *controlledRun) CancelTurn(turn string, cause error) error {
 	r.turn, r.cause = turn, cause
@@ -144,7 +143,7 @@ func TestCancelRunThatEndsDuringControlReturnsLocalNotFound(t *testing.T) {
 	if accepted.Accepted || !errors.As(err, &status) || status.Status != http.StatusNotFound {
 		t.Fatalf("local end race: accepted=%+v error=%v; want 404", accepted, err)
 	}
-	if want := "Run " + id + ": gimbal: run has ended and has no pending cleanup"; status.Message != want {
+	if want := "Run " + id + ": gimbal: no live scope \"\""; status.Message != want {
 		t.Fatalf("local end race message = %q; want %q", status.Message, want)
 	}
 	if err := <-result; err != nil {

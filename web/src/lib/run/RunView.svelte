@@ -304,7 +304,7 @@
       controlFeedback = result.accepted
         ? "Cancellation accepted. Waiting for the run record to update."
         : "The run did not accept cancellation.";
-      if (result.accepted) {cancelOpen = false;if(snapshot.run.status!=="running"){controlFeedback="Scope cleanup completed.";await onrefresh?.();}}
+      if (result.accepted) {cancelOpen = false;}
     } catch (error) {
       navigateOnUnauthorized(error);
       controlFeedback = "The cancellation request could not be confirmed. Check the run's current status.";

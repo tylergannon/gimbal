@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -66,32 +65,28 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	pendingServices map[string]*ownedService
-	lifecycleMu     sync.Mutex
-	observationErr  error
-	records         runstore.Run
-	rootNode        runstore.NodeID
-	nodeMu          sync.Mutex
-	nodeByKey       map[string]runstore.NodeID
-	dir             string                        // <project>/runs/<id>
-	models          map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer          *eventWriter
-	project         *eventWriter
-	store           *observation.Store
-	mu              sync.Mutex
-	sessions        map[string]*eventWriter
-	scopes          map[string]*scope                  // live scopes by key, for cancelScope
-	turns           map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews      map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel      error                              // explicit cancellation of the root scope
-	errMu           sync.Mutex
-	recordErr       error
-	closeMu         sync.Mutex
-	closeErrs       []error
-	pendingClose    map[string]*Session
-	pendingScopes   map[string]*scope
-	cleanupMu       sync.Mutex
-	finished        chan struct{}
+	closed         bool
+	lifecycleMu    sync.Mutex
+	observationErr error
+	records        runstore.Run
+	rootNode       runstore.NodeID
+	nodeMu         sync.Mutex
+	nodeByKey      map[string]runstore.NodeID
+	dir            string                        // <project>/runs/<id>
+	models         map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer         *eventWriter
+	project        *eventWriter
+	store          *observation.Store
+	mu             sync.Mutex
+	sessions       map[string]*eventWriter
+	scopes         map[string]*scope                  // live scopes by key, for cancelScope
+	turns          map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews     map[string]*interviewWaiter        // questions waiting for a person's answer
+	rootCancel     error                              // explicit cancellation of the root scope
+	errMu          sync.Mutex
+	recordErr      error
+	closeMu        sync.Mutex
+	closeErrs      []error
 
 	cleanupTimeout time.Duration // immutable per-run override; zero retains operation defaults
 }
@@ -243,7 +238,7 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 		}
 		return nil, nil, headerErr
 	}
-	r := &run{records: records, rootNode: header.Root, nodeByKey: map[string]runstore.NodeID{"": header.Root}, finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	r := &run{records: records, rootNode: header.Root, nodeByKey: map[string]runstore.NodeID{"": header.Root}, dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
 	r.observationFailure("open run log", err)
 	r.cleanupTimeout, _ = ctx.Value(cleanupTimeoutKey{}).(time.Duration)
 	r.store = store
@@ -321,29 +316,28 @@ func (r *run) root(ctx context.Context, name string, body func(ctx context.Conte
 // RunEnded with the verdict, then Complete with any recording failure.
 // It returns the verdict joined with the recording failure.
 func (r *run) finish(name string, err error) error {
-	defer close(r.finished)
 	// The root scope's deferred end already ran inside do, closing every
 	// session before body returned control here, so the aggregate close
 	// error is complete by now: RunEnded, the observation status, and
 	// Run's returned error all carry the same verdict.
 	err = errors.Join(err, r.closeError())
-	_ = r.recordCleanupState(errString(errors.Join(r.closeError(), r.pendingCleanupError())))
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
 	r.event("", "", "", Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))})
 	r.recordFailure("flush run store", r.records.Flush(context.Background()))
-	if !r.CleanupPending() {
-		r.closeObservers()
-		r.recordFailure("close run store", r.records.Close())
-	}
+	r.closeObservers()
 	err = errors.Join(err, r.recordingError(), r.observationError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
 }
 
-// Observation follows the same ownership lifetime as recording so late service
-// results still reach the existing reducers and logs after the body returns.
+// Closing and event callbacks share the lifecycle mutex. Late callbacks cannot
+// reopen session logs or write through observation handles after shutdown.
 func (r *run) closeObservers() {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	r.closed = true
+	defer func() { r.recordFailure("close run store", r.records.Close()) }()
 	r.observationFailure("close observation", r.store.Close())
 	r.closeSessions()
 	if r.project != nil {
@@ -461,11 +455,15 @@ func (r *run) Steer(ctx context.Context, sessionID, message string) (bool, error
 	}
 	s.mu.Lock()
 	i := slices.IndexFunc(s.sessions, func(session *Session) bool { return session.id == sessionID })
+	var session *Session
+	if i >= 0 {
+		session = s.sessions[i]
+	}
 	s.mu.Unlock()
-	if i < 0 {
+	if session == nil {
 		return false, fmt.Errorf("gimbal: no live session %q", sessionID)
 	}
-	return s.sessions[i].Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
+	return session.Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
 }
 
 // SteerLoop holds message for the planner of the live loop key. A planner
@@ -493,106 +491,22 @@ func (r *run) SteerLoop(key, message string) error {
 // or already ended key is an error.
 func (r *run) CancelScope(key string, cause error) error {
 	r.mu.Lock()
-	ended := r.scopes[""] == nil
-	if key == "" && ended {
-		r.mu.Unlock()
-		return r.retryCleanup()
-	}
-	defer r.mu.Unlock()
-	return r.cancelScopeLocked(key, cause)
-}
-
-// CleanupPending is the internal live table's retained-ownership check. A
-// terminal workflow with failed remote cleanup remains reachable for stop.
-// Released services stay owned until explicit cleanup records release and
-// closes the writer; a status query does not discard that bookkeeping.
-func (r *run) CleanupPending() bool {
-	r.closeMu.Lock()
-	defer r.closeMu.Unlock()
-	return len(r.pendingClose) != 0 || len(r.pendingScopes) != 0 || len(r.pendingServices) != 0
-}
-
-func (r *run) retryCleanup() error {
-	if r.finished != nil {
-		<-r.finished
-	}
-	r.cleanupMu.Lock()
-	defer r.cleanupMu.Unlock()
-	r.closeMu.Lock()
-	pending := make(map[string]*Session, len(r.pendingClose))
-	maps.Copy(pending, r.pendingClose)
-	scopes := make(map[string]*scope, len(r.pendingScopes))
-	maps.Copy(scopes, r.pendingScopes)
-	services := make(map[string]*ownedService, len(r.pendingServices))
-	maps.Copy(services, r.pendingServices)
-	r.closeMu.Unlock()
-	if len(pending) == 0 && len(scopes) == 0 && len(services) == 0 {
-		return errors.New("gimbal: run has ended and has no pending cleanup")
-	}
-	attempt, recordErr := runstate.NextAction(context.Background(), r.records, r.rootNode, "retry-cleanup", "")
-	identity := actionIdentity(r.rootNode, "", attempt.ID, "cleanup")
-	if recordErr == nil {
-		recordErr = r.prepareAction(context.Background(), r.rootNode, "", attempt.ID, "retry-cleanup", struct{}{}, identity)
-	}
-	var failures []error
-	for _, s := range scopes {
-		if err := s.remoteCleanup(); err != nil {
-			failures = append(failures, err)
-		}
-	}
-	for id, session := range pending {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(session.owner.ctx), r.cleanupTimeoutOr(closeTimeout))
-		err := session.closeNative(ctx)
-		cancel()
-		if err != nil {
-			failures = append(failures, fmt.Errorf("%s: %w", id, err))
-			continue
-		}
-		r.closeMu.Lock()
-		delete(r.pendingClose, id)
-		r.closeMu.Unlock()
-	}
-	for id, service := range services {
-		err := service.stop()
-		if service.released() {
-			r.closeMu.Lock()
-			delete(r.pendingServices, id)
-			r.closeMu.Unlock()
-		} else {
-			if err == nil {
-				err = errors.New("service cleanup remains unconfirmed")
-			}
-			failures = append(failures, err)
-		}
-	}
-	// The original terminal error remains in history. This stop request reports
-	// its own current delivery result and never invokes the workflow again.
-	result := errors.Join(failures...)
-	if recordErr == nil {
-		recordErr = r.finishAction(r.rootNode, "", attempt.ID, struct{}{}, result)
-	}
-	recordErr = errors.Join(recordErr, r.recordCleanupState(errString(result)))
-	if !r.CleanupPending() {
-		r.closeObservers()
-		recordErr = errors.Join(recordErr, r.records.Close())
-	}
-	return errors.Join(result, recordErr, r.recordingError(), r.observationError())
-}
-
-func (r *run) cancelScopeLocked(key string, cause error) error {
 	s := r.scopes[key]
 	if s == nil {
+		r.mu.Unlock()
 		return fmt.Errorf("gimbal: no live scope %q", key)
+	}
+	if cause == nil {
+		cause = context.Canceled
 	}
 	if key == "" {
 		if r.rootCancel != nil {
+			r.mu.Unlock()
 			return nil
-		}
-		if cause == nil {
-			cause = context.Canceled
 		}
 		r.rootCancel = cause
 	}
+	r.mu.Unlock()
 	r.event(key, "", "", killedEvent(key, cause))
 	s.cancel(cause)
 	return nil

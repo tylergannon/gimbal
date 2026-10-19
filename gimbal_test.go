@@ -252,7 +252,7 @@ func TestScopeData(t *testing.T) {
 			return err
 		}
 		got := scopeText(inner)
-		want := "## review\n\n{\n  \"objections\": [\n    \"too big\"\n  ]\n}\n\n## language\n\nzig"
+		want := "## language\n\ngo\n\n## review\n\n{\n  \"objections\": [\n    \"too big\"\n  ]\n}"
 		if got != want {
 			t.Errorf("ScopeText = %q, want %q", got, want)
 		}

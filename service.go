@@ -172,11 +172,12 @@ type ownedService struct {
 	errOut *commandCapture
 	ended  CommandEnded
 
-	startedAt time.Time
-	done      chan struct{}
-	cleanup   func()
-	stopOnce  sync.Once
-	remote    bool
+	startedAt    time.Time
+	done         chan struct{}
+	cleanup      func()
+	stopOnce     sync.Once
+	resultCancel context.CancelFunc
+	remote       bool
 
 	mu          sync.Mutex
 	stopping    bool
@@ -256,7 +257,10 @@ func (s *ownedService) stop() error {
 			defer s.mu.Unlock()
 			return s.terminalErr
 		case <-time.After(s.scope.run.cleanupTimeoutOr(closeTimeout)):
-			return fmt.Errorf("service %s cleanup remains unconfirmed", s.id)
+			if s.resultCancel != nil {
+				s.resultCancel()
+			}
+			return fmt.Errorf("service %s final result unavailable", s.id)
 		}
 	}
 	s.stopOnce.Do(func() {
@@ -320,19 +324,4 @@ func (s *ownedService) awaitBoundary(timeout time.Duration) error {
 			return errors.Join(fmt.Errorf("%w: %s", errServiceShutdownTimeout, strings.Join(parts, "; ")), observationErr)
 		}
 	}
-}
-
-// released reports cessation independently of the task verdict. A failed
-// service whose process group is gone is released; a timed-out stop is not.
-func (s *ownedService) released() bool {
-	select {
-	case <-s.done:
-	default:
-		return false
-	}
-	if s.remote {
-		return true
-	}
-	alive, err := serviceGroupAlive(s.cmd.Process.Pid)
-	return err == nil && !alive
 }

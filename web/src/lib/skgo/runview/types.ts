@@ -18,7 +18,6 @@ export type RunItem = {
  * RunRow is the run itself. Times are Unix ms, as every time in a row is.
  */
 export type RunRow = {
-  cleanup_status?: string;
   workflow_environment: string;
   task_environment: string;
   id: string;
@@ -31,13 +30,11 @@ export type RunRow = {
 };
 
 /**
- * CancellationState keeps delivery history and the independent local cleanup outcome visible in both live and retained run snapshots.
+ * CancellationState records who requested cancellation and why.
  */
 export type CancellationState = {
   by: string;
   reason: string;
-  cleanup: string;
-  cleanup_error: string;
 };
 
 /**

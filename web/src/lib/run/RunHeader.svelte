@@ -22,7 +22,7 @@
   <div class="view" role="group" aria-label="Run view"><button class={{ chosen: mode !== 'map' }} onclick={() => onmode('transcript')}>Transcript</button><button class={{ chosen: mode === 'map' }} onclick={() => onmode('map')}>Map</button></div>
   {#if run.task_environment}<span class="identity">{run.task_environment}</span>{/if}
   <button class="icon" aria-label="Find a scope or turn" onclick={() => searching = !searching}><Search size={15} /></button>
-  <details class="more"><summary aria-label="More run actions"><MoreHorizontal size={17} /></summary><div class="menu"><span class="quiet">{run.id}</span>{#if run.status === 'running' || run.cancellation?.cleanup === 'unconfirmed'}<button onclick={oncancel}>{run.status === 'running' ? 'Cancel run…' : 'Retry cleanup'}</button>{/if}</div></details>
+  <details class="more"><summary aria-label="More run actions"><MoreHorizontal size={17} /></summary><div class="menu"><span class="quiet">{run.id}</span>{#if run.status === 'running'}<button onclick={oncancel}>Cancel run…</button>{/if}</div></details>
   {#if run.status === 'running' && connection === 'disconnected'}<p class="lost" role="status">Observation stream disconnected. The run may still be working.</p>{/if}
   {#if searching}<div class="find"><input aria-label="Find a scope or turn" placeholder="Find a scope or turn…" bind:value={query} />{#each matches as item (item.id)}<button onclick={() => { searching = false; onnavigate(item); }}><strong>{item.label}</strong><span class="quiet">{item.context}</span></button>{/each}</div>{/if}
 </header>

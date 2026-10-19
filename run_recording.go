@@ -6,10 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/tylergannon/gimbal/backend"
-	"github.com/tylergannon/gimbal/internal/effects"
 	"os"
 	"path/filepath"
+
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 
 	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
@@ -163,6 +164,11 @@ func (r *run) nativeBinding(scope, session, node runstore.NodeID, native string)
 	return r.recordFact(node, scope, session, "native-binding", map[string]string{"native": native}, runstore.Committed)
 }
 func (r *run) commandOutcome(s *scope, ended CommandEnded) error {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	if r.closed {
+		return nil
+	}
 	refs := map[string]runstore.BlobRef{}
 	for name, path := range map[string]string{"stdout": ended.StdoutFile, "stderr": ended.StderrFile} {
 		if path == "" {
@@ -192,50 +198,6 @@ func stringError(message string) error {
 		return nil
 	}
 	return errors.New(message)
-}
-
-func (s *Session) closeNative(ctx context.Context) error {
-	owner := s.owner
-	owner.mu.Lock()
-	key := owner.next("close")
-	ordinal := owner.ordinals["close"]
-	owner.mu.Unlock()
-	node := owner.run.ensureNode(owner.node, runstore.Action, "close", ordinal, key, nil)
-	identity := actionIdentity(owner.node, s.node, node, "close")
-	if node == "" {
-		identity = backend.NewExecutionIdentity("close")
-		identity.ScopeID = string(owner.node)
-		identity.SessionID = string(s.node)
-		identity.ExecutorSession = "session_" + string(s.node)
-	}
-	callCtx := effects.WithExecutionIdentity(effectContext(ctx, owner, key), identity)
-	recordErr := owner.run.prepareAction(callCtx, owner.node, s.node, node, "close", map[string]string{"session": s.native}, identity)
-	// Explicit stop must still reach known native work after recording failure.
-	err := s.adapter.Close(callCtx, s.native)
-	if recordErr == nil {
-		_ = owner.run.finishAction(owner.node, s.node, node, struct{}{}, err)
-	}
-	// Recording failures are latched on the run. Only native cessation decides
-	// whether this session still needs cleanup.
-	return err
-}
-
-func (r *run) pendingCleanupError() error {
-	if r.CleanupPending() {
-		return errors.New("resource cleanup remains unconfirmed")
-	}
-	return nil
-}
-func (r *run) recordCleanupState(message string) error {
-	status := "released"
-	if message != "" {
-		status = "pending"
-	}
-	if err := r.recordFact(r.rootNode, r.rootNode, "", "cleanup-state", map[string]string{"status": status, "error": message}, runstore.Committed); err != nil {
-		return err
-	}
-	r.observationFailure("project cleanup state", r.store.CleanupStatus(status, message))
-	return nil
 }
 
 func (r *run) optionalNodeID(key string) runstore.NodeID {

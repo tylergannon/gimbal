@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
@@ -109,20 +108,6 @@ func (d *WorkflowDaemon) admit(v backend.Workflow) backend.WorkflowStatus {
 	}
 	status.ID = response.RunID
 	status.State = "running"
-	go func() {
-		ticker := time.NewTicker(time.Second)
-		defer ticker.Stop()
-		for range ticker.C {
-			done, _ := CleanupExited(filepath.Join(project, ".gimbal"), v.ID)
-			if done {
-				return
-			}
-			snap, err := observation.NewRegistry(filepath.Join(project, ".gimbal")).Snapshot(v.ID)
-			if err == nil && snap.Run.Status != observation.StatusRunning && !cleanupPending(snap.Run) {
-				return
-			}
-		}
-	}()
 	return status
 }
 
@@ -155,7 +140,6 @@ func (d *WorkflowDaemon) Handler() http.Handler {
 			status.Error = err.Error()
 		} else {
 			status.State = snap.Run.Status
-			status.CleanupPending = cleanupPending(snap.Run)
 		}
 		_ = json.NewEncoder(w).Encode(status)
 	})
@@ -190,7 +174,6 @@ type interfaceController interface {
 	SteerLoop(string, string) error
 	CancelScope(string, error) error
 	CancelTurn(string, error) error
-	CleanupPending() bool
 }
 
 func control(ctx context.Context, c interfaceController, v backend.Control) (bool, error) {
@@ -206,8 +189,6 @@ func control(ctx context.Context, c interfaceController, v backend.Control) (boo
 		return false, c.CancelScope(v.Target, cause)
 	case "turn":
 		return false, c.CancelTurn(v.Target, cause)
-	case "cleanup":
-		return c.CleanupPending(), nil
 	case "live":
 		return true, nil
 	default:
@@ -293,10 +274,6 @@ func (d *WorkflowDaemon) bytes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = io.Copy(w, file)
-}
-
-func cleanupPending(row observation.RunRow) bool {
-	return row.Cancellation.Present && row.Cancellation.Value.Cleanup != "completed"
 }
 
 func (d *WorkflowDaemon) registry(project string) *observation.Registry {

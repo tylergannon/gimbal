@@ -8,7 +8,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,24 +16,20 @@ import (
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
-	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
 )
 
 func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 	for _, remote := range []bool{false, true} {
-		for _, retry := range []bool{false, true} {
-			for _, boundary := range []string{"intent", "outcome", "retry-outcome"} {
-				if boundary == "retry-outcome" && !retry {
-					continue
-				}
+		for _, stopFailure := range []bool{false, true} {
+			for _, boundary := range []string{"lifecycle"} {
 				name := "session"
 				if remote {
 					name = "remote-scope"
 				}
-				if retry {
-					name += "-retry"
+				if stopFailure {
+					name += "-stop-error"
 				}
 				t.Run(name+"-"+boundary, func(t *testing.T) {
 					project := t.TempDir()
@@ -43,13 +38,9 @@ func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 					injected := errors.New("recording unavailable")
 					var fail atomic.Bool
 					var stops atomic.Int32
-					var failedOnce atomic.Bool
 					store := faultStore{Store: factory, beforeAppend: func(facts []runstore.Fact) error {
 						if fail.Load() {
 							for _, fact := range facts {
-								if boundary == "retry-outcome" && fact.Kind == "outcome" && stops.Load() >= 2 && failedOnce.CompareAndSwap(false, true) {
-									return injected
-								}
 								if fact.Kind == boundary {
 									return injected
 								}
@@ -58,7 +49,7 @@ func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 						return nil
 					}}
 					stop := func() error {
-						if stops.Add(1) == 1 && retry {
+						if stops.Add(1) == 1 && stopFailure {
 							return errors.New("native stop failed")
 						}
 						return nil
@@ -88,29 +79,14 @@ func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 							}
 						}
 						fail.Store(true)
+						_ = owner.eventResult("", "", "", ResourceReady{Name: "recording-fault"})
 						return nil
 					})
 					if owner == nil {
 						t.Fatal("run controller missing")
 					}
-					expectRecordingFailure := boundary != "retry-outcome"
-					if err == nil || errors.Is(err, injected) != expectRecordingFailure || owner.CleanupPending() != retry {
-						t.Fatalf("err=%v pending=%v retry=%v", err, owner.CleanupPending(), retry)
-					}
-					if retry {
-						if _, err := factory.Open(t.Context(), id); !errors.Is(err, runstore.ErrBusy) {
-							t.Fatalf("failed native cleanup lost ownership: %v", err)
-						}
-						if err := owner.retryCleanup(); !errors.Is(err, injected) {
-							t.Fatalf("retry lost recording failure: %v", err)
-						}
-					}
-					wantStops := int32(1)
-					if retry {
-						wantStops++
-					}
-					if owner.CleanupPending() || stops.Load() != wantStops {
-						t.Fatalf("pending=%v stops=%d", owner.CleanupPending(), stops.Load())
+					if !errors.Is(err, injected) || stops.Load() != 1 {
+						t.Fatalf("recording failure blocked stop: err=%v stops=%d", err, stops.Load())
 					}
 					reopened, err := factory.Open(t.Context(), id)
 					if err != nil {
@@ -148,101 +124,58 @@ func TestProjectionMarkerFailureReleasesStoreWriter(t *testing.T) {
 	_ = reopened.Close()
 }
 
-func TestLateServiceResultRetainsWriterUntilExplicitCleanup(t *testing.T) {
+// A remote endpoint may acknowledge stop before publishing its final output.
+// That cannot keep this workflow's writer, logs, or result waiter alive forever.
+func TestMissingRemoteServiceResultReleasesLocalHandles(t *testing.T) {
 	project := t.TempDir()
 	id := runstore.NewRunID()
-	resultReady := make(chan struct{})
-	var resultOnce sync.Once
-	release := func() { resultOnce.Do(func() { close(resultReady) }) }
-	defer release()
-	var submissions atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
-		case "/tasks/identified-process":
-			submissions.Add(1)
-			_ = json.NewEncoder(w).Encode(backend.Reply{})
-		case "/tasks/cleanup":
+		case "/tasks/identified-process", "/tasks/cleanup":
 			_ = json.NewEncoder(w).Encode(backend.Reply{})
 		case "/tasks/result":
-			<-resultReady
-			_ = json.NewEncoder(w).Encode(backend.Result{Done: true, Result: json.RawMessage(`{"ExitCode":0,"Interrupted":true}`)})
+			_ = json.NewEncoder(w).Encode(backend.Result{Done: false})
 		case "/tasks/bytes":
-			var artifact backend.Artifact
-			if err := json.NewDecoder(request.Body).Decode(&artifact); err != nil {
-				t.Error(err)
-			}
-			if artifact.Name == "stdout" {
-				_, _ = w.Write([]byte("late output"))
-			}
 		default:
-			t.Errorf("unexpected dispatch: %s", request.URL.Path)
 			http.NotFound(w, request)
 		}
 	}))
-	defer func() { release(); server.Close() }()
-	liveRuns := live.NewRuns()
-	registry := observation.NewRegistry(project)
-	ctx := live.WithHook(observation.WithRegistry(Project(t.Context(), project), registry), liveRuns.Hook)
-	ctx = effects.WithEndpoint(WithCleanupTimeout(ctx, 50*time.Millisecond), server.URL)
+	defer server.Close()
+	runs := live.NewRuns()
+	ctx := live.WithHook(Project(t.Context(), project), runs.Hook)
+	ctx = effects.WithEndpoint(WithCleanupTimeout(ctx, 25*time.Millisecond), server.URL)
 	var service *ownedService
-	err := Run(ctx, string(id), "late-service", nil, func(ctx context.Context) error {
+	err := Run(ctx, string(id), "missing-service-result", nil, func(ctx context.Context) error {
 		if err := Service(ctx, "server", project, "serve"); err != nil {
 			return err
 		}
-		s, _ := current(ctx)
-		service = s.services[0]
+		scope, _ := current(ctx)
+		service = scope.services[0]
 		return nil
 	})
 	if err == nil || service == nil {
-		t.Fatalf("expected retained service cleanup: %v", err)
+		t.Fatalf("missing result not reported: %v", err)
 	}
-	factory := directory.Store{Root: filepath.Join(project, "runs")}
-	if _, err := factory.Open(t.Context(), id); !errors.Is(err, runstore.ErrBusy) {
-		t.Fatalf("pending result lost writer: %v", err)
+	select {
+	case <-service.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("local remote-result waiter was not released")
 	}
-	terminal, err := registry.Snapshot(string(id))
+	if _, err := runs.InProgress(string(id)); err == nil {
+		t.Fatal("terminal controller retained")
+	}
+	writer, err := (directory.Store{Root: filepath.Join(project, "runs")}).Open(t.Context(), id)
+	if err != nil {
+		t.Fatalf("writer retained after unavailable result: %v", err)
+	}
+	defer writer.Close()
+	records, err := writer.Read(t.Context(), 0, 100)
 	if err != nil {
 		t.Fatal(err)
 	}
-	release()
-	<-service.done
-	controller, err := liveRuns.InProgress(string(id))
-	if err != nil || !controller.CleanupPending() {
-		t.Fatalf("status query abandoned cleanup owner: %v", err)
-	}
-	if err := controller.CancelScope("", nil); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := liveRuns.InProgress(string(id)); err == nil {
-		t.Fatal("released controller remained live")
-	}
-	reopened, err := factory.Open(t.Context(), id)
-	if err != nil {
-		t.Fatalf("late service completion leaked writer: %v", err)
-	}
-	defer func() { _ = reopened.Close() }()
-	summary, err := runstate.Inspect(t.Context(), reopened)
-	if err != nil || summary.Cleanup[summary.Header.Root].Status != "released" || submissions.Load() != 1 {
-		t.Fatalf("cleanup=%v submissions=%d err=%v", summary.Cleanup, submissions.Load(), err)
-	}
-	snapshot, err := registry.Snapshot(string(id))
-	if err != nil || !snapshot.Run.CleanupStatus.Present || snapshot.Run.CleanupStatus.Value != "released" {
-		t.Fatalf("cleanup projection was not released: %+v %v", snapshot.Run, err)
-	}
-	fresh, err := observation.NewRegistry(project).Snapshot(string(id))
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, view := range []observation.RunSnapshot{snapshot, fresh} {
-		if view.Run.Status != terminal.Run.Status || view.Run.Error != terminal.Run.Error || view.Run.Ended != terminal.Run.Ended {
-			t.Fatalf("cleanup changed the terminal verdict: %+v", view.Run)
-		}
-		if len(view.Commands) != 1 {
-			t.Fatalf("missing service command: %+v", view.Commands)
-		}
-		command := view.Commands["server.1"]
-		if command.Ended == 0 || command.ExitCode != 0 || !command.Interrupted || command.Stdout != "late output" || command.StdoutFile == "" || command.StderrFile == "" {
-			t.Fatalf("late service result missing from command projection: %+v", command)
+	for _, record := range records {
+		if record.Kind == "cleanup-state" {
+			t.Fatal("shutdown created a cleanup ledger")
 		}
 	}
 }

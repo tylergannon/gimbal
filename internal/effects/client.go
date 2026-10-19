@@ -74,9 +74,9 @@ func Call(ctx context.Context, endpoint, operation string, input, output any) er
 	return json.NewDecoder(response.Body).Decode(output)
 }
 
-func Cleanup(ctx context.Context, endpoint, run, scope string) error {
+func Cleanup(ctx context.Context, endpoint, run, scope, requestID string) error {
 	if Messages(ctx) != nil {
-		r := Request(backend.NewExecutionIdentity("control").RequestID, "cleanup", Owner{Run: run, Scope: scope})
+		r := Request(requestID, "cleanup", Owner{Run: run, Scope: scope})
 		r.ScopeTarget = &Scope{Run: run, Scope: scope}
 		if _, err := MessageCall(ctx, r); err != nil {
 			return err

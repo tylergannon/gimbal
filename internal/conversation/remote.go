@@ -218,7 +218,7 @@ func (m *Manager) remotePreparationFailed(id string, cause error, binding *envir
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(m.ctx), 15*time.Second)
 		if prepared {
 			ctx = effects.WithConnection(ctx, binding.Connection)
-			cleanupErr = effects.Cleanup(ctx, "backend", id, id)
+			cleanupErr = effects.Cleanup(ctx, "backend", id, id, backend.NewExecutionIdentity("control").RequestID)
 		}
 		// No helper/session mutation was attempted when acquisition itself failed.
 		// Releasing only this owner is safe even when readiness never succeeded.

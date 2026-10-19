@@ -1,6 +1,7 @@
 package gimbal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,9 +14,12 @@ import (
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
+	"golang.org/x/sys/unix"
 )
 
 func TestRunRequiresExplicitIdentityAndExcludesDuplicate(t *testing.T) {
@@ -241,5 +245,122 @@ func TestUnidentifiedBackendRejectedBeforeConnection(t *testing.T) {
 	var rejected *backend.ContractRejected
 	if !errors.As(err, &rejected) || connected.Load() != 0 {
 		t.Fatalf("unidentified backend connected: %v %d", err, connected.Load())
+	}
+}
+
+func TestRetainedCleanupOwnsStoreAndAppendsAfterImmutableOutcome(t *testing.T) {
+	project := t.TempDir()
+	id := runstore.NewRunID()
+	registry := observation.NewRegistry(project)
+	var owner *run
+	var closes atomic.Int32
+	adapter := &fake{answer: func(context.Context, string, string, json.RawMessage, func(AgentEvent) error) (string, error) {
+		return "ok", nil
+	}, closeErr: func(string) error {
+		if closes.Add(1) == 1 {
+			return errors.New("initial close failure")
+		}
+		return nil
+	}}
+	ctx := live.WithHook(observation.WithRegistry(Project(t.Context(), project), registry), func(_ string, c live.Controller) func() { owner = c.(*run); return func() {} })
+	err := Run(ctx, string(id), "retained", bind(adapter, "test", "agent"), func(ctx context.Context) error {
+		_, e := NewSession(ctx, "agent", project).Generate[Text](ctx, "work")
+		return e
+	})
+	if err == nil || owner == nil {
+		t.Fatalf("%v %v", owner, err)
+	}
+	factory := directory.Store{Root: filepath.Join(project, "runs")}
+	if _, e := factory.Open(t.Context(), id); !errors.Is(e, runstore.ErrBusy) {
+		t.Fatalf("retained owner lost writer: %v", e)
+	}
+	if e := owner.retryCleanup(); e != nil {
+		t.Fatal(e)
+	}
+	r, e := factory.Open(t.Context(), id)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer r.Close()
+	summary, e := runstate.Inspect(t.Context(), r)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if summary.Cleanup[summary.Header.Root].Status != "released" {
+		t.Fatal(summary.Cleanup)
+	}
+	snapshot, e := registry.Snapshot(string(id))
+	if e != nil || snapshot.Run.CleanupStatus != "released" {
+		t.Fatalf("stale live registry cleanup: %+v %v", snapshot.Run, e)
+	}
+	failed, succeeded := 0, 0
+	var cursor uint64
+	for {
+		records, e := r.Read(t.Context(), cursor, 128)
+		if e != nil {
+			t.Fatal(e)
+		}
+		if len(records) == 0 {
+			break
+		}
+		for _, rec := range records {
+			cursor = rec.Sequence
+			if rec.Kind != "outcome" {
+				continue
+			}
+			var v struct {
+				Error string `json:"error"`
+			}
+			if e = json.Unmarshal(rec.Payload, &v); e != nil {
+				t.Fatal(e)
+			}
+			if v.Error != "" {
+				failed++
+			} else {
+				succeeded++
+			}
+		}
+	}
+	if failed != 1 || succeeded < 3 {
+		t.Fatalf("earlier outcome overwritten: failed=%d succeeded=%d", failed, succeeded)
+	}
+}
+func TestNewFormatObservationReadsDoNotInferDeathOrMutate(t *testing.T) {
+	project := t.TempDir()
+	id := string(runstore.NewRunID())
+	ctx := Project(t.Context(), project)
+	err := Run(ctx, id, "read-only", nil, func(context.Context) error {
+		dir := filepath.Join(project, "runs", id)
+		lock, e := os.OpenFile(filepath.Join(dir, "runner.lock"), os.O_CREATE|os.O_RDWR, 0600)
+		if e != nil {
+			return e
+		}
+		defer lock.Close()
+		path := filepath.Join(dir, "state", "00000000.segment")
+		before, e := os.ReadFile(path)
+		if e != nil {
+			return e
+		}
+		snapshot, e := observation.NewRegistry(project).Snapshot(id)
+		if e != nil {
+			return e
+		}
+		if snapshot.Run.Status != observation.StatusRunning {
+			t.Fatalf("reader inferred terminal state: %+v", snapshot.Run)
+		}
+		if e = unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); e != nil {
+			t.Fatal("reader acquired runner lifetime lock", e)
+		}
+		after, e := os.ReadFile(path)
+		if e != nil {
+			return e
+		}
+		if !bytes.Equal(before, after) {
+			t.Fatal("read appended authoritative state")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 }

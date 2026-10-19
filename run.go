@@ -66,29 +66,32 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	records       runstore.Run
-	rootNode      runstore.NodeID
-	nodeMu        sync.Mutex
-	nodeByKey     map[string]runstore.NodeID
-	dir           string                        // <project>/runs/<id>
-	models        map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer        *eventWriter
-	project       *eventWriter
-	store         *observation.Store
-	mu            sync.Mutex
-	sessions      map[string]*eventWriter
-	scopes        map[string]*scope                  // live scopes by key, for cancelScope
-	turns         map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews    map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel    error                              // explicit cancellation of the root scope
-	errMu         sync.Mutex
-	recordErr     error
-	closeMu       sync.Mutex
-	closeErrs     []error
-	pendingClose  map[string]*Session
-	pendingScopes map[string]*scope
-	cleanupMu     sync.Mutex
-	finished      chan struct{}
+	pendingServices map[string]*ownedService
+	lifecycleMu     sync.Mutex
+	observationErr  error
+	records         runstore.Run
+	rootNode        runstore.NodeID
+	nodeMu          sync.Mutex
+	nodeByKey       map[string]runstore.NodeID
+	dir             string                        // <project>/runs/<id>
+	models          map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer          *eventWriter
+	project         *eventWriter
+	store           *observation.Store
+	mu              sync.Mutex
+	sessions        map[string]*eventWriter
+	scopes          map[string]*scope                  // live scopes by key, for cancelScope
+	turns           map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews      map[string]*interviewWaiter        // questions waiting for a person's answer
+	rootCancel      error                              // explicit cancellation of the root scope
+	errMu           sync.Mutex
+	recordErr       error
+	closeMu         sync.Mutex
+	closeErrs       []error
+	pendingClose    map[string]*Session
+	pendingScopes   map[string]*scope
+	cleanupMu       sync.Mutex
+	finished        chan struct{}
 
 	cleanupTimeout time.Duration // immutable per-run override; zero retains operation defaults
 }
@@ -221,25 +224,23 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 			_ = records.Close()
 			return err
 		}
-		return nil
+		return os.WriteFile(filepath.Join(dir, "recording-format"), []byte("1\n"), 0600)
 	})
 	if store == nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", storeErr)
 	}
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
-	if err != nil {
-		_ = store.Close()
-		_ = records.Close()
-		return nil, nil, fmt.Errorf("gimbal: %w", err)
-	}
 	header, headerErr := records.Header(ctx)
 	if headerErr != nil {
 		_ = records.Close()
 		_ = store.Close()
-		_ = w.close()
+		if w != nil {
+			_ = w.close()
+		}
 		return nil, nil, headerErr
 	}
 	r := &run{records: records, rootNode: header.Root, nodeByKey: map[string]runstore.NodeID{"": header.Root}, finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	r.observationFailure("open run log", err)
 	r.cleanupTimeout, _ = ctx.Value(cleanupTimeoutKey{}).(time.Duration)
 	r.store = store
 	if d, ok := DefaultRegistry.Workflow(name); ok {
@@ -247,22 +248,22 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 		if err == nil {
 			err = os.WriteFile(filepath.Join(dir, "graph.json"), raw, 0644)
 		}
-		r.recordFailure("save run graph", err)
+		r.observationFailure("save run graph", err)
 		// The designer's source page, saved beside the graph so the run page
 		// draws this run with the shapes the workflow designer draws.
 		if len(d.SourcePage) > 0 {
-			r.recordFailure("save run source page", os.WriteFile(filepath.Join(dir, "source.json"), d.SourcePage, 0644))
+			r.observationFailure("save run source page", os.WriteFile(filepath.Join(dir, "source.json"), d.SourcePage, 0644))
 		}
 	}
-	r.recordFailure("open observation", storeErr)
+	r.observationFailure("open observation", storeErr)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))
 	if pwErr != nil {
-		r.recordFailure("open project log", pwErr)
+		r.observationFailure("open project log", pwErr)
 	} else {
 		r.project = pw
 	}
-	r.projectEvent(RunStarted{Name: name})
 	r.event("", "", "", RunStarted{Name: name})
+	r.projectEvent(RunStarted{Name: name})
 	logf("run %s started in %s", id, dir)
 	// With the web runtime in ctx the run is reachable by id for as long as
 	// its body runs: an operator with only ids can steer a session or kill
@@ -321,22 +322,26 @@ func (r *run) finish(name string, err error) error {
 	// error is complete by now: RunEnded, the observation status, and
 	// Run's returned error all carry the same verdict.
 	err = errors.Join(err, r.closeError())
+	_ = r.recordCleanupState(errString(errors.Join(r.closeError(), r.pendingCleanupError())))
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
 	// The store's tables are already on disk: closing it ends the page's
 	// subscriptions and nothing else. After this the run is no longer live,
 	// and it is served from the store the registry kept.
-	r.recordFailure("close observation", r.store.Close())
+	r.observationFailure("close observation", r.store.Close())
 	r.closeSessions()
 	if r.project != nil {
-		r.recordFailure("close project log", r.project.close())
+		r.observationFailure("close project log", r.project.close())
 	}
-	r.event("", "", "", Complete{RecordingError: errString(r.recordingError())})
-	r.recordFailure("close run log", r.writer.close())
+	r.event("", "", "", Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))})
+	if r.writer != nil {
+		r.observationFailure("close run log", r.writer.close())
+	}
+	r.recordFailure("flush run store", r.records.Flush(context.Background()))
 	if !r.CleanupPending() {
 		r.recordFailure("close run store", r.records.Close())
 	}
-	err = errors.Join(err, r.recordingError())
+	err = errors.Join(err, r.recordingError(), r.observationError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
 }
@@ -494,7 +499,12 @@ func (r *run) CancelScope(key string, cause error) error {
 func (r *run) CleanupPending() bool {
 	r.closeMu.Lock()
 	defer r.closeMu.Unlock()
-	return len(r.pendingClose) != 0 || len(r.pendingScopes) != 0
+	for id, service := range r.pendingServices {
+		if service.released() {
+			delete(r.pendingServices, id)
+		}
+	}
+	return len(r.pendingClose) != 0 || len(r.pendingScopes) != 0 || len(r.pendingServices) != 0
 }
 
 func (r *run) retryCleanup() error {
@@ -508,9 +518,16 @@ func (r *run) retryCleanup() error {
 	maps.Copy(pending, r.pendingClose)
 	scopes := make(map[string]*scope, len(r.pendingScopes))
 	maps.Copy(scopes, r.pendingScopes)
+	services := make(map[string]*ownedService, len(r.pendingServices))
+	maps.Copy(services, r.pendingServices)
 	r.closeMu.Unlock()
-	if len(pending) == 0 && len(scopes) == 0 {
+	if len(pending) == 0 && len(scopes) == 0 && len(services) == 0 {
 		return errors.New("gimbal: run has ended and has no pending cleanup")
+	}
+	attempt, recordErr := runstate.NextAction(context.Background(), r.records, r.rootNode, "retry-cleanup", "")
+	identity := actionIdentity(r.rootNode, "", attempt.ID, "cleanup")
+	if recordErr == nil {
+		recordErr = r.prepareAction(context.Background(), r.rootNode, "", attempt.ID, "retry-cleanup", struct{}{}, identity)
 	}
 	var failures []error
 	for _, s := range scopes {
@@ -530,10 +547,26 @@ func (r *run) retryCleanup() error {
 		delete(r.pendingClose, id)
 		r.closeMu.Unlock()
 	}
+	for id, service := range services {
+		err := service.stop()
+		if service.released() {
+			r.closeMu.Lock()
+			delete(r.pendingServices, id)
+			r.closeMu.Unlock()
+		} else {
+			if err == nil {
+				err = errors.New("service cleanup remains unconfirmed")
+			}
+			failures = append(failures, err)
+		}
+	}
 	// The original terminal error remains in history. This stop request reports
 	// its own current delivery result and never invokes the workflow again.
 	result := errors.Join(failures...)
-	recordErr := observation.RecordCleanup(r.dir, result)
+	if recordErr == nil {
+		recordErr = r.finishAction(r.rootNode, "", attempt.ID, struct{}{}, result)
+	}
+	recordErr = errors.Join(recordErr, r.recordCleanupState(errString(result)))
 	if !r.CleanupPending() {
 		recordErr = errors.Join(recordErr, r.records.Close())
 	}
@@ -620,7 +653,7 @@ func (r *run) observeLifecycle(_, _, _ string, _ LifecycleEvent, record json.Raw
 		return nil
 	}
 	err := r.store.Lifecycle(record)
-	r.recordFailure("observe lifecycle", err)
+	r.observationFailure("observe lifecycle", err)
 	return err
 }
 
@@ -643,7 +676,7 @@ func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error 
 		err = r.store.Event(observation.Placement{Scope: scope, Session: session, Turn: turn}, envelope, event.NativeRef)
 	}
 	if err != nil {
-		r.recordFailure("observe event "+turn, err)
+		r.observationFailure("observe event "+turn, err)
 		return err
 	}
 	return nil

@@ -74,7 +74,9 @@ func TestRecordedBindingsMatchAcceptedHTTPExecution(t *testing.T) {
 			if e = json.Unmarshal(rec.Payload, &identity); e != nil {
 				t.Fatal(e)
 			}
-			bindings[identity.RequestID] = identity
+			if identity.ExecutorOperation != "" {
+				bindings[identity.RequestID] = identity
+			}
 		}
 	}
 	mu.Lock()

@@ -74,7 +74,7 @@ func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
 		t.Fatalf("result=%s ref=%s err=%v", result.Output, ref, err)
 	}
 	native.fail.Store(true)
-	if err := effects.Cleanup(ctx, server.URL, "run", "child.1"); err == nil {
+	if err := effects.Cleanup(ctx, server.URL, "run", "child.1", backend.NewExecutionIdentity("control").RequestID); err == nil {
 		t.Fatal("false cleanup success")
 	}
 	if d.state(effects.Scope{Run: "run"}).Pending != 2 {
@@ -84,10 +84,10 @@ func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
 		t.Fatal("admitted work after cleanup")
 	}
 	native.fail.Store(false)
-	if err := effects.Cleanup(ctx, server.URL, "run", "child.1"); err != nil {
+	if err := effects.Cleanup(ctx, server.URL, "run", "child.1", backend.NewExecutionIdentity("control").RequestID); err != nil {
 		t.Fatal(err)
 	}
-	if err := effects.Cleanup(ctx, server.URL, "run", "child.1"); err != nil {
+	if err := effects.Cleanup(ctx, server.URL, "run", "child.1", backend.NewExecutionIdentity("control").RequestID); err != nil {
 		t.Fatal(err)
 	}
 	if d.state(effects.Scope{Run: "run"}).Pending != 0 {

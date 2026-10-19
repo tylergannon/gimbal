@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/runstore"
 
 	"github.com/tylergannon/gimbal/internal/effects"
 )
@@ -21,16 +22,12 @@ func effectOwner(s *scope, task string) effects.Owner {
 func effectContext(ctx context.Context, s *scope, task string) context.Context {
 	ctx = effects.WithOwner(ctx, effectOwner(s, task))
 	return effects.WithResourceObserver(ctx, func(use backend.ResourceFact) {
-		if s == nil || s.run == nil || s.run.writer == nil {
+		if s == nil || s.run == nil {
 			return
 		}
 		event := ResourceReady{Name: use.Name, ConsumerKind: use.Kind, Consumer: use.Consumer}
-		raw, err := s.run.writer.writeLifecycle(use.Scope.Scope, "", "", event, true)
-		if err == nil && s.run.store != nil {
-			err = s.run.store.Lifecycle(raw)
-		}
-		if err != nil {
-			logf("%s: resource observation unavailable: %v", task, err)
+		if err := s.run.eventResult(use.Scope.Scope, "", "", event); err != nil {
+			logf("%s: resource recording unavailable: %v", task, err)
 		}
 	})
 }
@@ -41,7 +38,21 @@ func (s *scope) remoteCleanup() error {
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.run.cleanupTimeoutOr(30*time.Second))
 	defer cancel()
-	err := effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key)
+	s.mu.Lock()
+	key := s.next("cleanup")
+	ordinal := s.ordinals["cleanup"]
+	s.mu.Unlock()
+	node := s.run.ensureNode(s.node, runstore.Action, "cleanup", ordinal, key, nil)
+	identity := actionIdentity(s.node, "", node, "cleanup")
+	if node == "" {
+		identity = backend.NewExecutionIdentity("control")
+	}
+	recordErr := s.run.prepareAction(ctx, s.node, "", node, "cleanup", map[string]string{"scope": s.key}, identity)
+	err := effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key, identity.RequestID)
+	if recordErr == nil {
+		recordErr = s.run.finishAction(s.node, "", node, struct{}{}, err)
+	}
+	err = errors.Join(err, recordErr)
 	s.run.closeMu.Lock()
 	if err != nil {
 		if s.run.pendingScopes == nil {

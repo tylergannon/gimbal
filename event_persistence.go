@@ -1,8 +1,11 @@
 package gimbal
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/tylergannon/gimbal/runstore"
 	"maps"
 	"os"
 	"path/filepath"
@@ -133,27 +136,85 @@ func (r *run) event(scope, session, turn string, event LifecycleEvent) {
 }
 
 func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) error {
-	if r != nil && r.writer != nil {
-		record, err := r.writer.writeLifecycle(scope, session, turn, event, true)
-		r.recordFailure("write run log", err)
-		if err != nil {
-			return err
-		}
-		return r.observeLifecycle(scope, session, turn, event, record)
+	if r == nil {
+		return nil
 	}
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	record := LifecycleRecord{Time: time.Now().UTC(), Scope: scope, Session: optionalString(session), Turn: optionalString(turn), Event: event}
+	node := r.nodeID(scope)
+	if session != "" {
+		node = r.nodeID(session)
+	}
+	if turn != "" {
+		node = r.nodeID(turn)
+	}
+	switch e := event.(type) {
+	case CommandStarted:
+		node = r.nodeID(e.ID)
+	case CommandEnded:
+		node = r.nodeID(e.ID)
+	case InterviewQuestionAsked:
+		node = runstore.NodeID(e.QuestionID)
+	case InterviewQuestionAnswered:
+		node = runstore.NodeID(e.QuestionID)
+	}
+	if err := r.recordFact(node, r.nodeID(scope), r.optionalNodeID(session), "lifecycle", record, runstore.Committed); err != nil {
+		return err
+	}
+	raw, err := json.Marshal(record)
+	if err == nil && r.writer != nil {
+		raw, err = r.writer.writeLifecycleRecord(record, true)
+	}
+	r.observationFailure("write run log", err)
+	if err != nil {
+		raw, _ = json.Marshal(record)
+	}
+	r.observationFailure("observe lifecycle", r.observeLifecycle(scope, session, turn, event, raw))
 	return nil
 }
 
+func (w *eventWriter) writeLifecycleRecord(record LifecycleRecord, withSeq bool) (json.RawMessage, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if withSeq {
+		w.seq++
+		record.Seq = w.seq
+	}
+	raw, err := json.Marshal(record)
+	if err != nil {
+		return nil, err
+	}
+	_, err = w.file.Write(append(append([]byte(nil), raw...), '\n'))
+	return raw, err
+}
+
 func (r *run) projectEvent(event LifecycleEvent) {
-	if r != nil && r.project != nil {
+	if r != nil && r.project != nil && r.recordingError() == nil {
 		_, err := r.project.writeLifecycle("", "", "", event, false)
-		r.recordFailure("write project log", err)
+		r.observationFailure("write project log", err)
 	}
 }
 
-func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) error {
+func (r *run) sessionEvent(ctx context.Context, scope, session, turn string, event AgentEvent) error {
 	if r == nil {
 		return nil
+	}
+	record := AgentRecord{Time: time.Now().UTC(), Scope: scope, Session: session, Turn: turn, Event: event, NativeRef: event.NativeRef}
+	record.Event.NativeRef = nil
+	raw, err := r.payload(record)
+	if err == nil {
+		facts := []runstore.Fact{{Version: 1, ID: runstore.NewRecordID(), Node: r.nodeID(turn), Scope: r.nodeID(scope), Session: r.nodeID(session), Kind: "agent", Payload: raw}}
+		_, err = r.records.Append(ctx, facts, runstore.Buffered)
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), r.cleanupTimeoutOr(closeTimeout))
+			_, err = r.records.Append(cleanupCtx, facts, runstore.Buffered)
+			cancel()
+		}
+	}
+	if err != nil {
+		r.recordFailure("record agent event", err)
+		return err
 	}
 	r.mu.Lock()
 	w := r.sessions[session]
@@ -162,7 +223,7 @@ func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) error 
 		var err error
 		w, err = newEventWriter(filepath.Join(r.dir, "sessions", session+".jsonl"))
 		if err != nil {
-			r.recordFailure("open session log "+session, err)
+			r.observationFailure("open session log "+session, err)
 			openErr = err
 		}
 		if w != nil {
@@ -171,17 +232,15 @@ func (r *run) sessionEvent(scope, session, turn string, event AgentEvent) error 
 	}
 	r.mu.Unlock()
 	if openErr != nil {
-		return openErr
+		r.observationFailure("observe session event "+session, r.observeAgent(scope, session, turn, event))
+		return nil
 	}
 	if w != nil {
 		err := w.writeAgent(scope, session, turn, event)
-		r.recordFailure("write session log "+session, err)
-		if err != nil {
-			return err
-		}
+		r.observationFailure("write session log "+session, err)
 		observeErr := r.observeAgent(scope, session, turn, event)
-		r.recordFailure("observe session event "+session, observeErr)
-		return observeErr
+		r.observationFailure("observe session event "+session, observeErr)
+		return nil
 	}
 	return nil
 }
@@ -192,6 +251,22 @@ func (r *run) closeSessions() {
 	maps.Copy(writers, r.sessions)
 	r.mu.Unlock()
 	for session, writer := range writers {
-		r.recordFailure("close session log "+session, writer.close())
+		r.observationFailure("close session log "+session, writer.close())
 	}
+}
+
+func (r *run) observationFailure(operation string, err error) {
+	if r == nil || err == nil {
+		return
+	}
+	r.errMu.Lock()
+	defer r.errMu.Unlock()
+	if r.observationErr == nil {
+		r.observationErr = fmt.Errorf("gimbal: observation: %s: %w", operation, err)
+	}
+}
+func (r *run) observationError() error {
+	r.errMu.Lock()
+	defer r.errMu.Unlock()
+	return r.observationErr
 }

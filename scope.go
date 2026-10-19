@@ -220,6 +220,7 @@ func (s *scope) begin(ctx context.Context) context.Context {
 // service failure or incomplete service cleanup.
 func (s *scope) finish(bodyErr error) error {
 	serviceCleanupErr := s.end()
+
 	s.mu.Lock()
 	serviceErr := s.serviceErr
 	s.mu.Unlock()
@@ -305,9 +306,36 @@ func (s *scope) stopOwnedWork() error {
 		serviceErrs = append(serviceErrs, err)
 	}
 	for _, service := range slices.Backward(services) {
-
 		if err := service.stop(); err != nil {
 			serviceErrs = append(serviceErrs, err)
+		}
+		s.run.closeMu.Lock()
+		if !service.released() {
+			if s.run.pendingServices == nil {
+				s.run.pendingServices = map[string]*ownedService{}
+			}
+			s.run.pendingServices[service.id] = service
+		} else {
+			delete(s.run.pendingServices, service.id)
+		}
+		s.run.closeMu.Unlock()
+	}
+	if s.key == "" {
+		s.run.closeMu.Lock()
+		pendingServices := make([]*ownedService, 0, len(s.run.pendingServices))
+		for _, service := range s.run.pendingServices {
+			pendingServices = append(pendingServices, service)
+		}
+		s.run.closeMu.Unlock()
+		for _, service := range pendingServices {
+			if service.remote {
+				_ = service.stop()
+			}
+			if service.released() {
+				s.run.closeMu.Lock()
+				delete(s.run.pendingServices, service.id)
+				s.run.closeMu.Unlock()
+			}
 		}
 	}
 	if effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {

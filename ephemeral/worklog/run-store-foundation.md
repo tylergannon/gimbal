@@ -15,3 +15,11 @@ decision: Productive HTTP/messaging operation names are identified-session/turn/
 decision: Action intents and executor bindings commit together before native admission. Command output projections tail a separate executor spool and authoritative outcomes own streamed blobs; retaining executor paths alone would not meet independent readback.
 
 correction: A rejected remote session creation must return an empty native binding, rather than a nonempty run-plus-empty-ID transport key that creates a false cleanup obligation.
+
+decision: New-run lifecycle and native events commit/write through runstore before existing logs/reducers. Observation errors are reported separately and do not replace native success or poison subsequent execution. Canceled event writes retry the same RecordID on a bounded cleanup context so a canceled turn can leave its session usable.
+
+correction: Supervisor attachment names the next turn before dispatch; reserve that turn's stored slot before recording attachment, then reuse it in turn execution.
+
+decision: New-format readers never take runner.lock or terminalize a run. Orphan mutation takes the store writer before the pre-existing runner lock; status is read-only. Background cleanup keeps one episode and suppresses unchanged facts. Positive terminal/released projections skip Store.Open.
+
+correction: Service task failure does not prove cleanup failure. Track actually unconfirmed service cessation separately, join descendant service output after ancestor cleanup, and retain recording ownership until known pending resources finish.

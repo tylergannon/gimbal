@@ -50,6 +50,9 @@ func Service(ctx context.Context, name, workdir, command string) error {
 
 	id, node := scope.nextNode(runstore.Service, name)
 	identity := actionIdentity(scope.node, "", node, "process")
+	if effects.Endpoint(ctx) == "" {
+		identity.ExecutorOperation = ""
+	}
 	ctx = effects.WithExecutionIdentity(effectContext(ctx, scope, id), identity)
 	dir, _ := filepath.Abs(workdir)
 	if err := scope.run.prepareAction(ctx, scope.node, "", node, "service", map[string]any{"command": command, "workdir": dir, "requires": effects.Requirements(ctx)}, identity); err != nil {
@@ -121,6 +124,9 @@ func Service(ctx context.Context, name, workdir, command string) error {
 		return errors.Join(err, service.stop())
 	}
 	go service.wait()
+	if err := scope.run.nativeBinding(scope.node, "", node, fmt.Sprintf("pid:%d", cmd.Process.Pid)); err != nil {
+		return err
+	}
 	ticker := time.NewTicker(servicePollInterval)
 	defer ticker.Stop()
 	for {
@@ -314,4 +320,19 @@ func (s *ownedService) awaitBoundary(timeout time.Duration) error {
 			return errors.Join(fmt.Errorf("%w: %s", errServiceShutdownTimeout, strings.Join(parts, "; ")), observationErr)
 		}
 	}
+}
+
+// released reports cessation independently of the task verdict. A failed
+// service whose process group is gone is released; a timed-out stop is not.
+func (s *ownedService) released() bool {
+	select {
+	case <-s.done:
+	default:
+		return false
+	}
+	if s.remote {
+		return true
+	}
+	alive, err := serviceGroupAlive(s.cmd.Process.Pid)
+	return err == nil && !alive
 }

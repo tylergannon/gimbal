@@ -1,11 +1,13 @@
 package gimbal
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/tylergannon/gimbal/runstore"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -85,6 +87,17 @@ func (r *run) artifactName(relative string) (string, error) {
 }
 
 func (r *run) writeArtifact(relative string, data []byte) (artifactDescriptor, error) {
+	ref, err := r.records.PutBlob(context.Background(), bytes.NewReader(data))
+	if err != nil {
+		r.recordFailure("store artifact", err)
+		return artifactDescriptor{}, err
+	}
+	if err = r.recordFact(r.rootNode, r.rootNode, "", "artifact", struct {
+		Key  string           `json:"key"`
+		Blob runstore.BlobRef `json:"blob"`
+	}{relative, ref}, runstore.Committed); err != nil {
+		return artifactDescriptor{}, err
+	}
 	name, err := r.artifactName(relative)
 	if err != nil {
 		return artifactDescriptor{}, err

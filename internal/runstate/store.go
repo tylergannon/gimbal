@@ -6,6 +6,7 @@ import (
 	"context"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
+	"os"
 	"path/filepath"
 )
 
@@ -26,4 +27,14 @@ func Resolve(ctx context.Context, project string) runstore.Store {
 		return s
 	}
 	return ForProject(project)
+}
+
+// Recognized detects projection format, including an initializing directory.
+// It never opens the authoritative store or acquires a writer lock.
+func Recognized(runDir string) bool {
+	if _, e := os.Stat(filepath.Join(runDir, "recording-format")); e == nil {
+		return true
+	}
+	_, e := os.Stat(filepath.Join(runDir, "state"))
+	return e == nil
 }

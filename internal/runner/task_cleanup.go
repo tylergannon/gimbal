@@ -14,12 +14,14 @@ import (
 
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runstate"
+	"github.com/tylergannon/gimbal/runstore"
 	"golang.org/x/sys/unix"
 )
 
 // CleanupExited uses the runner's lifetime lock, never a lost connection, as
 // evidence that the workflow can no longer release its remote resources.
-func CleanupExited(state, id string) (bool, error) {
+func cleanupExitedLegacy(state, id string) (bool, error) {
 	dir := filepath.Join(state, "runs", id)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -49,7 +51,7 @@ func CleanupExited(state, id string) (bool, error) {
 			return true, observation.RecordCleanup(dir, nil)
 		}
 	}
-	cleanupErr := effects.Cleanup(ctx, endpoint, id, "")
+	cleanupErr := effects.Cleanup(ctx, endpoint, id, "", backend.NewExecutionIdentity("control").RequestID)
 	if err := observation.RecordTerminated(dir, "workflow process exited; remote scope cleanup was requested"); err != nil {
 		return false, err
 	}
@@ -63,14 +65,14 @@ func orphanCall(ctx context.Context, endpoint, run string, op operation) (bool, 
 	switch op.Action {
 	case "cleanup":
 		if effects.Messages(ctx) != nil {
-			err := effects.Cleanup(ctx, endpoint, run, "")
+			err := effects.Cleanup(ctx, endpoint, run, "", backend.NewExecutionIdentity("control").RequestID)
 			return err != nil, err
 		}
 		var state effects.State
 		err := effects.Call(ctx, endpoint, "state", effects.Scope{Run: run}, &state)
 		return err != nil || state.Pending > 0, err
 	case "scope":
-		return false, effects.Cleanup(ctx, endpoint, run, op.Target)
+		return false, effects.Cleanup(ctx, endpoint, run, op.Target, backend.NewExecutionIdentity("control").RequestID)
 	default:
 		return false, fmt.Errorf("workflow process is unavailable; scope cleanup remains reachable")
 	}
@@ -92,4 +94,122 @@ func taskConnection(ctx context.Context, state, id string) (backend.Connection, 
 	}
 	endpoint, err := os.ReadFile(filepath.Join(dir, "task-owner"))
 	return backend.Connection{}, string(endpoint), err
+}
+
+func CleanupExited(state, id string) (bool, error) {
+	if !runstate.Recognized(filepath.Join(state, "runs", id)) {
+		return cleanupExitedLegacy(state, id)
+	}
+	return cleanupStopped(state, id, nil, runstate.ForProject(state))
+}
+
+// cleanupStopped owns all new-format orphan mutations: writer first, then the
+// pre-existing runner liveness lock, then one cleanup dispatch and projections.
+func cleanupStopped(state, id string, op *operation, factory runstore.Store) (settled bool, retErr error) {
+	if id == "" || filepath.Base(id) != id || id == "." || id == ".." {
+		return false, fmt.Errorf("invalid run identity")
+	}
+	dir := filepath.Join(state, "runs", id)
+	if op == nil && observation.ReleasedProjection(dir) {
+		return true, nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	r, err := factory.Open(ctx, runstore.RunID(id))
+	if err != nil {
+		if op == nil && (errors.Is(err, runstore.ErrBusy) || errors.Is(err, runstore.ErrIncomplete)) {
+			return false, nil
+		}
+		return false, err
+	}
+	defer func() { retErr = errors.Join(retErr, r.Close()) }()
+	lock, err := os.OpenFile(filepath.Join(dir, "runner.lock"), os.O_RDWR, 0)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	defer lock.Close()
+	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		if op != nil {
+			return false, runstore.ErrBusy
+		}
+		return false, nil
+	}
+	summary, err := runstate.Inspect(ctx, r)
+	if err != nil {
+		return false, err
+	}
+	target := ""
+	if op != nil {
+		if op.Action != "scope" {
+			return false, fmt.Errorf("orphan supports only scope cleanup")
+		}
+		target = op.Target
+	}
+	parent := summary.Header.Root
+	if target != "" {
+		n, ok := summary.Nodes[target]
+		if !ok || n.Kind != runstore.Scope {
+			return false, fmt.Errorf("unknown scope %q", target)
+		}
+		parent = n.ID
+	}
+	connection, endpoint, err := taskConnection(ctx, state, id)
+	defer connection.Close()
+	noRoute := errors.Is(err, os.ErrNotExist) || (err == nil && endpoint == "" && connection.Execution == nil && connection.Messages == nil)
+	if noRoute {
+		if target != "" {
+			return false, fmt.Errorf("orphan native resources cannot be reconstructed")
+		}
+		if err = observation.RecordTerminatedOwned(ctx, r, dir, "workflow process exited; native resource cleanup is unconfirmed"); err != nil {
+			return false, err
+		}
+		if err = observation.RecordCleanupOwned(ctx, r, dir, errors.New("native resource cleanup is unconfirmed")); err != nil {
+			return false, err
+		}
+		if op != nil {
+			return false, fmt.Errorf("native resource cleanup is unconfirmed")
+		}
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	ctx = effects.WithConnection(ctx, connection)
+	var action runstore.Node
+	if op == nil {
+		action, err = r.EnsureNode(ctx, runstore.NodeSpec{Slot: runstore.Slot{Parent: parent, Kind: runstore.Action, Name: "cleanup-episode", Ordinal: 1}, DisplayKey: target + "/cleanup-episode.1"})
+	} else {
+		action, err = runstate.NextAction(ctx, r, parent, "cleanup", target)
+	}
+	if err != nil {
+		return false, err
+	}
+	if !summary.Intents[action.ID] {
+		if err = runstate.Append(ctx, r, action.ID, parent, "intent", map[string]any{"operation": "cleanup", "target": target, "episode_id": action.ID, "route": endpoint}); err != nil {
+			return false, err
+		}
+	}
+	if !summary.Outcomes[action.ID] {
+		cleanupErr := effects.Cleanup(ctx, endpoint, id, target, backend.NewExecutionIdentity("control").RequestID)
+		current := runstate.CleanupState{Status: "released"}
+		if cleanupErr != nil {
+			current.Status = "pending"
+			current.Error = cleanupErr.Error()
+		}
+		_, recordErr := runstate.UpdateCleanup(ctx, r, action.ID, current)
+		if op != nil || cleanupErr == nil {
+			recordErr = errors.Join(recordErr, runstate.Append(ctx, r, action.ID, parent, "outcome", current))
+		}
+		if target == "" {
+			recordErr = errors.Join(recordErr, observation.RecordTerminatedOwned(ctx, r, dir, "workflow process exited; remote cleanup was requested"), observation.RecordCleanupOwned(ctx, r, dir, cleanupErr))
+		}
+		return cleanupErr == nil, errors.Join(cleanupErr, recordErr)
+	}
+	if target == "" {
+		return true, observation.RecordCleanupOwned(ctx, r, dir, nil)
+	}
+	return true, nil
 }

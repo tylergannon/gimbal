@@ -342,7 +342,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			return err
 		}
 		if scope != nil {
-			if err := scope.run.sessionEvent(scope.key, s.id, turnID, stamped); err != nil {
+			if err := scope.run.sessionEvent(ctx, scope.key, s.id, turnID, stamped); err != nil {
 				return err
 			}
 		}

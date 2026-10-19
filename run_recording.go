@@ -61,7 +61,7 @@ func (s *scope) nextNode(kind runstore.Kind, name string) (string, runstore.Node
 	return key, id
 }
 func (r *run) recordFact(node, scope, session runstore.NodeID, kind string, payload any, d runstore.Durability) error {
-	raw, err := json.Marshal(payload)
+	raw, err := r.payload(payload)
 	if err == nil {
 		_, err = r.records.Append(context.Background(), []runstore.Fact{{Version: 1, ID: runstore.NewRecordID(), Node: node, Scope: scope, Session: session, Kind: kind, Payload: raw}}, d)
 	}
@@ -82,6 +82,9 @@ func (r *run) nodeID(key string) runstore.NodeID {
 }
 func actionIdentity(scope, session, action runstore.NodeID, kind string) backend.ExecutionIdentity {
 	i := backend.ExecutionIdentity{ScopeID: string(scope), SessionID: string(session), ActionID: string(action), RequestID: string(action), ExecutorOperation: "turn_" + string(action)}
+	if kind == "cleanup" {
+		i.ExecutorOperation = ""
+	}
 	if kind == "process" {
 		i.ExecutorOperation = "command_" + string(action)
 	}
@@ -136,6 +139,12 @@ func (r *run) finishAction(scope, session, node runstore.NodeID, result any, nat
 	category := "success"
 	if nativeErr != nil {
 		category = "error"
+	}
+	if errors.Is(nativeErr, ErrInvalidOutput) {
+		category = "invalid-output"
+	}
+	if errors.Is(nativeErr, context.DeadlineExceeded) {
+		category = "deadline-exceeded"
 	}
 	if errors.Is(nativeErr, context.Canceled) {
 		category = "cancelled"
@@ -207,4 +216,29 @@ func (s *Session) closeNative(ctx context.Context) error {
 		recordErr = owner.run.finishAction(owner.node, s.node, node, struct{}{}, err)
 	}
 	return errors.Join(err, recordErr)
+}
+
+func (r *run) pendingCleanupError() error {
+	if r.CleanupPending() {
+		return errors.New("resource cleanup remains unconfirmed")
+	}
+	return nil
+}
+func (r *run) recordCleanupState(message string) error {
+	status := "released"
+	if message != "" {
+		status = "pending"
+	}
+	if err := r.recordFact(r.rootNode, r.rootNode, "", "cleanup-state", map[string]string{"status": status, "error": message}, runstore.Committed); err != nil {
+		return err
+	}
+	r.observationFailure("project cleanup state", r.store.CleanupStatus(status, message))
+	return nil
+}
+
+func (r *run) optionalNodeID(key string) runstore.NodeID {
+	if key == "" {
+		return ""
+	}
+	return r.nodeID(key)
 }

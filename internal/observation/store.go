@@ -876,3 +876,21 @@ func cloneSession(row SessionRow) SessionRow {
 	row.Steers = slices.Clone(row.Steers)
 	return row
 }
+
+// CleanupStatus projects an already committed cleanup-state fact.
+func (s *Store) CleanupStatus(status, message string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.run.CleanupStatus == status {
+		return nil
+	}
+	s.run.CleanupStatus = status
+	if s.run.Cancellation.Present {
+		s.run.Cancellation.Value.Cleanup = "completed"
+		if status != "released" {
+			s.run.Cancellation.Value.Cleanup = "unconfirmed"
+		}
+		s.run.Cancellation.Value.CleanupError = message
+	}
+	return s.commitLocked([]change{{tableRun, ""}})
+}

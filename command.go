@@ -215,6 +215,9 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 		return started, CommandEnded{ID: id, ExitCode: -1}, intentErr, intentErr
 	}
 	startRecordErr := s.run.eventResult(s.key, "", "", started)
+	if startRecordErr != nil {
+		return started, CommandEnded{ID: id, ExitCode: -1}, startRecordErr, startRecordErr
+	}
 	logf("%s: command started: %s", id, oneLine(strings.Join(append([]string{command}, args...), " ")))
 	start := time.Now()
 	ended := CommandEnded{ID: id, ExitCode: -1}

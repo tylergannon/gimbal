@@ -45,26 +45,27 @@ type segment struct {
 	size int64
 }
 type run struct {
-	syncFile     func(*os.File) error // package-level fault injection; nil uses File.Sync
-	blobMu       sync.RWMutex
-	mu           sync.Mutex
-	flushMu      sync.Mutex
-	header       runstore.Header
-	dir          string
-	lock         *os.File
-	segments     []segment
-	nodes        map[runstore.NodeID]runstore.Node
-	slots        map[runstore.Slot]runstore.NodeID
-	ids          map[runstore.RecordID]location
-	unique       map[string]runstore.RecordID
-	records      []runstore.RecordID
-	committed    uint64
-	pendingBytes int
-	poison       error
-	closed       bool
-	stop         chan struct{}
-	done         chan struct{}
-	progress     chan struct{}
+	syncedSegments int
+	syncFile       func(*os.File) error // package-level fault injection; nil uses File.Sync
+	blobMu         sync.RWMutex
+	mu             sync.Mutex
+	flushMu        sync.Mutex
+	header         runstore.Header
+	dir            string
+	lock           *os.File
+	segments       []segment
+	nodes          map[runstore.NodeID]runstore.Node
+	slots          map[runstore.Slot]runstore.NodeID
+	ids            map[runstore.RecordID]location
+	unique         map[string]runstore.RecordID
+	records        []runstore.RecordID
+	committed      uint64
+	pendingBytes   int
+	poison         error
+	closed         bool
+	stop           chan struct{}
+	done           chan struct{}
+	progress       chan struct{}
 }
 
 func stateDir(root string, id runstore.RunID) (string, error) {
@@ -432,16 +433,22 @@ func (r *run) validate(f runstore.Fact, internal bool) error {
 			if n.ID != r.header.Root || len(r.nodes) != 0 || n.Kind != runstore.Scope {
 				return fmt.Errorf("runstore: invalid root")
 			}
-		} else if _, ok := r.nodes[n.Parent]; !ok {
+		} else if parent, ok := r.nodes[n.Parent]; !ok {
 			return fmt.Errorf("runstore: missing parent")
+		} else if parent.Kind != runstore.Scope && !(n.Kind == runstore.Action && parent.Kind == runstore.Session) {
+			return fmt.Errorf("runstore: invalid parent kind")
 		}
 	} else if _, ok := r.nodes[f.Node]; !ok {
 		return fmt.Errorf("runstore: missing node")
 	}
-	for _, id := range []runstore.NodeID{f.Scope, f.Session} {
-		if id != "" {
-			if _, ok := r.nodes[id]; !ok {
-				return fmt.Errorf("runstore: missing node reference")
+	for _, ref := range []struct {
+		id   runstore.NodeID
+		kind runstore.Kind
+	}{{f.Scope, runstore.Scope}, {f.Session, runstore.Session}} {
+		if ref.id != "" {
+			n, ok := r.nodes[ref.id]
+			if !ok || n.Kind != ref.kind {
+				return fmt.Errorf("runstore: invalid %s reference", ref.kind)
 			}
 		}
 	}
@@ -528,11 +535,7 @@ func (r *run) appendLocked(facts []runstore.Fact, h *runstore.Header, internal b
 			return nil, err
 		}
 		r.segments = append(r.segments, segment{file: f})
-		if err = syncDir(r.dir); err != nil {
-			r.poison = err
-			r.signal()
-			return nil, err
-		}
+
 	}
 	si := len(r.segments) - 1
 	seg := &r.segments[si]
@@ -605,6 +608,7 @@ func (r *run) Flush(ctx context.Context) error {
 	for i, s := range r.segments {
 		files[i] = s.file
 	}
+	needsDirSync := len(files) > r.syncedSegments
 	bytesAtStart := r.pendingBytes
 	syncFile := r.syncFile
 	if syncFile == nil {
@@ -617,6 +621,9 @@ func (r *run) Flush(ctx context.Context) error {
 			err = errors.Join(err, e)
 		}
 	}
+	if err == nil && needsDirSync {
+		err = syncDir(r.dir)
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if err != nil {
@@ -624,6 +631,7 @@ func (r *run) Flush(ctx context.Context) error {
 		r.signal()
 	} else {
 		r.committed = seq
+		r.syncedSegments = len(files)
 		r.pendingBytes -= bytesAtStart
 	}
 	r.signal()

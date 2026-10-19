@@ -96,7 +96,7 @@ func TestMessagingInterruptStopsInflightTurn(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatal("turn cancellation starved")
 	}
-	if err = effects.Cleanup(ctx, "", "run", ""); err != nil {
+	if err = effects.Cleanup(ctx, "", "run", "", backend.NewExecutionIdentity("control").RequestID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -110,7 +110,7 @@ func TestMessagingServiceEstablishesThenScopeCleanupCompletes(t *testing.T) {
 	if _, err := effects.Await(ctx, r, "established", nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := effects.Cleanup(ctx, "", "run", "scope"); err != nil {
+	if err := effects.Cleanup(ctx, "", "run", "scope", backend.NewExecutionIdentity("control").RequestID); err != nil {
 		t.Fatal(err)
 	}
 	event, err := effects.Await(ctx, r, "completed", nil)

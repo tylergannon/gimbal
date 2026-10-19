@@ -308,7 +308,7 @@ func (s *Service) cleanupBinding(ctx context.Context, b Binding) error {
 			}
 		}
 	}
-	e := effects.Cleanup(cc, "backend", b.Owner.Run, b.Owner.Scope)
+	e := effects.Cleanup(cc, "backend", b.Owner.Run, b.Owner.Scope, backend.NewExecutionIdentity("control").RequestID)
 	if e == nil {
 		s.updateProvisionedState(c, b)
 	}

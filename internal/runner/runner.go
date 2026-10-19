@@ -13,6 +13,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"golang.org/x/sys/unix"
 	"io"
 	"net"
@@ -225,8 +226,9 @@ func Connect(state, id string) (live.Controller, error) {
 		if e == nil && (endpoint != "" || connection.Execution != nil || connection.Messages != nil) {
 			lock, e := os.OpenFile(filepath.Join(state, "runs", id, "runner.lock"), os.O_RDWR, 0)
 			if e == nil {
-				defer func() { _ = lock.Close() }()
-				if unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB) == nil {
+				available := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB) == nil
+				_ = lock.Close()
+				if available {
 					orphan := remote{endpoint: endpoint, runID: id, state: state}
 					if orphan.CleanupPending() {
 						return orphan, nil
@@ -247,6 +249,28 @@ func (c remote) call(ctx context.Context, op operation) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	if c.runID != "" {
+		if runstate.Recognized(filepath.Join(c.state, "runs", c.runID)) {
+			if op.Action == "scope" {
+				return cleanupStopped(c.state, c.runID, &op, runstate.ForProject(c.state))
+			}
+			if op.Action != "cleanup" {
+				return false, fmt.Errorf("workflow process is unavailable; scope cleanup remains reachable")
+			}
+			if observation.ReleasedProjection(filepath.Join(c.state, "runs", c.runID)) {
+				return false, nil
+			}
+			connection, endpoint, err := taskConnection(ctx, c.state, c.runID)
+			if err != nil {
+				return true, err
+			}
+			defer connection.Close()
+			if connection.Messages != nil {
+				return true, nil
+			}
+			var pending effects.State
+			err = effects.Call(effects.WithConnection(ctx, connection), endpoint, "state", effects.Scope{Run: c.runID}, &pending)
+			return err != nil || pending.Pending > 0, err
+		}
 		connection, endpoint, err := taskConnection(ctx, c.state, c.runID)
 		if err != nil {
 			return false, err

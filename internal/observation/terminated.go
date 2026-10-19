@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"io"
 	"os"
 	"path/filepath"
@@ -14,6 +15,9 @@ import (
 // The caller MUST first establish that the old process can no longer write.
 // This records the orchestrator's failure, never synthetic session/scope closes.
 func RecordTerminated(dir, reason string) error {
+	if runstate.Recognized(dir) {
+		return fmt.Errorf("observation: new-format terminalization requires the run-store writer")
+	}
 	return recordStopped(dir, reason, false)
 }
 
@@ -24,10 +28,13 @@ func RecordCleanup(dir string, err error) error {
 	if err != nil {
 		message = err.Error()
 	}
+	if runstate.Recognized(dir) {
+		return fmt.Errorf("observation: new-format cleanup requires the run-store writer")
+	}
 	return recordStopped(dir, message, true)
 }
 
-func recordStopped(dir, reason string, cleanup bool) error {
+func recordStopped(dir, reason string, cleanup bool, saved ...json.RawMessage) error {
 	id := filepath.Base(dir)
 	s, err := open(nil, id, dir)
 	if err != nil {
@@ -80,13 +87,21 @@ func recordStopped(dir, reason string, cleanup bool) error {
 		return err
 	}
 	rec := struct {
-		Seq   int64             `json:"seq"`
-		Time  time.Time         `json:"time"`
+		Seq  int64     `json:"seq"`
+		Time time.Time `json:"time"
+ "github.com/tylergannon/gimbal/internal/runstate"`
 		Scope string            `json:"scope"`
 		Event map[string]string `json:"event"`
 	}{seq + 1, time.Now().UTC(), "", map[string]string{"kind": "run_ended", "name": s.run.Name, "error": reason}}
 	if cleanup {
 		rec.Event = map[string]string{"kind": "cancellation_cleanup", "error": reason}
+	}
+	if len(saved) > 0 {
+		projectionSeq := rec.Seq
+		if err := json.Unmarshal(saved[0], &rec); err != nil {
+			return err
+		}
+		rec.Seq = projectionSeq
 	}
 	raw, err := json.Marshal(rec)
 	if err != nil {
@@ -95,8 +110,10 @@ func recordStopped(dir, reason string, cleanup bool) error {
 	if _, err = f.Write(append(raw, '\n')); err != nil {
 		return err
 	}
-	if err = f.Sync(); err != nil {
-		return err
+	if !runstate.Recognized(dir) {
+		if err = f.Sync(); err != nil {
+			return err
+		}
 	}
 	s.closed = false
 	if err = s.Lifecycle(raw); err != nil {

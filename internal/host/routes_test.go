@@ -138,11 +138,11 @@ func TestRejectedWorkflowAdmissionIsKnownFailed(t *testing.T) {
 		t.Fatal(err)
 	}
 	config, _ := json.Marshal(map[string]string{"endpoint": server.URL})
-	_, err = project.startRouted(invocation.Request{RunID: "rejected.review", Workflow: "review", WorkflowRoute: backend.Route{Name: "http", Configuration: config}})
+	_, err = project.startRouted(invocation.Request{RunID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", Workflow: "review", WorkflowRoute: backend.Route{Name: "http", Configuration: config}})
 	if err == nil || err.Error() != "unknown task backend" {
 		t.Fatalf("admission error %v", err)
 	}
-	record, err := project.readRoute("rejected.review")
+	record, err := project.readRoute("01ARZ3NDEKTSV4RRFFQ69G5FAV")
 	if err != nil {
 		t.Fatal(err)
 	}

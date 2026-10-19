@@ -19,6 +19,9 @@ import (
 )
 
 func (d *Daemon) process(req effects.Process) error {
+	if err := req.ExecutionIdentity.Validate("process"); err != nil {
+		return err
+	}
 	if len(req.Yields) > 0 && d.Secrets == nil {
 		return fmt.Errorf("producer requires a secrets backend")
 	}
@@ -83,7 +86,7 @@ func (d *Daemon) process(req effects.Process) error {
 	if err != nil {
 		return err
 	}
-	request := commandexecutor.Request{ID: executor.NewCommandID(), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Deadline: req.Deadline, Grace: 10 * time.Second}
+	request := commandexecutor.Request{ID: executor.CommandID(req.ExecutionIdentity.ExecutorOperation), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Deadline: req.Deadline, Grace: 10 * time.Second}
 	// The bridge records host-local identity; it never sends these paths to callers.
 	if err = os.MkdirAll(filepath.Join(root, "submissions"), 0700); err != nil {
 		return err

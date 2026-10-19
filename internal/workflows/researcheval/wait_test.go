@@ -11,6 +11,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
@@ -31,7 +33,7 @@ func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
 				return func() {}
 			})
 			go func() {
-				done <- gimbal.Run(ctx, "child", nil, func(ctx context.Context) error {
+				done <- gimbal.Run(ctx, string(runstore.NewRunID()), "child", nil, func(ctx context.Context) error {
 					select {
 					case <-finish:
 						return nil
@@ -69,7 +71,13 @@ func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
 				t.Fatalf("completion: %+v, %v", snapshot.Run, err)
 			}
 			select {
-			case <-done:
+			case runErr := <-done:
+				if !timeout && runErr != nil {
+					t.Fatalf("child completion: %v", runErr)
+				}
+				if timeout && runErr == nil {
+					t.Fatal("timed out child returned success")
+				}
 			case <-time.After(3 * time.Second):
 				t.Fatal("child did not settle")
 			}

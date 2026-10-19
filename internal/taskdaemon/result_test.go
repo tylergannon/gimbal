@@ -11,6 +11,8 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestInvalidOutputClassificationPreservesRawResult(t *testing.T) {
@@ -22,7 +24,7 @@ func TestInvalidOutputClassificationPreservesRawResult(t *testing.T) {
 	d.tasks[key("r", "t")] = &task{done: done, result: raw, err: fmt.Errorf("%w: expected integer", gimbal.ErrInvalidOutput)}
 	server := httptest.NewServer(d.Handler())
 	defer server.Close()
-	received, err := effects.Wait(context.Background(), server.URL, effects.Target{Run: "r", ID: "t"}, nil)
+	received, err := effects.Wait(context.Background(), server.URL, effects.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: "r", ID: "t"}, nil)
 	if _, ok := errors.AsType[*effects.InvalidOutput](err); !ok {
 		t.Fatalf("wire error=%v", err)
 	}
@@ -33,7 +35,7 @@ func TestInvalidOutputClassificationPreservesRawResult(t *testing.T) {
 	if string(wire.Output) != string(output) {
 		t.Fatalf("wire changed native output %q", wire.Output)
 	}
-	result := d.result(effects.Target{Run: "r", ID: "t"})
+	result := d.result(effects.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: "r", ID: "t"})
 	if !result.InvalidOutput {
 		t.Fatal("local backend lost invalid output classification")
 	}
@@ -62,14 +64,14 @@ func TestRemoteHarnessReturnsInvalidClassificationAndExactNativeOutput(t *testin
 	defer server.Close()
 	h := &Harness{Endpoint: server.URL, Name: "fake"}
 	ctx := effects.WithOwner(context.Background(), effects.Owner{Run: "r", Task: "s"})
-	id, err := h.CreateSession(ctx, "m", "", "/")
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "m", "", "/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	schema := json.RawMessage(`{"type":"object","properties":{"n":{"type":"integer"}},"required":["n"]}`)
 	for i := 1; i <= 3; i++ {
 		turn := effects.WithOwner(ctx, effects.Owner{Run: "r", Task: fmt.Sprintf("t%d", i)})
-		result, err := h.RunTurn(turn, id, "answer", schema, nil)
+		result, err := h.RunTurn(effects.WithExecutionIdentity(turn, backend.NewExecutionIdentity("turn")), id, "answer", schema, nil)
 		if i < 3 && (!errors.Is(err, gimbal.ErrInvalidOutput) || string(result.Output) != `{"n":"wrong"}`) {
 			t.Fatalf("invalid result %s: %v", result.Output, err)
 		}
@@ -94,7 +96,7 @@ func TestRemoteGenerateBoundsInvalidOutputReasks(t *testing.T) {
 	defer server.Close()
 	h := &Harness{Endpoint: server.URL, Name: "fake"}
 	ctx := effects.WithEndpoint(gimbal.Project(context.Background(), t.TempDir()), server.URL)
-	err := gimbal.Run(ctx, "remote-invalid-output", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: h, Model: "m"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "remote-invalid-output", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coder": {Adapter: h, Model: "m"}}, func(ctx context.Context) error {
 		_, err := gimbal.NewSession(ctx, "coder", t.TempDir()).Generate[remoteAnswer](ctx, "answer")
 		return err
 	})

@@ -10,6 +10,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/workflows/implementation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // Run with GIMBAL_LIVE=1 to exercise Claude's completion decisions in real turns.
@@ -30,7 +32,7 @@ func TestLiveCompletionScope(t *testing.T) {
 	var assessment implementation.Assessment
 	var receipt gimbal.Text
 	var followup implementation.Assessment
-	err := gimbal.Run(ctx, "claude-completion-scope", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "claude-completion-scope", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		"planner":   {Adapter: adapter, Model: model},
 		"validator": {Adapter: adapter, Model: model},
 		"worker":    {Adapter: adapter, Model: model},

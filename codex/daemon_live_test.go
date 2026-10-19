@@ -16,6 +16,10 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // TestRunTurnAfterRedialResumesThread proves finding 1's fix live: killing
@@ -51,7 +55,7 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 	defer cancel()
 	ctx = gimbal.Project(ctx, dir)
 
-	err := gimbal.Run(ctx, "daemon-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 
 		first, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: one.")
@@ -244,7 +248,7 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	defer cancel()
 	ctx = gimbal.Project(ctx, dir)
 
-	err = gimbal.Run(ctx, "daemon-close-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
@@ -252,7 +256,7 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 		// thread/fork subscribes the fork's thread immediately; forking
 		// without ever running a turn on it still leaves something for
 		// Close to release when the scope ends.
-		if _, err := session.Fork(ctx, "forked"); err != nil {
+		if _, err := session.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "forked"); err != nil {
 			return err
 		}
 		return nil
@@ -350,7 +354,7 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 	ctx = gimbal.Project(ctx, dir)
 
 	var dead *connection
-	err = gimbal.Run(ctx, "daemon-close-redial-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-redial-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
@@ -409,12 +413,12 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 	defer cancel()
 
 	first := New().(*adapter)
-	thread, err := first.CreateSession(ctx, "gpt-5.6-luna", "low", workdir)
+	thread, err := first.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "gpt-5.6-luna", "low", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	token := "cobalt-7319"
-	if _, err := first.RunTurn(ctx, thread, "Remember the token "+token+". Reply only READY.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+	if _, err := first.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), thread, "Remember the token "+token+". Reply only READY.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	beforeSocket, running, err := daemonStatus(ctx)
@@ -430,11 +434,11 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := second.Close(context.Background(), thread); err != nil {
+		if err := second.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), thread); err != nil {
 			t.Errorf("archive resumed test thread: %v", err)
 		}
 	}()
-	result, err := second.RunTurn(ctx, thread, "What token did I ask you to remember? Reply with only the token.", nil, func(gimbal.AgentEvent) error { return nil })
+	result, err := second.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), thread, "What token did I ask you to remember? Reply with only the token.", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -495,7 +499,7 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 	loadedBefore := loadedSet(t, probe)
 
 	var parent string
-	err = gimbal.Run(ctx, "daemon-fork-archived-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-fork-archived-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: parent."); err != nil {
 			return err
@@ -512,7 +516,7 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("archive parent out of band: %w", err)
 		}
-		_, err = session.Fork(ctx, "forked")
+		_, err = session.Fork(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "forked")
 		if !errors.Is(err, errThreadArchived) {
 			return fmt.Errorf("fork of an archived parent returned %v, want errThreadArchived", err)
 		}
@@ -648,7 +652,7 @@ func TestActiveTurnReconnectPreservesToolEffectLive(t *testing.T) {
 		}
 	}()
 	validations := 0
-	err := gimbal.Run(gimbal.Project(ctx, dir), "active-reconnect-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coding": {Adapter: ad, Model: "gpt-5.6-luna"}, "qa": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(gimbal.Project(ctx, dir), string(runstore.NewRunID()), "active-reconnect-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coding": {Adapter: ad, Model: "gpt-5.6-luna"}, "qa": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
 		for taskCtx, stage := range gimbal.Iterate(ctx, "outcome", []string{"first", "second", "third"}) {
 			gimbal.Set(taskCtx, "stage", stage)
 			gimbal.Set(taskCtx, "effect file", effect)

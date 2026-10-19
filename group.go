@@ -40,6 +40,7 @@ func Group(ctx context.Context, name string) *group {
 	g.ctx, g.scope.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, g.scope))
 	g.scope.ctx = g.ctx
 	context.AfterFunc(g.ctx, func() { _ = g.scope.end() })
+	_ = g.scope.run.activate(g.scope.node)
 	g.scope.run.addScope(g.scope)
 	g.scope.run.event(g.scope.key, "", "", ScopeBegan{Name: name})
 	return g

@@ -17,6 +17,8 @@ import (
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestDefaultLocalServicePublishesAndReleases(t *testing.T) {
@@ -29,7 +31,7 @@ func TestDefaultLocalServicePublishesAndReleases(t *testing.T) {
 		t.Fatal(err)
 	}
 	var address string
-	err = Run(Project(t.Context(), t.TempDir()), "local-service", nil, func(ctx context.Context) error {
+	err = Run(Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "local-service", nil, func(ctx context.Context) error {
 		return Scope(ctx, "http", func(ctx context.Context) error {
 
 			command := "exec env GIMBAL_LOCAL_SERVICE_FIXTURE=1 '" + strings.ReplaceAll(executable, "'", "'\"'\"'") + "' -test.run '^TestLocalServiceHTTPFixture$'"

@@ -66,14 +66,17 @@ func Call(ctx context.Context, endpoint, operation string, input, output any) er
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
+		if backend.Identified(operation) && (response.StatusCode == 404 || response.StatusCode == 405) {
+			return &backend.ContractRejected{Message: fmt.Sprintf("unsupported %s", operation)}
+		}
 		return fmt.Errorf("task daemon %s: HTTP %d", operation, response.StatusCode)
 	}
 	return json.NewDecoder(response.Body).Decode(output)
 }
 
-func Cleanup(ctx context.Context, endpoint, run, scope string) error {
+func Cleanup(ctx context.Context, endpoint, run, scope, requestID string) error {
 	if Messages(ctx) != nil {
-		r := Request("cleanup", Owner{Run: run, Scope: scope})
+		r := Request(requestID, "cleanup", Owner{Run: run, Scope: scope})
 		r.ScopeTarget = &Scope{Run: run, Scope: scope}
 		if _, err := MessageCall(ctx, r); err != nil {
 			return err
@@ -253,7 +256,11 @@ func terminalResult(result backend.Result, id string) (json.RawMessage, error) {
 
 // ConfirmStarted reconciles a lost admission reply using the already assigned
 // identity. Reading is safe to retry; the mutation itself is never replayed.
-func ConfirmStarted(ctx context.Context, endpoint string, target Target) error {
+func ConfirmStarted(ctx context.Context, endpoint string, target Target, admission error) error {
+	var rejected *backend.ContractRejected
+	if errors.As(admission, &rejected) {
+		return admission
+	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	var last error

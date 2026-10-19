@@ -15,6 +15,7 @@ import (
 // Its context bounds establishment only; resource-owning transports implement
 // io.Closer and are closed by their caller after all cleanup operations.
 type MessagingDefinition struct {
+	ExecutionIdentity     bool
 	Name                  string
 	ValidateConfiguration func(json.RawMessage) error
 	Connect               func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error)

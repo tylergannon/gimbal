@@ -5,13 +5,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"os"
-	"os/signal"
-	"path/filepath"
-
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/workflows/implementinterview"
+	"github.com/tylergannon/gimbal/runstore"
+	"os"
+	"os/signal"
+	"path/filepath"
 )
 
 func main() {
@@ -50,11 +50,13 @@ func main() {
 			if err == nil {
 				ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 				defer stop()
-				err = gimbal.Run(gimbal.Project(ctx, project), "implement-interview", models, func(ctx context.Context) error {
-					return implementinterview.ImplementInterview(ctx, gimbal.Env{WorkDir: workDir}, implementinterview.InterviewBuildParams{
-						RequirementsFile: *requirementsFile, ReferenceDir: *referenceDir, MaxTasks: *maxTasks,
+				err = gimbal.Run(gimbal.Project(ctx, project), string(runstore.NewRunID()),
+
+					"implement-interview", models, func(ctx context.Context) error {
+						return implementinterview.ImplementInterview(ctx, gimbal.Env{WorkDir: workDir}, implementinterview.InterviewBuildParams{
+							RequirementsFile: *requirementsFile, ReferenceDir: *referenceDir, MaxTasks: *maxTasks,
+						})
 					})
-				})
 			}
 		}
 	}

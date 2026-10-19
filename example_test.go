@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"github.com/tylergannon/gimbal"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type exampleAdapter struct{}
@@ -42,7 +44,7 @@ func Example() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimbal.Run(ctx, "example", map[gimbal.WorkflowRole]gimbal.ModelBinding{"worker": {Adapter: &exampleAdapter{}, Model: "example"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "example", map[gimbal.WorkflowRole]gimbal.ModelBinding{"worker": {Adapter: &exampleAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		gimbal.Set(ctx, "goal", "demonstrate the public API")
 		worker := gimbal.NewSession(ctx, "worker", ".")
 		answer, err := worker.Generate[gimbal.Text](ctx, "Complete the goal.")
@@ -63,7 +65,7 @@ func ExampleGroup() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimbal.Run(ctx, "parallel", nil, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "parallel", nil, func(ctx context.Context) error {
 		group := gimbal.Group(ctx, "drafts")
 		group.Go("draft", func(ctx context.Context) error {
 			gimbal.Set(ctx, "approach", "first")
@@ -104,7 +106,7 @@ func ExamplePromiseLoop() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimbal.Run(ctx, "dispatch", map[gimbal.WorkflowRole]gimbal.ModelBinding{"planner": {Adapter: &exampleLoopAdapter{}, Model: "example"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "dispatch", map[gimbal.WorkflowRole]gimbal.ModelBinding{"planner": {Adapter: &exampleLoopAdapter{}, Model: "example"}}, func(ctx context.Context) error {
 		planner := gimbal.NewSession(ctx, "planner", ".")
 		loop := gimbal.PromiseLoop(ctx, "work", "demonstrate adaptive dispatch", planner)
 		for ctx, task := range loop.Tasks {
@@ -124,7 +126,7 @@ func ExampleIterate() {
 	ctx, closeProject := exampleContext()
 	defer closeProject()
 
-	err := gimbal.Run(ctx, "iterations", nil, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "iterations", nil, func(ctx context.Context) error {
 		count := 0
 		for itemCtx, item := range gimbal.Iterate(ctx, "work", []string{"one", "two"}) {
 			count++

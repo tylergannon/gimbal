@@ -60,7 +60,10 @@ func Interview(ctx context.Context, name string, session *Session, purpose strin
 		}
 
 		question := decision.Question.Value
-		questionID, waiter := scope.run.registerInterviewQuestion()
+		questionID, waiter := scope.run.registerInterviewQuestion(scope, name)
+		if err := scope.run.recordingError(); err != nil {
+			return transcript, err
+		}
 		scope.run.event(scope.key, session.id, "", InterviewQuestionAsked{
 			Name: name, QuestionID: questionID, Question: question,
 		})

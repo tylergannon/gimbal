@@ -13,6 +13,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/workflow"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type testSession struct {
@@ -138,7 +140,7 @@ func TestUserTestingStages(t *testing.T) {
 			saveSuite(t, s, input)
 			h := &testingHarness{sessions: map[string]testSession{}, arrivals: make(chan struct{}, 3), want: tc.n, failTester: tc.tester, failDebrief: tc.debrief, failVisual: tc.visual, failClose: tc.close, prompts: map[string][]string{}}
 			models := map[gimbal.WorkflowRole]gimbal.ModelBinding{"product-operation": {Adapter: h, Model: "tester"}, "product-visual-review": {Adapter: h, Model: "visual"}, "product-triage": {Adapter: h, Model: "triage"}}
-			err := gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), "user-testing", models, func(ctx context.Context) error {
+			err := gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "user-testing", models, func(ctx context.Context) error {
 				return ValidateProduct(ctx, gimbal.Env{WorkDir: filepath.Dir(input)}, Params{SuiteFile: input})
 			})
 			if (err != nil) != (tc.tester || tc.debrief || tc.visual || tc.close || tc.browserClose || tc.encode) {

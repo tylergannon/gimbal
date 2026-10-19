@@ -18,6 +18,10 @@ import (
 	"github.com/tylergannon/gimbal/internal/pi/model"
 	"github.com/tylergannon/gimbal/internal/pi/session"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
+
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestProjectedEventsUseGimbalCompatibleNativeRefs(t *testing.T) {
@@ -112,7 +116,7 @@ func mustRecord(t *testing.T, run *turn, event session.Event) {
 
 func TestEffortMustBeBlankAndModelIDIsBound(t *testing.T) {
 	a := newAdapter(Config{APIKey: func() string { return "test-key" }})
-	if _, err := a.CreateSession(context.Background(), "diffusion/deepseek-4.1-flash", "high", t.TempDir()); err == nil || !strings.Contains(err.Error(), "unsupported") {
+	if _, err := a.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "high", t.TempDir()); err == nil || !strings.Contains(err.Error(), "unsupported") {
 		t.Fatalf("CreateSession effort error = %v", err)
 	}
 	if got := modelID("diffusion/deepseek-4.1-flash"); got != "deepseek-4.1-flash" {
@@ -207,14 +211,16 @@ func TestNativeSessionRunTurnWithFakeCompletions(t *testing.T) {
 
 	a := newAdapter(Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }})
 	workdir := t.TempDir()
-	sessionID, err := a.CreateSession(context.Background(), "diffusion/deepseek-4.1-flash", "", workdir)
+	sessionID, err := a.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = a.Close(context.Background(), sessionID) }()
+	defer func() {
+		_ = a.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID)
+	}()
 
 	var events []gimbal.AgentEvent
-	first, err := a.RunTurn(context.Background(), sessionID, "Say hello", nil, func(event gimbal.AgentEvent) error {
+	first, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "Say hello", nil, func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -250,20 +256,20 @@ func TestNativeSessionRunTurnWithFakeCompletions(t *testing.T) {
 		t.Fatalf("projected assistant message = %s", projected)
 	}
 
-	second, err := a.RunTurn(context.Background(), sessionID, "second turn on this conversation", nil, nil)
+	second, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "second turn on this conversation", nil, nil)
 	if err != nil || string(second.Output) != `"Pi first answer"` {
 		t.Fatalf("second turn output=%s err=%v", second.Output, err)
 	}
 
 	schema := json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}},"required":["answer"]}`)
-	candidate, err := a.RunTurn(context.Background(), sessionID, "Return an answer", schema, nil)
+	candidate, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "Return an answer", schema, nil)
 	if !errors.Is(err, gimbal.ErrInvalidOutput) {
 		t.Fatalf("invalid native output error = %v", err)
 	}
 	if string(candidate.Output) != `{"wrong":"no"}` {
 		t.Fatalf("candidate schema output = %s", candidate.Output)
 	}
-	valid, err := a.RunTurn(context.Background(), sessionID, "Return an answer", schema, nil)
+	valid, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "Return an answer", schema, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,11 +313,13 @@ func TestSteerLandsInRunningTurnAndMissesWithoutOne(t *testing.T) {
 
 	a := newAdapter(Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }})
 	workdir := t.TempDir()
-	sessionID, err := a.CreateSession(context.Background(), "diffusion/deepseek-4.1-flash", "", workdir)
+	sessionID, err := a.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = a.Close(context.Background(), sessionID) }()
+	defer func() {
+		_ = a.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID)
+	}()
 
 	type outcome struct {
 		result gimbal.TurnResult
@@ -319,7 +327,7 @@ func TestSteerLandsInRunningTurnAndMissesWithoutOne(t *testing.T) {
 	}
 	turnDone := make(chan outcome, 1)
 	go func() {
-		result, err := a.RunTurn(context.Background(), sessionID, "hold for steer", nil, nil)
+		result, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "hold for steer", nil, nil)
 		turnDone <- outcome{result, err}
 	}()
 	select {
@@ -365,19 +373,23 @@ func TestForkIsIndependent(t *testing.T) {
 
 	a := newAdapter(Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }})
 	workdir := t.TempDir()
-	sessionID, err := a.CreateSession(context.Background(), "diffusion/deepseek-4.1-flash", "", workdir)
+	sessionID, err := a.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = a.Close(context.Background(), sessionID) }()
-	if _, err := a.RunTurn(context.Background(), sessionID, "shared parent history", nil, nil); err != nil {
+	defer func() {
+		_ = a.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID)
+	}()
+	if _, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "shared parent history", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	childID, err := a.Fork(context.Background(), sessionID)
+	childID, err := a.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), sessionID)
 	if err != nil {
 		t.Fatalf("Fork: %v", err)
 	}
-	defer func() { _ = a.Close(context.Background(), childID) }()
+	defer func() {
+		_ = a.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), childID)
+	}()
 
 	parentSession, _ := a.session(sessionID)
 	childSession, _ := a.session(childID)
@@ -395,7 +407,7 @@ func TestForkIsIndependent(t *testing.T) {
 		wg.Add(1)
 		go func(id, prompt string) {
 			defer wg.Done()
-			result, err := a.RunTurn(context.Background(), id, prompt, nil, nil)
+			result, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), id, prompt, nil, nil)
 			results <- string(result.Output)
 			errorsCh <- err
 		}(item.id, item.prompt)
@@ -438,15 +450,20 @@ func TestCancellationReturnsContextError(t *testing.T) {
 
 	a := newAdapter(Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }})
 	workdir := t.TempDir()
-	sessionID, err := a.CreateSession(context.Background(), "diffusion/deepseek-4.1-flash", "", workdir)
+	sessionID, err := a.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = a.Close(context.Background(), sessionID) }()
+	defer func() {
+		_ = a.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID)
+	}()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { _, err := a.RunTurn(ctx, sessionID, "hold for cancellation", nil, nil); done <- err }()
+	go func() {
+		_, err := a.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), sessionID, "hold for cancellation", nil, nil)
+		done <- err
+	}()
 	select {
 	case <-entered:
 	case <-time.After(8 * time.Second):
@@ -467,17 +484,17 @@ func TestCloseIsIdempotent(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { serveRouterModels(w, r) }))
 	defer server.Close()
 	a := newAdapter(Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }})
-	sessionID, err := a.CreateSession(context.Background(), "diffusion/deepseek-4.1-flash", "", t.TempDir())
+	sessionID, err := a.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Close(context.Background(), sessionID); err != nil {
+	if err := a.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID); err != nil {
 		t.Fatal(err)
 	}
-	if err := a.Close(context.Background(), sessionID); err != nil {
+	if err := a.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), sessionID); err != nil {
 		t.Fatalf("second Close: %v", err)
 	}
-	if _, err := a.RunTurn(context.Background(), sessionID, "after close", nil, nil); err == nil {
+	if _, err := a.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "after close", nil, nil); err == nil {
 		t.Fatal("RunTurn on a closed session succeeded")
 	}
 }
@@ -500,7 +517,7 @@ func TestSchemaCandidateFeedsGimbalValidation(t *testing.T) {
 	a := newAdapter(Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }})
 	workdir := t.TempDir()
 	var got schemaAnswer
-	err := gimbal.Run(gimbal.Project(context.Background(), workdir), "pi-schema-reask", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+	err := gimbal.Run(gimbal.Project(context.Background(), workdir), string(runstore.NewRunID()), "pi-schema-reask", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		"pi": {Adapter: a, Model: "diffusion/deepseek-4.1-flash"},
 	}, func(ctx context.Context) error {
 		var err error

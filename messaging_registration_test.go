@@ -50,7 +50,7 @@ func fixtureRegistry(t *testing.T, fixture *constructionFixture, connect func(co
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.RegisterMessaging(MessagingDefinition{Name: "fixture", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: connect, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }}); err != nil {
+	if err := r.RegisterMessaging(MessagingDefinition{ExecutionIdentity: true, Name: "fixture", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: connect, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }}); err != nil {
 		t.Fatal(err)
 	}
 	return r

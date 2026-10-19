@@ -9,10 +9,12 @@ import (
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestRemoteTaskFilesTransfersNestedOwnedMarkersOnly(t *testing.T) {
-	err := Run(Project(context.Background(), t.TempDir()), "task-files", nil, func(ctx context.Context) error {
+	err := Run(Project(context.Background(), t.TempDir()), string(runstore.NewRunID()), "task-files", nil, func(ctx context.Context) error {
 		s, _ := current(ctx)
 		value, err := s.run.writeContentArtifact("value", "actual full context")
 		if err != nil {

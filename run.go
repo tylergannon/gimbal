@@ -6,26 +6,24 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"maps"
 	"os"
 	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 
-	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runstate"
+	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/workflow"
 )
 
 type projectKey struct{}
-type cleanupTimeoutKey struct{}
 
 func runDir(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
@@ -41,21 +39,6 @@ func Project(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, projectKey{}, dir)
 }
 
-// WithCleanupTimeout sets a positive timeout for cleanup operations in runs
-// started with ctx: adapter Close, secret release, remote cleanup requests, and
-// waiting for remote services to confirm completion. The value is captured when
-// Run starts; changing a child context cannot change an active run's policy.
-// Without an override, these operations retain their production defaults
-// (ten seconds for completion/Close, thirty seconds for a remote cleanup request).
-// It does not change the local process SIGINT grace period.
-// A nonpositive timeout is a programming error and panics.
-func WithCleanupTimeout(ctx context.Context, timeout time.Duration) context.Context {
-	if timeout <= 0 {
-		panic("gimbal: cleanup timeout must be positive")
-	}
-	return context.WithValue(ctx, cleanupTimeoutKey{}, timeout)
-}
-
 // RegisteredGraph returns the workflow graph compiled into this binary under
 // name. A run's workflow name is the lookup key used by the web application.
 // The returned graph is immutable registration data and must not be modified.
@@ -65,34 +48,28 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	dir           string                        // <project>/runs/<id>
-	models        map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer        *eventWriter
-	project       *eventWriter
-	store         *observation.Store
-	mu            sync.Mutex
-	sessions      map[string]*eventWriter
-	scopes        map[string]*scope                  // live scopes by key, for cancelScope
-	turns         map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews    map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel    error                              // explicit cancellation of the root scope
-	errMu         sync.Mutex
-	recordErr     error
-	closeMu       sync.Mutex
-	closeErrs     []error
-	pendingClose  map[string]*Session
-	pendingScopes map[string]*scope
-	cleanupMu     sync.Mutex
-	finished      chan struct{}
-
-	cleanupTimeout time.Duration // immutable per-run override; zero retains operation defaults
-}
-
-func (r *run) cleanupTimeoutOr(defaultTimeout time.Duration) time.Duration {
-	if r.cleanupTimeout > 0 {
-		return r.cleanupTimeout
-	}
-	return defaultTimeout
+	closed         bool
+	lifecycleMu    sync.Mutex
+	observationErr error
+	records        runstore.Run
+	rootNode       runstore.NodeID
+	nodeMu         sync.Mutex
+	nodeByKey      map[string]runstore.NodeID
+	dir            string                        // <project>/runs/<id>
+	models         map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer         *eventWriter
+	project        *eventWriter
+	store          *observation.Store
+	mu             sync.Mutex
+	sessions       map[string]*eventWriter
+	scopes         map[string]*scope                  // live scopes by key, for cancelScope
+	turns          map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	interviews     map[string]*interviewWaiter        // questions waiting for a person's answer
+	rootCancel     error                              // explicit cancellation of the root scope
+	errMu          sync.Mutex
+	recordErr      error
+	closeMu        sync.Mutex
+	closeErrs      []error
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -162,8 +139,8 @@ func (r *run) closeError() error {
 // admitted to a concurrently running instance; shared-state use has no
 // supported contract. Hosted runs are submitted to an instance with a
 // workflow compiled into its binary.
-func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
-	r, release, err := beginRun(ctx, name, models)
+func Run(ctx context.Context, runID string, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
+	r, release, err := beginRun(ctx, runID, name, models)
 	if err != nil {
 		return err
 	}
@@ -184,7 +161,7 @@ func Run(ctx context.Context, name string, models map[WorkflowRole]ModelBinding,
 
 // beginRun allocates the existing run recorder/control owner without invoking
 // a workflow body. Run owns the matching completion.
-func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBinding) (*run, func(), error) {
+func beginRun(ctx context.Context, runID string, name string, models map[WorkflowRole]ModelBinding) (*run, func(), error) {
 	project, _ := ctx.Value(projectKey{}).(string)
 	if project == "" {
 		return nil, nil, errors.New("gimbal: Run needs gimbal.Project in its ctx")
@@ -193,12 +170,9 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	if err != nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
-	id := effects.RunID(ctx)
-	if id == "" {
-		id = ulid.Make().String() + "." + name
-	}
-	if filepath.Base(id) != id || id == "." || id == ".." {
-		return nil, nil, errors.New("gimbal: invalid assigned run identity")
+	id := runID
+	if !runstore.ValidID(id) {
+		return nil, nil, errors.New("gimbal: Run requires a valid ULID run ID")
 	}
 	dir := filepath.Join(project, "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
@@ -208,41 +182,60 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	// registered there and the page can read it; without one the run still
 	// owns a private store and writes the same table files, so observation
 	// does not depend on who started the run.
+	var records runstore.Run
+	initialized := false
+	defer func() {
+		if records != nil && !initialized {
+			_ = records.Close()
+		}
+	}()
 	store, storeErr := observation.Open(observation.FromContext(ctx), id, name, dir, func() error {
-		return os.Mkdir(dir, 0o755)
+		var err error
+		records, err = runstate.Resolve(ctx, project).Create(ctx, runstore.Header{RunID: runstore.RunID(id), Workflow: name})
+		if err != nil {
+			return err
+		}
+		if err = os.MkdirAll(dir, 0700); err != nil {
+			return err
+		}
+		return os.WriteFile(filepath.Join(dir, "recording-format"), []byte("1\n"), 0600)
 	})
 	if store == nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", storeErr)
 	}
 	w, err := newEventWriter(filepath.Join(dir, "run.jsonl"))
-	if err != nil {
+	header, headerErr := records.Header(ctx)
+	if headerErr != nil {
 		_ = store.Close()
-		return nil, nil, fmt.Errorf("gimbal: %w", err)
+		if w != nil {
+			_ = w.close()
+		}
+		return nil, nil, headerErr
 	}
-	r := &run{finished: make(chan struct{}), dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
-	r.cleanupTimeout, _ = ctx.Value(cleanupTimeoutKey{}).(time.Duration)
+	r := &run{records: records, rootNode: header.Root, nodeByKey: map[string]runstore.NodeID{"": header.Root}, dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	r.observationFailure("open run log", err)
 	r.store = store
 	if d, ok := DefaultRegistry.Workflow(name); ok {
 		raw, err := json.Marshal(d.Graph)
 		if err == nil {
 			err = os.WriteFile(filepath.Join(dir, "graph.json"), raw, 0644)
 		}
-		r.recordFailure("save run graph", err)
+		r.observationFailure("save run graph", err)
 		// The designer's source page, saved beside the graph so the run page
 		// draws this run with the shapes the workflow designer draws.
 		if len(d.SourcePage) > 0 {
-			r.recordFailure("save run source page", os.WriteFile(filepath.Join(dir, "source.json"), d.SourcePage, 0644))
+			r.observationFailure("save run source page", os.WriteFile(filepath.Join(dir, "source.json"), d.SourcePage, 0644))
 		}
 	}
-	r.recordFailure("open observation", storeErr)
+	r.observationFailure("open observation", storeErr)
 	pw, pwErr := newEventWriter(filepath.Join(project, "project.jsonl"))
 	if pwErr != nil {
-		r.recordFailure("open project log", pwErr)
+		r.observationFailure("open project log", pwErr)
 	} else {
 		r.project = pw
 	}
-	r.projectEvent(RunStarted{Name: name})
 	r.event("", "", "", RunStarted{Name: name})
+	r.projectEvent(RunStarted{Name: name})
 	logf("run %s started in %s", id, dir)
 	// With the web runtime in ctx the run is reachable by id for as long as
 	// its body runs: an operator with only ids can steer a session or kill
@@ -252,6 +245,7 @@ func beginRun(ctx context.Context, name string, models map[WorkflowRole]ModelBin
 	if hook := live.FromContext(ctx); hook != nil {
 		release = hook(id, r)
 	}
+	initialized = true
 	return r, release, nil
 }
 
@@ -288,14 +282,13 @@ func (r *run) root(ctx context.Context, name string, body func(ctx context.Conte
 		connection.Secrets = backend.NewMemorySecrets()
 		ctx = effects.WithConnection(ctx, connection)
 	}
-	return (&scope{run: r}).do(ctx, body)
+	return (&scope{run: r, node: r.rootNode}).do(ctx, body)
 }
 
 // finish writes the run's terminal records and closes what it holds:
 // RunEnded with the verdict, then Complete with any recording failure.
 // It returns the verdict joined with the recording failure.
 func (r *run) finish(name string, err error) error {
-	defer close(r.finished)
 	// The root scope's deferred end already ran inside do, closing every
 	// session before body returned control here, so the aggregate close
 	// error is complete by now: RunEnded, the observation status, and
@@ -303,19 +296,29 @@ func (r *run) finish(name string, err error) error {
 	err = errors.Join(err, r.closeError())
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
-	// The store's tables are already on disk: closing it ends the page's
-	// subscriptions and nothing else. After this the run is no longer live,
-	// and it is served from the store the registry kept.
-	r.recordFailure("close observation", r.store.Close())
-	r.closeSessions()
-	if r.project != nil {
-		r.recordFailure("close project log", r.project.close())
-	}
-	r.event("", "", "", Complete{RecordingError: errString(r.recordingError())})
-	r.recordFailure("close run log", r.writer.close())
-	err = errors.Join(err, r.recordingError())
+	r.event("", "", "", Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))})
+	r.recordFailure("flush run store", r.records.Flush(context.Background()))
+	r.closeObservers()
+	err = errors.Join(err, r.recordingError(), r.observationError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
+}
+
+// Closing and event callbacks share the lifecycle mutex. Late callbacks cannot
+// reopen session logs or write through observation handles after shutdown.
+func (r *run) closeObservers() {
+	r.lifecycleMu.Lock()
+	defer r.lifecycleMu.Unlock()
+	r.closed = true
+	defer func() { r.recordFailure("close run store", r.records.Close()) }()
+	r.observationFailure("close observation", r.store.Close())
+	r.closeSessions()
+	if r.project != nil {
+		r.observationFailure("close project log", r.project.close())
+	}
+	if r.writer != nil {
+		r.observationFailure("close run log", r.writer.close())
+	}
 }
 
 // addScope and removeScope keep the run's table of live scopes: a scope is
@@ -361,18 +364,14 @@ type interviewWaiter struct {
 	answer chan string
 }
 
-func (r *run) registerInterviewQuestion() (string, *interviewWaiter) {
+func (r *run) registerInterviewQuestion(scope *scope, name string) (string, *interviewWaiter) {
+	_, node := scope.nextNode(runstore.Question, name)
+	id := string(node)
+	_ = r.activate(node)
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.interviews == nil {
 		r.interviews = make(map[string]*interviewWaiter)
-	}
-	var id string
-	for {
-		id = ulid.Make().String()
-		if r.interviews[id] == nil {
-			break
-		}
 	}
 	waiter := &interviewWaiter{answer: make(chan string, 1)}
 	r.interviews[id] = waiter
@@ -429,11 +428,15 @@ func (r *run) Steer(ctx context.Context, sessionID, message string) (bool, error
 	}
 	s.mu.Lock()
 	i := slices.IndexFunc(s.sessions, func(session *Session) bool { return session.id == sessionID })
+	var session *Session
+	if i >= 0 {
+		session = s.sessions[i]
+	}
 	s.mu.Unlock()
-	if i < 0 {
+	if session == nil {
 		return false, fmt.Errorf("gimbal: no live session %q", sessionID)
 	}
-	return s.sessions[i].Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
+	return session.Steer(withSteerSource(context.WithValue(ctx, scopeKey{}, s), "person"), message)
 }
 
 // SteerLoop holds message for the planner of the live loop key. A planner
@@ -461,76 +464,22 @@ func (r *run) SteerLoop(key, message string) error {
 // or already ended key is an error.
 func (r *run) CancelScope(key string, cause error) error {
 	r.mu.Lock()
-	ended := r.scopes[""] == nil
-	if key == "" && ended {
-		r.mu.Unlock()
-		return r.retryCleanup()
-	}
-	defer r.mu.Unlock()
-	return r.cancelScopeLocked(key, cause)
-}
-
-// CleanupPending is the internal live table's retained-ownership check. A
-// terminal workflow with failed remote cleanup remains reachable for stop.
-func (r *run) CleanupPending() bool {
-	r.closeMu.Lock()
-	defer r.closeMu.Unlock()
-	return len(r.pendingClose) != 0 || len(r.pendingScopes) != 0
-}
-
-func (r *run) retryCleanup() error {
-	if r.finished != nil {
-		<-r.finished
-	}
-	r.cleanupMu.Lock()
-	defer r.cleanupMu.Unlock()
-	r.closeMu.Lock()
-	pending := make(map[string]*Session, len(r.pendingClose))
-	maps.Copy(pending, r.pendingClose)
-	scopes := make(map[string]*scope, len(r.pendingScopes))
-	maps.Copy(scopes, r.pendingScopes)
-	r.closeMu.Unlock()
-	if len(pending) == 0 && len(scopes) == 0 {
-		return errors.New("gimbal: run has ended and has no pending cleanup")
-	}
-	var failures []error
-	for _, s := range scopes {
-		if err := s.remoteCleanup(); err != nil {
-			failures = append(failures, err)
-		}
-	}
-	for id, session := range pending {
-		ctx, cancel := context.WithTimeout(context.Background(), r.cleanupTimeoutOr(closeTimeout))
-		err := session.adapter.Close(ctx, session.native)
-		cancel()
-		if err != nil {
-			failures = append(failures, fmt.Errorf("%s: %w", id, err))
-			continue
-		}
-		r.closeMu.Lock()
-		delete(r.pendingClose, id)
-		r.closeMu.Unlock()
-	}
-	// The original terminal error remains in history. This stop request reports
-	// its own current delivery result and never invokes the workflow again.
-	result := errors.Join(failures...)
-	return errors.Join(result, observation.RecordCleanup(r.dir, result))
-}
-
-func (r *run) cancelScopeLocked(key string, cause error) error {
 	s := r.scopes[key]
 	if s == nil {
+		r.mu.Unlock()
 		return fmt.Errorf("gimbal: no live scope %q", key)
+	}
+	if cause == nil {
+		cause = context.Canceled
 	}
 	if key == "" {
 		if r.rootCancel != nil {
+			r.mu.Unlock()
 			return nil
-		}
-		if cause == nil {
-			cause = context.Canceled
 		}
 		r.rootCancel = cause
 	}
+	r.mu.Unlock()
 	r.event(key, "", "", killedEvent(key, cause))
 	s.cancel(cause)
 	return nil
@@ -597,7 +546,7 @@ func (r *run) observeLifecycle(_, _, _ string, _ LifecycleEvent, record json.Raw
 		return nil
 	}
 	err := r.store.Lifecycle(record)
-	r.recordFailure("observe lifecycle", err)
+	r.observationFailure("observe lifecycle", err)
 	return err
 }
 
@@ -620,7 +569,7 @@ func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error 
 		err = r.store.Event(observation.Placement{Scope: scope, Session: session, Turn: turn}, envelope, event.NativeRef)
 	}
 	if err != nil {
-		r.recordFailure("observe event "+turn, err)
+		r.observationFailure("observe event "+turn, err)
 		return err
 	}
 	return nil

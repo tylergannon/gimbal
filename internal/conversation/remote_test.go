@@ -45,7 +45,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/health":
 		w.WriteHeader(200)
-	case "/tasks/process":
+	case "/tasks/identified-process":
 		f.processAdmissions++
 		var p backend.Process
 		_ = json.NewDecoder(r.Body).Decode(&p)
@@ -71,7 +71,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 		var a backend.Artifact
 		_ = json.NewDecoder(r.Body).Decode(&a)
 		_, _ = w.Write(f.processes[a.Run+"/"+a.Task])
-	case "/tasks/session":
+	case "/tasks/identified-session":
 		var s backend.Session
 		_ = json.NewDecoder(r.Body).Decode(&s)
 		f.sessions++
@@ -85,7 +85,7 @@ func (f *remoteFixture) handler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		encode(backend.Reply{ID: s.Task})
-	case "/tasks/turn":
+	case "/tasks/identified-turn":
 		var turn backend.Turn
 		_ = json.NewDecoder(r.Body).Decode(&turn)
 		f.admissions++

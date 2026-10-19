@@ -11,7 +11,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/runlog"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type issue131Adapter struct {
@@ -42,7 +45,8 @@ func (*issue131Adapter) Close(context.Context, string) error { return nil }
 func issue131Run(t *testing.T, project, name string, adapter HarnessAdapter, body func(context.Context, *run) error) (*run, error) {
 	t.Helper()
 	var got *run
-	err := Run(Project(t.Context(), project), name, bind(adapter, "fake", "worker"), func(ctx context.Context) error {
+	ctx := live.WithHook(Project(t.Context(), project), func(_ string, c live.Controller) func() { got = c.(*run); return func() {} })
+	err := Run(ctx, string(runstore.NewRunID()), name, bind(adapter, "fake", "worker"), func(ctx context.Context) error {
 		scope, err := current(ctx)
 		if err != nil {
 			return err

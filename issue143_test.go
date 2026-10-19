@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // TestCloseFailureNeverEntersScopeErrorButRunAggregatesEvery covers
@@ -33,7 +35,7 @@ func TestCloseFailureNeverEntersScopeErrorButRunAggregatesEvery(t *testing.T) {
 	}
 	project := t.TempDir()
 	var scopeErr error
-	err := Run(Project(t.Context(), project), "close-fail", bind(f, "m", "one", "two"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "close-fail", bind(f, "m", "one", "two"), func(ctx context.Context) error {
 		scopeErr = Scope(ctx, "lap", func(ctx context.Context) error {
 			if _, err := NewSession(ctx, "one", "/w").Generate[Text](ctx, "hi"); err != nil {
 				return err
@@ -102,7 +104,7 @@ func TestCancelledRunStillClosesEverySessionOnAFreshContext(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
-	if err := Run(Project(ctx, t.TempDir()), "cancelled", bind(f, "m", "one", "two"), func(ctx context.Context) error {
+	if err := Run(Project(ctx, t.TempDir()), string(runstore.NewRunID()), "cancelled", bind(f, "m", "one", "two"), func(ctx context.Context) error {
 		if _, err := NewSession(ctx, "one", "/w").Generate[Text](ctx, "hi"); err != nil {
 			return err
 		}
@@ -136,7 +138,7 @@ func TestUnusedSessionClosesWithoutAnAdapterCall(t *testing.T) {
 		t.Errorf("Close was called for a session with no native id: %s", session)
 	}
 	project := t.TempDir()
-	err := Run(Project(t.Context(), project), "unused", bind(f, "m", "idle"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "unused", bind(f, "m", "idle"), func(ctx context.Context) error {
 		NewSession(ctx, "idle", "/w")
 		return nil
 	})
@@ -171,7 +173,7 @@ func TestCloseFailureDoesNotAffectRecordingError(t *testing.T) {
 	}}
 	f.closeErr = func(string) error { return errors.New("boom") }
 	project := t.TempDir()
-	err := Run(Project(t.Context(), project), "recording", bind(f, "m", "one"), func(ctx context.Context) error {
+	err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "recording", bind(f, "m", "one"), func(ctx context.Context) error {
 		_, err := NewSession(ctx, "one", "/w").Generate[Text](ctx, "hi")
 		return err
 	})

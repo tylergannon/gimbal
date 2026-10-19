@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/backend/messagefiles"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func newProducer(t *testing.T, handle func(*producer, backend.MessageRequest) error) (*producer, *httptest.Server) {
@@ -32,13 +35,21 @@ func newProducer(t *testing.T, handle func(*producer, backend.MessageRequest) er
 	return p, server
 }
 func request(kind string) backend.MessageRequest {
+	if kind == "turn" || kind == "process" {
+		kind = "identified-" + kind
+	}
 	r := backend.MessageRequest{ID: ulid.Make().String(), Created: time.Now().UTC(), Run: "run", Scope: "root", Task: ulid.Make().String(), Kind: kind}
+	if backend.Identified(kind) {
+		identity := backend.NewExecutionIdentity(strings.TrimPrefix(kind, "identified-"))
+		r.ID = identity.RequestID
+		r.ExecutionIdentity = identity
+	}
 	switch kind {
-	case "turn":
+	case "identified-turn":
 		r.SessionID = "session"
-		r.Turn = &backend.Turn{Owner: r.Owner, Session: r.SessionID}
-	case "process":
-		r.Process = &backend.Process{Owner: r.Owner}
+		r.Turn = &backend.Turn{ExecutionIdentity: r.ExecutionIdentity, Owner: r.Owner, Session: r.SessionID}
+	case "identified-process":
+		r.Process = &backend.Process{ExecutionIdentity: r.ExecutionIdentity, Owner: r.Owner}
 	case "cleanup":
 		r.ScopeTarget = &backend.Scope{Run: r.Run, Scope: r.Scope}
 	}
@@ -102,5 +113,40 @@ func TestConfigUsesOneExplicitDaemon(t *testing.T) {
 		if _, err := parse(json.RawMessage(raw)); err == nil {
 			t.Fatalf("invalid config accepted: %s", raw)
 		}
+	}
+}
+
+func TestOldWorkerRejectsIdentifiedMessagesBeforeAdmission(t *testing.T) {
+	for _, status := range []int{400, 404, 405} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			var admissions, polls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/requests" {
+					var req backend.MessageRequest
+					_ = json.NewDecoder(r.Body).Decode(&req)
+					if !backend.Identified(req.Kind) {
+						admissions.Add(1)
+					}
+					http.Error(w, "unknown request kind", status)
+					return
+				}
+				polls.Add(1)
+				http.NotFound(w, r)
+			}))
+			defer server.Close()
+			bus := &connection{config: config{URL: server.URL}, client: server.Client()}
+			ctx := effects.WithConnection(t.Context(), backend.Connection{Messages: bus})
+			for _, kind := range []string{"process", "turn"} {
+				_, err := effects.MessageCall(ctx, request(kind))
+				var rejected *backend.ContractRejected
+				var uncertain *backend.DeliveryUncertain
+				if !errors.As(err, &rejected) || errors.As(err, &uncertain) {
+					t.Fatalf("rejection became uncertainty: %v", err)
+				}
+			}
+			if admissions.Load() != 0 || polls.Load() != 0 {
+				t.Fatalf("legacy work/polling: %d/%d", admissions.Load(), polls.Load())
+			}
+		})
 	}
 }

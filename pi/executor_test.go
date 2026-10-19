@@ -2,6 +2,8 @@ package pi
 
 import (
 	"context"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -27,14 +29,14 @@ func TestExecutorForkHistorySurvivesParentClose(t *testing.T) {
 	defer server.Close()
 	cfg := Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }}
 	a := newAdapter(cfg)
-	parent, err := a.CreateSession(t.Context(), "diffusion/deepseek-4.1-flash", "", t.TempDir())
+	parent, err := a.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = a.RunTurn(t.Context(), parent, "REMEMBER611", nil, nil); err != nil {
+	if _, err = a.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), parent, "REMEMBER611", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	child, err := a.Fork(t.Context(), parent)
+	child, err := a.Fork(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), parent)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +47,7 @@ func TestExecutorForkHistorySurvivesParentClose(t *testing.T) {
 	if err = a.DetachSession(t.Context(), child); err != nil {
 		t.Fatal(err)
 	}
-	if err = a.Close(t.Context(), parent); err != nil {
+	if err = a.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), parent); err != nil {
 		t.Fatal(err)
 	}
 	restored := newAdapter(cfg)
@@ -53,7 +55,7 @@ func TestExecutorForkHistorySurvivesParentClose(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = restored.RunTurn(t.Context(), id, "continue", nil, nil); err != nil {
+	if _, err = restored.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), id, "continue", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	state, err := restored.session(id)
@@ -61,7 +63,7 @@ func TestExecutorForkHistorySurvivesParentClose(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := state.root
-	if err = restored.Close(context.Background(), id); err != nil {
+	if err = restored.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = os.Stat(root); !os.IsNotExist(err) {
@@ -77,7 +79,7 @@ func TestExecutorCanCloseSessionBeforeFirstNativeTurn(t *testing.T) {
 	defer server.Close()
 	cfg := Config{Endpoint: server.URL + "/v1", APIKey: func() string { return "fake-router-key" }}
 	a := newAdapter(cfg)
-	id, err := a.CreateSession(t.Context(), "diffusion/deepseek-4.1-flash", "", t.TempDir())
+	id, err := a.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "diffusion/deepseek-4.1-flash", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +97,7 @@ func TestExecutorCanCloseSessionBeforeFirstNativeTurn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = restored.Close(t.Context(), id); err != nil {
+	if err = restored.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = os.Stat(root); !os.IsNotExist(err) {

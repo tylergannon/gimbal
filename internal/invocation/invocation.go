@@ -38,7 +38,7 @@ func init() {
 	if err := registerResourceBackends(gimbal.DefaultRegistry); err != nil {
 		panic(err)
 	}
-	if err := gimbal.DefaultRegistry.RegisterBackend(gimbal.BackendDefinition{Name: "local", ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`), ValidateConfiguration: func(raw json.RawMessage) error {
+	if err := gimbal.DefaultRegistry.RegisterBackend(gimbal.BackendDefinition{ExecutionIdentity: true, Name: "local", ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`), ValidateConfiguration: func(raw json.RawMessage) error {
 		if len(raw) == 0 {
 			return nil
 		}

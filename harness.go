@@ -53,9 +53,8 @@ type HarnessAdapter interface {
 	Fork(ctx context.Context, sessionID string) (string, error)
 
 	// Close releases whatever the adapter holds for the session. Idempotent.
-	// Called by the runtime when the owning scope ends. A cleanup failure retains
-	// enough ownership to retry remote cessation; repeated Close must not report
-	// success merely because local routing state was discarded.
+	// Called by the runtime when the owning scope ends. Failures are reported
+	// to the caller; the runtime does not retain terminal runs to retry Close.
 	Close(ctx context.Context, sessionID string) error
 }
 

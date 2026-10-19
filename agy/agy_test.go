@@ -15,12 +15,14 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	adapter, record := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +31,7 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	}
 
 	var events []gimbal.AgentEvent
-	raw, err := adapter.RunTurn(t.Context(), sessionID, "STRUCTURED", json.RawMessage(`{"type":"object"}`), func(event gimbal.AgentEvent) error {
+	raw, err := adapter.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), sessionID, "STRUCTURED", json.RawMessage(`{"type":"object"}`), func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -49,7 +51,7 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	if nativeRef["sessionID"] != "conversation-test" {
 		t.Fatalf("native session provenance = %#v", nativeRef)
 	}
-	text, err := adapter.RunTurn(t.Context(), sessionID, "TEXT", nil, func(gimbal.AgentEvent) error { return nil })
+	text, err := adapter.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), sessionID, "TEXT", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil || string(text.Output) != `"OK"` {
 		t.Fatalf("text result=%s error=%v", text.Output, err)
 	}
@@ -61,7 +63,7 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 	assertFlag(t, invocations[1], "--conversation", "conversation-test")
 	assertFlag(t, invocations[0], "--model", "gemini-test-low")
 	assertFlag(t, invocations[0], "--add-dir", workdir)
-	if _, err := adapter.Fork(t.Context(), sessionID); err == nil || !strings.Contains(err.Error(), "unavailable") {
+	if _, err := adapter.Fork(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), sessionID); err == nil || !strings.Contains(err.Error(), "unavailable") {
 		t.Fatalf("Fork error = %v", err)
 	}
 }
@@ -69,7 +71,7 @@ func TestAdapterCreatesResumesStructuresAndTranslates(t *testing.T) {
 func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 	adapter, record := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +82,7 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 	var raw gimbal.TurnResult
 	var runErr error
 	go func() {
-		raw, runErr = adapter.RunTurn(ctx, sessionID, "WAIT", nil, func(event gimbal.AgentEvent) error {
+		raw, runErr = adapter.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), sessionID, "WAIT", nil, func(event gimbal.AgentEvent) error {
 			if event.Type == "session.step.started" {
 				select {
 				case ready <- struct{}{}:
@@ -119,14 +121,14 @@ func TestAdapterSteerInterruptsAndResumesInsideTurn(t *testing.T) {
 func TestAdapterCancellationAfterStdoutClosesStillInterruptsProcess(t *testing.T) {
 	adapter, record := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		_, err := adapter.RunTurn(ctx, sessionID, "CLOSE_STDOUT", nil, func(gimbal.AgentEvent) error { return nil })
+		_, err := adapter.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), sessionID, "CLOSE_STDOUT", nil, func(gimbal.AgentEvent) error { return nil })
 		done <- err
 	}()
 	waitInvocations(t, record, 1)
@@ -145,12 +147,12 @@ func TestAdapterCancellationAfterStdoutClosesStillInterruptsProcess(t *testing.T
 func TestAdapterPropagatesObserverFailure(t *testing.T) {
 	adapter, _ := testAdapter(t)
 	workdir := t.TempDir()
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", workdir)
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	boom := errors.New("observer stopped")
-	_, err = adapter.RunTurn(t.Context(), sessionID, "TEXT", nil, func(gimbal.AgentEvent) error { return boom })
+	_, err = adapter.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), sessionID, "TEXT", nil, func(gimbal.AgentEvent) error { return boom })
 	if !errors.Is(err, boom) {
 		t.Fatalf("RunTurn error = %v", err)
 	}
@@ -158,7 +160,7 @@ func TestAdapterPropagatesObserverFailure(t *testing.T) {
 
 func TestAdapterTreatsResultAsTerminalWhenProcessStaysAlive(t *testing.T) {
 	adapter, _ := testAdapter(t)
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +168,7 @@ func TestAdapterTreatsResultAsTerminalWhenProcessStaysAlive(t *testing.T) {
 	var result gimbal.TurnResult
 	var runErr error
 	go func() {
-		result, runErr = adapter.RunTurn(context.Background(), sessionID, "RESULT_THEN_WAIT", nil, func(gimbal.AgentEvent) error { return nil })
+		result, runErr = adapter.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), sessionID, "RESULT_THEN_WAIT", nil, func(gimbal.AgentEvent) error { return nil })
 		close(done)
 	}()
 	select {
@@ -181,12 +183,12 @@ func TestAdapterTreatsResultAsTerminalWhenProcessStaysAlive(t *testing.T) {
 
 func TestAdapterAcceptsSuccessfulResultWithUnsettledToolObservation(t *testing.T) {
 	adapter, _ := testAdapter(t)
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	var events []gimbal.AgentEvent
-	result, err := adapter.RunTurn(t.Context(), sessionID, "UNSETTLED_TOOL", nil, func(event gimbal.AgentEvent) error {
+	result, err := adapter.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), sessionID, "UNSETTLED_TOOL", nil, func(event gimbal.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	})
@@ -200,12 +202,12 @@ func TestAdapterAcceptsSuccessfulResultWithUnsettledToolObservation(t *testing.T
 
 func TestAdapterDrainsResultAfterNativeProcessExit(t *testing.T) {
 	adapter, _ := testAdapter(t)
-	sessionID, err := adapter.CreateSession(t.Context(), "gemini-test-low", "", t.TempDir())
+	sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "gemini-test-low", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	first := true
-	result, err := adapter.RunTurn(t.Context(), sessionID, "SLOW_OBSERVER", nil, func(gimbal.AgentEvent) error {
+	result, err := adapter.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), sessionID, "SLOW_OBSERVER", nil, func(gimbal.AgentEvent) error {
 		if first {
 			first = false
 			// Let the native process finish while observation is still consuming
@@ -378,11 +380,11 @@ func TestEffortReachesTheProcess(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			adapter, record := testAdapter(t)
-			sessionID, err := adapter.CreateSession(t.Context(), test.model, test.effort, t.TempDir())
+			sessionID, err := adapter.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), test.model, test.effort, t.TempDir())
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := adapter.RunTurn(t.Context(), sessionID, "hello", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+			if _, err := adapter.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), sessionID, "hello", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 				t.Fatal(err)
 			}
 			invocations := readInvocations(t, record)

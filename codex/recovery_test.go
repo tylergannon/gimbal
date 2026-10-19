@@ -19,6 +19,9 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/workflows/implementation"
+
+	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // This isolated daemon speaks the real WebSocket JSON-RPC transport. A tool
@@ -267,7 +270,7 @@ func TestImplementRecoversActiveCodexTurnWithoutReplayingOutcomes(t *testing.T) 
 			}
 			result := make(chan error, 1)
 			go func() {
-				result <- gimbal.Run(gimbal.Project(ctx, dir), "implement-recovery", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+				result <- gimbal.Run(gimbal.Project(ctx, dir), string(runstore.NewRunID()), "implement-recovery", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 					gimbal.RoleSprintPlanning: {Adapter: ad, Model: "planning"}, "coding": {Adapter: ad, Model: "coding"}, gimbal.RoleQAOrchestration: {Adapter: ad, Model: "qa"}, gimbal.RoleArchitecturalCritique: {Adapter: ad, Model: "coach"},
 				}, func(ctx context.Context) error {
 					return implementation.Implement(ctx, gimbal.Env{WorkDir: dir}, implementation.Params{OutcomesFile: path, MaxTasksPerOutcome: 1})
@@ -343,17 +346,17 @@ func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing
 	ad, d := newRecoveryDaemon(t, "cancel")
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
-	id, err := ad.CreateSession(ctx, "coding", "", t.TempDir())
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "coding", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ad.RunTurn(ctx, id, "first", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+	if _, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "first", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	turnCtx, stop := context.WithCancel(ctx)
 	result := make(chan error, 1)
 	go func() {
-		_, err := ad.RunTurn(turnCtx, id, "second", nil, func(gimbal.AgentEvent) error { return nil })
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "second", nil, func(gimbal.AgentEvent) error { return nil })
 		result <- err
 	}()
 	_ = waitPaused(t, ctx, ad)
@@ -375,7 +378,7 @@ func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing
 			t.Fatalf("unconfirmed stop lost uncertainty: %v", err)
 		}
 	}
-	if err := ad.Close(ctx, id); err == nil {
+	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), id); err == nil {
 		t.Fatal("unavailable cleanup reported success")
 	}
 	ad.mu.Lock()
@@ -388,10 +391,10 @@ func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing
 	d.outage = false
 	coding := d.coding
 	d.mu.Unlock()
-	if err := ad.Close(ctx, id); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
-	if err := ad.Close(ctx, id); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatal(err)
 	}
 	d.mu.Lock()
@@ -403,11 +406,11 @@ func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing
 
 func TestNormalTurnSnapshotOmitsPriorToolOutput(t *testing.T) {
 	ad, _ := newRecoveryDaemon(t, "survive")
-	id, err := ad.CreateSession(t.Context(), "coding", "", t.TempDir())
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "coding", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ad.RunTurn(t.Context(), id, "first", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+	if _, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), id, "first", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 	before, err := readThread(t.Context(), ad.current(), id, "notLoaded")
@@ -421,17 +424,17 @@ func TestNormalTurnSnapshotOmitsPriorToolOutput(t *testing.T) {
 
 func TestClosingUnresumableSessionDoesNotBlockHealthyRedial(t *testing.T) {
 	ad, d := newRecoveryDaemon(t, "survive")
-	bad, err := ad.CreateSession(t.Context(), "coding", "", t.TempDir())
+	bad, err := ad.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "coding", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	good, err := ad.CreateSession(t.Context(), "coding", "", t.TempDir())
+	good, err := ad.CreateSession(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("session")), "coding", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
-	if err := ad.Close(cancelled, bad); err == nil {
+	if err := ad.Close(effects.WithExecutionIdentity(cancelled, backend.NewExecutionIdentity("close")), bad); err == nil {
 		t.Fatal("expected retained cleanup failure")
 	}
 	d.mu.Lock()
@@ -440,10 +443,10 @@ func TestClosingUnresumableSessionDoesNotBlockHealthyRedial(t *testing.T) {
 	dead := ad.current()
 	_ = dead.ws.CloseNow()
 	<-dead.readDone
-	if _, err := ad.RunTurn(t.Context(), good, "first", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+	if _, err := ad.RunTurn(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("turn")), good, "first", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
 		t.Fatalf("healthy turn = %v", err)
 	}
-	if err := ad.Close(t.Context(), bad); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(t.Context(), backend.NewExecutionIdentity("close")), bad); err != nil {
 		t.Fatalf("cleanup retry = %v", err)
 	}
 	ad.mu.Lock()

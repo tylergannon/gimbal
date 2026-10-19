@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/pi/agent"
 	"github.com/tylergannon/gimbal/internal/pi/config"
 	"github.com/tylergannon/gimbal/internal/pi/history"
@@ -37,7 +39,7 @@ func TestForkPersistedSession(t *testing.T) {
 	}
 	parentMessages := len(parent.Messages())
 
-	child, err := parent.Fork(context.Background())
+	child, err := parent.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")))
 	if err != nil {
 		t.Fatalf("fork: %v", err)
 	}
@@ -103,7 +105,7 @@ func TestForkChildRunsWithParentRequestConfig(t *testing.T) {
 		t.Fatalf("parent prompt: %v", err)
 	}
 
-	child, err := parent.Fork(context.Background())
+	child, err := parent.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")))
 	if err != nil {
 		t.Fatalf("fork: %v", err)
 	}
@@ -171,7 +173,7 @@ func TestForkDropsUnfinishedToolBatch(t *testing.T) {
 	parent.RefreshContext()
 
 	parentBefore := rolesOf(parent.Messages())
-	unfinishedChild, err := parent.Fork(context.Background())
+	unfinishedChild, err := parent.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")))
 	if err != nil {
 		t.Fatalf("fork: %v", err)
 	}
@@ -192,7 +194,7 @@ func TestForkDropsUnfinishedToolBatch(t *testing.T) {
 		t.Fatalf("append second tool result: %v", err)
 	}
 	parent.RefreshContext()
-	completeChild, err := parent.Fork(context.Background())
+	completeChild, err := parent.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")))
 	if err != nil {
 		t.Fatalf("second fork: %v", err)
 	}
@@ -247,7 +249,7 @@ func TestForkPersistedChildKeepsUnfinishedBatchExcludedOnReopen(t *testing.T) {
 	parent.RefreshContext()
 
 	parentBefore := rolesOf(parent.Messages())
-	child, err := parent.Fork(context.Background())
+	child, err := parent.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")))
 	if err != nil {
 		t.Fatalf("fork: %v", err)
 	}

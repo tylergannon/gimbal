@@ -148,7 +148,7 @@
   <div class="states">
     <Badge variant={statusVariant} class="status">
       {#if run.status === "running"}<Pip state="running" />{/if}
-      {run.cancellation?.cleanup === "pending" ? "Cancelling" : run.status[0].toUpperCase() + run.status.slice(1)}
+      {run.status === "running" && !!run.cancellation ? "Cancelling" : run.status[0].toUpperCase() + run.status.slice(1)}
     </Badge>
     {#if run.cancellation}
       <CancellationStatus cancellation={run.cancellation} />
@@ -233,14 +233,7 @@
       </Button>
     </div>
   {:else if terminal}
-    {#if run.cancellation?.cleanup === "unconfirmed"}
-      {#if !agentFocus}<Button variant="outline" size="sm" disabled={cancelling} onclick={oncancel}>
-        {cancelling ? "Retrying cleanup" : "Retry cleanup"}
-      </Button>{/if}
-      <span class="recorded">Workflow ended · resource cleanup is unconfirmed</span>
-    {:else}
-      <span class="recorded">Recorded run · nothing here is live</span>
-    {/if}
+    <span class="recorded">Recorded run · nothing here is live</span>
   {/if}
   {#if feedback}<span class="feedback" role="status">{feedback}</span>{/if}
   {#if sessionName}

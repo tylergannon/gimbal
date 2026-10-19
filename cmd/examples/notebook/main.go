@@ -11,6 +11,7 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/codex"
 	"github.com/tylergannon/gimbal/internal/workflows/notebook"
+	"github.com/tylergannon/gimbal/runstore"
 	"os"
 	"path/filepath"
 	"time"
@@ -52,15 +53,17 @@ func main() {
 	ctx, cancel := context.WithTimeout(gimbal.Project(context.Background(), dir), 8*time.Minute)
 	defer cancel()
 	var result any
-	err = gimbal.Run(ctx, *example, models, func(ctx context.Context) error {
-		var runErr error
-		if *example == "semantic-index" {
-			result, runErr = notebook.SemanticIndex(ctx, gimbal.Env{WorkDir: dir}, string(input))
-		} else {
-			result, runErr = notebook.SprintPlan(ctx, gimbal.Env{WorkDir: dir}, string(input))
-		}
-		return runErr
-	})
+	err = gimbal.Run(ctx, string(runstore.NewRunID()),
+
+		*example, models, func(ctx context.Context) error {
+			var runErr error
+			if *example == "semantic-index" {
+				result, runErr = notebook.SemanticIndex(ctx, gimbal.Env{WorkDir: dir}, string(input))
+			} else {
+				result, runErr = notebook.SprintPlan(ctx, gimbal.Env{WorkDir: dir}, string(input))
+			}
+			return runErr
+		})
 	status, failure := "passed", ""
 	if err != nil {
 		status, failure = "failed", err.Error()

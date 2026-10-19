@@ -11,6 +11,8 @@ import (
 
 	claudeagent "github.com/tylergannon/claude-agent-sdk-go"
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 // TestCloseIsIdempotent covers acceptance item 4: closing a Claude session
@@ -19,14 +21,14 @@ import (
 // needs no live process either.
 func TestCloseIsIdempotent(t *testing.T) {
 	ad := New().(*adapter)
-	id, err := ad.CreateSession(context.Background(), "model", "", ".")
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "model", "", ".")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := ad.Close(context.Background(), id); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatalf("first Close = %v, want nil", err)
 	}
-	if err := ad.Close(context.Background(), id); err != nil {
+	if err := ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), id); err != nil {
 		t.Fatalf("second Close = %v, want nil", err)
 	}
 }
@@ -48,7 +50,7 @@ func TestAssistantErrorPreservesProviderRequestID(t *testing.T) {
 // unknown session is the error it always was.
 func TestSteerWithNoStreamLiveIsDropped(t *testing.T) {
 	ad := New().(*adapter)
-	id, err := ad.CreateSession(context.Background(), "model", "", ".")
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "model", "", ".")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +71,7 @@ func TestSteerWithNoStreamLiveIsDropped(t *testing.T) {
 // parent's conversation on the parent's effort.
 func TestSessionKeepsItsEffortAndForksInheritIt(t *testing.T) {
 	ad := New().(*adapter)
-	id, err := ad.CreateSession(context.Background(), "model", "xhigh", ".")
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "model", "xhigh", ".")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +82,7 @@ func TestSessionKeepsItsEffortAndForksInheritIt(t *testing.T) {
 	if parent.effort != "xhigh" {
 		t.Fatalf("session effort = %q, want xhigh", parent.effort)
 	}
-	forkID, err := ad.Fork(context.Background(), id)
+	forkID, err := ad.Fork(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), id)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,13 +148,13 @@ func TestATurnFailsWhenClaudeCodeDiesOnStart(t *testing.T) {
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 
 	adapter := New()
-	id, err := adapter.CreateSession(context.Background(), "claude-haiku-4-5", "", t.TempDir())
+	id, err := adapter.CreateSession(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("session")), "claude-haiku-4-5", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, err := adapter.RunTurn(context.Background(), id, "hello", json.RawMessage(`{"type":"object"}`), func(gimbal.AgentEvent) error { return nil })
+		_, err := adapter.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), id, "hello", json.RawMessage(`{"type":"object"}`), func(gimbal.AgentEvent) error { return nil })
 		done <- err
 	}()
 	select {

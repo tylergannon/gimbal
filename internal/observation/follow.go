@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"golang.org/x/sys/unix"
 )
 
@@ -20,7 +21,7 @@ func (s *Store) refresh() error {
 	if s.source != nil {
 		return s.refreshSource()
 	}
-	if s.run.Status == StatusRunning {
+	if s.run.Status == StatusRunning && !runstate.Recognized(s.dir) {
 		// A failed socket cannot establish death. Only acquiring the writer's
 		// lifetime lock permits settlement, while holding it against other readers.
 		lock, err := os.OpenFile(filepath.Join(s.dir, "runner.lock"), os.O_RDWR, 0)

@@ -7,13 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net"
-	"net/http"
-	"os"
-	"path/filepath"
-	"time"
-
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
@@ -21,6 +14,12 @@ import (
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"golang.org/x/sys/unix"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 type Response struct {
@@ -73,7 +72,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	registry := observation.NewRegistry(state)
 	runs := live.NewRuns()
 	runs.Resolve = func(id string) (live.Controller, error) { return Connect(state, id) }
-	ctx := observation.WithRegistry(effects.WithRunID(context.Background(), request.RunID), registry)
+	ctx := observation.WithRegistry(effects.WithRoute(context.Background(), request.TaskRoute), registry)
 	ctx = live.WithRuns(ctx, runs)
 	ctx = effects.WithEnvironment(effects.WithEndpoint(ctx, request.TaskEndpoint), request.TaskRoute.Environment)
 	if len(connections) > 0 && (connections[0].Execution != nil || connections[0].Messages != nil) {
@@ -87,7 +86,6 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		defer func() { _ = connection.Close() }()
 	}
 
-	var controller live.Controller
 	var server *http.Server
 	var lock *os.File
 	var socket string
@@ -134,7 +132,6 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 				panic(e)
 			}
 		}
-		controller = c
 		server = &http.Server{Handler: handler(c)}
 		go func() { _ = server.Serve(listener) }()
 		release := runs.Hook(id, c)
@@ -153,11 +150,8 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 				err = fmt.Errorf("workflow panic: %v", value)
 			}
 		}()
-		return gimbal.Run(gimbal.Project(ctx, state), request.Workflow, models, body)
+		return gimbal.Run(gimbal.Project(ctx, state), request.RunID, request.Workflow, models, body)
 	}()
-	for controller != nil && controller.CleanupPending() {
-		time.Sleep(200 * time.Millisecond)
-	}
 	return err
 }
 
@@ -193,8 +187,6 @@ func handler(c live.Controller) http.Handler {
 			err = c.CancelScope(op.Target, cause)
 		case "turn":
 			err = c.CancelTurn(op.Target, cause)
-		case "cleanup":
-			value = c.CleanupPending()
 		case "live":
 			value = true
 		default:
@@ -218,50 +210,16 @@ func Connect(state, id string) (live.Controller, error) {
 	}
 	c := remote{socket: string(socket)}
 	_, err = c.call(context.Background(), operation{Action: "live"})
-	if err != nil {
-		connectCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		connection, endpoint, e := taskConnection(connectCtx, state, id)
-		defer func() { _ = connection.Close() }()
-		if e == nil && (endpoint != "" || connection.Execution != nil || connection.Messages != nil) {
-			lock, e := os.OpenFile(filepath.Join(state, "runs", id, "runner.lock"), os.O_RDWR, 0)
-			if e == nil {
-				defer func() { _ = lock.Close() }()
-				if unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB) == nil {
-					orphan := remote{endpoint: endpoint, runID: id, state: state}
-					if orphan.CleanupPending() {
-						return orphan, nil
-					}
-				}
-			}
-		}
-
-	}
 	return c, err
 }
 
 type remote struct {
-	socket, endpoint, runID, state string
+	socket string
 }
 
 func (c remote) call(ctx context.Context, op operation) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if c.runID != "" {
-		connection, endpoint, err := taskConnection(ctx, c.state, c.runID)
-		if err != nil {
-			return false, err
-		}
-		defer func() { _ = connection.Close() }()
-		c.endpoint = endpoint
-		ctx = effects.WithConnection(ctx, connection)
-		value, err := orphanCall(ctx, c.endpoint, c.runID, op)
-		if op.Action == "scope" && op.Target == "" {
-			_, recordErr := CleanupExited(c.state, c.runID)
-			err = errors.Join(err, recordErr)
-		}
-		return value, err
-	}
 	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 		return (&net.Dialer{}).DialContext(ctx, "unix", c.socket)
 	}}
@@ -309,7 +267,3 @@ func (c remote) cancel(action, id string, cause error) error {
 }
 func (c remote) CancelScope(id string, cause error) error { return c.cancel("scope", id, cause) }
 func (c remote) CancelTurn(id string, cause error) error  { return c.cancel("turn", id, cause) }
-func (c remote) CleanupPending() bool {
-	v, err := c.call(context.Background(), operation{Action: "cleanup"})
-	return v || err != nil
-}

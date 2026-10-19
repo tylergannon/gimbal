@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/tylergannon/gimbal/runstore"
 	"io"
 	"net/http"
 	"os"
@@ -45,7 +47,7 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 
 	// Open uses the same directory callback as gimbal.Run. Hold it after
 	// mkdir, when the list can discover the run but no observation table or
-	// run log exists yet. All three readers must use the published store.
+	// run log exists yet. Readers must retain the incomplete reservation.
 	const id = "publication-boundary"
 	dir := filepath.Join(project, ".gimbal", "runs", id)
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
@@ -78,9 +80,20 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "run.json")); !os.IsNotExist(err) {
 		t.Fatalf("run table already exists at the publication boundary: %v", err)
 	}
-	store, live := runtime.Registry().Live(id)
-	if !live {
-		t.Fatal("directory is visible but its hosted observation is not live")
+	if _, err := runtime.Registry().Snapshot(id); !errors.Is(err, runstore.ErrIncomplete) {
+		t.Fatalf("initializing reservation replaced by external read: %v", err)
+	}
+	ids, err := runtime.Registry().IDs()
+	if err != nil || len(ids) != 0 {
+		t.Fatalf("unaccepted initialization listed: %v %v", ids, err)
+	}
+	close(continueOpen)
+	store, err := <-opened, <-openErr
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, live := runtime.Registry().Live(id); !live || got != store {
+		t.Fatal("accepted observation was not the reserved store")
 	}
 	list := get("")
 	listBody, err := io.ReadAll(list.Body)
@@ -100,10 +113,6 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	stream := get("/api/runs/" + id + "/events")
 	if stream.Header.Get("Content-Type") != "text/event-stream" {
 		t.Fatalf("stream content type = %q", stream.Header.Get("Content-Type"))
-	}
-	close(continueOpen)
-	if got, err := <-opened, <-openErr; err != nil || got != store {
-		t.Fatalf("published store changed during open: %p, %p, %v", store, got, err)
 	}
 	if err := store.Lifecycle(json.RawMessage(`{"seq":1,"time":"2026-09-22T12:00:00Z","scope":"","event":{"kind":"run_started","name":"publication"}}`)); err != nil {
 		t.Fatal(err)
@@ -152,7 +161,7 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	}
 	var hostedID string
 	for _, entry := range entries {
-		if strings.HasSuffix(entry.Name(), ".hosted") {
+		if entry.Name() != id && runstore.ValidID(entry.Name()) {
 			hostedID = entry.Name()
 		}
 	}

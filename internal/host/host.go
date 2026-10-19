@@ -12,9 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
-
-	"golang.org/x/sys/unix"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
@@ -24,8 +21,10 @@ import (
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/promises"
-	"github.com/tylergannon/gimbal/internal/runner"
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/internal/transcript"
+	"github.com/tylergannon/gimbal/runstore"
+	"golang.org/x/sys/unix"
 )
 
 type Owner struct {
@@ -180,7 +179,6 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	ctx, stop := context.WithCancel(p.ctx)
 	p.stopPromises, p.promisesDone = stop, make(chan struct{})
 	go func() { defer close(p.promisesDone); p.promises.Run(ctx, p.recordings, model) }()
-	go p.cleanupExitedTasks()
 	return p, nil
 }
 
@@ -298,6 +296,9 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	if ctx == nil {
 		return errors.New("gimbal: run context is nil")
 	}
+	if runstate.Override(ctx) != nil {
+		return errors.New("gimbal: application runs require the project-configured run store")
+	}
 	if body == nil {
 		return errors.New("gimbal: run body is nil")
 	}
@@ -321,7 +322,7 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	runCtx = observation.WithRegistry(runCtx, p.registry)
 	runCtx = live.WithRuns(runCtx, p.runs)
 	runCtx = live.WithHook(runCtx, p.runs.Hook)
-	err = gimbal.Run(gimbal.Project(runCtx, p.dir), name, models, body)
+	err = gimbal.Run(gimbal.Project(runCtx, p.dir), string(runstore.NewRunID()), name, models, body)
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}
@@ -399,31 +400,6 @@ func (p *Project) KillTurn(runID, turnID, by, reason string) error {
 		return err
 	}
 	return run.CancelTurn(turnID, gimbal.Killed{Target: turnID, By: by, Reason: reason})
-}
-
-// Each project already knows its runs. Reconcile only their retained task owner
-// routes; no OS process-list discovery and no additional ownership journal.
-func (p *Project) cleanupExitedTasks() {
-	settled := map[string]bool{}
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-p.ctx.Done():
-			return
-		case <-ticker.C:
-		}
-		entries, _ := os.ReadDir(filepath.Join(p.dir, "runs"))
-		for _, entry := range entries {
-			if !entry.IsDir() || settled[entry.Name()] {
-				continue
-			}
-			done, _ := runner.CleanupExited(p.dir, entry.Name())
-			if done {
-				settled[entry.Name()] = true
-			}
-		}
-	}
 }
 
 func (o *Owner) SetPluginDirs(dirs []string) {

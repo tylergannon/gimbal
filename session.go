@@ -14,11 +14,14 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/secretcallback"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
+	source  runstore.NodeID
+	node    runstore.NodeID
 	owner   *scope
 	adapter HarnessAdapter
 	name    string
@@ -27,12 +30,15 @@ type Session struct {
 	workdir string
 	id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
-	mu      sync.Mutex
-	native  string // the harness's session id, made on the first turn
-	turns   int
-	turnID  string
-	running bool
-	closed  bool
+	mu          sync.Mutex
+	native      string // the harness's session id, made on the first turn
+	turns       int
+	generations int
+	creates     int
+	createErr   error
+	turnID      string
+	running     bool
+	closed      bool
 
 	usage            Usage // the session's running total across its turns
 	canonicalSession string
@@ -46,7 +52,9 @@ type Session struct {
 // binding the run was started with. It cannot fail: the agent process
 // starts on the first turn. A role the run did not bind is a programming
 // error and panics, naming the role. A session created outside Run cannot
-// generate turns or be forked.
+// generate turns or be forked. Admission errors are returned by Generate; a
+// definite rejection permits an explicit retry, while an unknown admission
+// outcome remains an error and is never automatically redispatched.
 func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session {
 	name := string(role)
 	s := &Session{name: name, workdir: workdir}
@@ -214,7 +222,18 @@ func dispatchResponse(ctx context.Context, s *Session, prompt string, opts []Age
 const generateAttempts = 3
 const protocolAttempts = 2
 
+type generationKey struct{}
+
 func generateResponse(ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, started *TurnStarted, output Output) ([]byte, error) {
+	s.mu.Lock()
+	s.generations++
+	ordinal := s.generations
+	s.mu.Unlock()
+	node := s.owner.run.ensureNode(s.node, runstore.Action, "generate", ordinal, fmt.Sprintf("%s/generate.%d", s.id, ordinal), nil)
+	if err := s.owner.run.recordingError(); err != nil {
+		return nil, err
+	}
+	ctx = context.WithValue(ctx, generationKey{}, node)
 	outputType := fmt.Sprintf("%T", output)
 	if named, ok := output.(interface{ outputName() string }); ok {
 		outputType = named.outputName()
@@ -260,6 +279,45 @@ func generateResponse(ctx context.Context, s *Session, prompt string, onEvent fu
 	}
 }
 
+// create keeps session admission and its durable identity behind the execution
+// boundary. Adapter creation may reserve a session; prompt-driven harnesses
+// launch the native conversation on RunTurn. Every definite rejection can be
+// retried explicitly; uncertain admission is never silently redispatched.
+func (s *Session) create(ctx context.Context) error {
+	s.mu.Lock()
+	if s.createErr != nil {
+		err := s.createErr
+		s.mu.Unlock()
+		return err
+	}
+	s.creates++
+	ordinal := s.creates
+	s.mu.Unlock()
+	node := s.owner.run.ensureNode(s.node, runstore.Action, "create", ordinal, fmt.Sprintf("%s/create.%d", s.id, ordinal), nil)
+	identity := actionIdentity(s.owner.node, s.node, node, "session")
+	createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
+	if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
+		return err
+	}
+	if err := s.admissionError(ctx); err != nil {
+		return err
+	}
+	id, err := s.adapter.CreateSession(createCtx, s.model, s.effort, s.workdir)
+	recordErr := s.owner.run.finishAction(s.owner.node, s.node, node, map[string]string{"native": id}, err)
+	adoptErr := s.adoptNative(id)
+	// Only an authoritative rejection proves that trying again is safe.
+	var rejected *backend.ContractRejected
+	if err != nil && !errors.As(err, &rejected) {
+		s.mu.Lock()
+		s.createErr = err
+		s.mu.Unlock()
+	}
+	if err != nil || recordErr != nil || adoptErr != nil {
+		return errors.Join(err, recordErr, adoptErr)
+	}
+	return s.owner.run.nativeBinding(s.owner.node, s.node, node, id)
+}
+
 // turn runs one agent turn and records its outcome. validate, if any, is the
 // typed output's check: the turn is recorded as failed when the result does
 // not validate, because that is what the turn produced.
@@ -274,7 +332,20 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	turnID := fmt.Sprintf("%s/turn.%d", s.id, s.turns)
 	s.turnID = turnID
 	native := s.native
+	ordinal := s.turns
 	s.mu.Unlock()
+	parent, _ := ctx.Value(generationKey{}).(runstore.NodeID)
+	if parent == "" {
+		parent = s.node
+	}
+	turnNode := s.owner.run.ensureNode(parent, runstore.Action, "turn", ordinal, turnID, nil)
+	if err := s.owner.run.recordingError(); err != nil {
+		s.mu.Lock()
+		s.running = false
+		s.turnID = ""
+		s.mu.Unlock()
+		return nil, err
+	}
 	defer func() {
 		s.mu.Lock()
 		s.running = false
@@ -284,12 +355,11 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}()
 
 	if native == "" {
-		id, err := s.adapter.CreateSession(effectContext(ctx, s.owner, s.id), s.model, s.effort, s.workdir)
-		if err != nil {
-			return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
+		if err := s.create(ctx); err != nil {
+			return nil, err
 		}
 		s.mu.Lock()
-		s.native, native = id, id
+		native = s.native
 		s.mu.Unlock()
 	}
 	if onEvent == nil {
@@ -297,7 +367,10 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	logf("%s: turn started (%s)", s.id, s.model)
 	start := time.Now()
-	scope, _ := current(ctx)
+	scope, scopeErr := current(ctx)
+	if scopeErr != nil {
+		return nil, scopeErr
+	}
 	if scope != nil {
 		event := TurnStarted{Prompt: prompt, OutputType: outputType}
 		if started != nil {
@@ -316,7 +389,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			return err
 		}
 		if scope != nil {
-			if err := scope.run.sessionEvent(scope.key, s.id, turnID, stamped); err != nil {
+			if err := scope.run.sessionEvent(ctx, scope.key, s.id, turnID, stamped); err != nil {
 				return err
 			}
 		}
@@ -363,10 +436,17 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	var result TurnResult
 	if err == nil {
-		turnContext := effects.WithTaskFiles(effectContext(turnCtx, scope, turnID), files)
+		identity := actionIdentity(scope.node, s.node, turnNode, "turn")
+		turnContext := effects.WithTaskFiles(effects.WithExecutionIdentity(effectContext(turnCtx, scope, turnID), identity), files)
+		err = scope.run.prepareAction(turnContext, scope.node, s.node, turnNode, "turn", struct {
+			Prompt   string
+			Schema   json.RawMessage
+			Files    []backend.TaskFile
+			Requires backend.Requirements
+		}{prompt, schema, files, effects.Requirements(ctx)}, identity)
 		nativePrompt := prompt
 		finishCallback := func() {}
-		if effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {
+		if err == nil && effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {
 			secrets := effects.Connection(ctx).Secrets
 			owner := effectOwner(scope, turnID)
 			_, err = secrets.Acquire(turnCtx, backend.Scope{Run: owner.Run, Scope: owner.Scope}, effects.Requirements(ctx))
@@ -377,11 +457,19 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			}
 		}
 		if err == nil {
+			err = s.admissionError(turnCtx)
+		}
+		if err == nil {
 			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, wrapped)
 		}
 		finishCallback()
 	}
 	if scope != nil {
+		rawOutcome := struct {
+			Output []byte           `json:"output"`
+			Usage  map[string]Usage `json:"usage"`
+		}{result.Output, result.Usage}
+		err = errors.Join(err, scope.run.finishAction(scope.node, s.node, turnNode, rawOutcome, err))
 		scope.run.removeTurn(turnID)
 	}
 	stopped := context.Cause(turnCtx)
@@ -617,10 +705,55 @@ func (s *Session) usable() error {
 		return fmt.Errorf("gimbal: session %q was not created in a run", s.name)
 	case s.closed:
 		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+	case s.createErr != nil:
+		return s.createErr
 	case s.running:
 		return fmt.Errorf("gimbal: session %s is already running a turn", s.id)
 	}
 	return nil
+}
+
+// admissionError rechecks lifetime after committing an intent, before dispatch.
+func (s *Session) admissionError(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+	}
+	return nil
+}
+
+// adoptNative and scope teardown exchange ownership under the same mutex. If
+// teardown already saw an empty native ID, this admission owns its release.
+func (s *Session) adoptNative(id string) error {
+	if id == "" {
+		return nil
+	}
+	s.mu.Lock()
+	s.native = id
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return errors.Join(fmt.Errorf("gimbal: session %s was created after its scope ended", s.id), s.stopNative())
+	}
+	return nil
+}
+
+func (s *Session) stopNative() error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.owner.ctx), 10*time.Second)
+	defer cancel()
+	identity := backend.NewExecutionIdentity("close")
+	identity.ScopeID = string(s.owner.node)
+	identity.SessionID = string(s.node)
+	identity.ExecutorSession = "session_" + string(s.node)
+	err := s.adapter.Close(effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity), s.native)
+	if err != nil {
+		s.owner.run.recordCloseFailure(s.id, err)
+	}
+	return err
 }
 
 // Steer injects a message into the turn that is running on this session.
@@ -706,10 +839,28 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	fork := &Session{adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
+	fork := &Session{source: s.node, adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
 	scope.adopt(fork)
+	if err := scope.run.recordingError(); err != nil {
+		return nil, err
+	}
 	if native != "" {
-		if fork.native, err = s.adapter.Fork(effectContext(ctx, scope, fork.id), native); err != nil {
+		key, node := scope.nextNode(runstore.Action, "fork")
+		identity := actionIdentity(scope.node, fork.node, node, "session")
+		forkCtx := effects.WithExecutionIdentity(effectContext(ctx, scope, key), identity)
+		if err = scope.run.prepareAction(forkCtx, scope.node, fork.node, node, "fork", map[string]string{"source_session": native}, identity); err != nil {
+			return nil, err
+		}
+		if err = fork.admissionError(ctx); err != nil {
+			return nil, err
+		}
+		id, nativeErr := s.adapter.Fork(forkCtx, native)
+		recordErr := scope.run.finishAction(scope.node, fork.node, node, map[string]string{"native": id}, nativeErr)
+		err = errors.Join(nativeErr, recordErr, fork.adoptNative(id))
+		if err == nil {
+			err = scope.run.nativeBinding(scope.node, fork.node, node, id)
+		}
+		if err != nil {
 			return nil, fmt.Errorf("gimbal: fork %s: %w", s.id, err)
 		}
 	}

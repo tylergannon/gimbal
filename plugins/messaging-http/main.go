@@ -84,6 +84,9 @@ func (b *connection) post(ctx context.Context, endpoint, path string, value any)
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		reason, _ := io.ReadAll(io.LimitReader(response.Body, 8192))
+		if request, ok := value.(backend.MessageRequest); ok && backend.Identified(request.Kind) && (response.StatusCode == 400 || response.StatusCode == 404 || response.StatusCode == 405) {
+			return &backend.ContractRejected{Message: fmt.Sprintf("unsupported %s: HTTP %d", request.Kind, response.StatusCode)}
+		}
 		return fmt.Errorf("http-sse %s: HTTP %d: %s", endpoint, response.StatusCode, strings.TrimSpace(string(reason)))
 	}
 	return nil
@@ -91,7 +94,7 @@ func (b *connection) post(ctx context.Context, endpoint, path string, value any)
 
 func (b *connection) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
 	switch r.Kind {
-	case "process", "cleanup", "interrupt", "session", "turn", "close":
+	case "identified-process", "cleanup", "interrupt", "identified-session", "identified-turn", "identified-close":
 	default:
 		return fmt.Errorf("http-sse unsupported request kind %q", r.Kind)
 	}
@@ -150,7 +153,7 @@ func (b *connection) stream(ctx context.Context, endpoint string, s backend.Mess
 	}
 }
 func (b *connection) readStream(ctx context.Context, endpoint string, s backend.MessageSelection, since time.Time, seen map[string]bool, out chan<- backend.MessageEvent) (bool, error) {
-	q := url.Values{"since": {since.Format(time.RFC3339Nano)}, "request": {s.RequestID}, "run": {s.Run}, "session": {s.SessionID}}
+	q := url.Values{"since": {since.Format(time.RFC3339Nano)}, "request": {s.RequestID}, "run": {s.Run}, "identified-session": {s.SessionID}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"/events?"+q.Encode(), nil)
 	if err != nil {
 		return false, err
@@ -279,7 +282,7 @@ func (p *producer) handler() http.Handler {
 			http.Error(w, "invalid since", 400)
 			return
 		}
-		s := backend.MessageSelection{RequestID: r.URL.Query().Get("request"), Run: r.URL.Query().Get("run"), SessionID: r.URL.Query().Get("session")}
+		s := backend.MessageSelection{RequestID: r.URL.Query().Get("request"), Run: r.URL.Query().Get("run"), SessionID: r.URL.Query().Get("identified-session")}
 		w.Header().Set("Content-Type", "text/event-stream")
 		_, _ = io.WriteString(w, ": connected\n\n")
 		if err := http.NewResponseController(w).Flush(); err != nil {
@@ -341,5 +344,5 @@ func worker(ctx context.Context, raw json.RawMessage, resources backend.Dependen
 }
 
 func Register(r *gimbal.Registry) error {
-	return r.RegisterMessaging(gimbal.MessagingDefinition{Name: "http-sse", ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err }, Connect: connect, Worker: worker})
+	return r.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: "http-sse", ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err }, Connect: connect, Worker: worker})
 }

@@ -6058,10 +6058,6 @@ func encCancellationState(v pkg_observation.CancellationState, at string) (any, 
 	enc1.Set("by", enc2)
 	var enc3 any = string(v.Reason)
 	enc1.Set("reason", enc3)
-	var enc4 any = string(v.Cleanup)
-	enc1.Set("cleanup", enc4)
-	var enc5 any = string(v.CleanupError)
-	enc1.Set("cleanup_error", enc5)
 	return enc1, nil
 }
 
@@ -6072,7 +6068,7 @@ func decCancellationState(raw any, at string) (pkg_observation.CancellationState
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "by", "reason", "cleanup", "cleanup_error"); err != nil {
+	if err := dvKnown(obj2, at, "by", "reason"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "by", at+"/by")
@@ -6093,24 +6089,6 @@ func decCancellationState(raw any, at string) (pkg_observation.CancellationState
 		return dvZero, err
 	}
 	dec1.Reason = dec6
-	raw7, err := dvRequired(obj2, "cleanup", at+"/cleanup")
-	if err != nil {
-		return dvZero, err
-	}
-	dec8, err := dvString(raw7, at+"/cleanup")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.Cleanup = dec8
-	raw9, err := dvRequired(obj2, "cleanup_error", at+"/cleanup_error")
-	if err != nil {
-		return dvZero, err
-	}
-	dec10, err := dvString(raw9, at+"/cleanup_error")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.CleanupError = dec10
 	return dec1, nil
 }
 

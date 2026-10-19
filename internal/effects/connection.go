@@ -23,12 +23,12 @@ func dispatch(ctx context.Context, c backend.Connection, op string, in, out any)
 	var value any
 	var err error
 	switch op {
-	case "session":
+	case "identified-session":
 		value, err = c.Execution.Session(ctx, in.(Session))
-	case "turn":
+	case "identified-turn":
 		err = c.Execution.Turn(ctx, in.(Turn))
 		value = Reply{}
-	case "process":
+	case "identified-process":
 		err = c.Execution.Process(ctx, in.(Process))
 		value = Reply{}
 	case "result":
@@ -46,7 +46,7 @@ func dispatch(ctx context.Context, c backend.Connection, op string, in, out any)
 		var yes bool
 		yes, err = c.Execution.Steer(ctx, in.(Target))
 		value = Reply{Value: yes}
-	case "close":
+	case "identified-close":
 		err = c.Execution.Close(ctx, in.(Target))
 		value = Reply{}
 	case "cleanup":
@@ -66,11 +66,3 @@ func dispatch(ctx context.Context, c backend.Connection, op string, in, out any)
 	}
 	return json.Unmarshal(raw, out)
 }
-
-type runIDKey struct{}
-
-// WithRunID threads central admission identity into the independent runner.
-func WithRunID(ctx context.Context, id string) context.Context {
-	return context.WithValue(ctx, runIDKey{}, id)
-}
-func RunID(ctx context.Context) string { id, _ := ctx.Value(runIDKey{}).(string); return id }

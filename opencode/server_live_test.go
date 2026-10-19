@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,7 +40,7 @@ func TestOpenCodeProcessHelper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := client.CreateSession(ctx, SessionCreateInput{})
+	session, err := client.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), SessionCreateInput{})
 	if err != nil {
 		t.Fatal(err)
 	}

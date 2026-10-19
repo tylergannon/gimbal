@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"github.com/tylergannon/gimbal/runstore"
 	"path/filepath"
 	"strings"
 )
@@ -84,9 +85,11 @@ func supervise(ctx context.Context, s *Session, prompt string, supervisors []sup
 	history := filepath.Join(runDir(ctx), "sessions", s.id+".jsonl")
 	for _, sup := range supervisors {
 		s.mu.Lock()
-		turn := fmt.Sprintf("%s/turn.%d", s.id, s.turns+1)
+		ordinal := s.turns + 1
+		turn := fmt.Sprintf("%s/turn.%d", s.id, ordinal)
 		s.mu.Unlock()
 		if scope, err := current(ctx); err == nil {
+			scope.run.ensureNode(s.node, runstore.Action, "turn", ordinal, turn, nil)
 			scope.run.event(scope.key, s.id, turn, SuperviseAttached{Reviewer: sup.session.id, Worker: turn, Instruction: sup.instruction})
 		}
 	}

@@ -1,4 +1,4 @@
-// Package backend defines the concrete, standard-library-only execution boundary.
+// Package backend defines the concrete execution boundary.
 package backend
 
 import (
@@ -11,7 +11,8 @@ import (
 
 type Owner struct{ Run, Scope, Task string }
 type Process struct {
-	Deadline time.Time `json:",omitzero"`
+	ExecutionIdentity ExecutionIdentity
+	Deadline          time.Time `json:",omitzero"`
 	Owner
 	Workdir, Command string
 	Args             []string
@@ -29,6 +30,7 @@ type ProcessResult struct {
 }
 type Scope struct{ Run, Scope string }
 type Session struct {
+	ExecutionIdentity ExecutionIdentity
 	Owner
 	Harness, Model, Effort, Workdir, Parent string
 }
@@ -38,14 +40,18 @@ type TaskFile struct {
 	Bytes     []byte
 }
 type Turn struct {
-	Deadline time.Time `json:",omitzero"`
-	Files    []TaskFile
-	Requires Requirements `json:",omitempty"`
+	ExecutionIdentity ExecutionIdentity
+	Deadline          time.Time `json:",omitzero"`
+	Files             []TaskFile
+	Requires          Requirements `json:",omitempty"`
 	Owner
 	Session, Prompt string
 	Schema          json.RawMessage `json:",omitempty"`
 }
-type Target struct{ Run, ID, Message string }
+type Target struct {
+	Run, ID, Message  string
+	ExecutionIdentity ExecutionIdentity
+}
 type Reply struct {
 	ID    string
 	Value bool
@@ -115,7 +121,6 @@ type Workflow struct {
 type Control struct{ Run, Action, Target, Message, By string }
 type WorkflowStatus struct {
 	ID, State, Error string
-	CleanupPending   bool
 }
 type Observation struct {
 	Snapshot         json.RawMessage

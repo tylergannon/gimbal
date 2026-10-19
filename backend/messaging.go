@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -14,13 +15,14 @@ type MessageRequest struct {
 	ID      string
 	Created time.Time
 	Owner
-	SessionID   string `json:",omitempty"`
-	Kind        string
-	Session     *Session `json:",omitempty"`
-	Turn        *Turn    `json:",omitempty"`
-	Process     *Process `json:",omitempty"`
-	Target      *Target  `json:",omitempty"`
-	ScopeTarget *Scope   `json:",omitempty"`
+	SessionID         string `json:",omitempty"`
+	ExecutionIdentity ExecutionIdentity
+	Kind              string
+	Session           *Session `json:",omitempty"`
+	Turn              *Turn    `json:",omitempty"`
+	Process           *Process `json:",omitempty"`
+	Target            *Target  `json:",omitempty"`
+	ScopeTarget       *Scope   `json:",omitempty"`
 }
 
 // MessageResult carries the request's returned outcome and native data, not
@@ -98,10 +100,38 @@ func (r MessageRequest) Validate() error {
 	if count != 1 {
 		return fmt.Errorf("exactly one operation payload required")
 	}
+	if Identified(r.Kind) {
+		kind := strings.TrimPrefix(r.Kind, "identified-")
+		if err := r.ExecutionIdentity.Validate(kind); err != nil {
+			return err
+		}
+		var supplied ExecutionIdentity
+		switch kind {
+		case "session":
+			if r.Session != nil {
+				supplied = r.Session.ExecutionIdentity
+			}
+		case "turn":
+			if r.Turn != nil {
+				supplied = r.Turn.ExecutionIdentity
+			}
+		case "process":
+			if r.Process != nil {
+				supplied = r.Process.ExecutionIdentity
+			}
+		case "close":
+			if r.Target != nil {
+				supplied = r.Target.ExecutionIdentity
+			}
+		}
+		if supplied != r.ExecutionIdentity || r.ID != supplied.RequestID {
+			return &ContractRejected{Message: "conflicting envelope execution identity"}
+		}
+	}
 	var owner Owner
 	var session string
 	switch r.Kind {
-	case "session":
+	case "identified-session":
 		if r.Session == nil {
 			return fmt.Errorf("session payload required")
 		}
@@ -110,7 +140,7 @@ func (r MessageRequest) Validate() error {
 		if r.Session.Parent != "" {
 			return fmt.Errorf("fork is unsupported on messaging routes")
 		}
-	case "turn":
+	case "identified-turn":
 		if r.Turn == nil {
 			return fmt.Errorf("turn payload required")
 		}
@@ -119,19 +149,19 @@ func (r MessageRequest) Validate() error {
 		if session == "" {
 			return fmt.Errorf("turn session required")
 		}
-	case "process":
+	case "identified-process":
 		if r.Process == nil {
 			return fmt.Errorf("process payload required")
 		}
 		owner = r.Process.Owner
-	case "close", "interrupt":
+	case "identified-close", "interrupt":
 		if r.Target == nil {
 			return fmt.Errorf("target required")
 		}
 		if r.Target.Run != r.Run || r.Target.ID == "" {
 			return fmt.Errorf("conflicting or absent target identity")
 		}
-		if r.Kind == "close" {
+		if r.Kind == "identified-close" {
 			session = r.Target.ID
 		}
 		owner = r.Owner
@@ -149,7 +179,7 @@ func (r MessageRequest) Validate() error {
 	if owner != r.Owner || session != r.SessionID {
 		return fmt.Errorf("conflicting request owner or session identity")
 	}
-	if (r.Kind == "session" || r.Kind == "turn" || r.Kind == "process") && r.Task == "" {
+	if (r.Kind == "identified-session" || r.Kind == "identified-turn" || r.Kind == "identified-process") && r.Task == "" {
 		return fmt.Errorf("task identity required")
 	}
 	if r.Run == "" {

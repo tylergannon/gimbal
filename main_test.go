@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestMain(m *testing.M) {
@@ -21,7 +23,7 @@ func TestRunWithoutJevDoesNotRequireTypeSafeKey(t *testing.T) {
 			t.Setenv("TYPESAFE_API_KEY", key)
 			dir := filepath.Join(t.TempDir(), "project")
 			called := false
-			err := Run(Project(t.Context(), dir), "no-jev", nil, func(context.Context) error {
+			err := Run(Project(t.Context(), dir), string(runstore.NewRunID()), "no-jev", nil, func(context.Context) error {
 				called = true
 				return nil
 			})

@@ -138,5 +138,5 @@ func worker(ctx context.Context, raw json.RawMessage, resources backend.Dependen
 	}
 }
 func Register(r *gimbal.Registry) error {
-	return r.RegisterMessaging(gimbal.MessagingDefinition{Name: "filesystem", ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err }, Connect: connect, Worker: worker})
+	return r.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: "filesystem", ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err }, Connect: connect, Worker: worker})
 }

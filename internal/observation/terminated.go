@@ -8,35 +8,27 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/tylergannon/gimbal/internal/runstate"
 )
 
 // RecordTerminated settles only a run whose writer has been stopped externally.
 // The caller MUST first establish that the old process can no longer write.
 // This records the orchestrator's failure, never synthetic session/scope closes.
 func RecordTerminated(dir, reason string) error {
-	return recordStopped(dir, reason, false)
-}
-
-// RecordCleanup retains an actual cleanup outcome after the workflow's writer
-// has exited. Like RecordTerminated, the caller must hold its lifetime lock.
-func RecordCleanup(dir string, err error) error {
-	message := ""
-	if err != nil {
-		message = err.Error()
+	if runstate.Recognized(dir) {
+		return fmt.Errorf("observation: new-format terminalization requires the run-store writer")
 	}
-	return recordStopped(dir, message, true)
+	return recordStopped(dir, reason)
 }
 
-func recordStopped(dir, reason string, cleanup bool) error {
+func recordStopped(dir, reason string, saved ...json.RawMessage) error {
 	id := filepath.Base(dir)
 	s, err := open(nil, id, dir)
 	if err != nil {
 		return err
 	}
-	if cleanup && s.run.Cancellation.Present && s.run.Cancellation.Value.CleanupError == reason && ((reason == "" && s.run.Cancellation.Value.Cleanup == "completed") || (reason != "" && s.run.Cancellation.Value.Cleanup == "unconfirmed")) {
-		return nil
-	}
-	if !cleanup && s.run.Status != StatusRunning {
+	if s.run.Status != StatusRunning {
 		return nil
 	}
 	// The writer is stopped. Remove an incomplete durable tail before appending
@@ -85,8 +77,12 @@ func recordStopped(dir, reason string, cleanup bool) error {
 		Scope string            `json:"scope"`
 		Event map[string]string `json:"event"`
 	}{seq + 1, time.Now().UTC(), "", map[string]string{"kind": "run_ended", "name": s.run.Name, "error": reason}}
-	if cleanup {
-		rec.Event = map[string]string{"kind": "cancellation_cleanup", "error": reason}
+	if len(saved) > 0 {
+		projectionSeq := rec.Seq
+		if err := json.Unmarshal(saved[0], &rec); err != nil {
+			return err
+		}
+		rec.Seq = projectionSeq
 	}
 	raw, err := json.Marshal(rec)
 	if err != nil {
@@ -95,8 +91,10 @@ func recordStopped(dir, reason string, cleanup bool) error {
 	if _, err = f.Write(append(raw, '\n')); err != nil {
 		return err
 	}
-	if err = f.Sync(); err != nil {
-		return err
+	if !runstate.Recognized(dir) {
+		if err = f.Sync(); err != nil {
+			return err
+		}
 	}
 	s.closed = false
 	if err = s.Lifecycle(raw); err != nil {

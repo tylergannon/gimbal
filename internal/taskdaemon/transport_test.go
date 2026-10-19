@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 )
 
@@ -31,7 +32,7 @@ func TestSuccessfulResultDespiteEventOutage(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	raw, err := effects.Wait(ctx, server.URL, effects.Target{Run: "run", ID: "task"}, func(json.RawMessage) {})
+	raw, err := effects.Wait(ctx, server.URL, effects.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: "run", ID: "task"}, func(json.RawMessage) {})
 	if err != nil || len(raw) == 0 {
 		t.Fatalf("result %s: %v", raw, err)
 	}
@@ -77,7 +78,7 @@ func TestCommandExecutableIsRelativeToItsWorkdir(t *testing.T) {
 		t.Fatal(err)
 	}
 	d := New(t.TempDir())
-	request := effects.Process{Owner: effects.Owner{Run: "relative", Task: "command"}, Command: "./task", Workdir: root}
+	request := effects.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Owner: effects.Owner{Run: "relative", Task: "command"}, Command: "./task", Workdir: root}
 	if err := d.process(request); err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +94,7 @@ func TestTaskHostPassesDeclaredCommandDeadlineToSupervisor(t *testing.T) {
 	root := t.TempDir()
 	d := New(root)
 	owner := effects.Owner{Run: "deadline", Task: "command"}
-	if err := d.process(effects.Process{Owner: owner, Command: "sh", Args: []string{"-c", "exec sleep 30"}, Workdir: root, Deadline: time.Now().Add(100 * time.Millisecond)}); err != nil {
+	if err := d.process(effects.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Owner: owner, Command: "sh", Args: []string{"-c", "exec sleep 30"}, Workdir: root, Deadline: time.Now().Add(100 * time.Millisecond)}); err != nil {
 		t.Fatal(err)
 	}
 	result := waitTask(t, d, owner)

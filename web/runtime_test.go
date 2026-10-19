@@ -13,6 +13,8 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/observation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
@@ -34,7 +36,7 @@ func TestDirectRunDoesNotJoinAnInstance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := gimbal.Run(gimbal.Project(ctx, directProject), "direct", nil, func(ctx context.Context) error {
+	if err := gimbal.Run(gimbal.Project(ctx, directProject), string(runstore.NewRunID()), "direct", nil, func(ctx context.Context) error {
 		gimbal.Set(ctx, "message", "direct-ok")
 		return nil
 	}); err != nil {

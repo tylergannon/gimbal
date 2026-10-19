@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 var (
@@ -31,8 +32,8 @@ var errServiceShutdownTimeout = errors.New("service process group did not stop b
 // A service is required for its scope's remaining lifetime. Any exit before
 // that scope starts shutting down, including exit zero, fails and cancels the
 // scope. When the scope ends or its ctx is cancelled, Gimbal sends SIGINT to
-// the service's process group, waits ten seconds, then sends SIGKILL and waits
-// at most five more seconds. This owns descendants which remain in that group;
+// the service's process group and escalates to SIGKILL when necessary.
+// This owns descendants which remain in that group;
 // a command must stay in the foreground and must not daemonize or escape it.
 // Stdout, stderr, status, and failures are recorded with the scope's commands.
 //
@@ -47,10 +48,16 @@ func Service(ctx context.Context, name, workdir, command string) error {
 		return fmt.Errorf("gimbal: service %q: %w", name, err)
 	}
 
-	scope.mu.Lock()
-	id := scope.next(name)
-	scope.mu.Unlock()
+	id, node := scope.nextNode(runstore.Service, name)
+	identity := actionIdentity(scope.node, "", node, "process")
+	if effects.Endpoint(ctx) == "" {
+		identity.ExecutorOperation = ""
+	}
+	ctx = effects.WithExecutionIdentity(effectContext(ctx, scope, id), identity)
 	dir, _ := filepath.Abs(workdir)
+	if err := scope.run.prepareAction(ctx, scope.node, "", node, "service", map[string]any{"command": command, "workdir": dir, "requires": effects.Requirements(ctx)}, identity); err != nil {
+		return err
+	}
 	started := CommandStarted{ID: id, Name: name, Command: "zsh", Args: []string{"-c", command}, Workdir: dir}
 	if err := scope.run.eventResult(scope.key, "", "", started); err != nil {
 		return fmt.Errorf("gimbal: service %s: record start: %w", id, err)
@@ -117,6 +124,9 @@ func Service(ctx context.Context, name, workdir, command string) error {
 		return errors.Join(err, service.stop())
 	}
 	go service.wait()
+	if err := scope.run.nativeBinding(scope.node, "", node, fmt.Sprintf("pid:%d", cmd.Process.Pid)); err != nil {
+		return err
+	}
 	ticker := time.NewTicker(servicePollInterval)
 	defer ticker.Stop()
 	for {
@@ -147,7 +157,7 @@ func Service(ctx context.Context, name, workdir, command string) error {
 func endServiceStartFailure(scope *scope, start time.Time, ended CommandEnded, serviceErr error) error {
 	ended.Error = serviceErr.Error()
 	ended.Duration = time.Since(start)
-	recordErr := scope.run.eventResult(scope.key, "", "", ended)
+	recordErr := errors.Join(scope.run.commandOutcome(scope, ended), scope.run.eventResult(scope.key, "", "", ended))
 	logf("%s: service failed to start after %s: %v", ended.ID, ended.Duration.Round(time.Millisecond), serviceErr)
 	return errors.Join(serviceErr, recordErr)
 }
@@ -162,11 +172,12 @@ type ownedService struct {
 	errOut *commandCapture
 	ended  CommandEnded
 
-	startedAt time.Time
-	done      chan struct{}
-	cleanup   func()
-	stopOnce  sync.Once
-	remote    bool
+	startedAt    time.Time
+	done         chan struct{}
+	cleanup      func()
+	stopOnce     sync.Once
+	resultCancel context.CancelFunc
+	remote       bool
 
 	mu          sync.Mutex
 	stopping    bool
@@ -231,7 +242,7 @@ func (s *ownedService) wait() {
 		// the exit first, shutdown cannot relabel it as intentional.
 		s.scope.failService(serviceErr)
 	}
-	if err := s.scope.run.eventResult(s.scope.key, "", "", ended); err != nil {
+	if err := errors.Join(s.scope.run.commandOutcome(s.scope, ended), s.scope.run.eventResult(s.scope.key, "", "", ended)); err != nil {
 		s.scope.run.recordFailure("record service end "+s.id, err)
 	}
 	logf("%s: service ended after %s: exit %d: %v", s.id, ended.Duration.Round(time.Millisecond), ended.ExitCode, orNone(serviceErr))
@@ -245,8 +256,11 @@ func (s *ownedService) stop() error {
 			s.mu.Lock()
 			defer s.mu.Unlock()
 			return s.terminalErr
-		case <-time.After(s.scope.run.cleanupTimeoutOr(closeTimeout)):
-			return fmt.Errorf("service %s cleanup remains unconfirmed", s.id)
+		case <-time.After(10 * time.Second):
+			if s.resultCancel != nil {
+				s.resultCancel()
+			}
+			return fmt.Errorf("service %s final result unavailable", s.id)
 		}
 	}
 	s.stopOnce.Do(func() {

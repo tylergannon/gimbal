@@ -14,8 +14,7 @@ import (
 // Controller is the face of one run in progress. The session, scope, and
 // turn ids are the ones the run log carries: lap.3/coder.1 for a session,
 // lap.3 for a scope, lap.3/coder.1/turn.2 for a turn. An unknown or already
-// ended id is an error, except whole-run cancellation can retry retained
-// remote cleanup.
+// ended id is an error.
 type Controller interface {
 	// AnswerInterview delivers the first answer to the pending interview
 	// question id. An empty answer ends the interview normally.
@@ -27,18 +26,14 @@ type Controller interface {
 	// reaches the planner at its next planning decision, whether or not a
 	// turn is running when it is sent.
 	SteerLoop(key, message string) error
-	// CancelScope ends the scope's ctx with cause. For a terminal run with
-	// pending cleanup, key "" retries cessation of its owned sessions.
+	// CancelScope ends the scope's ctx with cause.
 	CancelScope(key string, cause error) error
 	// CancelTurn ends only that turn's ctx with cause.
 	CancelTurn(id string, cause error) error
-	// CleanupPending retains stop control until owned remote sessions cease.
-	CleanupPending() bool
 }
 
 // Hook is called when a run starts, with its id and Controller. The func it
-// returns is called when the run's body has returned. CleanupPending keeps
-// the controller reachable if remote cleanup remains unresolved.
+// returns is called when the run's body has returned.
 type Hook func(id string, run Controller) (release func())
 
 type hookKey struct{}
@@ -59,15 +54,14 @@ func FromContext(ctx context.Context) Hook {
 // own methods and the page's remote functions reach one table rather than
 // each holding a view of the runs.
 type Runs struct {
-	Resolve  func(string) (Controller, error)
-	mu       sync.Mutex
-	runs     map[string]Controller
-	retained map[string]bool
+	Resolve func(string) (Controller, error)
+	mu      sync.Mutex
+	runs    map[string]Controller
 }
 
 // NewRuns returns an empty table.
 func NewRuns() *Runs {
-	return &Runs{runs: map[string]Controller{}, retained: map[string]bool{}}
+	return &Runs{runs: map[string]Controller{}}
 }
 
 // Hook is the table's Hook: it holds run under id until the run's body has
@@ -78,27 +72,15 @@ func (t *Runs) Hook(id string, run Controller) (release func()) {
 	t.mu.Unlock()
 	return func() {
 		t.mu.Lock()
-		if run.CleanupPending() {
-			t.retained[id] = true
-		} else {
-			delete(t.runs, id)
-		}
+		delete(t.runs, id)
 		t.mu.Unlock()
 	}
 }
 
-// InProgress returns the controller of an active run or a terminal run with
-// pending remote cleanup. Fully settled runs are gone from the table.
+// InProgress returns the controller of an active run.
 func (t *Runs) InProgress(id string) (Controller, error) {
 	t.mu.Lock()
 	run := t.runs[id]
-	if t.retained[id] {
-		if !run.CleanupPending() {
-			delete(t.runs, id)
-			delete(t.retained, id)
-			run = nil
-		}
-	}
 	t.mu.Unlock()
 	if run == nil {
 		if t.Resolve != nil {

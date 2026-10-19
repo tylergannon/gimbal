@@ -143,7 +143,10 @@ func TestRiverQueueDeliveryControlsAndAdmissionCompletion(t *testing.T) {
 	t.Cleanup(func() {
 		stop()
 		select {
-		case <-workerDone:
+		case err := <-workerDone:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				t.Errorf("worker shutdown: %v", err)
+			}
 		case <-time.After(12 * time.Second):
 			t.Error("worker did not stop")
 		}
@@ -234,7 +237,10 @@ func TestPostgresSlowListenerDoesNotBlockPublisherOrAnotherListener(t *testing.T
 	}
 	stop()
 	select {
-	case <-slowDone:
+	case err := <-slowDone:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("listener shutdown: %v", err)
+		}
 	case <-ctx.Done():
 		t.Fatal("listener did not release")
 	}

@@ -44,7 +44,7 @@ func (a *pendingCleanupAdapter) Close(context.Context, string) error {
 	return nil
 }
 
-func TestCancelCommandRetainsAndRetriesTerminalRunCleanup(t *testing.T) {
+func TestCancelCommandDoesNotRetainTerminalRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
@@ -67,25 +67,12 @@ func TestCancelCommandRetainsAndRetriesTerminalRunCleanup(t *testing.T) {
 	invoke := func() error {
 		return run([]string{"cancel", id, "--work-dir", project}, &bytes.Buffer{}, &bytes.Buffer{}, os.Getenv)
 	}
-	if err := invoke(); err == nil || !strings.Contains(err.Error(), "remote stop not yet verified") {
-		t.Fatalf("pending stop=%v", err)
-	}
-	ad.mu.Lock()
-	ad.ready = true
-	ad.mu.Unlock()
-	if err := invoke(); err != nil {
-		t.Fatal(err)
-	}
-	if err := invoke(); err == nil || !strings.Contains(err.Error(), "retains control") {
-		t.Fatalf("completed cleanup still advertised=%v", err)
+	if err := invoke(); err == nil {
+		t.Fatal("terminal run still accepts cancellation")
 	}
 	ad.mu.Lock()
 	defer ad.mu.Unlock()
-	if ad.turns != 1 || ad.closes != 3 {
-		t.Fatalf("turns=%d cleanup attempts=%d", ad.turns, ad.closes)
-	}
-	raw, err := os.ReadFile(filepath.Join(project, ".gimbal", "runs", id, "run.json"))
-	if err != nil || !strings.Contains(string(raw), "original transport failure") {
-		t.Fatalf("original error lost=%s,%v", raw, err)
+	if ad.turns != 1 || ad.closes != 1 {
+		t.Fatalf("turns=%d closes=%d", ad.turns, ad.closes)
 	}
 }

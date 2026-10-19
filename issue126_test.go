@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/runlog"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func issue126RunDir(t *testing.T, project string) string {
@@ -41,7 +43,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(t.Context(), project), "observed", nil, func(context.Context) error {
+			runErr = Run(Project(t.Context(), project), string(runstore.NewRunID()), "observed", nil, func(context.Context) error {
 				<-release
 				return nil
 			})
@@ -71,7 +73,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(t.Context(), project), "worker-failure", nil, func(context.Context) error {
+			runErr = Run(Project(t.Context(), project), string(runstore.NewRunID()), "worker-failure", nil, func(context.Context) error {
 				<-release
 				return workerErr
 			})
@@ -93,7 +95,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(t.Context(), project), "observer-exit", nil, func(context.Context) error {
+			runErr = Run(Project(t.Context(), project), string(runstore.NewRunID()), "observer-exit", nil, func(context.Context) error {
 				<-release
 				return nil
 			})
@@ -117,7 +119,7 @@ func TestIssue126CompletionContract(t *testing.T) {
 		var runErr error
 		var runWG sync.WaitGroup
 		runWG.Go(func() {
-			runErr = Run(Project(runCtx, project), "cancelled", nil, func(ctx context.Context) error {
+			runErr = Run(Project(runCtx, project), string(runstore.NewRunID()), "cancelled", nil, func(ctx context.Context) error {
 				<-ctx.Done()
 				return ctx.Err()
 			})

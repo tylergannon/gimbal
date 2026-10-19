@@ -112,7 +112,7 @@ func TestConnectAddressReportsObservedChecksAndRequiresMatchingWarningConfirmati
 			w.WriteHeader(200)
 			return
 		}
-		if r.URL.Path == "/tasks/process" {
+		if r.URL.Path == "/tasks/identified-process" {
 			inspections.Add(1)
 		}
 		handler.ServeHTTP(w, r)
@@ -216,7 +216,7 @@ func TestRouteConnectionUsesActualMessagingHelperFacts(t *testing.T) {
 	bus := &helperMessages{Store: store, ctx: ctx}
 	bus.handler = taskdaemon.New(t.TempDir()).Messages(bus)
 	registry := &gimbal.Registry{}
-	if err := registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "connect-messages", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+	if err := registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true, Name: "connect-messages", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
 		return bus, nil
 	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }}); err != nil {
 		t.Fatal(err)

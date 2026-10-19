@@ -288,6 +288,7 @@ func ValidateWorkflowInput(d WorkflowDescription, raw json.RawMessage) error {
 
 // BackendDefinition supplies a validated configuration and independent channels.
 type BackendDefinition struct {
+	ExecutionIdentity     bool
 	Name                  string
 	ConfigurationSchema   json.RawMessage
 	ValidateConfiguration func(json.RawMessage) error
@@ -329,6 +330,9 @@ func (r *Registry) Backend(name string) (BackendDefinition, bool) {
 }
 func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Connection, error) {
 	if d, ok := r.Messaging(route.Name); ok {
+		if !d.ExecutionIdentity {
+			return backend.Connection{}, &backend.ContractRejected{Message: "messaging backend does not declare execution identity support"}
+		}
 		if err := d.ValidateConfiguration(route.Configuration); err != nil {
 			return backend.Connection{}, err
 		}
@@ -366,6 +370,9 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 	d, ok := r.Backend(route.Name)
 	if !ok {
 		return backend.Connection{}, fmt.Errorf("unknown backend %q", route.Name)
+	}
+	if !d.ExecutionIdentity {
+		return backend.Connection{}, &backend.ContractRejected{Message: "backend does not declare execution identity support"}
 	}
 	raw := route.Configuration
 	if len(raw) == 0 {

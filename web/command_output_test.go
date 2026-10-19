@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestCentralServesNestedCommandOutput(t *testing.T) {
@@ -26,7 +28,7 @@ func TestCentralServesNestedCommandOutput(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := filepath.Join(project, ".gimbal")
-	err = gimbal.Run(gimbal.Project(owner.RequestContext(ctx), state), "output", nil, func(ctx context.Context) error {
+	err = gimbal.Run(gimbal.Project(owner.RequestContext(ctx), state), string(runstore.NewRunID()), "output", nil, func(ctx context.Context) error {
 		return gimbal.Scope(ctx, "child", func(ctx context.Context) error {
 			_, _, _, err := gimbal.RunCommand(ctx, "emit", project, "printf", "actual command output")
 			return err

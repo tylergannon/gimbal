@@ -59,35 +59,35 @@ func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
 	defer server.Close()
 	h := &Harness{Endpoint: server.URL, Name: "fake"}
 	ctx := effects.WithOwner(context.Background(), effects.Owner{Run: "run", Scope: "child.1", Task: "child.1/agent.1"})
-	id, err := h.CreateSession(ctx, "model", "", "/")
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", "/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	forkCtx := effects.WithOwner(ctx, effects.Owner{Run: "run", Scope: "child.1", Task: "child.1/fork.1"})
-	if _, err := h.Fork(forkCtx, id); err != nil {
+	if _, err := h.Fork(effects.WithExecutionIdentity(forkCtx, backend.NewExecutionIdentity("session")), id); err != nil {
 		t.Fatal(err)
 	}
 	turnCtx := effects.WithOwner(ctx, effects.Owner{Run: "run", Scope: "child.1", Task: "child.1/agent.1/turn.1"})
 	var ref json.RawMessage
-	result, err := h.RunTurn(turnCtx, id, "go", nil, func(e gimbal.AgentEvent) error { ref = e.NativeRef; return errors.New("observation unavailable") })
+	result, err := h.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "go", nil, func(e gimbal.AgentEvent) error { ref = e.NativeRef; return errors.New("observation unavailable") })
 	if err != nil || string(result.Output) != `"done"` || len(ref) == 0 || native.schemaBytes.Load() != 0 {
 		t.Fatalf("result=%s ref=%s err=%v", result.Output, ref, err)
 	}
 	native.fail.Store(true)
-	if err := effects.Cleanup(ctx, server.URL, "run", "child.1"); err == nil {
+	if err := effects.Cleanup(ctx, server.URL, "run", "child.1", backend.NewExecutionIdentity("control").RequestID); err == nil {
 		t.Fatal("false cleanup success")
 	}
 	if d.state(effects.Scope{Run: "run"}).Pending != 2 {
 		t.Fatal("lost failed sessions")
 	}
-	if _, err := h.CreateSession(ctx, "model", "", "/"); err == nil {
+	if _, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", "/"); err == nil {
 		t.Fatal("admitted work after cleanup")
 	}
 	native.fail.Store(false)
-	if err := effects.Cleanup(ctx, server.URL, "run", "child.1"); err != nil {
+	if err := effects.Cleanup(ctx, server.URL, "run", "child.1", backend.NewExecutionIdentity("control").RequestID); err != nil {
 		t.Fatal(err)
 	}
-	if err := effects.Cleanup(ctx, server.URL, "run", "child.1"); err != nil {
+	if err := effects.Cleanup(ctx, server.URL, "run", "child.1", backend.NewExecutionIdentity("control").RequestID); err != nil {
 		t.Fatal(err)
 	}
 	if d.state(effects.Scope{Run: "run"}).Pending != 0 {
@@ -100,11 +100,11 @@ func TestTurnSurvivesReaderDisconnectAndCanBeSteeredAndStopped(t *testing.T) {
 	native := &testHarness{started: make(chan struct{}), steered: make(chan string, 1)}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
 	o := effects.Owner{Run: "run", Scope: "", Task: "agent.1"}
-	if _, err := d.create(context.Background(), effects.Session{Owner: o}); err != nil {
+	if _, err := d.create(context.Background(), effects.Session{ExecutionIdentity: backend.NewExecutionIdentity("session"), Owner: o}); err != nil {
 		t.Fatal(err)
 	}
 	o.Task = "agent.1/turn.1"
-	if err := d.turn(effects.Turn{Owner: o, Session: "agent.1"}); err != nil {
+	if err := d.turn(effects.Turn{ExecutionIdentity: backend.NewExecutionIdentity("turn"), Owner: o, Session: "agent.1"}); err != nil {
 		t.Fatal(err)
 	}
 	<-native.started
@@ -112,7 +112,7 @@ func TestTurnSurvivesReaderDisconnectAndCanBeSteeredAndStopped(t *testing.T) {
 	if p := d.poll(effects.Poll{Run: "run", ID: o.Task}); p.Done {
 		t.Fatal("turn ended without cancellation")
 	}
-	if landed, err := d.steer(context.Background(), effects.Target{Run: "run", ID: "agent.1", Message: "continue"}); err != nil || !landed {
+	if landed, err := d.steer(context.Background(), effects.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: "run", ID: "agent.1", Message: "continue"}); err != nil || !landed {
 		t.Fatal(landed, err)
 	}
 	if <-native.steered != "continue" {
@@ -128,7 +128,7 @@ func TestTurnSurvivesReaderDisconnectAndCanBeSteeredAndStopped(t *testing.T) {
 func processRequest(t *testing.T, run, scope, id, script string, service bool) effects.Process {
 	t.Helper()
 	dir := t.TempDir()
-	return effects.Process{Run: run, Scope: scope, Task: id, Command: "sh", Args: []string{"-c", script}, Workdir: dir, Service: service}
+	return effects.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Run: run, Scope: scope, Task: id, Command: "sh", Args: []string{"-c", script}, Workdir: dir, Service: service}
 }
 func TestProcessMeaningAndScopedAntiClaim(t *testing.T) {
 	d := New(t.TempDir())
@@ -140,7 +140,7 @@ func TestProcessMeaningAndScopedAntiClaim(t *testing.T) {
 	if err := d.process(command); err != nil {
 		t.Fatal(err)
 	}
-	raw, err := effects.Wait(ctx, server.URL, effects.Target{Run: "run", ID: command.Task}, nil)
+	raw, err := effects.Wait(ctx, server.URL, effects.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: "run", ID: command.Task}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -203,7 +203,7 @@ func TestCreatingSessionDoesNotBlockOtherRunAndCleanupCancelsIt(t *testing.T) {
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return h, nil }
 	done := make(chan error, 1)
 	go func() {
-		_, err := d.create(context.Background(), effects.Session{Run: "slow", Task: "agent.1"})
+		_, err := d.create(context.Background(), effects.Session{ExecutionIdentity: backend.NewExecutionIdentity("session"), Run: "slow", Task: "agent.1"})
 		done <- err
 	}()
 	<-h.entered
@@ -229,7 +229,7 @@ func TestLostStartReplyReconcilesExistingTurnWithoutReplay(t *testing.T) {
 	native := d.Handler()
 	var starts atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/tasks/turn" {
+		if r.URL.Path == "/tasks/identified-turn" {
 			starts.Add(1)
 			var req effects.Turn
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -252,12 +252,12 @@ func TestLostStartReplyReconcilesExistingTurnWithoutReplay(t *testing.T) {
 	defer server.Close()
 	h := &Harness{Endpoint: server.URL}
 	ctx := effects.WithOwner(context.Background(), effects.Owner{Run: "run", Task: "agent.1"})
-	id, err := h.CreateSession(ctx, "", "", "")
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx = effects.WithOwner(ctx, effects.Owner{Run: "run", Task: "agent.1/turn.1"})
-	result, err := h.RunTurn(ctx, id, "go", nil, func(gimbal.AgentEvent) error { return nil })
+	result, err := h.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "go", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil || string(result.Output) != `"done"` || starts.Load() != 1 {
 		t.Fatal(result, err, starts.Load())
 	}

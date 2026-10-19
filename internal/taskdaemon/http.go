@@ -22,7 +22,7 @@ func decode[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 func (d *Daemon) Handler() http.Handler {
 	m := http.NewServeMux()
 	d.bytesHandlers(m)
-	m.HandleFunc("POST /tasks/session", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("POST /tasks/identified-session", func(w http.ResponseWriter, r *http.Request) {
 		v, ok := decode[effects.Session](w, r)
 		if !ok {
 			return
@@ -30,14 +30,14 @@ func (d *Daemon) Handler() http.Handler {
 		id, err := d.create(context.WithoutCancel(r.Context()), v)
 		reply(w, id, false, err)
 	})
-	m.HandleFunc("POST /tasks/turn", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("POST /tasks/identified-turn", func(w http.ResponseWriter, r *http.Request) {
 		v, ok := decode[effects.Turn](w, r)
 		if !ok {
 			return
 		}
 		reply(w, "", false, d.turn(v))
 	})
-	m.HandleFunc("POST /tasks/process", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("POST /tasks/identified-process", func(w http.ResponseWriter, r *http.Request) {
 		v, ok := decode[effects.Process](w, r)
 		if !ok {
 			return
@@ -81,7 +81,7 @@ func (d *Daemon) Handler() http.Handler {
 		value, err := d.steer(r.Context(), v)
 		reply(w, "", value, err)
 	})
-	m.HandleFunc("POST /tasks/close", func(w http.ResponseWriter, r *http.Request) {
+	m.HandleFunc("POST /tasks/identified-close", func(w http.ResponseWriter, r *http.Request) {
 		v, ok := decode[effects.Target](w, r)
 		if !ok {
 			return

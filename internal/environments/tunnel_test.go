@@ -98,7 +98,7 @@ func verifyTunnelReplacement(t *testing.T, host string) {
 			w.WriteHeader(200)
 			return
 		}
-		if r.URL.Path == "/tasks/process" {
+		if r.URL.Path == "/tasks/identified-process" {
 			admissions.Add(1)
 		}
 		handler.ServeHTTP(w, r)
@@ -123,7 +123,7 @@ func verifyTunnelReplacement(t *testing.T, host string) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	command := backend.Process{Owner: owner, Command: "/bin/sh", Args: []string{"-c", "sleep 0.2; printf retained-result"}}
+	command := backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Owner: owner, Command: "/bin/sh", Args: []string{"-c", "sleep 0.2; printf retained-result"}}
 	if e = first.Connection.Execution.Process(ctx, command); e != nil {
 		t.Fatal(e)
 	}
@@ -162,7 +162,7 @@ func verifyTunnelReplacement(t *testing.T, host string) {
 		t.Fatal("SSH reconnect reused an expired local port")
 	}
 	readCtx := effects.WithConnection(ctx, next.Connection)
-	result, e := effects.Wait(readCtx, "backend", backend.Target{Run: owner.Run, ID: owner.Task}, nil)
+	result, e := effects.Wait(readCtx, "backend", backend.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: owner.Run, ID: owner.Task}, nil)
 	if e != nil || len(result) == 0 {
 		t.Fatalf("original request did not reconcile on replacement tunnel: %s %v", result, e)
 	}

@@ -103,7 +103,10 @@ func (p *Project) placement(id string) (string, string) {
 }
 func (p *Project) startRouted(request invocation.Request) (string, error) {
 	if request.RunID == "" {
-		request.RunID = ulid.Make().String() + "." + request.Workflow
+		request.RunID = ulid.Make().String()
+	}
+	if _, err := ulid.ParseStrict(request.RunID); err != nil {
+		return "", fmt.Errorf("gimbal: invalid run ID: %w", err)
 	}
 	record := routeRecord{ID: request.RunID, Workflow: request.Workflow, Admission: "pending", WorkflowRoute: request.WorkflowRoute, TaskRoute: request.TaskRoute, WorkflowProject: request.WorkflowProject, Workdir: request.WorkDir}
 	if record.WorkflowRoute.Name == "" {
@@ -217,10 +220,6 @@ func (c routedController) CancelScope(id string, cause error) error {
 }
 func (c routedController) CancelTurn(id string, cause error) error {
 	return c.cancel("turn", id, cause)
-}
-func (c routedController) CleanupPending() bool {
-	value, err := c.call(context.Background(), "cleanup", "", "", "")
-	return value || err != nil
 }
 
 // RestoreProjects restores only the central's retained catalog, without submitting work.

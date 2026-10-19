@@ -132,7 +132,7 @@ func (h controlHandler) steerLoop(w http.ResponseWriter, r *http.Request) {
 	}{Queued: true})
 }
 
-// cancel also reaches a terminal run whose owned remote cleanup is pending.
+// cancel requests cancellation through the active run owner.
 func (h controlHandler) cancel(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Run string `json:"run"`

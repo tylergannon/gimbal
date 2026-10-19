@@ -156,7 +156,8 @@ func (m *Manager) createRemote(ctx context.Context, in NewConversation, provider
 		return Conversation{}, err
 	}
 	effort := in.Effort
-	session := backend.MessageRequest{ID: ulid.Make().String(), Created: time.UnixMilli(now), Owner: owner, Kind: "session", SessionID: "session", Session: &backend.Session{Owner: owner, Harness: provider, Model: model, Effort: effort, Workdir: prepared.Directory}}
+	identity := backend.NewExecutionIdentity("session")
+	session := backend.MessageRequest{ExecutionIdentity: identity, ID: identity.RequestID, Created: time.UnixMilli(now), Owner: owner, Kind: "identified-session", SessionID: "session", Session: &backend.Session{ExecutionIdentity: identity, Owner: owner, Harness: provider, Model: model, Effort: effort, Workdir: prepared.Directory}}
 	m.mu.Lock()
 	item = m.items[id]
 	item.Worktree, item.Branch = prepared.Directory, prepared.Branch
@@ -217,7 +218,7 @@ func (m *Manager) remotePreparationFailed(id string, cause error, binding *envir
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(m.ctx), 15*time.Second)
 		if prepared {
 			ctx = effects.WithConnection(ctx, binding.Connection)
-			cleanupErr = effects.Cleanup(ctx, "backend", id, id)
+			cleanupErr = effects.Cleanup(ctx, "backend", id, id, backend.NewExecutionIdentity("control").RequestID)
 		}
 		// No helper/session mutation was attempted when acquisition itself failed.
 		// Releasing only this owner is safe even when readiness never succeeded.
@@ -365,7 +366,8 @@ func (m *Manager) remoteTurn(id string, r Request, active *activeConversation) {
 	}
 	owner := backend.Owner{Run: id, Scope: id, Task: r.ID}
 	prompt := fmt.Sprintf("You are the agent in a Gimbal conversation on %s. Work in %s and reply to the person's message. Do not use local desktop paths or claim a workflow is centrally owned unless its admission is actually associated with this conversation. If integrated workflow admission is unavailable here, explain that limitation instead of launching unassociated work. Reply in ordinary prose.\n\nPerson: ", item.Placement.Value.Machine.Name, item.Worktree) + r.Message
-	envelope := backend.MessageRequest{ID: ulid.Make().String(), Created: time.UnixMilli(r.Created), Owner: owner, SessionID: "session", Kind: "turn", Turn: &backend.Turn{Owner: owner, Session: "session", Prompt: prompt}}
+	identity := backend.NewExecutionIdentity("turn")
+	envelope := backend.MessageRequest{ExecutionIdentity: identity, ID: identity.RequestID, Created: time.UnixMilli(r.Created), Owner: owner, SessionID: "session", Kind: "identified-turn", Turn: &backend.Turn{ExecutionIdentity: identity, Owner: owner, Session: "session", Prompt: prompt}}
 	state := m.remoteStates[id]
 	state.Requests[r.ID] = envelope
 	journalErr := m.save(item)

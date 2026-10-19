@@ -54,7 +54,7 @@ func namedBody(ctx context.Context) error {
 }
 
 func namedWorkflow(ctx context.Context) error {
-	return gimbal.Run(ctx, "named", namedBody)
+	return gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "named", nil, namedBody)
 }
 
 func helperWithoutContext() error {
@@ -62,7 +62,7 @@ func helperWithoutContext() error {
 }
 
 func workflow(ctx context.Context, kind string) error {
-	return gimbal.Run(ctx, "workflow", func(ctx context.Context) error {
+	return gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "workflow", nil, func(ctx context.Context) error {
 		if err := directMap(ctx, kind); err != nil {
 			return err
 		}

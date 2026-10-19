@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 )
 
 // TestLiveAdapterContract exercises the installed OpenCode legacy API through
@@ -52,8 +54,8 @@ func TestLiveAdapterContract(t *testing.T) {
 	one := liveCreateSession(t, ad, model, workOne)
 	two := liveCreateSession(t, ad, model, workTwo)
 	t.Cleanup(func() {
-		_ = ad.Close(context.Background(), one)
-		_ = ad.Close(context.Background(), two)
+		_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), one)
+		_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), two)
 	})
 
 	t.Run("text schema continuation and tools", func(t *testing.T) {
@@ -88,14 +90,18 @@ func TestLiveAdapterContract(t *testing.T) {
 
 	t.Run("native fork is independent", func(t *testing.T) {
 		parent := liveCreateSession(t, ad, model, workOne)
-		defer func() { _ = ad.Close(context.Background(), parent) }()
+		defer func() {
+			_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), parent)
+		}()
 		baseToken := fmt.Sprintf("BASE_%d", time.Now().UnixNano())
 		_ = liveTurn(t, ad, parent, "Remember this token: "+baseToken+". Reply exactly READY.", nil, nil)
-		fork, err := ad.Fork(liveContext(t), parent)
+		fork, err := ad.Fork(effects.WithExecutionIdentity(liveContext(t), backend.NewExecutionIdentity("session")), parent)
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer func() { _ = ad.Close(context.Background(), fork) }()
+		defer func() {
+			_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), fork)
+		}()
 		forkToken := fmt.Sprintf("FORK_%d", time.Now().UnixNano())
 		_ = liveTurn(t, ad, fork, "Replace the remembered token with "+forkToken+". Reply exactly READY.", nil, nil)
 		forked := liveTurn(t, ad, fork, "Reply with only the current remembered token.", nil, nil)
@@ -114,7 +120,7 @@ func TestLiveAdapterContract(t *testing.T) {
 			wait.Go(func() {
 				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 				defer cancel()
-				result, err := ad.RunTurn(ctx, sessions[index], "Reply exactly "+contents[index], nil, func(event gimbal.AgentEvent) error {
+				result, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), sessions[index], "Reply exactly "+contents[index], nil, func(event gimbal.AgentEvent) error {
 					var data struct {
 						SessionID string `json:"sessionID"`
 					}
@@ -143,7 +149,7 @@ func TestLiveAdapterContract(t *testing.T) {
 				t.Fatal(err)
 			}
 		}
-		if err := ad.Close(liveContext(t), one); err != nil {
+		if err := ad.Close(effects.WithExecutionIdentity(liveContext(t), backend.NewExecutionIdentity("close")), one); err != nil {
 			t.Fatal(err)
 		}
 		remaining := liveTurn(t, ad, two, "Reply exactly OTHER_STILL_WORKS", nil, nil)
@@ -154,7 +160,9 @@ func TestLiveAdapterContract(t *testing.T) {
 
 	t.Run("active steering cancellation and explicit stop", func(t *testing.T) {
 		steerSession := liveCreateSession(t, ad, model, workTwo)
-		defer func() { _ = ad.Close(context.Background(), steerSession) }()
+		defer func() {
+			_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), steerSession)
+		}()
 		started := make(chan struct{}, 1)
 		steered := make(chan struct {
 			result gimbal.TurnResult
@@ -163,7 +171,7 @@ func TestLiveAdapterContract(t *testing.T) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			result, err := ad.RunTurn(ctx, steerSession, "Use the shell tool to run sleep 20, then reply TOO_LATE.", nil, toolStarted(started))
+			result, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), steerSession, "Use the shell tool to run sleep 20, then reply TOO_LATE.", nil, toolStarted(started))
 			steered <- struct {
 				result gimbal.TurnResult
 				err    error
@@ -180,12 +188,14 @@ func TestLiveAdapterContract(t *testing.T) {
 		}
 
 		cancelSession := liveCreateSession(t, ad, model, workTwo)
-		defer func() { _ = ad.Close(context.Background(), cancelSession) }()
+		defer func() {
+			_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), cancelSession)
+		}()
 		cancelStarted := make(chan struct{}, 1)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancelled := make(chan error, 1)
 		go func() {
-			_, err := ad.RunTurn(ctx, cancelSession, "Use the shell tool to run sleep 20, then reply TOO_LATE.", nil, toolStarted(cancelStarted))
+			_, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), cancelSession, "Use the shell tool to run sleep 20, then reply TOO_LATE.", nil, toolStarted(cancelStarted))
 			cancelled <- err
 		}()
 		waitLiveSignal(t, cancelStarted, "cancellation tool start")
@@ -203,7 +213,7 @@ func TestLiveAdapterContract(t *testing.T) {
 		stopStarted := make(chan struct{}, 1)
 		stopped := make(chan error, 1)
 		go func() {
-			_, err := ad.RunTurn(context.Background(), stopSession, "Use the shell tool to run sleep 20, then reply TOO_LATE.", nil, toolStarted(stopStarted))
+			_, err := ad.RunTurn(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("turn")), stopSession, "Use the shell tool to run sleep 20, then reply TOO_LATE.", nil, toolStarted(stopStarted))
 			stopped <- err
 		}()
 		waitLiveSignal(t, stopStarted, "stop tool start")
@@ -227,7 +237,7 @@ func TestLiveAdapterContract(t *testing.T) {
 func liveCreateSession(t *testing.T, ad *adapter, model, workdir string) string {
 	t.Helper()
 	ctx := liveContext(t)
-	id, err := ad.CreateSession(ctx, model, "", workdir)
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), model, "", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +247,7 @@ func liveCreateSession(t *testing.T, ad *adapter, model, workdir string) string 
 func liveTurn(t *testing.T, ad *adapter, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) gimbal.TurnResult {
 	t.Helper()
 	ctx := liveContext(t)
-	result, err := ad.RunTurn(ctx, sessionID, prompt, schema, onEvent)
+	result, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), sessionID, prompt, schema, onEvent)
 	if err != nil {
 		t.Fatal(err)
 	}

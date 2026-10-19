@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/tylergannon/gimbal/backend"
@@ -21,16 +20,12 @@ func effectOwner(s *scope, task string) effects.Owner {
 func effectContext(ctx context.Context, s *scope, task string) context.Context {
 	ctx = effects.WithOwner(ctx, effectOwner(s, task))
 	return effects.WithResourceObserver(ctx, func(use backend.ResourceFact) {
-		if s == nil || s.run == nil || s.run.writer == nil {
+		if s == nil || s.run == nil {
 			return
 		}
 		event := ResourceReady{Name: use.Name, ConsumerKind: use.Kind, Consumer: use.Consumer}
-		raw, err := s.run.writer.writeLifecycle(use.Scope.Scope, "", "", event, true)
-		if err == nil && s.run.store != nil {
-			err = s.run.store.Lifecycle(raw)
-		}
-		if err != nil {
-			logf("%s: resource observation unavailable: %v", task, err)
+		if err := s.run.eventResult(use.Scope.Scope, "", "", event); err != nil {
+			logf("%s: resource recording unavailable: %v", task, err)
 		}
 	})
 }
@@ -39,31 +34,16 @@ func (s *scope) remoteCleanup() error {
 	if endpoint == "" {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.run.cleanupTimeoutOr(30*time.Second))
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 30*time.Second)
 	defer cancel()
-	err := effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key)
-	s.run.closeMu.Lock()
-	if err != nil {
-		if s.run.pendingScopes == nil {
-			s.run.pendingScopes = map[string]*scope{}
-		}
-		s.run.pendingScopes[s.key] = s
-	} else {
-		for key := range s.run.pendingScopes {
-			if s.key == "" || key == s.key || strings.HasPrefix(key, s.key+"/") {
-				delete(s.run.pendingScopes, key)
-			}
-		}
-	}
-	s.run.closeMu.Unlock()
-	return err
+	return effects.Cleanup(ctx, endpoint, filepath.Base(s.run.dir), s.key, backend.NewExecutionIdentity("control").RequestID)
 }
 func startRemoteProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, out, stderr *commandCapture, service bool) error {
 	store, yields, produces := effects.Yields(ctx)
 	var reply effects.Reply
-	err := effects.Call(ctx, effects.Endpoint(ctx), "process", effects.Process{Deadline: operationDeadline(ctx), Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}, &reply)
+	err := effects.Call(ctx, effects.Endpoint(ctx), "identified-process", effects.Process{ExecutionIdentity: effects.ExecutionIdentityFromContext(ctx), Deadline: operationDeadline(ctx), Owner: effectOwner(s, id), Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}, &reply)
 	if err != nil {
-		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id})
+		return effects.ConfirmStarted(ctx, effects.Endpoint(ctx), effects.Target{Run: filepath.Base(s.run.dir), ID: id}, err)
 	}
 	if err == nil && reply.Error != "" {
 		err = errors.New(reply.Error)
@@ -109,30 +89,9 @@ func remoteService(ctx context.Context, s *scope, name, id, workdir, command str
 		_ = stderr.close()
 		return endServiceStartFailure(s, start, ended, err)
 	}
-	service := &ownedService{scope: s, ctx: s.ctx, id: id, name: name, done: make(chan struct{}), remote: true}
-	if err := s.adoptService(service); err != nil {
-		return errors.Join(err, s.remoteCleanup())
-	}
-	go func() {
-		// Poll independently of the scope cancellation: cleanup owns the stop and
-		// the final result must remain observable while the scope unwinds.
-		err := remoteProcessResult(context.WithoutCancel(ctx), s, id, out, stderr, &ended)
-		ended.Duration = time.Since(start)
-		ended.Error = errString(err)
-		service.mu.Lock()
-		stopping := service.stopping
-		service.terminalErr = err
-		service.mu.Unlock()
-		if !stopping {
-			if err == nil {
-				err = fmt.Errorf("required service %s exited unexpectedly", id)
-			}
-			s.failService(err)
-		}
-		s.run.event(s.key, "", "", ended)
-		close(service.done)
-	}()
-	return nil
+	return s.collectRemoteService(ctx, name, id, out, stderr, ended, start, func(ctx context.Context, ended *CommandEnded) error {
+		return remoteProcessResult(effects.ObserveDetached(ctx), s, id, out, stderr, ended)
+	})
 }
 
 func executionFor(ctx context.Context) backend.Execution {
@@ -143,9 +102,11 @@ func executionFor(ctx context.Context) backend.Execution {
 }
 
 func startMessageProcess(ctx context.Context, s *scope, id, workdir, command string, args []string, service bool) (backend.MessageRequest, error) {
-	r := effects.Request("process", effectOwner(s, id))
+	identity := effects.ExecutionIdentityFromContext(ctx)
+	r := effects.Request(identity.RequestID, "identified-process", effectOwner(s, id))
+	r.ExecutionIdentity = identity
 	store, yields, produces := effects.Yields(ctx)
-	r.Process = &backend.Process{Deadline: operationDeadline(ctx), Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}
+	r.Process = &backend.Process{ExecutionIdentity: identity, Deadline: operationDeadline(ctx), Owner: r.Owner, Workdir: workdir, Command: command, Args: args, Service: service, Requires: effects.Requirements(ctx), Store: store, Yields: yields, Produces: produces}
 	return r, effects.Submit(ctx, r)
 }
 func messageProcessResult(ctx context.Context, s *scope, r backend.MessageRequest, out, stderr *commandCapture, ended *CommandEnded) error {
@@ -185,12 +146,26 @@ func messageService(ctx context.Context, s *scope, name, id, workdir, command st
 		_ = stderr.close()
 		return endServiceStartFailure(s, start, ended, err)
 	}
-	service := &ownedService{scope: s, ctx: s.ctx, id: id, name: name, done: make(chan struct{}), remote: true}
-	if err = s.adoptService(service); err != nil {
+	return s.collectRemoteService(ctx, name, id, out, stderr, ended, start, func(ctx context.Context, ended *CommandEnded) error {
+		return messageProcessResult(ctx, s, r, out, stderr, ended)
+	})
+}
+
+// collectRemoteService gives both transports the same local service owner.
+// Its result reader survives scope cancellation so normal scope exit can collect
+// the final command result after the remote cleanup request.
+func (s *scope) collectRemoteService(ctx context.Context, name, id string, out, stderr *commandCapture, ended CommandEnded, start time.Time, result func(context.Context, *CommandEnded) error) error {
+	resultCtx, resultCancel := context.WithCancel(context.WithoutCancel(ctx))
+	service := &ownedService{scope: s, ctx: s.ctx, id: id, name: name, done: make(chan struct{}), remote: true, resultCancel: resultCancel}
+	if err := s.adoptService(service); err != nil {
+		resultCancel()
+		_ = out.close()
+		_ = stderr.close()
 		return errors.Join(err, s.remoteCleanup())
 	}
 	go func() {
-		err := messageProcessResult(context.WithoutCancel(ctx), s, r, out, stderr, &ended)
+		defer resultCancel()
+		err := result(resultCtx, &ended)
 		ended.Duration = time.Since(start)
 		ended.Error = errString(err)
 		service.mu.Lock()
@@ -203,6 +178,7 @@ func messageService(ctx context.Context, s *scope, name, id, workdir, command st
 			}
 			s.failService(err)
 		}
+		_ = s.run.commandOutcome(s, ended)
 		s.run.event(s.key, "", "", ended)
 		close(service.done)
 	}()

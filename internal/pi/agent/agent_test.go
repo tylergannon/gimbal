@@ -218,8 +218,8 @@ func TestAgentWaitsForAsyncSubscribers(t *testing.T) {
 		t.Fatalf("listener did not start")
 	}
 	select {
-	case <-promptDone:
-		t.Fatalf("prompt resolved before the listener finished")
+	case err := <-promptDone:
+		t.Fatalf("prompt resolved before the listener finished: %v", err)
 	case <-time.After(20 * time.Millisecond):
 	}
 	if !agent.State().IsStreaming {

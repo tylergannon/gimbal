@@ -30,13 +30,11 @@ export type RunRow = {
 };
 
 /**
- * CancellationState keeps delivery history and the independent local cleanup outcome visible in both live and retained run snapshots.
+ * CancellationState records who requested cancellation and why.
  */
 export type CancellationState = {
   by: string;
   reason: string;
-  cleanup: string;
-  cleanup_error: string;
 };
 
 /**

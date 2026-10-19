@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"net/http"
+	"strings"
 )
 
 // HTTP connects to a daemon without coupling execution to observation delivery.
@@ -36,6 +37,9 @@ func (h HTTP) call(ctx context.Context, path string, in, out any) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != 200 {
+		if strings.Contains(path, "/identified-") && (resp.StatusCode == 404 || resp.StatusCode == 405) {
+			return &ContractRejected{Message: fmt.Sprintf("unsupported %s", path)}
+		}
 		return fmt.Errorf("backend %s: HTTP %d", path, resp.StatusCode)
 	}
 	return json.NewDecoder(resp.Body).Decode(out)
@@ -48,9 +52,17 @@ func (h HTTP) reply(ctx context.Context, op string, in any) (Reply, error) {
 	}
 	return r, err
 }
-func (h HTTP) Session(c context.Context, v Session) (Reply, error) { return h.reply(c, "session", v) }
-func (h HTTP) Turn(c context.Context, v Turn) error                { _, e := h.reply(c, "turn", v); return e }
-func (h HTTP) Process(c context.Context, v Process) error          { _, e := h.reply(c, "process", v); return e }
+func (h HTTP) Session(c context.Context, v Session) (Reply, error) {
+	return h.reply(c, "identified-session", v)
+}
+func (h HTTP) Turn(c context.Context, v Turn) error {
+	_, e := h.reply(c, "identified-turn", v)
+	return e
+}
+func (h HTTP) Process(c context.Context, v Process) error {
+	_, e := h.reply(c, "identified-process", v)
+	return e
+}
 func (h HTTP) Result(c context.Context, v Target) (Result, error) {
 	var r Result
 	e := h.call(c, "/tasks/result", v, &r)
@@ -64,7 +76,10 @@ func (h HTTP) Steer(c context.Context, v Target) (bool, error) {
 	r, e := h.reply(c, "steer", v)
 	return r.Value, e
 }
-func (h HTTP) Close(c context.Context, v Target) error  { _, e := h.reply(c, "close", v); return e }
+func (h HTTP) Close(c context.Context, v Target) error {
+	_, e := h.reply(c, "identified-close", v)
+	return e
+}
 func (h HTTP) Cleanup(c context.Context, v Scope) error { _, e := h.reply(c, "cleanup", v); return e }
 func (h HTTP) Pending(c context.Context, v Scope) (State, error) {
 	var r State

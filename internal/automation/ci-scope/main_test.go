@@ -18,6 +18,7 @@ func TestScope(t *testing.T) {
 		{"runtime prompt", []string{"internal/builtin/prompt.md"}, selection{Kind: "application", Release: true, Packages: []string{}}},
 		{"Go and web", []string{"engine.go", "internal/envfile/file.go", "web/src/routes/+page.svelte"}, selection{Kind: "application", Release: true, Packages: []string{"./.", "./internal/envfile"}, Web: true}},
 		{"route Go", []string{"web/src/routes/projects/[project]/page.server.go", "web/src/routes/projects/[project]/runs/[runID]/page.server.go"}, selection{Kind: "application", Release: true, Packages: []string{"./internal/skgo/...", "./web/..."}, Web: true}},
+		{"analyzer fixtures", []string{"internal/gimballint/testdata/src/setchecks/setchecks.go", "internal/gimballint/testdata/src/stub/go.mod"}, selection{Kind: "application", Release: true, Packages: []string{"./internal/gimballint"}}},
 		{"dependencies", []string{"go.mod"}, selection{Kind: "application", Release: true, Packages: []string{"./..."}}},
 		{"empty", nil, selection{Kind: "documentation", Packages: []string{}}},
 		{"nested helper", []string{".agents/skills/df-promise/scripts/promise/main.go", ".agents/skills/df-promise/scripts/promise/go.mod"}, selection{Kind: "automation", Release: true, Packages: []string{}}},

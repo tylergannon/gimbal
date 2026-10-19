@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
 )
 
@@ -39,7 +40,7 @@ func (s *Store) appendDeltaLocked(delta Delta) error {
 	if err == nil {
 		_, err = f.Write(append(raw, '\n'))
 	}
-	if err == nil {
+	if err == nil && !runstate.Recognized(s.dir) {
 		err = f.Sync()
 	}
 	if closeErr := f.Close(); err == nil {

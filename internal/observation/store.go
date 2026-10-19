@@ -59,6 +59,7 @@ type openCall struct {
 // every detachment goes through mu, so a snapshot and the suffix behind it
 // come from one cut.
 type Store struct {
+	initializing bool
 	source       backend.RunObservations
 	sourceCursor string
 	id           string
@@ -140,8 +141,11 @@ func newStreamID() string {
 // a recording failure: the store itself is usable either way.
 func Open(registry *Registry, id, name, dir string, createDir ...func() error) (*Store, error) {
 	s := newStore(registry, id, name, dir)
+	s.initializing = true
 	if registry != nil {
-		registry.add(s)
+		if err := registry.add(s); err != nil {
+			return nil, err
+		}
 	}
 	if len(createDir) != 0 {
 		if err := createDir[0](); err != nil {
@@ -153,6 +157,7 @@ func Open(registry *Registry, id, name, dir string, createDir ...func() error) (
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.initializing = false
 	if err := s.writeAllTablesLocked(); err != nil {
 		return s, err
 	}
@@ -279,23 +284,12 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 	case "run_started":
 		s.run.Name, s.run.Status, s.run.Started = rec.Event.Name, StatusRunning, at
 		changed = append(changed, change{tableRun, ""})
-	case "cancellation_cleanup":
-		if !s.run.Cancellation.Present {
-			s.run.Cancellation.Present = true
-		}
-		s.run.Cancellation.Value.Cleanup = "completed"
-		s.run.Cancellation.Value.CleanupError = rec.Event.Error
-		if rec.Event.Error != "" {
-			s.run.Cancellation.Value.Cleanup = "unconfirmed"
-		}
-		changed = append(changed, change{tableRun, ""})
 	case "killed":
 		if rec.Scope == "" && rec.Turn == "" && rec.Event.Target == "" {
 			if !s.run.Cancellation.Present {
 				s.run.Cancellation.Present = true
 			}
 			s.run.Cancellation.Value.By, s.run.Cancellation.Value.Reason = rec.Event.By, rec.Event.Reason
-			s.run.Cancellation.Value.Cleanup = "pending"
 			changed = append(changed, change{tableRun, ""})
 		}
 	case "run_ended":

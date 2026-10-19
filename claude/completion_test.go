@@ -13,6 +13,8 @@ import (
 	jsonschema "github.com/santhosh-tekuri/jsonschema/v6"
 	claudeagent "github.com/tylergannon/claude-agent-sdk-go"
 	"github.com/tylergannon/gimbal"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type scriptedTurnStream struct {
@@ -341,7 +343,7 @@ func TestMalformedCompletionUsesGenerateValidationRetry(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	ctx = gimbal.Project(ctx, t.TempDir())
-	err := gimbal.Run(ctx, "claude-completion-retry", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "claude-completion-retry", map[gimbal.WorkflowRole]gimbal.ModelBinding{
 		"worker": {Adapter: adapter, Model: "test"},
 	}, func(ctx context.Context) error {
 		worker := gimbal.NewSession(ctx, "worker", t.TempDir())

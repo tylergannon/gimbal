@@ -14,6 +14,8 @@ import (
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/skgo"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 type controlledRun struct {
@@ -26,7 +28,6 @@ func (*controlledRun) AnswerInterview(string, string) error { return nil }
 func (*controlledRun) Steer(context.Context, string, string) (bool, error) {
 	return false, nil
 }
-func (*controlledRun) CleanupPending() bool           { return false }
 func (*controlledRun) SteerLoop(string, string) error { return nil }
 func (r *controlledRun) CancelTurn(turn string, cause error) error {
 	r.turn, r.cause = turn, cause
@@ -128,7 +129,7 @@ func TestCancelRunThatEndsDuringControlReturnsLocalNotFound(t *testing.T) {
 		return release
 	})
 	go func() {
-		result <- gimbal.Run(ctx, "local-end-race", nil, func(context.Context) error {
+		result <- gimbal.Run(ctx, string(runstore.NewRunID()), "local-end-race", nil, func(context.Context) error {
 			close(entered)
 			<-end
 			return nil
@@ -142,7 +143,7 @@ func TestCancelRunThatEndsDuringControlReturnsLocalNotFound(t *testing.T) {
 	if accepted.Accepted || !errors.As(err, &status) || status.Status != http.StatusNotFound {
 		t.Fatalf("local end race: accepted=%+v error=%v; want 404", accepted, err)
 	}
-	if want := "Run " + id + ": gimbal: run has ended and has no pending cleanup"; status.Message != want {
+	if want := "Run " + id + ": gimbal: no live scope \"\""; status.Message != want {
 		t.Fatalf("local end race message = %q; want %q", status.Message, want)
 	}
 	if err := <-result; err != nil {

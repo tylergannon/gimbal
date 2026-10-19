@@ -15,11 +15,8 @@ import (
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/runstore"
 )
-
-// closeTimeout bounds one adapter's Close call, on a context independent of
-// the run's own ctx so a cancelled run still releases everything it holds.
-const closeTimeout = 10 * time.Second
 
 // Output is what polytype generates, and what Generate and SetJSON require.
 type Output interface {
@@ -32,6 +29,7 @@ type taskKey struct{}
 // scope is one instance of a named span of the workflow. Nothing is in the
 // ctx but a pointer to it.
 type scope struct {
+	node   runstore.NodeID
 	run    *run
 	parent *scope
 	name   string
@@ -122,19 +120,33 @@ func (s *scope) next(name string) string {
 }
 
 func (s *scope) child(name string) *scope {
+	key, node := s.nextNode(runstore.Scope, name)
+	child := &scope{run: s.run, parent: s, name: name, key: key, node: node}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	child := &scope{run: s.run, parent: s, name: name, key: s.next(name)}
 	s.children = append(s.children, child)
+	s.mu.Unlock()
 	return child
 }
 
 // adopt makes session belong to s, which closes it when s ends.
 func (s *scope) adopt(session *Session) {
+	session.owner = s
+	s.mu.Lock()
+	session.id = s.next(session.name)
+	ordinal := s.ordinals[session.name]
+	ended := s.ended
+	s.mu.Unlock()
+	var metadata any
+	if session.source != "" {
+		metadata = map[string]any{"source_session": session.source}
+	}
+	session.node = s.run.ensureNode(s.node, runstore.Session, session.name, ordinal, session.id, metadata)
+	if ended {
+		s.run.recordFailure("adopt session", fmt.Errorf("scope %q ended", s.key))
+	}
+	_ = s.run.activate(session.node)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	session.owner = s
-	session.id = s.next(session.name)
 	session.closed = s.ended
 	s.sessions = append(s.sessions, session)
 }
@@ -178,6 +190,9 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 		}
 		err = s.finish(err)
 	}()
+	if err := s.run.recordingError(); err != nil {
+		return err
+	}
 	return body(ctx)
 }
 
@@ -185,13 +200,14 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 func (s *scope) begin(ctx context.Context) context.Context {
 	ctx, s.cancel = context.WithCancelCause(context.WithValue(ctx, scopeKey{}, s))
 	s.ctx = ctx
-	context.AfterFunc(ctx, func() { _ = s.end() })
+	_ = s.run.activate(s.node)
 	s.run.addScope(s)
 	e := ScopeBegan{Name: path.Base(s.key), Loop: s.loop}
 	if task, ok := ctx.Value(taskKey{}).(Task); ok {
 		e.Task = optionalTask(task)
 	}
 	s.run.event(s.key, "", "", e)
+	context.AfterFunc(ctx, func() { _ = s.end() })
 	return ctx
 }
 
@@ -200,6 +216,7 @@ func (s *scope) begin(ctx context.Context) context.Context {
 // service failure or incomplete service cleanup.
 func (s *scope) finish(bodyErr error) error {
 	serviceCleanupErr := s.end()
+
 	s.mu.Lock()
 	serviceErr := s.serviceErr
 	s.mu.Unlock()
@@ -210,17 +227,10 @@ func (s *scope) finish(bodyErr error) error {
 	}
 	err := errors.Join(bodyErr, serviceCleanupErr)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
-	if s.key == "" && (s.run.rootCancellation() != nil || effects.Endpoint(s.ctx) != "") {
-		cleanupErr := errors.Join(serviceCleanupErr, s.run.closeError())
-		if !s.run.CleanupPending() {
-			cleanupErr = nil
-		}
-		s.run.event("", "", "", CancellationCleanup{Error: errString(cleanupErr)})
-	}
 	return err
 }
 
-// end stops the scope's services, closes its sessions, then cancels its ctx.
+// end cancels the scope and releases its owned work.
 // Each service is marked as intentionally stopping before any signal is sent,
 // so a concurrent exit is classified by whichever lifecycle transition won.
 // Service cleanup failures are returned because the scope owns that process.
@@ -229,7 +239,7 @@ func (s *scope) finish(bodyErr error) error {
 // can enter while cleanup runs. A session with no native id had nothing
 // allocated by its adapter and gets no Close call, only its SessionClosed
 // event. Close runs on a timeout ctx independent of the run's own, so a
-// cancelled run still releases every native session. A Close failure never
+// cancelled run still attempts native session release. A Close failure never
 // changes the scope's own result (recorded on SessionClosed and folded into
 // this run's aggregate close error instead); Run joins that aggregate into
 // its returned error once the root scope has ended. The scope leaves the
@@ -248,7 +258,13 @@ func (s *scope) stopOwnedWork() error {
 		service.beginStop()
 	}
 	sessions := s.sessions
+	s.sessions = nil
+	s.services = nil
+	s.values = nil
+	s.keys = nil
+	s.messages = nil
 	children := append([]*scope(nil), s.children...)
+	s.children = nil
 	s.mu.Unlock()
 	if s.cancel != nil {
 		s.cancel(nil)
@@ -266,18 +282,7 @@ func (s *scope) stopOwnedWork() error {
 		session.mu.Unlock()
 		var closeErr error
 		if native != "" {
-			closeCtx, cancel := context.WithTimeout(context.Background(), s.run.cleanupTimeoutOr(closeTimeout))
-			closeErr = session.adapter.Close(closeCtx, native)
-			cancel()
-			if closeErr != nil {
-				s.run.recordCloseFailure(session.id, closeErr)
-				s.run.closeMu.Lock()
-				if s.run.pendingClose == nil {
-					s.run.pendingClose = make(map[string]*Session)
-				}
-				s.run.pendingClose[session.id] = session
-				s.run.closeMu.Unlock()
-			}
+			closeErr = session.stopNative()
 		}
 		s.run.event(s.key, session.id, "", SessionClosed{Error: errString(closeErr)})
 	}
@@ -285,13 +290,12 @@ func (s *scope) stopOwnedWork() error {
 		serviceErrs = append(serviceErrs, err)
 	}
 	for _, service := range slices.Backward(services) {
-
 		if err := service.stop(); err != nil {
 			serviceErrs = append(serviceErrs, err)
 		}
 	}
 	if effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {
-		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), s.run.cleanupTimeoutOr(closeTimeout))
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 10*time.Second)
 		if err := effects.Connection(s.ctx).Secrets.Release(cleanupCtx, backend.Scope{Run: effectOwner(s, "").Run, Scope: s.key}); err != nil {
 			serviceErrs = append(serviceErrs, err)
 		}

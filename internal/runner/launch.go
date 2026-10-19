@@ -10,10 +10,14 @@ import (
 	"syscall"
 
 	"github.com/tylergannon/gimbal/internal/invocation"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // Spawn starts an independent workflow; the admission caller never owns its lifetime.
 func Spawn(request invocation.Request) (Response, error) {
+	if request.RunID == "" {
+		request.RunID = string(runstore.NewRunID())
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return Response{Error: err.Error()}, err

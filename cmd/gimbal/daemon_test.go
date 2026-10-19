@@ -56,7 +56,7 @@ func TestExecutionRoutesProvideScopedSecrets(t *testing.T) {
 					t.Fatal(err)
 				}
 				for {
-					result, err := connection.Execution.Result(ctx, backend.Target{Run: process.Run, ID: process.Task})
+					result, err := connection.Execution.Result(ctx, backend.Target{ExecutionIdentity: backend.NewExecutionIdentity("close"), Run: process.Run, ID: process.Task})
 					if err != nil || result.Error != "" {
 						t.Fatalf("%s result: %+v, %v", process.Task, result, err)
 					}
@@ -74,8 +74,8 @@ func TestExecutionRoutesProvideScopedSecrets(t *testing.T) {
 					}
 				}
 			}
-			complete(backend.Process{Run: scope.Run, Scope: scope.Scope, Task: "producer", Command: "sh", Args: []string{"-c", `printf 'TOKEN=published\nEXTRA=whole-store\n' > "$ENV_FILE"`}, Produces: true, Store: "private", Yields: []string{"TOKEN", "EXTRA"}})
-			consumer := backend.Process{Run: scope.Run, Scope: "parent/child", Task: "consumer", Command: "sh", Args: []string{"-c", `test "$TOKEN" = published && test "$EXTRA" = whole-store`}, Requires: backend.Requirements{{Store: "private", Names: []string{"TOKEN"}}}}
+			complete(backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Run: scope.Run, Scope: scope.Scope, Task: "producer", Command: "sh", Args: []string{"-c", `printf 'TOKEN=published\nEXTRA=whole-store\n' > "$ENV_FILE"`}, Produces: true, Store: "private", Yields: []string{"TOKEN", "EXTRA"}})
+			consumer := backend.Process{ExecutionIdentity: backend.NewExecutionIdentity("process"), Run: scope.Run, Scope: "parent/child", Task: "consumer", Command: "sh", Args: []string{"-c", `test "$TOKEN" = published && test "$EXTRA" = whole-store`}, Requires: backend.Requirements{{Store: "private", Names: []string{"TOKEN"}}}}
 			complete(consumer)
 			marker := filepath.Join(t.TempDir(), "must-not-exist")
 			consumer.Task = "missing-requirement"

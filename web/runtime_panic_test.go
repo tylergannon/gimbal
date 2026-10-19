@@ -3,13 +3,13 @@ package web
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/observation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestDirectRunStillPanicsAfterRecordingFailure(t *testing.T) {
@@ -25,31 +25,18 @@ func TestDirectRunStillPanicsAfterRecordingFailure(t *testing.T) {
 			return group.Wait()
 		}},
 	} {
+		id := string(runstore.NewRunID())
 		var recovered any
 		func() {
 			defer func() { recovered = recover() }()
-			_ = gimbal.Run(gimbal.Project(t.Context(), project), tc.name, nil, tc.body)
+			_ = gimbal.Run(gimbal.Project(t.Context(), project), id, tc.name, nil, tc.body)
 		}()
 		if recovered == nil || !strings.Contains(fmt.Sprint(recovered), tc.panicText) {
 			t.Fatalf("direct %s panic = %v", tc.name, recovered)
 		}
-		entries, err := os.ReadDir(filepath.Join(project, "runs"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		found := false
-		for _, entry := range entries {
-			if !strings.HasSuffix(entry.Name(), "."+tc.name) {
-				continue
-			}
-			snapshot, err := observation.NewRegistry(project).Snapshot(entry.Name())
-			if err != nil || snapshot.Run.Status != observation.StatusFailed || !strings.Contains(snapshot.Run.Error, tc.panicText) {
-				t.Fatalf("direct %s history: %+v, %v", tc.name, snapshot.Run, err)
-			}
-			found = true
-		}
-		if !found {
-			t.Fatalf("missing direct %s run", tc.name)
+		snapshot, err := observation.NewRegistry(project).Snapshot(id)
+		if err != nil || snapshot.Run.Name != tc.name || snapshot.Run.Status != observation.StatusFailed || !strings.Contains(snapshot.Run.Error, tc.panicText) {
+			t.Fatalf("direct %s history: %+v, %v", tc.name, snapshot.Run, err)
 		}
 	}
 }

@@ -45,7 +45,7 @@ func duplicateChecks(ctx context.Context, branch bool) {
 }
 
 func boundaryChecks(parent context.Context) error {
-	return gimbal.Run(parent, "root", func(ctx context.Context) error {
+	return gimbal.Run(parent, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "root", nil, func(ctx context.Context) error {
 		gimbal.Set(ctx, "own root", 1)
 		if err := gimbal.Scope(ctx, "child", func(child context.Context) error {
 			gimbal.Set(child, "own child", 1)

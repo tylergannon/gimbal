@@ -3,6 +3,8 @@ package conversation
 import (
 	"context"
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"path/filepath"
 	"testing"
 )
@@ -14,7 +16,7 @@ type effortChat struct {
 
 func (a *effortChat) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
 	a.model, a.effort = model, effort
-	return a.chatAdapter.CreateSession(ctx, model, effort, workdir)
+	return a.chatAdapter.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), model, effort, workdir)
 }
 
 func TestSessionKeepsExplicitEffortAndDefaultLeavesHarnessChoice(t *testing.T) {

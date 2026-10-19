@@ -34,12 +34,12 @@ func TestConnectionExecutesWithIndependentEventsAndExplicitNativeFiles(t *testin
 	connection.Events = nil
 	h := &Harness{Name: "test", Connection: connection}
 	ctx := effects.WithOwner(context.Background(), effects.Owner{Run: "run", Task: "session"})
-	id, err := h.CreateSession(ctx, "model", "", t.TempDir())
+	id, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx = effects.WithOwner(effects.WithTaskFiles(ctx, []backend.TaskFile{{Name: "source", Bytes: []byte("independent-filesystem")}}), effects.Owner{Run: "run", Task: "turn"})
-	result, err := h.RunTurn(ctx, id, "read supplied file", nil, func(gimbal.AgentEvent) error { return nil })
+	result, err := h.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "read supplied file", nil, func(gimbal.AgentEvent) error { return nil })
 	if err != nil || string(result.Output) != `"ok"` {
 		t.Fatalf("result %s %v", result.Output, err)
 	}

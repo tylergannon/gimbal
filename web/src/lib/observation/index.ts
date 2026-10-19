@@ -37,8 +37,6 @@ export type RunRow = {
   cancellation?: {
     by: string;
     reason: string;
-    cleanup: "" | "pending" | "completed" | "unconfirmed";
-    cleanup_error?: string;
   };
 };
 /** One planner decision: the record's sequence and the event's own words. */

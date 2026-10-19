@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/observation"
+
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // TestRunCommandRecordsEachOutcome is issue 216 without a model: a command
@@ -35,7 +37,7 @@ func TestRunCommandRecordsEachOutcome(t *testing.T) {
 		}
 	}
 	var dir string
-	if err := Run(Project(t.Context(), project), "commands", nil, func(ctx context.Context) error {
+	if err := Run(Project(t.Context(), project), string(runstore.NewRunID()), "commands", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		record("say.1")(RunCommand(ctx, "say", workdir, "sh", "-c", "printf out; printf err >&2"))
 		if err := Scope(ctx, "retry", func(ctx context.Context) error {
@@ -240,7 +242,7 @@ func TestRunCommandNeedsARun(t *testing.T) {
 	project := t.TempDir()
 	var dir string
 	var captureErr error
-	runErr := Run(Project(t.Context(), project), "capture-failure", nil, func(ctx context.Context) error {
+	runErr := Run(Project(t.Context(), project), string(runstore.NewRunID()), "capture-failure", nil, func(ctx context.Context) error {
 		dir = runDir(ctx)
 		blocked := filepath.Join(dir, "artifacts", "commands", encodedPath("capture.1"))
 		if err := os.MkdirAll(filepath.Dir(blocked), 0o755); err != nil {

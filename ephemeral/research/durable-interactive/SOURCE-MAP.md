@@ -106,6 +106,8 @@ default; both modes can come later. Native agent resource handling explicitly
 has no policy and no tests asserting a resource policy. Correct behavior is
 the requirement, not detach, retention or process counts.
 
-The remaining public-contract defect is how ordinary conversation workflow
-code distinguishes agent end from human finish while staying interactive until
-archive. SERVICE restoration remains explicitly deferred.
+The human resolved the termination-provenance defect by approving EndedBy
+(`agent` or `human`) in InteractiveTranscript. The conversation's ordinary
+workflow loop can remain interactive after agent end and return normally on
+human finish; durable re-entry waits and pending input preserve continuity.
+SERVICE restoration remains explicitly deferred.

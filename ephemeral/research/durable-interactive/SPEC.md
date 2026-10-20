@@ -1,10 +1,10 @@
 # Durable Interactive execution
 
-Status: review draft. Goals and decisions below reflect the human's brief and
-answers. Cells, budgets and derived contracts are proposed for review. The
-conversation termination distinction identified below needs a human decision
-before this spec governs implementation. No implementation or live proof has
-been performed.
+Status: completed authoring draft, reviewed against the nlspec standard.
+The public behavioral choices below reflect the human's brief and answers.
+Cells, budgets and derived contracts are ready for final review before this
+document governs implementation. No implementation or live proof has been
+performed.
 
 ## Overview and goals
 
@@ -34,7 +34,8 @@ human archives them.
 On completion, `Interactive` returns the ordered conversation transcript and
 an error, preserving the useful return contract of `Interview`. The approved
 public types are `InteractiveTranscript` and `InteractiveMessage`, with
-ordered messages containing `role` and `message`.
+ordered messages containing `role` and `message`. The transcript's `EndedBy`
+distinguishes agent end from human finish.
 
 Human archive requests successful completion. It signals the interaction to
 finish through its durable inbox. Handling this finish signal makes
@@ -162,13 +163,14 @@ introduced.
 ## Public shape
 
 The replacement keeps the existing call arguments. The human approved the
-transcript and message type names and the ordered role/message representation:
+transcript and message types, ordered role/message representation, and EndedBy:
 
 ```go
 func Interactive(ctx context.Context, name string, session *Session, purpose string) (InteractiveTranscript, error)
 
 type InteractiveTranscript struct {
     Messages []InteractiveMessage `json:"messages"`
+    EndedBy  string               `json:"ended_by"`
 }
 
 type InteractiveMessage struct {
@@ -179,13 +181,40 @@ type InteractiveMessage struct {
 
 Roles identify human and assistant messages as `user` and `assistant`.
 The transcript remains a generated Output usable with SetJSON, like the
-replaced transcript. It is the ordered interaction conversation; provider tool events
-remain in their existing observation surface. The agent's chat/end decision
+replaced transcript. It is the ordered interaction conversation; provider tool
+events remain in their existing observation surface. The agent's chat/end decision
 is a generated Polytype tagged union and needs no new exported decision type.
 Replacement removes Interview and its Q/A-only types rather than retaining a
 compatibility alias. On error, return the committed transcript accumulated so
 far with the error. A finish signal and an agent end both return normally;
-the unresolved distinction between these outcomes is identified below.
+EndedBy is `"agent"` for an agent end and `"human"` for a human finish signal.
+It is runtime-produced termination provenance, not another agent-response
+field. On an error that prevents normal completion, EndedBy is empty; it must
+not invent a successful ending. The completed result, including EndedBy, is
+durable and returned unchanged on replay.
+
+The conversation workflow uses one authored Interactive call site in an
+ordinary loop. It returns successfully when EndedBy is `"human"` and otherwise
+continues interaction on the same run and session:
+
+```text
+LOOP:
+    transcript, error = Interactive(context, name, session, purpose)
+    IF error exists:
+        RETURN error
+    IF transcript.EndedBy == "human":
+        RETURN success
+```
+
+After agent end, re-entry waits durably for further human input rather than
+starting another autonomous turn. Already accepted undelivered input or a
+pending finish signal can satisfy that wait immediately. Keep their identities
+and dispositions across the boundary; do not redeliver confirmed input or
+require an additional message. The conversation's durable ingress remains
+usable while its workflow moves between these call occurrences. A human-first
+default is sufficient to provide this behavior without adding startup modes.
+The transcript of each call covers that call's interaction; the saved
+conversation view projects the ordered records across all occurrences.
 
 For initial entry, choose the simplest correct behavior. Existing immediate
 agent turns are available as a starting point, but this spec does not require
@@ -265,8 +294,8 @@ These are internal descriptions of the public Interactive call and the host's
 message/control ingress. An accepted message received during an active turn
 is delivered through steering. If the adapter confirms that it did not land,
 retain it for a subsequent turn while the interaction remains unfinished.
-If delivery is uncertain, preserve that
-uncertainty and reconcile before redelivery. Neither a missing acknowledgement
+If delivery is uncertain, preserve that uncertainty and reconcile before
+redelivery. Neither a missing acknowledgement
 nor a restarted activation establishes that the message was not delivered.
 
 Pending inputs are supplied in durable acceptance order. Whether the next
@@ -288,11 +317,17 @@ but undelivered inputs remain recorded with their terminal disposition.
 Repeated finish requests are idempotent. Agent end also records a terminal
 boundary. Inputs not delivered before a terminal boundary remain durably
 recorded and visibly unprocessed, rather than being acknowledged as delivered.
+In a continuing conversation workflow, pending input follows the durable
+ingress into the next call occurrence without changing its identity or order.
+Human finish closes that ingress and prevents additional ordinary turns.
 
 An already committed chat remains visible if finish follows it. Once finish
 has won the durable ordering, a late native result cannot create another wait
 or restart the interaction. A normal agent end and human finish that race
-produce one logical completion, with durable provenance retained internally.
+produce one logical completion for that call, with the winning EndedBy
+recorded. Do not rewrite a completed result to change its ending. A pending
+human finish still reaches the next call if the conversation workflow
+continues after an agent end.
 
 Use the adapter's supported interruption and reconciliation contract. Do not
 introduce a universal detector for arbitrary tool-side corruption or a rollback
@@ -441,7 +476,7 @@ screenshots or execution logs are committed as evidence.
 | C3 | Cell-local: J | Record recovery preserves valid committed batches and enforces writer authority; interrupted acknowledgement does not require duplicate admission |
 | C4 | Cell-local: E | Reconstruction uses saved run/scope/session identities, context and completed outputs without redispatching completed commands or turns; incompatible code or unconfirmed native work remains actionable and recoverable |
 | C5 | Cell-local: E | A waiting branch leaves runnable siblings progressing; all-waiting work becomes dormant; neither path emits terminal teardown or alters SERVICE claims because of suspension |
-| C6 | Cell-local: I | Polytype validates exactly the specified chat/end alternatives; transcript order and normal/error returns match the public contract |
+| C6 | Cell-local: I | Polytype validates the specified chat/end alternatives; ordered transcripts and durable EndedBy distinguish agent/human completion, with no invented ending on error; conversation re-entry waits or uses pending input instead of spinning |
 | C7 | Cell-local: I | Active input steers; a confirmed missed steer remains pending; uncertain delivery is not blindly repeated |
 | C8 | Cell-local: I | Finish is durable and idempotent, interrupts the active turn when safe, completes normally, and prevents late results from reopening the interaction |
 | C9 | Cell-local: H | Runnable runs from different projects share host capacity with independent invocation data and authoritative execution ownership |
@@ -451,7 +486,7 @@ screenshots or execution logs are committed as evidence.
 | L1 | Integration: J, E, I, H, P and native adapter | In the real app, converse, observe chat/wait, restart the host, send again, and observe the same run, native session continuity, scoped context, prior results and nonduplicated transcript |
 | L2 | Integration: J, E, I, H and native adapter | In an ordinary workflow, a useful runnable branch progresses while another waits, alongside another project's work on the shared host; resume the waiting branch and observe its join and subsequent workflow code execute with independent project/run state |
 | L3 | Integration: J, E, I, H, P and native adapter | Accept messages during active execution, waiting and restart; exercise a commit/wake-up interruption and verify accepted input is retained and safely delivered or explicitly unresolved |
-| L4 | Integration: J, E, I, H, P and native adapter | Archive during an active conversation turn, observe safe interruption and normal exit from Interactive, then actual successful workflow completion; unconfirmed cessation is shown honestly |
+| L4 | Integration: J, E, I, H, P and native adapter | An agent end leaves the conversation available on its existing run without autonomous repeated turns; archive during an active turn then causes safe interruption, EndedBy human, normal Interactive return and actual successful workflow completion; unconfirmed cessation is shown honestly |
 
 Cell-local tests may use contract-faithful stand-ins. Live claims use the real
 application and native adapter, with the cheapest unversioned model alias for
@@ -483,22 +518,6 @@ It must not use style objections or unrequested guarantees as acceptance gates.
 - No compatibility shims for Interview, permanent first-turn mode machinery,
   unrelated UI redesign, scheduling quotas or performance/SLA framework.
 
-## Open spec defect: conversation termination provenance
-
-Generic agent `end` completes Interactive. A conversation workflow must remain
-interactive until human archive. The approved transcript currently contains
-only messages, so workflow code cannot distinguish an agent end from the
-human finish signal. Silently adding a completion mode or host-only completion
-rule would add an unapproved public/behavioral concept.
-
-Proposed resolution for human decision: return termination provenance with
-the transcript (agent end versus human finish), allowing the conversation's
-ordinary workflow code to continue interaction after an agent end and return
-successfully on archive. The precise representation and how repeated entry
-waits for the next input must be settled together; do not implement an eager
-agent-end/restart loop that runs without human input. This proposal is not yet
-part of the public contract.
-
 ## Explicit exclusion: SERVICE lifecycle
 
 Suspension must not close, release, or otherwise alter any service or SERVICE
@@ -513,8 +532,8 @@ cleanup, replay, recovery, or validation claims.
   deferred. If a slice requires those guarantees, stop and escalate instead
   of adding them as an implicit dependency of this change.
 - Supporting both agent-first and human-first entry is future direction.
-  Keep the easiest correct starting behavior; escalate only if it blocks a
-  required conversation behavior, as in the open termination defect above.
+  Keep the easiest correct starting behavior. Conversation re-entry must
+  respect the required input wait; no mode framework is necessary.
 - If the preferred archive finish signal requires a materially separate
   mechanism beyond durable interaction ingress, return its scope/cost to the
   human, who permits deferral. Do not silently claim successful workflow
@@ -522,7 +541,8 @@ cleanup, replay, recovery, or validation claims.
 
 The [source map](SOURCE-MAP.md) records current implementation facts and cached
 prior art. It informs construction and is not a second authority for intent.
-Run spec-review before this document governs work. Resolve its material
-findings with the human. After approval, cross-seam implementation uses slice
-specs derived from these contracts; implementers escalate underivable
+The [author's review](REVIEW.md) records the six-pass review and the human's
+resolution of the termination-provenance finding. An independent pass is
+available before implementation. After approval, cross-seam implementation
+uses slice specs derived from these contracts; implementers escalate underivable
 decisions or budget breaches rather than amending this spec themselves.

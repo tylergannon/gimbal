@@ -71,3 +71,15 @@ decision: Author's six-pass spec review is recorded in
 ephemeral/research/durable-interactive/REVIEW.md. It leaves termination
 provenance as an explicit public-contract finding. Cell budgets and derived
 contracts remain proposed; no implementation or live proof is claimed.
+
+decision: Tyler approves EndedBy ("agent" or "human") on InteractiveTranscript
+("love it"). The result durably distinguishes normal agent end from human
+finish. The conversation uses an ordinary loop at one Interactive call site,
+returning success for human finish and re-entering a durable input wait after
+agent end. Pending input and finish signals retain identity across re-entry;
+no autonomous agent-end loop or startup-mode framework is required.
+
+decision: Rechecked the EndedBy amendment against all six spec-review passes.
+The author's review has no unresolved material finding. The completed draft
+is ready for final review of cells/budgets/derived contracts; independent
+review and implementation acceptance have not been claimed.

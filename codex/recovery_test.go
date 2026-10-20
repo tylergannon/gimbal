@@ -36,6 +36,7 @@ type recoveryDaemon struct {
 	outage                                                          bool
 	effectFile                                                      string
 	injected                                                        bool
+	ignoreInterrupt                                                 bool
 }
 type fakeThread struct {
 	model  string
@@ -161,9 +162,11 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 				d.archives++
 				thread.status = "notLoaded"
 			case "turn/interrupt":
-				thread.status = "idle"
-				if len(thread.turns) > 0 {
-					thread.turns[len(thread.turns)-1].Status = "interrupted"
+				if !d.ignoreInterrupt {
+					thread.status = "idle"
+					if len(thread.turns) > 0 {
+						thread.turns[len(thread.turns)-1].Status = "interrupted"
+					}
 				}
 			}
 			mode := d.mode
@@ -473,6 +476,7 @@ func TestRecoveredFinalAnswerIsNotReplacedByCommentary(t *testing.T) {
 // notification. The thread history is then the confirmation, and Stop must not
 // leave the conversation unresolved.
 func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
+	shortenControlTimeout(t)
 	ad, d := newRecoveryDaemon(t, "default")
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
@@ -499,5 +503,83 @@ func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
 	err = <-result
 	if _, uncertain := errors.AsType[*backend.DeliveryUncertain](err); uncertain || !errors.Is(err, context.Canceled) {
 		t.Fatalf("confirmed stop reported %v", err)
+	}
+}
+
+func shortenControlTimeout(t *testing.T) {
+	t.Helper()
+	old := controlTimeout
+	controlTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { controlTimeout = old })
+}
+
+// stopStalledTurn starts a turn the daemon acknowledges but never advances and
+// stops it, returning the adapter's report.
+func stopStalledTurn(t *testing.T, ctx context.Context, ad *adapter, d *recoveryDaemon, id string, prompt string, want int) error {
+	t.Helper()
+	turnCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	result := make(chan error, 1)
+	go func() {
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn-"+prompt)), id, prompt, nil, func(gimbal.AgentEvent) error { return nil })
+		result <- err
+	}()
+	for {
+		d.mu.Lock()
+		started := d.starts
+		d.mu.Unlock()
+		if started >= want {
+			break
+		}
+		select {
+		case err := <-result:
+			return err
+		case <-time.After(time.Millisecond):
+		}
+	}
+	stop()
+	return <-result
+}
+
+// Stop after turn/start was acknowledged but before any event is uncertain only
+// about cessation: delivery is certain, and the next prompt never overlaps the
+// earlier native turn.
+func TestUnconfirmedStopAfterAcknowledgementDoesNotOverlapNextTurn(t *testing.T) {
+	shortenControlTimeout(t)
+	ad, d := newRecoveryDaemon(t, "default")
+	d.ignoreInterrupt = true
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "stalled", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = stopStalledTurn(t, ctx, ad, d, id, "first", 1)
+	uncertain, ok := errors.AsType[*backend.DeliveryUncertain](err)
+	if !ok || !uncertain.Accepted || uncertain.RequestID != "turn-1" || !errors.Is(err, context.Canceled) {
+		t.Fatalf("unconfirmed stop reported %v", err)
+	}
+	// Codex still runs the first turn: the next prompt is refused before turn/start.
+	err = stopStalledTurn(t, ctx, ad, d, id, "second", 2)
+	d.mu.Lock()
+	starts := d.starts
+	d.mu.Unlock()
+	if err == nil || !strings.Contains(err.Error(), "the new prompt was not sent") || starts != 1 {
+		t.Fatalf("busy thread: starts=%d err=%v", starts, err)
+	}
+	// Once Codex honors the interrupt, the same thread takes the next prompt
+	// after the earlier turn is recorded interrupted.
+	d.mu.Lock()
+	d.ignoreInterrupt = false
+	d.mu.Unlock()
+	err = stopStalledTurn(t, ctx, ad, d, id, "third", 2)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	turns := d.threads[id].turns
+	if len(turns) != 2 || turns[0].Status != "interrupted" || d.starts != 2 || !errors.Is(err, context.Canceled) {
+		t.Fatalf("continuation: turns=%+v starts=%d err=%v", turns, d.starts, err)
+	}
+	if _, uncertain := errors.AsType[*backend.DeliveryUncertain](err); uncertain {
+		t.Fatalf("continuation stop unconfirmed: %v", err)
 	}
 }

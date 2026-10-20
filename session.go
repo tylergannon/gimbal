@@ -583,6 +583,12 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	}
 	logf("%s: turn ended after %s: %v", s.id, time.Since(start).Round(time.Second), orNone(err))
 	if uncertain, ok := errors.AsType[*backend.DeliveryUncertain](err); ok {
+		if uncertain.Accepted {
+			// The native operation acknowledged the prompt before its outcome was lost.
+			if deliveryErr := s.notePromptDelivery(turnNode); deliveryErr != nil {
+				err = errors.Join(err, deliveryErr)
+			}
+		}
 		observationErr := wrapped(nativeEvent("session.observation.unavailable", map[string]any{"sessionID": native, "message": uncertain.Error()}, map[string]any{"provider": "gimbal", "sessionID": native, "turnID": turnID}))
 		err = errors.Join(err, observationErr)
 		if scope != nil {

@@ -36,6 +36,7 @@ type interactionAdapter struct {
 	steerErr           error
 	successAfterCancel bool
 	onCancel           func() (TurnResult, error)
+	silent             bool
 	closes             int
 }
 
@@ -49,8 +50,10 @@ func (a *interactionAdapter) RunTurn(ctx context.Context, native, prompt string,
 	ordinal := a.calls
 	a.calls++
 	a.mu.Unlock()
-	if err := emit(nativeEvent("session.step.started", map[string]any{"sessionID": native, "assistantMessageID": fmt.Sprintf("reply-%d", ordinal)}, map[string]any{"provider": "test", "sessionID": native, "messageID": fmt.Sprintf("reply-%d", ordinal)})); err != nil {
-		return TurnResult{}, err
+	if !(a.silent && ordinal == 0) {
+		if err := emit(nativeEvent("session.step.started", map[string]any{"sessionID": native, "assistantMessageID": fmt.Sprintf("reply-%d", ordinal)}, map[string]any{"provider": "test", "sessionID": native, "messageID": fmt.Sprintf("reply-%d", ordinal)})); err != nil {
+			return TurnResult{}, err
+		}
 	}
 	if ordinal == 0 && a.started != nil {
 		close(a.started)
@@ -654,16 +657,25 @@ func TestInteractiveInputFailureJoinsNativeTurnBeforeRunReturns(t *testing.T) {
 
 // Each adapter shape is a way a provider can report an interrupted native turn.
 func TestInteractiveStopSettlesWhateverTheAdapterReports(t *testing.T) {
-	for name, onCancel := range map[string]func() (TurnResult, error){
-		"canceled": nil,
-		"native":   func() (TurnResult, error) { return TurnResult{}, errors.New("codex: the turn was interrupted") },
-		"empty":    func() (TurnResult, error) { return TurnResult{}, nil },
-		"uncertain": func() (TurnResult, error) {
-			return TurnResult{}, &backend.DeliveryUncertain{RequestID: "t", Err: errors.New("unconfirmed")}
-		},
+	uncertain := func(accepted bool) func() (TurnResult, error) {
+		return func() (TurnResult, error) {
+			return TurnResult{}, &backend.DeliveryUncertain{RequestID: "t", Accepted: accepted, Err: errors.New("unconfirmed")}
+		}
+	}
+	for name, shape := range map[string]struct {
+		onCancel func() (TurnResult, error)
+		silent   bool
+	}{
+		"canceled":  {},
+		"native":    {onCancel: func() (TurnResult, error) { return TurnResult{}, errors.New("codex: the turn was interrupted") }},
+		"empty":     {onCancel: func() (TurnResult, error) { return TurnResult{}, nil }},
+		"uncertain": {onCancel: uncertain(false)},
+		// The native turn acknowledged the prompt, but no step, text or tool
+		// event arrived before Stop.
+		"accepted-before-any-event": {onCancel: uncertain(true), silent: true},
 	} {
 		t.Run(name, func(t *testing.T) {
-			adapter := &interactionAdapter{started: make(chan struct{}), release: make(chan struct{}), onCancel: onCancel, replies: []string{"", `{"decision":{"type":"chat","message":"Back again"}}`}}
+			adapter := &interactionAdapter{started: make(chan struct{}), release: make(chan struct{}), onCancel: shape.onCancel, silent: shape.silent, replies: []string{"", `{"decision":{"type":"chat","message":"Back again"}}`}}
 			r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
 				_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
 				return err
@@ -672,6 +684,9 @@ func TestInteractiveStopSettlesWhateverTheAdapterReports(t *testing.T) {
 			<-adapter.started
 			if err := r.acceptInput(interactionInput{Address: "dialogue", ID: "stop", Stop: true}); err != nil {
 				t.Fatal(err)
+			}
+			if err := r.acceptInput(interactionInput{Address: "dialogue", ID: "stop", Stop: true}); err != nil {
+				t.Fatalf("repeated Stop: %v", err)
 			}
 			deadline := time.After(3 * time.Second)
 			for !waitingInteractive(r, 1) {
@@ -698,5 +713,26 @@ func TestInteractiveStopSettlesWhateverTheAdapterReports(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+// A prompt whose native acknowledgement is unknown is never settled by Stop,
+// and is not sent again.
+func TestInteractiveStopBeforeAcknowledgementStaysUnresolved(t *testing.T) {
+	adapter := &interactionAdapter{started: make(chan struct{}), release: make(chan struct{}), silent: true, onCancel: func() (TurnResult, error) {
+		return TurnResult{}, &backend.DeliveryUncertain{RequestID: "t", Err: errors.New("acknowledgement lost")}
+	}}
+	r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+		_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+		return err
+	})
+	_ = r.acceptInteractive("dialogue", "opening", "Hello", false)
+	<-adapter.started
+	_ = r.acceptInput(interactionInput{Address: "dialogue", ID: "stop", Stop: true})
+	if err := <-done; err == nil || !isUnresolved(err) && !strings.Contains(err.Error(), "unresolved") {
+		t.Fatalf("run ended with %v", err)
+	}
+	if adapter.count() != 1 {
+		t.Fatalf("prompt sent %d times", adapter.count())
 	}
 }

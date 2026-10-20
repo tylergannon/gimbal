@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
 )
 
@@ -69,7 +70,11 @@ func TestManagerStartTitlesByFirstMessageAndRepliesInBackground(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if started.Title != "Remember cobalt" || started.Model != "claude-haiku-4-5" {
+	claudeDefault, err := modelalias.Resolve(modelalias.Selection{Name: "haiku"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if started.Title != "Remember cobalt" || started.Model != claudeDefault.Model {
 		t.Fatalf("started = %+v", started)
 	}
 	if len(started.Requests) != 1 || started.Requests[0].Kind != "prompt" || started.Requests[0].Message != "Remember cobalt\nand nothing else." {

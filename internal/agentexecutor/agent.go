@@ -558,8 +558,10 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 			executor.AssertOwner(filepath.Dir(d.Result))
 		}
 		_, waitErr := Wait(stopCtx, d, nil)
-		if waitErr != nil && !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded) {
-			return result, &backend.DeliveryUncertain{RequestID: identity.RequestID, Err: errors.Join(ctx.Err(), waitErr)}
+		// An acknowledged cancel and an expired reader deadline do not release
+		// the native owner. Only its terminal receipt permits another turn.
+		if !executor.Exists(d.Result) || (waitErr != nil && !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded)) {
+			return result, &backend.DeliveryUncertain{RequestID: identity.RequestID, Err: errors.Join(ctx.Err(), controlErr, waitErr)}
 		}
 		return result, ctx.Err()
 	}

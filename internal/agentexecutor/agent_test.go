@@ -253,3 +253,69 @@ func TestReconstructionWithoutAcceptedTurnEvidenceDoesNotDispatch(t *testing.T) 
 		t.Fatalf("missing accepted turn evidence: %v", err)
 	}
 }
+
+// Cancel ACK means the owner received a stop, not that the native process has
+// stopped. A still-owned operation without a terminal receipt cannot release
+// the session for a follow-up turn, even when the cleanup deadline expires.
+func TestCancelDeadlineWithoutTerminalReceiptRemainsUncertain(t *testing.T) {
+	root := t.TempDir()
+	sid := executor.NewSessionID()
+	identity := backend.NewExecutionIdentity("turn")
+	identity.ExecutorSession = string(sid)
+	req := Request{ID: executor.TurnID(identity.ExecutorOperation), Session: sid, Prompt: "pending"}
+	dir := filepath.Join(root, string(req.ID))
+	lease, err := executor.Claim(dir, req)
+	if err != nil || lease == nil {
+		t.Fatalf("lease: %v", err)
+	}
+	defer lease.Close()
+	if err := executor.Accept(dir, req); err != nil {
+		t.Fatal(err)
+	}
+	canceled := make(chan struct{}, 1)
+	server, err := executor.Listen(dir, func(c executor.Control) executor.Reply {
+		if c.Op == "cancel" {
+			select {
+			case canceled <- struct{}{}:
+			default:
+			}
+			return executor.Reply{Landed: true}
+		}
+		return executor.Reply{}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+	ctx, cancel := context.WithCancel(effects.WithExecutionIdentity(t.Context(), identity))
+	defer cancel()
+	a := Adapter{Root: root, harness: "claude"}
+	done := make(chan error, 1)
+	go func() { _, err := a.RunTurn(ctx, string(sid), "pending", nil, nil); done <- err }()
+	submission := filepath.Join(sessionDir(root, sid), "submissions", string(req.ID)+".json")
+	end := time.Now().Add(5 * time.Second)
+	for !executor.Exists(submission) {
+		if time.Now().After(end) {
+			t.Fatal("turn never submitted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case <-canceled:
+	case <-time.After(5 * time.Second):
+		t.Fatal("owner did not receive cancel")
+	}
+	select {
+	case err := <-done:
+		var uncertain *backend.DeliveryUncertain
+		if !errors.As(err, &uncertain) {
+			t.Fatalf("still-owned stop reported as terminal: %v", err)
+		}
+		if executor.Exists(filepath.Join(dir, "result.json")) {
+			t.Fatal("fixture unexpectedly published terminal result")
+		}
+	case <-time.After(35 * time.Second):
+		t.Fatal("cancellation failed to return uncertainty within its bound")
+	}
+}

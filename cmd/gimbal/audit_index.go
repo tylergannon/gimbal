@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +19,7 @@ import (
 func newAuditIndexCommand(stdout io.Writer) *cobra.Command {
 	var dir string
 	var prepare bool
+	var verifyCurrent, completion bool
 	var pass int
 	command := &cobra.Command{Use: "audit-index", Short: "Audit every indexed claim against local sources and all claim pairs", Long: `Prepare inventories research INDEX.md and clips and assigns block IDs for claim extraction.
 The curator writes .semantic-index/claims.jsonl using inventory.json. The normal
@@ -32,6 +34,25 @@ Example: gimbal audit-index --prepare --research-dir /absolute/research
          gimbal audit-index --research-dir /absolute/research`, Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if dir == "" {
 			return fmt.Errorf("--research-dir is required")
+		}
+		modes := 0
+		for _, selected := range []bool{prepare, verifyCurrent, completion} {
+			if selected {
+				modes++
+			}
+		}
+		if modes > 1 {
+			return fmt.Errorf("--prepare, --verify-current and --completion are mutually exclusive")
+		}
+		if verifyCurrent {
+			return claimaudit.VerifyCurrent(dir)
+		}
+		if completion {
+			result, err := claimaudit.ReadCompletion(dir)
+			if err != nil {
+				return err
+			}
+			return json.NewEncoder(stdout).Encode(result)
 		}
 		if prepare {
 			inv, err := claimaudit.Prepare(dir)
@@ -69,6 +90,8 @@ Example: gimbal audit-index --prepare --research-dir /absolute/research
 		return err
 	}}
 	command.Flags().StringVar(&dir, "research-dir", "", "absolute research directory")
+	command.Flags().BoolVar(&verifyCurrent, "verify-current", false, "verify that the saved audit still permits authoring without running a new audit")
+	command.Flags().BoolVar(&completion, "completion", false, "read the validated saved audit completion as JSON without running a new audit")
 	command.Flags().BoolVar(&prepare, "prepare", false, "inventory research blocks without a Jev key")
 	command.Flags().IntVar(&pass, "repair-pass", 0, "number of curator repairs preceding this audit")
 	return command

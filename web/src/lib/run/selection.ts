@@ -1,6 +1,6 @@
 import type {
   CommandRow,
-  InterviewRow,
+  InteractiveRow,
   RunSnapshot,
   ScopeRow,
   TurnRow,
@@ -25,7 +25,7 @@ type Shape = {
   scopes: Set<string>;
   calls: Set<string>;
   commands: Set<string>;
-  interviews: Set<string>;
+  interactions: Set<string>;
 };
 
 const join = (parent: string, name: string) => (parent ? `${parent}/${name}` : name);
@@ -79,20 +79,20 @@ function mapResolver(graph: Graph, snapshot: RunSnapshot) {
         (item) =>
           item.scopeKey === turn.scope &&
           ((item.operation.kind === "agent_call" && item.operation.session === session.name) ||
-            (item.operation.kind === "interview" && item.operation.session === session.name)),
+            (item.operation.kind === "interactive" && item.operation.session === session.name)),
       );
       return node ? { kind: "node", scope, operation: node.operation, runtime: turn } : undefined;
     },
-    interview(interview: InterviewRow): MapSelection | undefined {
-      const scope = snapshot.scopes[interview.scope];
-      const node = layoutFor(interview.scope).nodes.find(
+    interactive(interactive: InteractiveRow): MapSelection | undefined {
+      const scope = snapshot.scopes[interactive.scope];
+      const node = layoutFor(interactive.scope).nodes.find(
         (item) =>
-          item.scopeKey === interview.scope &&
-          item.operation.kind === "interview" &&
-          item.operation.name === interview.name,
+          item.scopeKey === interactive.scope &&
+          item.operation.kind === "interactive" &&
+          item.operation.name === interactive.name,
       );
       return scope && node
-        ? { kind: "node", scope, operation: node.operation, runtime: interview }
+        ? { kind: "node", scope, operation: node.operation, runtime: interactive }
         : undefined;
     },
     command(command: CommandRow): MapSelection | undefined {
@@ -127,9 +127,9 @@ function addOperations(shape: Shape, operations: Operation[], scope: string) {
       case "command":
         shape.commands.add(join(scope, operation.name));
         break;
-      case "interview":
-        shape.interviews.add(join(scope, operation.name));
-        // Interview exchanges are ordinary turns on the conducting session.
+      case "interactive":
+        shape.interactions.add(join(scope, operation.name));
+        // Interactive exchanges are ordinary turns on the conducting session.
         shape.calls.add(join(scope, operation.session));
         break;
       case "scope":
@@ -195,7 +195,7 @@ export function graphMatchesSnapshot(graph: Graph, snapshot: RunSnapshot) {
     scopes: new Set([""]),
     calls: new Set(),
     commands: new Set(),
-    interviews: new Set(),
+    interactions: new Set(),
   };
   addServices(shape, graph.services, "");
   addOperations(shape, graph.body, "");
@@ -222,8 +222,9 @@ export function graphMatchesSnapshot(graph: Graph, snapshot: RunSnapshot) {
   ) {
     return false;
   }
-  return !Object.values(snapshot.interviews).some(
-    (interview) => !shape.interviews.has(join(withoutOrdinals(interview.scope), interview.name)),
+  return !Object.values(snapshot.interactions).some(
+    (interactive) =>
+      !shape.interactions.has(join(withoutOrdinals(interactive.scope), interactive.name)),
   );
 }
 
@@ -251,12 +252,12 @@ export function mapSelectionForTurn(
   return mapResolver(graph, snapshot).turn(turn);
 }
 
-export function mapSelectionForInterview(
+export function mapSelectionForInteractive(
   graph: Graph,
   snapshot: RunSnapshot,
-  interview: InterviewRow,
+  interactive: InteractiveRow,
 ): MapSelection | undefined {
-  return mapResolver(graph, snapshot).interview(interview);
+  return mapResolver(graph, snapshot).interactive(interactive);
 }
 
 function mapSelectionForCommand(
@@ -271,11 +272,11 @@ export function currentActivitySelection(
   graph: Graph,
   snapshot: RunSnapshot,
 ): RunSelection | undefined {
-  const interview = Object.values(snapshot.interviews)
+  const interactive = Object.values(snapshot.interactions)
     .filter((row) => row.status === "pending")
     .sort((left, right) => right.asked - left.asked)[0];
-  if (interview) {
-    return mapSelectionForInterview(graph, snapshot, interview);
+  if (interactive) {
+    return mapSelectionForInteractive(graph, snapshot, interactive);
   }
 
   const turn = Object.values(snapshot.turns)
@@ -359,9 +360,9 @@ export function rebindSelection(
   }
 
   if (!selection.runtime) return { ...selection, scope };
-  let runtime: TurnRow | CommandRow | InterviewRow | undefined;
+  let runtime: TurnRow | CommandRow | InteractiveRow | undefined;
   if ("question_id" in selection.runtime) {
-    runtime = snapshot.interviews[selection.runtime.question_id];
+    runtime = snapshot.interactions[selection.runtime.question_id];
   } else if ("command" in selection.runtime) {
     runtime = snapshot.commands[selection.runtime.id];
   } else {
@@ -375,7 +376,7 @@ export function asMapSelection(selection: RunSelection | undefined): MapSelectio
 }
 
 /** The session a selection points at, when it has one: the agent's own
- * session on a node selection with a turn or interview runtime, or the
+ * session on a node selection with a turn or interactive runtime, or the
  * watcher's session on a watcher selection with a recorded turn. */
 export function selectionSessionID(selection: RunSelection | undefined): string | undefined {
   if (!selection) return undefined;

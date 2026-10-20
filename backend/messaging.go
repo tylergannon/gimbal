@@ -30,8 +30,9 @@ type MessageRequest struct {
 // cancellation; it is never inferred from Error text. Process.Interrupted
 // retains the native process outcome. Unresolved marks controls whose cessation
 // could not be confirmed. Output bytes survive even when invalid JSON; ID is
-// the session created by a session request.
+// the session created by a session request. Value reports whether steering landed.
 type MessageResult struct {
+	Value          bool            `json:",omitempty"`
 	ReadyResources []ResourceFact  `json:",omitempty"`
 	Interrupted    bool            `json:",omitempty"`
 	Unresolved     bool            `json:",omitempty"`
@@ -154,14 +155,14 @@ func (r MessageRequest) Validate() error {
 			return fmt.Errorf("process payload required")
 		}
 		owner = r.Process.Owner
-	case "identified-close", "interrupt":
+	case "identified-close", "interrupt", "steer":
 		if r.Target == nil {
 			return fmt.Errorf("target required")
 		}
 		if r.Target.Run != r.Run || r.Target.ID == "" {
 			return fmt.Errorf("conflicting or absent target identity")
 		}
-		if r.Kind == "identified-close" {
+		if r.Kind == "identified-close" || r.Kind == "steer" {
 			session = r.Target.ID
 		}
 		owner = r.Owner

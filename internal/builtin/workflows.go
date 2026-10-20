@@ -17,6 +17,7 @@ type Workflow struct {
 }
 
 var Workflows = []Workflow{
+	{Package: "conversation", Entry: "Conversation", Name: "conversation", Command: "conversation_gen.go"},
 	{Package: "servicecheck", Entry: "ServiceCheck", Name: "service-check", Command: "servicecheck_gen.go"},
 	{Package: "sprintplan", Entry: "SprintPlan", Name: "sprint-plan", Command: "sprintplan_gen.go"},
 	{Package: "review", Entry: "Review", Name: "review", Command: "review_gen.go"},

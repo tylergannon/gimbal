@@ -20,6 +20,7 @@ func decode[T any](w http.ResponseWriter, r *http.Request) (T, bool) {
 	return v, true
 }
 func (d *Daemon) Handler() http.Handler {
+	d.ensureRecovery()
 	m := http.NewServeMux()
 	d.bytesHandlers(m)
 	m.HandleFunc("POST /tasks/identified-session", func(w http.ResponseWriter, r *http.Request) {
@@ -107,6 +108,10 @@ func (d *Daemon) Handler() http.Handler {
 		_ = json.NewEncoder(w).Encode(d.state(v))
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if d.restoreErr != nil {
+			http.Error(w, d.restoreErr.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		if r.Header.Get("Origin") != "" || r.Header.Get("Content-Type") != "application/json" {
 			http.Error(w, "task requests require application/json from a non-browser client", http.StatusForbidden)
 			return

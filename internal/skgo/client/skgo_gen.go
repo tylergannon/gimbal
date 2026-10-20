@@ -26,9 +26,9 @@ func (c Client) CreateProject(ctx context.Context, in skgo11.SkgoArg_createProje
 	return skgo.SubmitForm(ctx, c.FormClient, "126fj8m/createProject", in, DecodeRoot0)
 }
 
-// AnswerInterview submits src/routes/interview.remote.ts#answerInterview once.
-func (c Client) AnswerInterview(ctx context.Context, in skgo0.SkgoArg_answerInterview) (skgo0.SkgoOut_answerInterview, error) {
-	return skgo.SubmitForm(ctx, c.FormClient, "1698czr/answerInterview", in, DecodeRoot1)
+// AnswerInteractive submits src/routes/interactive.remote.ts#answerInteractive once.
+func (c Client) AnswerInteractive(ctx context.Context, in skgo0.SkgoArg_answerInteractive) (skgo0.SkgoOut_answerInteractive, error) {
+	return skgo.SubmitForm(ctx, c.FormClient, "15khy3q/answerInteractive", in, DecodeRoot1)
 }
 
 // Steer submits src/routes/steer.remote.ts#steer once.
@@ -332,16 +332,16 @@ func ParseProjectChoice(s string) (pkg_host.ProjectChoice, error) {
 	return decProjectChoice(parsed, "")
 }
 
-func encInterviewAnswered(v skgo0.InterviewAnswered, at string) (any, error) {
+func encInteractiveAnswered(v skgo0.InteractiveAnswered, at string) (any, error) {
 	enc1 := devalue.NewObject()
 	var enc2 any = bool(v.Accepted)
 	enc1.Set("accepted", enc2)
 	return enc1, nil
 }
 
-func decInterviewAnswered(raw any, at string) (skgo0.InterviewAnswered, error) {
-	var dvZero skgo0.InterviewAnswered
-	var dec1 skgo0.InterviewAnswered
+func decInteractiveAnswered(raw any, at string) (skgo0.InteractiveAnswered, error) {
+	var dvZero skgo0.InteractiveAnswered
+	var dec1 skgo0.InteractiveAnswered
 	obj2, err := dvObject(raw, at)
 	if err != nil {
 		return dvZero, err
@@ -361,34 +361,34 @@ func decInterviewAnswered(raw any, at string) (skgo0.InterviewAnswered, error) {
 	return dec1, nil
 }
 
-// EncodeInterviewAnswered converts v into the devalue value model.
-func EncodeInterviewAnswered(v skgo0.InterviewAnswered) (any, error) {
-	return encInterviewAnswered(v, "")
+// EncodeInteractiveAnswered converts v into the devalue value model.
+func EncodeInteractiveAnswered(v skgo0.InteractiveAnswered) (any, error) {
+	return encInteractiveAnswered(v, "")
 }
 
-// DecodeInterviewAnswered converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InterviewAnswered, rejecting any
+// DecodeInteractiveAnswered converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InteractiveAnswered, rejecting any
 // shape the type grammar does not admit.
-func DecodeInterviewAnswered(raw any) (skgo0.InterviewAnswered, error) {
-	return decInterviewAnswered(raw, "")
+func DecodeInteractiveAnswered(raw any) (skgo0.InteractiveAnswered, error) {
+	return decInteractiveAnswered(raw, "")
 }
 
-// StringifyInterviewAnswered encodes v and serializes it with devalue.
-func StringifyInterviewAnswered(v skgo0.InterviewAnswered) (string, error) {
-	encoded, err := encInterviewAnswered(v, "")
+// StringifyInteractiveAnswered encodes v and serializes it with devalue.
+func StringifyInteractiveAnswered(v skgo0.InteractiveAnswered) (string, error) {
+	encoded, err := encInteractiveAnswered(v, "")
 	if err != nil {
 		return "", err
 	}
 	return devalue.Stringify(encoded)
 }
 
-// ParseInterviewAnswered parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InterviewAnswered.
-func ParseInterviewAnswered(s string) (skgo0.InterviewAnswered, error) {
-	var zero skgo0.InterviewAnswered
+// ParseInteractiveAnswered parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InteractiveAnswered.
+func ParseInteractiveAnswered(s string) (skgo0.InteractiveAnswered, error) {
+	var zero skgo0.InteractiveAnswered
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err
 	}
-	return decInterviewAnswered(parsed, "")
+	return decInteractiveAnswered(parsed, "")
 }
 
 func encSent(v skgo0.Sent, at string) (any, error) {
@@ -544,17 +544,17 @@ func ParseRoot0(s string) (pkg_host.ProjectChoice, error) {
 	return decRoot0(parsed, "")
 }
 
-func encRoot1(v skgo0.InterviewAnswered, at string) (any, error) {
-	enc1, err := encInterviewAnswered(v, at)
+func encRoot1(v skgo0.InteractiveAnswered, at string) (any, error) {
+	enc1, err := encInteractiveAnswered(v, at)
 	if err != nil {
 		return nil, err
 	}
 	return enc1, nil
 }
 
-func decRoot1(raw any, at string) (skgo0.InterviewAnswered, error) {
-	var dvZero skgo0.InterviewAnswered
-	dec1, err := decInterviewAnswered(raw, at)
+func decRoot1(raw any, at string) (skgo0.InteractiveAnswered, error) {
+	var dvZero skgo0.InteractiveAnswered
+	dec1, err := decInteractiveAnswered(raw, at)
 	if err != nil {
 		return dvZero, err
 	}
@@ -562,14 +562,14 @@ func decRoot1(raw any, at string) (skgo0.InterviewAnswered, error) {
 }
 
 // EncodeRoot1 converts v into the devalue value model.
-func EncodeRoot1(v skgo0.InterviewAnswered) (any, error) { return encRoot1(v, "") }
+func EncodeRoot1(v skgo0.InteractiveAnswered) (any, error) { return encRoot1(v, "") }
 
-// DecodeRoot1 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InterviewAnswered, rejecting any
+// DecodeRoot1 converts a devalue value model tree into a pkg_onzggl3sn52xizlt.InteractiveAnswered, rejecting any
 // shape the type grammar does not admit.
-func DecodeRoot1(raw any) (skgo0.InterviewAnswered, error) { return decRoot1(raw, "") }
+func DecodeRoot1(raw any) (skgo0.InteractiveAnswered, error) { return decRoot1(raw, "") }
 
 // StringifyRoot1 encodes v and serializes it with devalue.
-func StringifyRoot1(v skgo0.InterviewAnswered) (string, error) {
+func StringifyRoot1(v skgo0.InteractiveAnswered) (string, error) {
 	encoded, err := encRoot1(v, "")
 	if err != nil {
 		return "", err
@@ -577,9 +577,9 @@ func StringifyRoot1(v skgo0.InterviewAnswered) (string, error) {
 	return devalue.Stringify(encoded)
 }
 
-// ParseRoot1 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InterviewAnswered.
-func ParseRoot1(s string) (skgo0.InterviewAnswered, error) {
-	var zero skgo0.InterviewAnswered
+// ParseRoot1 parses a devalue document and decodes it into a pkg_onzggl3sn52xizlt.InteractiveAnswered.
+func ParseRoot1(s string) (skgo0.InteractiveAnswered, error) {
+	var zero skgo0.InteractiveAnswered
 	parsed, err := devalue.Parse(s, nil)
 	if err != nil {
 		return zero, err

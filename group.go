@@ -9,11 +9,13 @@ import (
 )
 
 type group struct {
-	scope *scope
-	ctx   context.Context
-	wg    sync.WaitGroup
-	once  sync.Once
-	err   error
+	scope     *scope
+	ctx       context.Context
+	wg        sync.WaitGroup
+	once      sync.Once
+	err       error
+	suspended bool
+	mu        sync.Mutex
 }
 
 // Group opens an errgroup-shaped concurrent scope named name. Call its Go
@@ -68,9 +70,22 @@ func (g *group) Go(name string, fn func(ctx context.Context) error) {
 	}
 	child := g.scope.child(name)
 	g.wg.Go(func() {
+		defer func() {
+			if v := recover(); v != nil {
+				if _, ok := v.(suspension); !ok {
+					panic(v)
+				}
+			}
+		}()
 		err := child.do(g.ctx, func(ctx context.Context) (err error) {
 			defer func() {
 				if v := recover(); v != nil {
+					if _, ok := v.(suspension); ok {
+						g.mu.Lock()
+						g.suspended = true
+						g.mu.Unlock()
+						panic(v)
+					}
 					err = &panicError{value: v, stack: debug.Stack()}
 				}
 			}()
@@ -94,6 +109,9 @@ func (g *group) Wait() error {
 		return g.err
 	}
 	g.wg.Wait()
+	if g.suspended && g.err == nil {
+		panic(suspension{})
+	}
 	g.err = g.scope.finish(g.err)
 	return g.err
 }

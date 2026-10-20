@@ -1,7 +1,9 @@
 package conversation
 
 import (
+	"encoding/json"
 	"errors"
+	"github.com/tylergannon/gimbal/runstore"
 	"time"
 )
 
@@ -20,21 +22,16 @@ func (m *Manager) ConfigureModel(id, model, effort string) (Conversation, error)
 	if item.Provider != "codex" || remotePlacement(item) || !item.Live {
 		return Conversation{}, errors.New("conversation: model changes are available only for live local Codex sessions")
 	}
-	if item.ActiveRequest != "" || item.CleanupPending || item.Contact == "unreachable" || (item.Status != "idle" && item.Status != "canceled") {
+	if item.ActiveRequest != "" || item.CleanupPending || item.Contact == "unreachable" || (item.Status != "idle" && item.Status != "canceled" && item.Status != "waiting") {
 		return Conversation{}, errors.New("conversation: wait for a settled idle session before changing model")
 	}
-	for _, request := range item.Requests {
-		if request.Status == "accepted" || request.Status == "running" {
-			return Conversation{}, errors.New("conversation: wait for queued requests before changing model")
+	if item.WorkflowRun != "" {
+		if m.WorkflowInput == nil {
+			return Conversation{}, errors.New("conversation: workflow host unavailable")
 		}
-	}
-	active := m.active[id]
-	if active != nil && active.request != "" {
-		return Conversation{}, errors.New("conversation: a turn is still running")
-	}
-	if active != nil && active.adapter != nil && active.session != "" {
-		if _, ok := active.adapter.(persistentSessionAdapter); !ok {
-			return Conversation{}, errors.New("conversation: native session cannot update its model")
+		raw, _ := json.Marshal(map[string]any{"id": string(runstore.NewRecordID()), "configure": true, "model": model, "effort": effort})
+		if err := m.WorkflowInput(item.WorkflowRun, "conversation", string(raw)); err != nil {
+			return Conversation{}, err
 		}
 	}
 	before := *item
@@ -43,11 +40,6 @@ func (m *Manager) ConfigureModel(id, model, effort string) (Conversation, error)
 	if err := m.save(item); err != nil {
 		*item = before
 		return Conversation{}, err
-	}
-	// Existing ResumeSession refreshes the adapter cache under the same native ID.
-	// Do not detach/close the thread or discard its conversation context.
-	if active != nil && active.session != "" {
-		active.resume = true
 	}
 	return clone(item), nil
 }

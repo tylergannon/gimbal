@@ -33,6 +33,7 @@ func record(r *gimbal.Registry, name string) error {
  if r.Fail && name=="review" {return errors.New("literal registration failure")}
  return nil
 }
+func registerConversation(r *gimbal.Registry) error {return record(r,"conversation")}
 func registerServiceCheck(r *gimbal.Registry) error {return record(r,"service-check")}
 func registerSprintPlan(r *gimbal.Registry) error {return record(r,"sprint-plan")}
 func registerReview(r *gimbal.Registry) error {return record(r,"review")}
@@ -53,10 +54,10 @@ import (
 func TestRuntime(t *testing.T) {
  r:=new(gimbal.Registry)
  if err:=Register(r);err!=nil {t.Fatal(err)}
- if got:=strings.Join(r.Calls,",");got!="service-check,sprint-plan,review,implement,research-document,research-eval,pyramid-summary,validate-product" {t.Fatal(got)}
+ if got:=strings.Join(r.Calls,",");got!="conversation,service-check,sprint-plan,review,implement,research-document,research-eval,pyramid-summary,validate-product" {t.Fatal(got)}
  r=&gimbal.Registry{Fail:true}
  err:=Register(r)
- if err==nil || err.Error()!="literal registration failure" || strings.Join(r.Calls,",")!="service-check,sprint-plan,review" {t.Fatalf("registration failure lost: %v %+v",err,r)}
+ if err==nil || err.Error()!="literal registration failure" || strings.Join(r.Calls,",")!="conversation,service-check,sprint-plan,review" {t.Fatalf("registration failure lost: %v %+v",err,r)}
 }
 `)
 	write("internal/invocation/projection_test.go", `//go:build jsonschema

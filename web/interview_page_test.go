@@ -18,18 +18,18 @@ import (
 	"github.com/tylergannon/gimbal/workflow"
 )
 
-func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
-	const workflowName = "interview-ssr-fixture"
+func TestRunPageKeepsInteractiveHistoryAcrossQuestionsAndReload(t *testing.T) {
+	const workflowName = "interactive-ssr-fixture"
 	graph := workflow.Graph{
 		Name: workflowName,
 		Body: []workflow.Operation{
 			workflow.Scope{Name: "preferences", Body: []workflow.Operation{
-				workflow.Session{Name: "interviewer"},
-				workflow.Interview{Name: "preferences", Session: "interviewer"},
+				workflow.Session{Name: "interactiveer"},
+				workflow.Interactive{Name: "preferences", Session: "interactiveer"},
 			}},
 		},
 	}
-	if err := gimbal.DefaultRegistry.RegisterWorkflow(gimbal.WorkflowDefinition{Name: workflowName, InputSchema: json.RawMessage(`{"type":"object"}`), Roles: map[gimbal.WorkflowRole]string{"interviewer": "haiku"}, Graph: graph, Prepare: func(json.RawMessage) (gimbal.Invocation, error) {
+	if err := gimbal.DefaultRegistry.RegisterWorkflow(gimbal.WorkflowDefinition{Name: workflowName, InputSchema: json.RawMessage(`{"type":"object"}`), Roles: map[gimbal.WorkflowRole]string{"interactiveer": "haiku"}, Graph: graph, Prepare: func(json.RawMessage) (gimbal.Invocation, error) {
 		return func(context.Context, gimbal.Env) error { return nil }, nil
 	}}); err != nil {
 		t.Fatal(err)
@@ -44,7 +44,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	}
 	project := t.TempDir()
 	registry := observation.NewRegistry(project)
-	runDir := filepath.Join(project, "runs", "run-interview")
+	runDir := filepath.Join(project, "runs", "run-interactive")
 	if err := os.MkdirAll(runDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -53,33 +53,33 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(runDir, "graph.json"), graphData, 0644); err != nil {
 		t.Fatal(err)
 	}
-	store, err := observation.Open(registry, "run-interview", workflowName, runDir)
+	store, err := observation.Open(registry, "run-interactive", workflowName, runDir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, record := range []json.RawMessage{
-		json.RawMessage(`{"seq":1,"time":"2026-09-17T17:00:00Z","scope":"","event":{"kind":"run_started","name":"interview-ssr-fixture"}}`),
+		json.RawMessage(`{"seq":1,"time":"2026-09-17T17:00:00Z","scope":"","event":{"kind":"run_started","name":"interactive-ssr-fixture"}}`),
 		json.RawMessage(`{"seq":2,"time":"2026-09-17T17:00:01Z","scope":"preferences.1","event":{"kind":"scope_began","name":"preferences.1"}}`),
-		json.RawMessage(`{"seq":3,"time":"2026-09-17T17:00:02Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"session_created","name":"interviewer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
-		json.RawMessage(`{"seq":4,"time":"2026-09-17T17:00:03Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.1","event":{"kind":"turn_started","prompt":"first","output_type":"gimbal.interviewDecision"}}`),
-		json.RawMessage(`{"seq":5,"time":"2026-09-17T17:00:04Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.1","event":{"kind":"turn_ended","result":"{\"question\":\"Which color?\"}"}}`),
-		json.RawMessage(`{"seq":6,"time":"2026-09-17T17:00:05Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"interview_question_asked","name":"preferences","question_id":"question-1","question":"Which color?"}}`),
-		json.RawMessage(`{"seq":7,"time":"2026-09-17T17:00:06Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"interview_question_answered","question_id":"question-1","answer":"Blue"}}`),
-		json.RawMessage(`{"seq":8,"time":"2026-09-17T17:00:07Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.2","event":{"kind":"turn_started","prompt":"second","output_type":"gimbal.interviewDecision"}}`),
+		json.RawMessage(`{"seq":3,"time":"2026-09-17T17:00:02Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"session_created","name":"interactiveer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
+		json.RawMessage(`{"seq":4,"time":"2026-09-17T17:00:03Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.1","event":{"kind":"turn_started","prompt":"first","output_type":"gimbal.interactiveOutput"}}`),
+		json.RawMessage(`{"seq":5,"time":"2026-09-17T17:00:04Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.1","event":{"kind":"turn_ended","result":"{\"decision\":{\"type\":\"chat\",\"message\":\"Which color?\"}}"}}`),
+		json.RawMessage(`{"seq":6,"time":"2026-09-17T17:00:05Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_changed","id":"question-1","name":"preferences","address":"preferences.1/preferences","ordinal":1,"consumed":["initial"],"status":"waiting","waiting":true,"transcript":{"messages":[{"role":"user","message":"Help me plan."},{"role":"assistant","message":"Which color?"}],"ended_by":""},"error":""}}`),
+		json.RawMessage(`{"seq":7,"time":"2026-09-17T17:00:06Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_changed","id":"question-1","name":"preferences","address":"preferences.1/preferences","ordinal":1,"consumed":["initial","blue"],"status":"active","waiting":false,"transcript":{"messages":[{"role":"user","message":"Help me plan."},{"role":"assistant","message":"Which color?"},{"role":"user","message":"Blue"}],"ended_by":""},"error":""}}`),
+		json.RawMessage(`{"seq":8,"time":"2026-09-17T17:00:07Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.2","event":{"kind":"turn_started","prompt":"second","output_type":"gimbal.interactiveOutput"}}`),
 	} {
 		if err := store.Lifecycle(record); err != nil {
 			t.Fatalf("fold %s: %v", record, err)
 		}
 	}
 	for turn, text := range map[string]string{
-		"preferences.1/interviewer.1/turn.1": "first interview turn",
-		"preferences.1/interviewer.1/turn.2": "second interview turn",
+		"preferences.1/interactiveer.1/turn.1": "first interactive turn",
+		"preferences.1/interactiveer.1/turn.2": "second interactive turn",
 	} {
-		at := observation.Placement{Scope: "preferences.1", Session: "preferences.1/interviewer.1", Turn: turn}
+		at := observation.Placement{Scope: "preferences.1", Session: "preferences.1/interactiveer.1", Turn: turn}
 		for _, event := range []json.RawMessage{
-			json.RawMessage(fmt.Sprintf(`{"id":%q,"type":"session.step.started","created":10,"data":{"sessionID":"native-interviewer","assistantMessageID":%q,"agent":"fixture","model":{"providerID":"fixture","id":"test-model"}}}`, turn+"-step", turn+"-message")),
-			json.RawMessage(fmt.Sprintf(`{"id":%q,"type":"session.text.started","created":11,"data":{"sessionID":"native-interviewer","assistantMessageID":%q,"ordinal":0}}`, turn+"-start", turn+"-message")),
-			json.RawMessage(fmt.Sprintf(`{"id":%q,"type":"session.text.ended","created":12,"data":{"sessionID":"native-interviewer","assistantMessageID":%q,"ordinal":0,"text":%q}}`, turn+"-text", turn+"-message", text)),
+			json.RawMessage(fmt.Sprintf(`{"id":%q,"type":"session.step.started","created":10,"data":{"sessionID":"native-interactiveer","assistantMessageID":%q,"agent":"fixture","model":{"providerID":"fixture","id":"test-model"}}}`, turn+"-step", turn+"-message")),
+			json.RawMessage(fmt.Sprintf(`{"id":%q,"type":"session.text.started","created":11,"data":{"sessionID":"native-interactiveer","assistantMessageID":%q,"ordinal":0}}`, turn+"-start", turn+"-message")),
+			json.RawMessage(fmt.Sprintf(`{"id":%q,"type":"session.text.ended","created":12,"data":{"sessionID":"native-interactiveer","assistantMessageID":%q,"ordinal":0,"text":%q}}`, turn+"-text", turn+"-message", text)),
 		} {
 			if err := store.Event(at, event, nil); err != nil {
 				t.Fatal(err)
@@ -88,12 +88,12 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	}
 
 	render := func() string {
-		request := httptest.NewRequest(http.MethodGet, "/projects/test/runs/run-interview", nil)
+		request := httptest.NewRequest(http.MethodGet, "/projects/test/runs/run-interactive", nil)
 		request = request.WithContext(observation.WithRegistry(host.WithProjectDir(request.Context(), project), registry))
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)
 		if recorder.Code != http.StatusOK {
-			t.Fatalf("GET /runs/run-interview: status %d, body %s", recorder.Code, recorder.Body.String())
+			t.Fatalf("GET /runs/run-interactive: status %d, body %s", recorder.Code, recorder.Body.String())
 		}
 		return recorder.Body.String()
 	}
@@ -105,24 +105,24 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 		if strings.Contains(body, "Workflow graph required") {
 			t.Fatal("run with a matching compiled graph rendered the corrective state")
 		}
-		for _, want := range []string{"preferences.1", "first interview turn", "second interview turn", "Which color?", "Blue"} {
+		for _, want := range []string{"preferences.1", "first interactive turn", "second interactive turn", "Which color?", "Blue"} {
 			if !strings.Contains(body, want) {
-				t.Fatalf("interview history does not contain %q", want)
+				t.Fatalf("interactive history does not contain %q", want)
 			}
 		}
 	}
 
 	thinking := render()
 	assertGraph(thinking)
-	// The run's top bar may stop the active turn; the interviewer's session
+	// The run's top bar may stop the active turn; the interactiveer's session
 	// must not add a conversation stop control of its own.
 	if count := strings.Count(thinking, "Stop turn"); count > 1 {
-		t.Fatalf("a workflow interviewer must not expose a conversation stop control (found %d stop controls)", count)
+		t.Fatalf("a workflow interactiveer must not expose a conversation stop control (found %d stop controls)", count)
 	}
 
 	for _, record := range []json.RawMessage{
-		json.RawMessage(`{"seq":9,"time":"2026-09-17T17:00:08Z","scope":"preferences.1","session":"preferences.1/interviewer.1","turn":"preferences.1/interviewer.1/turn.2","event":{"kind":"turn_ended","result":"{\"question\":\"What shade?\"}"}}`),
-		json.RawMessage(`{"seq":10,"time":"2026-09-17T17:00:09Z","scope":"preferences.1","session":"preferences.1/interviewer.1","event":{"kind":"interview_question_asked","name":"preferences","question_id":"question-2","question":"What shade?"}}`),
+		json.RawMessage(`{"seq":9,"time":"2026-09-17T17:00:08Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.2","event":{"kind":"turn_ended","result":"{\"decision\":{\"type\":\"chat\",\"message\":\"What shade?\"}}"}}`),
+		json.RawMessage(`{"seq":10,"time":"2026-09-17T17:00:09Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_changed","id":"question-1","name":"preferences","address":"preferences.1/preferences","ordinal":1,"consumed":["initial","blue"],"status":"waiting","waiting":true,"transcript":{"messages":[{"role":"user","message":"Help me plan."},{"role":"assistant","message":"Which color?"},{"role":"user","message":"Blue"},{"role":"assistant","message":"What shade?"}],"ended_by":""},"error":""}}`),
 	} {
 		if err := store.Lifecycle(record); err != nil {
 			t.Fatalf("fold %s: %v", record, err)
@@ -132,7 +132,7 @@ func TestRunPageKeepsInterviewHistoryAcrossQuestionsAndReload(t *testing.T) {
 	for reload := range 2 {
 		pending := render()
 		assertGraph(pending)
-		for _, want := range []string{"What shade?", "answerInterview"} {
+		for _, want := range []string{"What shade?", "answerInteractive"} {
 			if !strings.Contains(pending, want) {
 				t.Fatalf("reload %d does not show %q", reload, want)
 			}

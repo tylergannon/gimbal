@@ -1,12 +1,14 @@
 package validateproduct
 
 import (
+	"context"
 	"encoding/json"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/runstore"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func suiteFixture(t *testing.T, n int) (Suite, string) {
@@ -50,13 +52,12 @@ func TestSuiteInputs(t *testing.T) {
 		{"startup needs readiness", func(s *Suite) { s.Workloads[0].Start = "server" }, "readiness"},
 		{"missing repository", func(s *Suite) { s.IssueRepo = "" }, "issue_repo is required"},
 		{"bad repository", func(s *Suite) { s.IssueRepo = "https://github.com/example/repo" }, "owner/repository"},
-		{"bad timeout", func(s *Suite) { s.Timeout = "0s" }, "positive duration"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, path := suiteFixture(t, 2)
 			tc.change(&s)
 			saveSuite(t, s, path)
-			got, duration, err := readSuite(path)
+			got, err := testReadSuite(t, path)
 			if tc.want != "" {
 				if err == nil || !strings.Contains(err.Error(), tc.want) {
 					t.Fatalf("error %v, want %s", err, tc.want)
@@ -66,8 +67,8 @@ func TestSuiteInputs(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if duration != time.Hour || got.PlaywrightCLI != "playwright-cli" {
-				t.Fatalf("defaults: %+v %s", got, duration)
+			if got.PlaywrightCLI != "playwright-cli" {
+				t.Fatalf("defaults: %+v", got)
 			}
 		})
 	}
@@ -78,7 +79,7 @@ func TestYAMLRelativeFiles(t *testing.T) {
 	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}
-	got, _, err := readSuite(path)
+	got, err := testReadSuite(t, path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,7 +89,17 @@ func TestYAMLRelativeFiles(t *testing.T) {
 	if err := os.WriteFile(path, []byte(data+"typo: true\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := readSuite(path); err == nil {
+	if _, err := testReadSuite(t, path); err == nil {
 		t.Fatal("accepted unknown field")
 	}
+}
+
+func testReadSuite(t *testing.T, path string) (suite Suite, err error) {
+	t.Helper()
+	err = gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "read-suite-test", nil, func(ctx context.Context) error {
+		var readErr error
+		suite, readErr = readSuite(ctx, path)
+		return readErr
+	})
+	return
 }

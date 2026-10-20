@@ -11,69 +11,58 @@ import (
 // Graph is the shape of this workflow, read from the source of ImplementInterview.
 var Graph = workflow.Graph{
 	Name:     "implement-interview",
-	Source:   workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 45},
+	Source:   workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 44},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 46}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 46}, Case: "!filepath.IsAbs(params.RequirementsFile) || !filepath.IsAbs(params.ReferenceDir)", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 49}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 49}, Case: "params.MaxTasks < 1", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 55}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 55}, Case: "info, err := os.Stat(params.ReferenceDir); err != nil || !info.IsDir()", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 59}, Key: "requirements-file"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 60}, Key: "reference-directory"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 61}, Key: "repository"},
-		workflow.Group{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 63}, Name: "reconnaissance", Children: []workflow.GroupChild{
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 64}, Name: "backend", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 65}, Name: "api-research", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 66}, Session: "api-research", Role: "api-research", Prompt: "Read the saved issue, current Go API and design docs, pinned dependencies, runtime/events/generation code, Polytype use, and skgo Go remote-function APIs. Do not edit source. Under the reference directory, create backend/index.md with deep implementation notes and provenance, and save useful official source documentation under backend/. Distinguish verified facts from proposals."},
+		workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 51}, Name: "check-inputs"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 55}, Key: "requirements-file"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 56}, Key: "reference-directory"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 57}, Key: "repository"},
+		workflow.Group{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 59}, Name: "reconnaissance", Children: []workflow.GroupChild{
+			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 60}, Name: "backend", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 61}, Name: "api-research", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 62}, Session: "api-research", Role: "api-research", Prompt: "Read the saved issue, current Go API and design docs, pinned dependencies, runtime/events/generation code, Polytype use, and skgo Go remote-function APIs. Do not edit source. Under the reference directory, create backend/index.md with deep implementation notes and provenance, and save useful official source documentation under backend/. Distinguish verified facts from proposals."},
 			}},
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 69}, Name: "frontend", Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 70}, Name: "frontend-research", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 71}, Session: "frontend-research", Role: "frontend-research", Prompt: "Read the saved issue, current live-run UI, pinned frontend dependencies, and installed shadcn-svelte components. Research the actual Svelte, SvelteKit, shadcn-svelte, and Bits UI APIs needed by the issue. Do not edit source. Under the reference directory, create frontend/index.md with deep implementation notes and provenance, and save useful official source documentation under frontend/. Distinguish verified facts from proposals."},
+			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 65}, Name: "frontend", Services: []workflow.Service{}, Body: []workflow.Operation{
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 66}, Name: "frontend-research", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 67}, Session: "frontend-research", Role: "frontend-research", Prompt: "Read the saved issue, current live-run UI, pinned frontend dependencies, and installed shadcn-svelte components. Research the actual Svelte, SvelteKit, shadcn-svelte, and Bits UI APIs needed by the issue. Do not edit source. Under the reference directory, create frontend/index.md with deep implementation notes and provenance, and save useful official source documentation under frontend/. Distinguish verified facts from proposals."},
 			}},
 		}},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 78}, Name: "sprint-planning", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 79}, Name: "coding", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 80}, Name: "implementation-scope-review", From: ""},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 81}, Name: "architectural-critique", From: ""},
-		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 84}, Name: "implementation", Planner: "sprint-planning", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 92}, Session: "coding", Role: "coding", Prompt: "Read the saved issue and the local reference directory, then implement only the selected task in the repository. Do not expand the specification, modify the requirements or this build workflow, weaken its fixed checks, commit, merge, or add proof scripts or run output. Preserve unrelated work. Answer with what changed and what you personally ran or observed.", Supervisors: []workflow.Supervisor{
-				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 93}, Session: "implementation-scope-review", Role: "implementation-scope-review", Instruction: "Watch only for concrete backend or public-API work beyond the saved issue 249. Steer against unnecessary wrappers, frameworks, speculative APIs, and unrelated features. Do not edit source, object on style, or demand improvements outside the requirements."},
-				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 94}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Watch only for concrete frontend or general implementation work beyond the saved issue 249. Steer against unnecessary abstractions, frameworks, speculative features, and unrelated polish. Do not edit source, object on style, or demand improvements outside the requirements."},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 74}, Name: "sprint-planning", From: ""},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 75}, Name: "coding", From: ""},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 76}, Name: "implementation-scope-review", From: ""},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 77}, Name: "architectural-critique", From: ""},
+		workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 80}, Name: "implementation", Planner: "sprint-planning", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 88}, Session: "coding", Role: "coding", Prompt: "Read the saved issue and the local reference directory, then implement only the selected task in the repository. Do not expand the specification, modify the requirements or this build workflow, weaken its fixed checks, commit, merge, or add proof scripts or run output. Preserve unrelated work. Answer with what changed and what you personally ran or observed.", Supervisors: []workflow.Supervisor{
+				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 89}, Session: "implementation-scope-review", Role: "implementation-scope-review", Instruction: "Watch only for concrete backend or public-API work beyond the saved issue 249. Steer against unnecessary wrappers, frameworks, speculative APIs, and unrelated features. Do not edit source, object on style, or demand improvements outside the requirements."},
+				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 90}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Watch only for concrete frontend or general implementation work beyond the saved issue 249. Steer against unnecessary abstractions, frameworks, speculative features, and unrelated polish. Do not edit source, object on style, or demand improvements outside the requirements."},
 			}},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 102}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 102}, Case: "command := strings.TrimSpace(task.Validation.Command); command != \"\"", Exits: false, Body: []workflow.Operation{
-					workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 103}, Name: "task-check"},
-					workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 104}, Key: "task check"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 98}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 98}, Case: "command := strings.TrimSpace(task.Validation.Command); command != \"\"", Exits: false, Body: []workflow.Operation{
+					workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 99}, Name: "task-check"},
+					workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 100}, Key: "task check"},
 				}},
 			}},
-			workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 112}, Name: "build"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 113}, Key: "just build"},
-			workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 118}, Name: "vet"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 119}, Key: "just vet"},
-			workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 124}, Name: "test"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 125}, Key: "just test"},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 131}, Name: "qa-orchestration", From: ""},
-			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 132}, Session: "qa-orchestration", Role: "qa-orchestration", Prompt: "Independently read the saved issue, reference directory, implementation, tests, and recorded command results. Make no source changes and do not treat the worker report as evidence. Start the generated interview example on a separate port with its interviewer bound to Terra or Sonnet, never Gemini. Use the installed Playwright through the shell to conduct successive human answers in a real browser; do not write proof programs or commit run artifacts, and cleanly stop the example process afterward. Complete is true only if you personally demonstrate every requirement in that running interface; tests and reports alone are insufficient."},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 137}, Key: "independent assessment"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 138}, Key: "worker report"},
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 140}, Key: "deterministic checks passed"},
+			workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 108}, Name: "build"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 109}, Key: "just build"},
+			workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 114}, Name: "vet"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 115}, Key: "just vet"},
+			workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 120}, Name: "test"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 121}, Key: "just test"},
+			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 127}, Name: "qa-orchestration", From: ""},
+			workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 128}, Session: "qa-orchestration", Role: "qa-orchestration", Prompt: "Independently read the saved issue, reference directory, implementation, tests, and recorded command results. Make no source changes and do not treat the worker report as evidence. Start the generated interactive example on a separate port with its model bound to luna, haiku or flash. Send a human opening message before expecting the first agent turn. Use the installed Playwright through the shell to conduct successive human messages in a real browser; do not write proof programs or commit run artifacts, and cleanly stop the example process afterward. Complete is true only if you personally demonstrate every requirement in that running interface; tests and reports alone are insufficient."},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 133}, Key: "independent assessment"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 134}, Key: "worker report"},
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 136}, Key: "deterministic checks passed"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 137}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 137}, Case: "checksPassed && assessment.Complete", Exits: true, Body: []workflow.Operation{}},
+			}},
 			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 141}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 141}, Case: "checksPassed && assessment.Complete", Exits: true, Body: []workflow.Operation{}},
-			}},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 145}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 145}, Case: "tasksRun >= params.MaxTasks", Exits: true, Body: []workflow.Operation{}},
+				{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 141}, Case: "tasksRun >= params.MaxTasks", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 156}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 156}, Case: "completed", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 159}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 159}, Case: "exhausted", Exits: true, Body: []workflow.Operation{}},
+		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 152}, Branches: []workflow.Branch{
+			{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 152}, Case: "completed", Exits: true, Body: []workflow.Operation{}},
 		}},
 	},
 }

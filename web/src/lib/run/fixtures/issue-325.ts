@@ -20,14 +20,14 @@ import type {
 } from "../../observation/index.js";
 import type { Snapshot } from "../../sessionstate/index.js";
 import type { Graph } from "../../workflow/types.js";
-import { implementInterviewGraph } from "./implement-interview.js";
+import { implementInteractiveGraph } from "./implement-interactive.js";
 
 // The implement workflow's graph without its research group, which this run
 // does not have, under this run's own name so the page accepts the pair.
 export const issue325Graph: Graph = {
-  ...implementInterviewGraph,
+  ...implementInteractiveGraph,
   name: "implement",
-  body: implementInterviewGraph.body.filter(
+  body: implementInteractiveGraph.body.filter(
     (operation) => !(operation.kind === "group" && operation.name === "reconnaissance"),
   ),
 };
@@ -1328,7 +1328,7 @@ export const issue325Snapshot: RunSnapshot = {
   },
   scopes,
   sessions,
-  interviews: {},
+  interactions: {},
   turns,
   turn_usage: { "coding.1/turn.2": { "claude-sonnet-5": codingUsage } },
   model_calls: modelCalls,

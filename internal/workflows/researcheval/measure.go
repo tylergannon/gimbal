@@ -1,12 +1,14 @@
 package researcheval
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
-	"io/fs"
-	"os"
+	"github.com/tylergannon/gimbal"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -192,7 +194,8 @@ func exactAnswer(q question, answer ReaderStep, read map[string]string, original
 			return found, false
 		}
 		original := false
-		for _, source := range originals {
+		for _, name := range slices.Sorted(maps.Keys(originals)) {
+			source := originals[name]
 			original = original || source == body
 		}
 		if !original {
@@ -202,9 +205,9 @@ func exactAnswer(q question, answer ReaderStep, read map[string]string, original
 	return found, answerValid && found == len(q.Evidence)
 }
 
-func loadSuite(root string) (suite, error) {
+func loadSuite(ctx context.Context, root string) (suite, error) {
 	var s suite
-	data, err := os.ReadFile(filepath.Join(root, "suite.json"))
+	data, err := readFile(ctx, filepath.Join(root, "suite.json"))
 	if err != nil {
 		return s, err
 	}
@@ -220,7 +223,7 @@ func loadSuite(root string) (suite, error) {
 			return s, fmt.Errorf("invalid case %q", c.ID)
 		}
 		ids[c.ID], splits[c.Split] = true, true
-		sources, err := sourceTexts(root, c)
+		sources, err := sourceTexts(ctx, root, c)
 		if err != nil {
 			return s, err
 		}
@@ -252,33 +255,17 @@ func loadSuite(root string) (suite, error) {
 	return s, nil
 }
 
-func sourceTexts(root string, c researchCase) (map[string]string, error) {
+func sourceTexts(ctx context.Context, root string, c researchCase) (map[string]string, error) {
 	dir, err := within(root, c.Sources)
 	if err != nil {
 		return nil, err
 	}
 	texts := map[string]string{}
-	err = filepath.WalkDir(dir, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("source symlink %s", path)
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		texts[filepath.ToSlash(rel)] = string(data)
-		return nil
-	})
+	code, body, stderr, err := gimbal.RunCommand(ctx, "read-source-corpus", root, "node", "-e", readCorpusCommand, dir)
+	if err != nil || code != 0 {
+		return nil, fmt.Errorf("read source corpus: exit %d: %s: %w", code, stderr, err)
+	}
+	err = json.Unmarshal([]byte(body), &texts)
 	return texts, err
 }
 
@@ -294,10 +281,10 @@ func within(root, name string) (string, error) {
 	return path, nil
 }
 
-func writeJSON(path string, value any) error {
+func writeJSON(ctx context.Context, path string, value any) error {
 	data, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writeFile(ctx, path, append(data, '\n'), 0644)
 }

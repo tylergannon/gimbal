@@ -3,11 +3,12 @@ package researcheval
 import "testing"
 
 func TestBundledSuiteFitsReaderBudget(t *testing.T) {
+	ctx := workflowContext(t)
 	dir := t.TempDir()
-	if err := materializeSuite(dir); err != nil {
+	if err := materializeSuite(ctx, dir); err != nil {
 		t.Fatal(err)
 	}
-	s, err := loadSuite(dir)
+	s, err := loadSuite(ctx, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -19,7 +20,7 @@ func TestBundledSuiteFitsReaderBudget(t *testing.T) {
 		case "holdout":
 			holdout++
 		}
-		sources, err := sourceTexts(dir, c)
+		sources, err := sourceTexts(ctx, dir, c)
 		if err != nil {
 			t.Fatal(err)
 		}

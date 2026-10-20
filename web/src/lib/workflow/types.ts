@@ -34,8 +34,8 @@ export type Graph = {
     | (Omit<Group, "kind"> & {
         kind: "group";
       })
-    | (Omit<Interview, "kind"> & {
-        kind: "interview";
+    | (Omit<Interactive, "kind"> & {
+        kind: "interactive";
       })
     | (Omit<Iterate, "kind"> & {
         kind: "iterate";
@@ -182,8 +182,8 @@ export type Branch = {
     | (Omit<Group, "kind"> & {
         kind: "group";
       })
-    | (Omit<Interview, "kind"> & {
-        kind: "interview";
+    | (Omit<Interactive, "kind"> & {
+        kind: "interactive";
       })
     | (Omit<Iterate, "kind"> & {
         kind: "iterate";
@@ -243,8 +243,8 @@ export type GroupChild = {
     | (Omit<Group, "kind"> & {
         kind: "group";
       })
-    | (Omit<Interview, "kind"> & {
-        kind: "interview";
+    | (Omit<Interactive, "kind"> & {
+        kind: "interactive";
       })
     | (Omit<Iterate, "kind"> & {
         kind: "iterate";
@@ -268,9 +268,9 @@ export type GroupChild = {
 };
 
 /**
- * Interview is one gimbal.Interview. Session is the conversation conducting it; its questions, answers, and internal turns are runtime facts.
+ * Interactive is one gimbal.Interactive. Session is the conversation conducting it; its questions, answers, and internal turns are runtime facts.
  */
-export type Interview = {
+export type Interactive = {
   /**
    * File is the path relative to the module root, with forward slashes.
    */
@@ -305,8 +305,8 @@ export type Iterate = {
     | (Omit<Group, "kind"> & {
         kind: "group";
       })
-    | (Omit<Interview, "kind"> & {
-        kind: "interview";
+    | (Omit<Interactive, "kind"> & {
+        kind: "interactive";
       })
     | (Omit<Iterate, "kind"> & {
         kind: "iterate";
@@ -359,8 +359,8 @@ export type PromiseLoop = {
     | (Omit<Group, "kind"> & {
         kind: "group";
       })
-    | (Omit<Interview, "kind"> & {
-        kind: "interview";
+    | (Omit<Interactive, "kind"> & {
+        kind: "interactive";
       })
     | (Omit<Iterate, "kind"> & {
         kind: "iterate";
@@ -406,8 +406,8 @@ export type Repeat = {
     | (Omit<Group, "kind"> & {
         kind: "group";
       })
-    | (Omit<Interview, "kind"> & {
-        kind: "interview";
+    | (Omit<Interactive, "kind"> & {
+        kind: "interactive";
       })
     | (Omit<Iterate, "kind"> & {
         kind: "iterate";
@@ -454,8 +454,8 @@ export type Scope = {
     | (Omit<Group, "kind"> & {
         kind: "group";
       })
-    | (Omit<Interview, "kind"> & {
-        kind: "interview";
+    | (Omit<Interactive, "kind"> & {
+        kind: "interactive";
       })
     | (Omit<Iterate, "kind"> & {
         kind: "iterate";

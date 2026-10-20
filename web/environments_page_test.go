@@ -150,7 +150,7 @@ func TestMachinesSettingsRemotesWorkWithoutProjectReferer(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if response.StatusCode != 200 || !strings.Contains(string(raw), "no remote environment to release") {
+			if response.StatusCode != 200 || !strings.Contains(string(raw), "conversation: unavailable") || !strings.Contains(string(raw), `"status":400`) {
 				t.Fatalf("cleanup did not reach its named project manager: status=%d body=%s", response.StatusCode, raw)
 			}
 		})

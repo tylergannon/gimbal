@@ -1,0 +1,9 @@
+{"type":"object",
+"description":"InteractiveTranscript is the ordered history of one interaction occurrence. EndedBy is agent or human on normal completion, and empty on error.","properties":{
+"messages":{"type":"array","items":{"type":"object",
+"description":"InteractiveMessage is one confirmed message, in conversation order.","properties":{
+"role":{"type":"string"},
+"message":{"type":"string"}
+},"required":["role","message"],"additionalProperties":false}},
+"ended_by":{"type":"string"}
+},"required":["messages","ended_by"],"additionalProperties":false}

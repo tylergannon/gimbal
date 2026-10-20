@@ -1,9 +1,9 @@
 import { expect, test } from "vite-plus/test";
 import type { ViewNode } from "../workflow-design/types.js";
-import { implementInterviewFixture, planTripFixture } from "./fixtures/index.js";
+import { implementInteractiveFixture, planTripFixture } from "./fixtures/index.js";
 import { bindRun, selectionKeyOf, sourceFromGraph } from "./runSource.js";
 
-const { graph, snapshot } = implementInterviewFixture;
+const { graph, snapshot } = implementInteractiveFixture;
 
 function find(nodes: ViewNode[], test: (node: ViewNode) => boolean): ViewNode | undefined {
   for (const node of nodes) {
@@ -69,7 +69,7 @@ test("group branches resolve their own instances; unmatched designer nodes stay 
   const source = sourceFromGraph(planTripFixture.graph);
   const preferences = find(
     source.body,
-    (n) => n.kind === "Interview" && n.scope === "root/research/transport",
+    (n) => n.kind === "Interactive" && n.scope === "root/research/transport",
   )!;
   const marks = bindRun(source, planTripFixture.graph, planTripFixture.snapshot).marks;
   expect(marks.get(preferences.id)?.scopeKey).toBe("research.1/transport.1");

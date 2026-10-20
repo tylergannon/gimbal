@@ -93,6 +93,8 @@ var (
 	Skgo_cancelRun = cancelRun
 	// Skgo_stopTurn is stopTurn, published as src/routes/control.remote.ts#stopTurn.
 	Skgo_stopTurn = stopTurn
+	// Skgo_archiveConversation is archiveConversation, published as src/routes/conversation.remote.ts#archiveConversation.
+	Skgo_archiveConversation = archiveConversation
 	// Skgo_cleanupConversation is cleanupConversation, published as src/routes/conversation.remote.ts#cleanupConversation.
 	Skgo_cleanupConversation = cleanupConversation
 	// Skgo_configureConversationModel is configureConversationModel, published as src/routes/conversation.remote.ts#configureConversationModel.
@@ -111,8 +113,10 @@ var (
 	Skgo_stopConversationRequest = stopConversationRequest
 	// Skgo_watchConversation is watchConversation, published as src/routes/conversation.remote.ts#watchConversation.
 	Skgo_watchConversation = watchConversation
-	// Skgo_answerInterview is answerInterview, published as src/routes/interview.remote.ts#answerInterview.
-	Skgo_answerInterview = answerInterview
+	// Skgo_answerInteractive is answerInteractive, published as src/routes/interactive.remote.ts#answerInteractive.
+	Skgo_answerInteractive = answerInteractive
+	// Skgo_finishInteractive is finishInteractive, published as src/routes/interactive.remote.ts#finishInteractive.
+	Skgo_finishInteractive = finishInteractive
 	// Skgo_launchWorkflow is launchWorkflow, published as src/routes/launch.remote.ts#launchWorkflow.
 	Skgo_launchWorkflow = launchWorkflow
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.
@@ -144,10 +148,10 @@ type (
 	SkgoOut_sendConversationMessage = conversation.RequestState
 	// SkgoOut_watchConversation is the type watchConversation yields.
 	SkgoOut_watchConversation = conversation.Conversation
-	// SkgoArg_answerInterview is the type answerInterview takes.
-	SkgoArg_answerInterview = InterviewAnswer
-	// SkgoOut_answerInterview is the type answerInterview returns.
-	SkgoOut_answerInterview = InterviewAnswered
+	// SkgoArg_answerInteractive is the type answerInteractive takes.
+	SkgoArg_answerInteractive = InteractiveAnswer
+	// SkgoOut_answerInteractive is the type answerInteractive returns.
+	SkgoOut_answerInteractive = InteractiveAnswered
 	// SkgoArg_launchWorkflow is the type launchWorkflow takes.
 	SkgoArg_launchWorkflow = LaunchWorkflow
 	// SkgoOut_launchWorkflow is the type launchWorkflow returns.

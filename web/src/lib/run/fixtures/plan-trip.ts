@@ -1,6 +1,6 @@
 import type {
   CommandRow,
-  InterviewRow,
+  InteractiveRow,
   ModelCallRow,
   RunRow,
   RunSnapshot,
@@ -29,14 +29,14 @@ export const planTripGraph: Graph = {
           name: "lodging",
           services: [],
           body: [
-            { kind: "session", file: workflowFile, line: 24, name: "interviewer", from: "" },
+            { kind: "session", file: workflowFile, line: 24, name: "interactiveer", from: "" },
             {
-              kind: "interview",
+              kind: "interactive",
               requirements: [],
               file: workflowFile,
               line: 31,
               name: "preferences",
-              session: "interviewer",
+              session: "interactiveer",
             },
           ],
         },
@@ -46,14 +46,14 @@ export const planTripGraph: Graph = {
           name: "transport",
           services: [],
           body: [
-            { kind: "session", file: workflowFile, line: 37, name: "interviewer", from: "" },
+            { kind: "session", file: workflowFile, line: 37, name: "interactiveer", from: "" },
             {
-              kind: "interview",
+              kind: "interactive",
               requirements: [],
               file: workflowFile,
               line: 44,
               name: "preferences",
-              session: "interviewer",
+              session: "interactiveer",
             },
           ],
         },
@@ -142,20 +142,20 @@ const scopes = {
 } satisfies Record<string, ScopeRow>;
 
 const sessions = {
-  "research.1/lodging.1/interviewer.1": {
+  "research.1/lodging.1/interactiveer.1": {
     run: runID,
-    id: "research.1/lodging.1/interviewer.1",
-    name: "interviewer",
+    id: "research.1/lodging.1/interactiveer.1",
+    name: "interactiveer",
     adapter: "claude",
     model: "claude-sonnet-4-5",
     scope: "research.1/lodging.1",
     parent: "",
     created: started + 10_000,
   },
-  "research.1/transport.1/interviewer.1": {
+  "research.1/transport.1/interactiveer.1": {
     run: runID,
-    id: "research.1/transport.1/interviewer.1",
-    name: "interviewer",
+    id: "research.1/transport.1/interactiveer.1",
+    name: "interactiveer",
     adapter: "claude",
     model: "claude-sonnet-4-5",
     scope: "research.1/transport.1",
@@ -164,13 +164,22 @@ const sessions = {
   },
 } satisfies Record<string, SessionRow>;
 
-const interviews = {
+const interactions = {
   "01M2RWXNFFYQA4HHQWMQ252CYA": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYA",
+    consumed: [],
+    ordinal: 1,
+    unresolved: "",
+    address: "research.1/lodging.1/preferences",
+    ended_by: "agent",
+    messages: [
+      { role: "assistant", message: "What would make a weekend trip feel restful to you?" },
+      { role: "user", message: "A quiet mountain cabin, easy walks, and no crowds." },
+    ],
     name: "preferences",
     scope: "research.1/lodging.1",
-    session: "research.1/lodging.1/interviewer.1",
+    session: "research.1/lodging.1/interactiveer.1",
     question: "What would make a weekend trip feel restful to you?",
     status: "answered",
     answer: "A quiet mountain cabin, easy walks, and no crowds.",
@@ -180,9 +189,18 @@ const interviews = {
   "01M2RWXNFFYQA4HHQWMQ252CYB": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYB",
+    consumed: [],
+    ordinal: 1,
+    unresolved: "",
+    address: "research.1/transport.1/preferences",
+    ended_by: "agent",
+    messages: [
+      { role: "assistant", message: "Would you rather drive or take a train?" },
+      { role: "user", message: "Drive, if the route itself is pleasant." },
+    ],
     name: "preferences",
     scope: "research.1/transport.1",
-    session: "research.1/transport.1/interviewer.1",
+    session: "research.1/transport.1/interactiveer.1",
     question: "Would you rather drive or take a train?",
     status: "answered",
     answer: "Drive, if the route itself is pleasant.",
@@ -192,9 +210,17 @@ const interviews = {
   "01M2RWXNFFYQA4HHQWMQ252CYF": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYF",
+    consumed: [],
+    ordinal: 2,
+    unresolved: "",
+    address: "research.1/lodging.1/preferences",
+    ended_by: "",
+    messages: [
+      { role: "assistant", message: "Would you trade reliable Wi-Fi for a more secluded cabin?" },
+    ],
     name: "preferences",
     scope: "research.1/lodging.1",
-    session: "research.1/lodging.1/interviewer.1",
+    session: "research.1/lodging.1/interactiveer.1",
     question: "Would you trade reliable Wi-Fi for a more secluded cabin?",
     status: "pending",
     answer: "",
@@ -204,16 +230,22 @@ const interviews = {
   "01M2RWXNFFYQA4HHQWMQ252CYG": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYG",
+    consumed: [],
+    ordinal: 2,
+    unresolved: "",
+    address: "research.1/transport.1/preferences",
+    ended_by: "",
+    messages: [{ role: "assistant", message: "What is the longest drive you would enjoy?" }],
     name: "preferences",
     scope: "research.1/transport.1",
-    session: "research.1/transport.1/interviewer.1",
+    session: "research.1/transport.1/interactiveer.1",
     question: "What is the longest drive you would enjoy?",
     status: "pending",
     answer: "",
     asked: started + 35_000,
     answered: 0,
   },
-} satisfies Record<string, InterviewRow>;
+} satisfies Record<string, InteractiveRow>;
 
 const turns = {} satisfies Record<string, TurnRow>;
 const modelCalls = {} satisfies Record<string, ModelCallRow[]>;
@@ -225,7 +257,7 @@ export const planTripSnapshot: RunSnapshot = {
   run,
   scopes,
   sessions,
-  interviews,
+  interactions,
   turns,
   turn_usage: {},
   model_calls: modelCalls,

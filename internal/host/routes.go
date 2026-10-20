@@ -196,8 +196,8 @@ func (c routedController) call(ctx context.Context, action, target, message, by 
 	defer cancel()
 	return c.execution.ControlWorkflow(ctx, backend.Control{Run: c.id, Action: action, Target: target, Message: message, By: by})
 }
-func (c routedController) AnswerInterview(id, answer string) error {
-	_, err := c.call(context.Background(), "answer", id, answer, "")
+func (c routedController) SubmitInteractive(id, answer string) error {
+	_, err := c.call(context.Background(), "interactive", id, answer, "")
 	return err
 }
 func (c routedController) Steer(ctx context.Context, id, message string) (bool, error) {

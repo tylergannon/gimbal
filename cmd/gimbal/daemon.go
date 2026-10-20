@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/executor"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/runner"
 	"github.com/tylergannon/gimbal/internal/taskdaemon"
@@ -29,7 +31,16 @@ func serveEnvironmentOptions(ctx context.Context, address, root string, dirs []s
 	daemon.Secrets = backend.NewMemorySecrets()
 	mux := http.NewServeMux()
 	mux.Handle("/tasks/", daemon.Handler())
-	workflowDaemon := &runner.WorkflowDaemon{Root: root, PluginDirs: dirs}
+	state, err := executor.Root(executorRoot)
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+	workflowDaemon := &runner.WorkflowDaemon{Root: root, PluginDirs: dirs, StateDir: filepath.Join(state, "workflows")}
+	if err := workflowDaemon.Recover(ctx); err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
 	mux.Handle("/workflows/", workflowDaemon.Handler())
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(200) })
 	server := &http.Server{Handler: mux}
@@ -39,7 +50,7 @@ func serveEnvironmentOptions(ctx context.Context, address, root string, dirs []s
 func newDaemonCommand() *cobra.Command {
 	var address, root, workdir, executorRoot string
 	var dirs []string
-	c := &cobra.Command{Use: "daemon", Short: "Execute agent sessions, commands and scope-owned services", Long: "Run a task daemon independently of central. Pass its HTTP endpoint as --task-endpoint when starting a workflow. Workflow and task workspaces belong to this environment; remote command artifacts are transferred as bytes. Provider configuration belongs to this daemon. Use loopback or a private container network; this endpoint executes trusted workflow requests. Release active scopes before stopping this daemon; task-daemon crash recovery is not supported.", RunE: func(c *cobra.Command, _ []string) error {
+	c := &cobra.Command{Use: "daemon", Short: "Execute agent sessions, commands and scope-owned services", Long: "Run a task daemon independently of central. Pass its HTTP endpoint as --task-endpoint when starting a workflow. Workflow and task workspaces belong to this environment; remote command artifacts are transferred as bytes. Provider configuration belongs to this daemon. Use loopback or a private container network; this endpoint executes trusted workflow requests. Accepted workflows and agent turns resume from durable execution records after restart.", RunE: func(c *cobra.Command, _ []string) error {
 		ctx, cancel := signal.NotifyContext(c.Context(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 		if err := invocation.LoadPlugins(dirs); err != nil {

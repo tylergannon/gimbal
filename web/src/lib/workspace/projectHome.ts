@@ -1,7 +1,7 @@
 import type { Conversation } from "#lib/skgo/conversation/types";
 import type { Header } from "#lib/skgo/transcript/types";
 import type { RunCardItem } from "#lib/run/RunsList.svelte";
-import type { InterviewRow, RunRow } from "#lib/observation";
+import type { InteractiveRow, RunRow } from "#lib/observation";
 import type { WorkspaceTab } from "#lib/shell/types";
 import { conversationStatus } from "./conversations";
 import { harnessName, modelName } from "#lib/conversation/names";
@@ -16,7 +16,7 @@ export type HomeEntry = {
   detail: string;
   question?: string;
 };
-export const runStatus = (run: RunRow, attention: InterviewRow[]): HomeEntry["status"] =>
+export const runStatus = (run: RunRow, attention: InteractiveRow[]): HomeEntry["status"] =>
   run.status === "running"
     ? attention.some((question) => question.run === run.id && question.status === "pending")
       ? "needs-you"
@@ -39,7 +39,7 @@ export function projectActivity(
   project: string,
   sessions: Conversation[],
   runs: RunCardItem[],
-  attention: InterviewRow[],
+  attention: InteractiveRow[],
   recordings: Header[],
 ): HomeEntry[] {
   const root = `/projects/${project}`;

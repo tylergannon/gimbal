@@ -46,7 +46,7 @@ type Params struct {
 
 // SprintPlan prepares an indexed working set and a reference-backed implementation plan.
 func SprintPlan(ctx context.Context, env gimbal.Env, params Params) error {
-	dir, err := prepare(env.WorkDir, params)
+	dir, err := prepare(ctx, env.WorkDir, params)
 	if err != nil {
 		return err
 	}
@@ -62,14 +62,14 @@ func SprintPlan(ctx context.Context, env gimbal.Env, params Params) error {
 		gimbal.Set(ctx, "document path", filepath.Join(dir, "working-set", "project", "INDEX.md"))
 		reader := gimbal.NewSession(ctx, gimbal.RoleBulkMapReduce, env.WorkDir)
 		_, err := reader.Generate[gimbal.Text](ctx, `Locate project code, tests, documentation, and existing knowledge that might help realize the intent. Omit your own opinions and solution judgments. Write a compact index at the document path, routing questions to precise local source references for later decisions. Include adjacent material when potentially useful. Reference existing files in place; preserve qualifications, disagreements, and open questions.`)
-		return checkArtifact(filepath.Join(dir, "working-set", "project", "INDEX.md"), err)
+		return checkArtifact(ctx, filepath.Join(dir, "working-set", "project", "INDEX.md"), err)
 	})
 	research.Go("prior-art", func(ctx context.Context) error {
 		gimbal.Set(ctx, "collection directory", filepath.Join(dir, "working-set", "prior-art"))
 		gimbal.Set(ctx, "document path", filepath.Join(dir, "working-set", "prior-art", "INDEX.md"))
 		reader := gimbal.NewSession(ctx, gimbal.RoleBulkMapReduce, env.WorkDir)
 		_, err := reader.Generate[gimbal.Text](ctx, `Locate prior art, examples, and reference material that might help realize the intent, including adjacent approaches. Follow supplied local references and source restrictions; discover additional sources when useful. Save collected originals or faithful excerpts with provenance in the collection directory. Omit your own opinions and solution judgments. Write a compact index at the document path with precise local references, qualifications, and unresolved questions for later planning.`)
-		return checkArtifact(filepath.Join(dir, "working-set", "prior-art", "INDEX.md"), err)
+		return checkArtifact(ctx, filepath.Join(dir, "working-set", "prior-art", "INDEX.md"), err)
 	})
 	if err := research.Wait(); err != nil {
 		return err
@@ -77,7 +77,7 @@ func SprintPlan(ctx context.Context, env gimbal.Env, params Params) error {
 	gimbal.Set(ctx, "root index path", filepath.Join(dir, "working-set", "INDEX.md"))
 	curator := gimbal.NewSession(ctx, gimbal.RoleBulkMapReduce, env.WorkDir)
 	_, err = curator.Generate[gimbal.Text](ctx, `Read both research indexes and check their cited local sources. Write a compact index at the root index path organized around likely planning and implementation questions, linking to those indexes and original material. Explain where to look without recommending a solution. Preserve uncertainty and disagreements; a little extra relevant material is useful. Verify representative routes reach useful evidence.`)
-	if err := checkArtifact(filepath.Join(dir, "working-set", "INDEX.md"), err); err != nil {
+	if err := checkArtifact(ctx, filepath.Join(dir, "working-set", "INDEX.md"), err); err != nil {
 		return err
 	}
 
@@ -92,21 +92,21 @@ func SprintPlan(ctx context.Context, env gimbal.Env, params Params) error {
 			gimbal.Set(ctx, "document path", filepath.Join(dir, phase, "first.md"))
 			planner := gimbal.NewSession(ctx, gimbal.RoleSprintPlanning, env.WorkDir)
 			_, err := planner.Generate[gimbal.Text](ctx, instruction)
-			return checkArtifact(filepath.Join(dir, phase, "first.md"), err)
+			return checkArtifact(ctx, filepath.Join(dir, phase, "first.md"), err)
 		})
 		plans.Go("second", func(ctx context.Context) error {
 			gimbal.Set(ctx, "lane", "second")
 			gimbal.Set(ctx, "document path", filepath.Join(dir, phase, "second.md"))
 			planner := gimbal.NewSession(ctx, gimbal.RoleSprintPlanning, env.WorkDir)
 			_, err := planner.Generate[gimbal.Text](ctx, instruction)
-			return checkArtifact(filepath.Join(dir, phase, "second.md"), err)
+			return checkArtifact(ctx, filepath.Join(dir, phase, "second.md"), err)
 		})
 		plans.Go("third", func(ctx context.Context) error {
 			gimbal.Set(ctx, "lane", "third")
 			gimbal.Set(ctx, "document path", filepath.Join(dir, phase, "third.md"))
 			planner := gimbal.NewSession(ctx, gimbal.RoleSprintPlanning, env.WorkDir)
 			_, err := planner.Generate[gimbal.Text](ctx, instruction)
-			return checkArtifact(filepath.Join(dir, phase, "third.md"), err)
+			return checkArtifact(ctx, filepath.Join(dir, phase, "third.md"), err)
 		})
 		if err := plans.Wait(); err != nil {
 			return err
@@ -116,5 +116,5 @@ func SprintPlan(ctx context.Context, env gimbal.Env, params Params) error {
 	gimbal.Set(ctx, "plan path", filepath.Join(dir, "plan.md"))
 	synthesizer := gimbal.NewSession(ctx, gimbal.RoleSprintPlanning, env.WorkDir)
 	_, err = synthesizer.Generate[gimbal.Text](ctx, `Read the intent, working set, all drafts, and all critiques. Synthesize the simplest sound route to the stakeholder outcome. Write a proposed plan at the plan path with ordered work, dependencies, relevant local references and reuse opportunities, observable acceptance, consequential choices, and unresolved decisions. Incorporate source-supported discoveries and corrections into the working set, keeping recommendations in the plan. Make the handoff usable by a fresh implementation agent; do not implement or claim completion.`)
-	return checkArtifact(filepath.Join(dir, "plan.md"), err)
+	return checkArtifact(ctx, filepath.Join(dir, "plan.md"), err)
 }

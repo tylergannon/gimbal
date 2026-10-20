@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -66,25 +68,25 @@ type Store struct {
 	dir          string
 	registry     *Registry
 
-	mu          sync.Mutex
-	run         RunRow
-	scopes      map[string]*ScopeRow
-	sessions    map[string]*SessionRow
-	interviews  map[string]*InterviewRow
-	turns       map[string]*TurnRow
-	turnUsage   map[string]map[string]Usage
-	modelCalls  map[string][]ModelCallRow
-	commands    map[string]*CommandRow
-	transcripts map[string]*transcript
-	calls       map[string]openCall
-	subs        map[*Subscription]struct{}
-	joins       map[*JoinSubscription]struct{}
-	closed      bool
-	stream      string
-	position    uint64
-	recent      []Delta
-	journalEnd  int64
-	sinceSave   int
+	mu           sync.Mutex
+	run          RunRow
+	scopes       map[string]*ScopeRow
+	sessions     map[string]*SessionRow
+	interactions map[string]*InteractiveRow
+	turns        map[string]*TurnRow
+	turnUsage    map[string]map[string]Usage
+	modelCalls   map[string][]ModelCallRow
+	commands     map[string]*CommandRow
+	transcripts  map[string]*transcript
+	calls        map[string]openCall
+	subs         map[*Subscription]struct{}
+	joins        map[*JoinSubscription]struct{}
+	closed       bool
+	stream       string
+	position     uint64
+	recent       []Delta
+	journalEnd   int64
+	sinceSave    int
 	// noWrite suppresses the per-fold file writes. Opening a run sets it: the
 	// files are its input, and a rebuild writes them once at the end.
 	noWrite  bool
@@ -101,24 +103,24 @@ type Store struct {
 // newStore is one run's empty tables.
 func newStore(registry *Registry, id, name, dir string) *Store {
 	return &Store{
-		id:          id,
-		dir:         dir,
-		registry:    registry,
-		run:         RunRow{ID: id, Name: name, Status: StatusRunning},
-		scopes:      map[string]*ScopeRow{},
-		sessions:    map[string]*SessionRow{},
-		interviews:  map[string]*InterviewRow{},
-		turns:       map[string]*TurnRow{},
-		turnUsage:   map[string]map[string]Usage{},
-		modelCalls:  map[string][]ModelCallRow{},
-		commands:    map[string]*CommandRow{},
-		transcripts: map[string]*transcript{},
-		calls:       map[string]openCall{},
-		subs:        map[*Subscription]struct{}{},
-		joins:       map[*JoinSubscription]struct{}{},
-		stream:      newStreamID(),
-		maxFrames:   defaultMaxFrames,
-		maxBytes:    defaultMaxBytes,
+		id:           id,
+		dir:          dir,
+		registry:     registry,
+		run:          RunRow{ID: id, Name: name, Status: StatusRunning},
+		scopes:       map[string]*ScopeRow{},
+		sessions:     map[string]*SessionRow{},
+		interactions: map[string]*InteractiveRow{},
+		turns:        map[string]*TurnRow{},
+		turnUsage:    map[string]map[string]Usage{},
+		modelCalls:   map[string][]ModelCallRow{},
+		commands:     map[string]*CommandRow{},
+		transcripts:  map[string]*transcript{},
+		calls:        map[string]openCall{},
+		subs:         map[*Subscription]struct{}{},
+		joins:        map[*JoinSubscription]struct{}{},
+		stream:       newStreamID(),
+		maxFrames:    defaultMaxFrames,
+		maxBytes:     defaultMaxBytes,
 	}
 }
 
@@ -140,6 +142,24 @@ func newStreamID() string {
 // has a model_calls.json. The error is that write's, and the run records it as
 // a recording failure: the store itself is usable either way.
 func Open(registry *Registry, id, name, dir string, createDir ...func() error) (*Store, error) {
+	if _, err := os.Stat(filepath.Join(dir, "recording-format")); err == nil {
+		if len(createDir) > 0 {
+			if err := createDir[0](); err != nil {
+				return nil, err
+			}
+		}
+		s, err := open(registry, id, dir)
+		if err != nil {
+			return nil, err
+		}
+		s.closed = false
+		s.noWrite = false
+		s.external = false
+		if err := registry.add(s); err != nil {
+			return nil, err
+		}
+		return s, nil
+	}
 	s := newStore(registry, id, name, dir)
 	s.initializing = true
 	if registry != nil {
@@ -202,44 +222,52 @@ type record struct {
 	Session string    `json:"session"`
 	Turn    string    `json:"turn"`
 	Event   struct {
-		Kind        string          `json:"kind"`
-		Effort      string          `json:"effort"`
-		Message     string          `json:"message"`
-		Source      string          `json:"source"`
-		Landed      bool            `json:"landed"`
-		Status      string          `json:"status"`
-		By          string          `json:"by"`
-		Reason      string          `json:"reason"`
-		Target      string          `json:"target"`
-		Name        string          `json:"name"`
-		Adapter     string          `json:"adapter"`
-		Model       string          `json:"model"`
-		Parent      string          `json:"parent"`
-		Error       string          `json:"error"`
-		Task        json.RawMessage `json:"task"`
-		Loop        bool            `json:"loop"`
-		Key         string          `json:"key"`
-		Value       string          `json:"value"`
-		Artifact    *ValueArtifact  `json:"artifact"`
-		Prompt      string          `json:"prompt"`
-		Context     []ContextEntry  `json:"context"`
-		OutputType  string          `json:"output_type"`
-		Result      string          `json:"result"`
-		QuestionID  string          `json:"question_id"`
-		Question    string          `json:"question"`
-		Answer      string          `json:"answer"`
-		Interrupted bool            `json:"interrupted"`
-		Unresolved  bool            `json:"unresolved"`
-		Duration    int64           `json:"duration"`
-		ID          string          `json:"id"`
-		Command     string          `json:"command"`
-		Args        []string        `json:"args"`
-		Workdir     string          `json:"workdir"`
-		ExitCode    int             `json:"exit_code"`
-		Stdout      string          `json:"stdout"`
-		Stderr      string          `json:"stderr"`
-		StdoutFile  string          `json:"stdout_file"`
-		StderrFile  string          `json:"stderr_file"`
+		Kind       string          `json:"kind"`
+		Effort     string          `json:"effort"`
+		Message    string          `json:"message"`
+		Source     string          `json:"source"`
+		Landed     bool            `json:"landed"`
+		Status     string          `json:"status"`
+		By         string          `json:"by"`
+		Reason     string          `json:"reason"`
+		Target     string          `json:"target"`
+		Name       string          `json:"name"`
+		Adapter    string          `json:"adapter"`
+		Model      string          `json:"model"`
+		Parent     string          `json:"parent"`
+		Error      string          `json:"error"`
+		Task       json.RawMessage `json:"task"`
+		Loop       bool            `json:"loop"`
+		Key        string          `json:"key"`
+		Value      string          `json:"value"`
+		Artifact   *ValueArtifact  `json:"artifact"`
+		Prompt     string          `json:"prompt"`
+		Context    []ContextEntry  `json:"context"`
+		OutputType string          `json:"output_type"`
+		Result     string          `json:"result"`
+		Ordinal    int             `json:"ordinal"`
+		Consumed   []string        `json:"consumed"`
+		Address    string          `json:"address"`
+		Waiting    bool            `json:"waiting"`
+		Transcript struct {
+			Messages []InteractiveMessage `json:"messages"`
+			EndedBy  string               `json:"ended_by"`
+		} `json:"transcript"`
+		QuestionID  string   `json:"question_id"`
+		Question    string   `json:"question"`
+		Answer      string   `json:"answer"`
+		Interrupted bool     `json:"interrupted"`
+		Unresolved  bool     `json:"unresolved"`
+		Duration    int64    `json:"duration"`
+		ID          string   `json:"id"`
+		Command     string   `json:"command"`
+		Args        []string `json:"args"`
+		Workdir     string   `json:"workdir"`
+		ExitCode    int      `json:"exit_code"`
+		Stdout      string   `json:"stdout"`
+		Stderr      string   `json:"stderr"`
+		StdoutFile  string   `json:"stdout_file"`
+		StderrFile  string   `json:"stderr_file"`
 		Usage       []struct {
 			Model  string  `json:"model"`
 			Cost   float64 `json:"cost"`
@@ -352,17 +380,27 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 			row.Steers = append(row.Steers, steerRecord{Message: rec.Event.Message, Source: rec.Event.Source, Landed: rec.Event.Landed, Created: at})
 			changed = append(changed, change{tableSessions, rec.Event.Target})
 		}
-	case "interview_question_asked":
-		s.interviews[rec.Event.QuestionID] = &InterviewRow{
-			Run: s.run.ID, QuestionID: rec.Event.QuestionID, Name: rec.Event.Name,
-			Scope: rec.Scope, Session: rec.Session, Question: rec.Event.Question,
-			Status: InterviewStatusPending, Asked: at,
+	case "interactive_changed":
+		status := rec.Event.Status
+		if rec.Event.Waiting {
+			if status == "" || status == "waiting" {
+				status = InteractiveStatusPending
+			}
 		}
-		changed = append(changed, change{tableInterviews, rec.Event.QuestionID})
-	case "interview_question_answered":
-		interview := s.interviewLocked(rec.Scope, rec.Session, rec.Event.QuestionID)
-		interview.Status, interview.Answer, interview.Answered = InterviewStatusAnswered, rec.Event.Answer, at
-		changed = append(changed, change{tableInterviews, rec.Event.QuestionID})
+		if rec.Event.Transcript.EndedBy != "" {
+			status = InteractiveStatusAnswered
+		}
+		if rec.Event.Error != "" {
+			status = "unresolved"
+		}
+		question := ""
+		for _, message := range rec.Event.Transcript.Messages {
+			if message.Role == "assistant" {
+				question = message.Message
+			}
+		}
+		s.interactions[rec.Event.ID] = &InteractiveRow{Consumed: rec.Event.Consumed, Ordinal: rec.Event.Ordinal, Unresolved: rec.Event.Error, Address: rec.Event.Address, Run: s.run.ID, QuestionID: rec.Event.ID, Name: rec.Event.Name, Scope: rec.Scope, Session: rec.Session, Question: question, Status: status, Asked: at, Messages: rec.Event.Transcript.Messages, EndedBy: rec.Event.Transcript.EndedBy}
+		changed = append(changed, change{tableInteractions, rec.Event.ID})
 	case "turn_started":
 		turn := s.turnLocked(Placement{Scope: rec.Scope, Session: rec.Session, Turn: rec.Turn})
 		turn.Prompt, turn.OutputType, turn.Started = rec.Event.Prompt, rec.Event.OutputType, at
@@ -475,8 +513,8 @@ func (s *Store) rowLocked(table, key string) any {
 		return *s.scopes[key]
 	case tableSessions:
 		return cloneSession(*s.sessions[key])
-	case tableInterviews:
-		return *s.interviews[key]
+	case tableInteractions:
+		return *s.interactions[key]
 	case tableTurns:
 		return *s.turns[key]
 	case tableTurnUsage:
@@ -506,17 +544,6 @@ func (s *Store) commandLocked(scope, id string) *CommandRow {
 	}
 	row := &CommandRow{Run: s.run.ID, ID: id, Scope: scope}
 	s.commands[id] = row
-	return row
-}
-
-// interviewLocked is one question row, created on first sight so replaying a
-// partial log still preserves an accepted answer.
-func (s *Store) interviewLocked(scope, session, questionID string) *InterviewRow {
-	if row, ok := s.interviews[questionID]; ok {
-		return row
-	}
-	row := &InterviewRow{Run: s.run.ID, QuestionID: questionID, Scope: scope, Session: session}
-	s.interviews[questionID] = row
 	return row
 }
 
@@ -766,18 +793,18 @@ func (s *Store) Snapshot() RunSnapshot {
 
 func (s *Store) snapshotLocked() RunSnapshot {
 	out := RunSnapshot{
-		Stream:      s.stream,
-		Position:    s.position,
-		Run:         cloneRun(s.run),
-		Scopes:      make(map[string]ScopeRow, len(s.scopes)),
-		Sessions:    make(map[string]SessionRow, len(s.sessions)),
-		Interviews:  make(map[string]InterviewRow, len(s.interviews)),
-		Turns:       make(map[string]TurnRow, len(s.turns)),
-		TurnUsage:   make(map[string]map[string]Usage, len(s.turnUsage)),
-		ModelCalls:  make(map[string][]ModelCallRow, len(s.modelCalls)),
-		Commands:    make(map[string]CommandRow, len(s.commands)),
-		Totals:      s.totalsLocked(),
-		Transcripts: make(map[string]Transcript, len(s.transcripts)),
+		Stream:       s.stream,
+		Position:     s.position,
+		Run:          cloneRun(s.run),
+		Scopes:       make(map[string]ScopeRow, len(s.scopes)),
+		Sessions:     make(map[string]SessionRow, len(s.sessions)),
+		Interactions: make(map[string]InteractiveRow, len(s.interactions)),
+		Turns:        make(map[string]TurnRow, len(s.turns)),
+		TurnUsage:    make(map[string]map[string]Usage, len(s.turnUsage)),
+		ModelCalls:   make(map[string][]ModelCallRow, len(s.modelCalls)),
+		Commands:     make(map[string]CommandRow, len(s.commands)),
+		Totals:       s.totalsLocked(),
+		Transcripts:  make(map[string]Transcript, len(s.transcripts)),
 	}
 	for key, row := range s.scopes {
 		out.Scopes[key] = cloneScope(*row)
@@ -785,8 +812,8 @@ func (s *Store) snapshotLocked() RunSnapshot {
 	for id, row := range s.sessions {
 		out.Sessions[id] = cloneSession(*row)
 	}
-	for id, row := range s.interviews {
-		out.Interviews[id] = *row
+	for id, row := range s.interactions {
+		out.Interactions[id] = *row
 	}
 	for id, row := range s.turns {
 		out.Turns[id] = *row

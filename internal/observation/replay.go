@@ -104,7 +104,7 @@ func (s *Store) loadTables(dir string) error {
 	if err != nil {
 		return err
 	}
-	interviews, err := loadTable[InterviewRow](dir, tableInterviews)
+	interactions, err := loadTable[InteractiveRow](dir, tableInteractions)
 	if err != nil {
 		return err
 	}
@@ -140,8 +140,8 @@ func (s *Store) loadTables(dir string) error {
 	for _, row := range sessions {
 		s.sessions[row.ID] = &row
 	}
-	for _, row := range interviews {
-		s.interviews[row.QuestionID] = &row
+	for _, row := range interactions {
+		s.interactions[row.QuestionID] = &row
 	}
 	for _, row := range turns {
 		s.turns[row.ID] = &row

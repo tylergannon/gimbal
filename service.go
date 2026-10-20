@@ -39,7 +39,7 @@ var errServiceShutdownTimeout = errors.New("service process group did not stop b
 //
 // name is the service's constant name for the graph and run record. An empty
 // workdir uses the workflow process's working directory.
-func Service(ctx context.Context, name, workdir, command string) error {
+func Service(ctx context.Context, name, workdir, command string) (result error) {
 	scope, err := current(ctx)
 	if err != nil {
 		return err
@@ -49,6 +49,24 @@ func Service(ctx context.Context, name, workdir, command string) error {
 	}
 
 	id, node := scope.nextNode(runstore.Service, name)
+	var admitted struct {
+		Error string `json:"error"`
+	}
+	if found, err := scope.run.saved(node, "service-admitted", &admitted); found {
+		if err != nil {
+			return err
+		}
+		return stringError(admitted.Error)
+	}
+	if scope.run.hasFact(node, "intent") {
+		return fmt.Errorf("gimbal: service %s admission unresolved", id)
+	}
+	defer func() {
+		result = errors.Join(result, scope.run.recordFact(node, scope.node, "", "service-admitted", struct {
+			Error string `json:"error"`
+		}{errString(result)}, runstore.Committed))
+	}()
+
 	identity := actionIdentity(scope.node, "", node, "process")
 	if effects.Endpoint(ctx) == "" {
 		identity.ExecutorOperation = ""

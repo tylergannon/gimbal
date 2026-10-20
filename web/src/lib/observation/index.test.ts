@@ -62,7 +62,7 @@ const snapshot = (title = "start"): RunSnapshot => {
         created: 1,
       },
     },
-    interviews: {},
+    interactions: {},
     turns: {
       turn: {
         run: "run",
@@ -243,11 +243,17 @@ test("a row frame is one row of one table, replacing what was there", () => {
     {
       type: "row",
       data: {
-        table: "interviews",
+        table: "interactions",
         key: "question-1",
         row: {
           run: "run",
           question_id: "question-1",
+          consumed: [],
+          ordinal: 1,
+          unresolved: "",
+          address: "loop.1/task.2/preferences",
+          messages: [{ role: "assistant", message: "Which color?" }],
+          ended_by: "",
           name: "preferences",
           scope: "loop.1/task.2",
           session: "ses",
@@ -261,16 +267,22 @@ test("a row frame is one row of one table, replacing what was there", () => {
     },
     connection,
   );
-  assert.equal(observation.interviews["question-1"].question, "Which color?");
+  assert.equal(observation.interactions["question-1"].question, "Which color?");
   observation.apply(
     {
       type: "row",
       data: {
-        table: "interviews",
+        table: "interactions",
         key: "question-1",
         row: {
           run: "run",
           question_id: "question-1",
+          consumed: [],
+          ordinal: 1,
+          unresolved: "",
+          address: "loop.1/task.2/preferences",
+          messages: [{ role: "assistant", message: "Which color?" }],
+          ended_by: "",
           name: "preferences",
           scope: "loop.1/task.2",
           session: "ses",
@@ -284,7 +296,7 @@ test("a row frame is one row of one table, replacing what was there", () => {
     },
     connection,
   );
-  assert.equal(observation.interviews["question-1"].answer, "Blue");
+  assert.equal(observation.interactions["question-1"].answer, "Blue");
 
   observation.apply(
     { type: "row", data: { table: "turn_usage", key: "turn.2", row: { m: usage(12, 0.5) } } },
@@ -421,7 +433,7 @@ test("the snapshot it hands back is every table and every transcript", () => {
   assert.deepEqual(out.turn_usage, { turn: { m: usage(3) } });
   assert.deepEqual(out.scopes, observation.scopes);
   assert.deepEqual(out.sessions, observation.sessions);
-  assert.deepEqual(out.interviews, observation.interviews);
+  assert.deepEqual(out.interactions, observation.interactions);
   assert.deepEqual(out.turns, observation.turns);
   assert.equal(out.transcripts.turn.snapshot.state.info.ses.title, "start");
 });

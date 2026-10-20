@@ -1,0 +1,358 @@
+# Durable Interactive spec authoring
+
+decision: User requests durable interaction and resumption, replacing Interview
+with Interactive; SERVICE lifecycle and restoration remain explicitly deferred.
+
+decision: Three read-only subagents mapped execution/lifetimes, interactions and
+conversation UI, and indexed DBOS prior art before beginning the interview.
+Current facts and source anchors are in
+ephemeral/research/durable-interactive/SOURCE-MAP.md.
+
+correction: Cached DBOS routing prose overstates memory release while waiting;
+actual Go Recv retains a waiting call stack. Its HITL publish and recv are also
+separate operations. Neither establishes Gimbal's requested suspension or
+atomic reply-and-wait contract.
+
+decision: Existing runstore supplies stable node identities and atomic committed
+batches, but Open explicitly does not resume execution. Recorded results must
+not be mistaken for working replay, and current persistence tests do not prove
+resumed-work deduplication.
+
+decision: Human messages arriving during an active agent turn steer that turn
+(Tyler: "steer."). Durable inbox acceptance still precedes delivery.
+
+decision: Human archive is successful completion. Tyler prefers a signal that
+makes the workflow exit Interactive and actually finish normally, and permits
+deferring that signal if it is hard. Proposed finish input shares the required
+durable inbox; handling archive during an active turn remains open.
+
+decision: Archive interrupts an active turn unless doing so would leave
+unrecoverable or corrupt state. Interruption is turn-scoped; the workflow
+continues normally after safe cessation. An unconfirmed stop remains
+recoverable/unresolved rather than being reported as successful completion.
+
+correction: Tyler forbids direct I/O, clocks, randomness and equivalent
+nondeterministic operations in workflow functions. They must use the library;
+an author promise that arbitrary operations are replay-safe is insufficient.
+Ordinary deterministic Go control flow remains. A possible Activity concept
+is future work, not part of this change.
+
+correction: Batch independent spec questions where plausible; Tyler explicitly
+overrides the grilling skill's one-question-at-a-time interview format to
+avoid unnecessarily prolonged authoring.
+
+decision: Tyler confirms Interactive returns the ordered transcript plus an
+error and that runs from different projects may share a host within the same
+execution environment, with independent run state and bindings.
+
+decision: Proposed cells separate durable records/inbox, execution/replay,
+interaction protocol, shared hosting, presentation, and workflow admission.
+Physical handwritten-source baselines were measured before proposing budget
+tripwires. The existing linter follows source-visible helpers but does not yet
+enforce the new library-only effects rule.
+
+decision: Tyler approves InteractiveTranscript/InteractiveMessage and the
+ordered role/message shape. Support both initial entry modes eventually;
+choose the easiest correct starting default and do not over-engineer it.
+
+correction: Native agent resource handling explicitly has NO POLICY and NO
+tests purporting to enforce one. Choose the easiest default that behaves
+correctly. Do not turn detach/retain/eviction/process counts into requirements
+or frame this as a policy-design task deferred to implementation.
+
+decision: Full review draft adds durable ingress/transition, replay, hosting,
+presentation and admission contracts and routed behavioral claims. One open
+public-contract defect remains: generic end and human finish both return nil,
+but conversation workflow code must distinguish them to remain interactive
+until archive. Proposed termination provenance needs human alignment; it has
+not been silently added to the approved public types.
+
+decision: Author's six-pass spec review is recorded in
+ephemeral/research/durable-interactive/REVIEW.md. It leaves termination
+provenance as an explicit public-contract finding. Cell budgets and derived
+contracts remain proposed; no implementation or live proof is claimed.
+
+decision: Tyler approves EndedBy ("agent" or "human") on InteractiveTranscript
+("love it"). The result durably distinguishes normal agent end from human
+finish. The conversation uses an ordinary loop at one Interactive call site,
+returning success for human finish and re-entering a durable input wait after
+agent end. Pending input and finish signals retain identity across re-entry;
+no autonomous agent-end loop or startup-mode framework is required.
+
+decision: Rechecked the EndedBy amendment against all six spec-review passes.
+The author's review has no unresolved material finding. The completed draft
+is ready for final review of cells/budgets/derived contracts; independent
+review and implementation acceptance have not been claimed.
+
+decision: Tyler authorizes an independent Claude Opus nlspec review followed
+by implementation in a Sol 6.1 subagent (possibly two), explicitly asking to
+avoid excessive splitting and repeated proof. Plan one end-to-end implementer
+and one shared final acceptance pass; the manager owns specification/review
+adjudication and does not duplicate unchanged broad checks.
+
+friction: Opus review run 01M5BDHYRPKYNJGQBKZK263ZF7.run-prompt failed on
+ENOSPC before producing a review artifact. Its logs were only about 2 MB; the
+data volume had roughly 117 MB free. Reclaimed 8 GiB of rebuildable Go cache
+entries older than 48 hours, leaving recent cache and source/session/app data
+alone; measured free space then reached about 9 GiB. No failed run is counted
+as an independent review.
+
+decision: Fresh Opus review run 01M5BDTDK25XKQEFXHHWCNGXCQ.run-prompt targets
+ephemeral/reviews/durable-interactive-opus-spec-round-02.md, through Gimbal
+run-prompt with the unversioned opus alias (resolved Claude Opus 5.5). It reads
+the spec-writing, spec-review and adversarial-review skills. Its run logs are
+outside the repository at /tmp/gimbal-durable-interactive-opus-spec-r02.
+
+decision: Existing built-in workflows contain direct I/O and clock calls.
+The implementation plan must account for their migration through library
+operations rather than granting exceptions or hiding effects in helpers.
+
+
+decision: Opus round 02 found five legitimate spec gaps (stable ingress versus
+occurrence identity, unconstrained first-entry choice, missing built-in effect
+migration, executable identity and incomplete source ownership/counting).
+Adjudication is in the author's review. Promoted the maintained nlspec to
+specs/durable-interactive.md and kept the old ephemeral SPEC as a pointer.
+The human approved full RunCommand caller output with bounded observation.
+First entry uses the delegated easiest correct human-first default.
+
+decision: Final proposal uses two Sol 6.1 workers in one shared checkout and
+one delivery unit: runtime/hosting/presentation and authoring/generation/built-in
+migration. One final validation pass follows combined source and generation,
+not repeated broad proof per subtask. Manager owns spec and integration.
+Fresh Opus run 01M5BEMKTNQKNMWWBQ1F9C8J1A.run-prompt reviews the complete
+contract and plan at ephemeral/reviews/durable-interactive-opus-spec-round-03.md.
+
+
+decision: Opus round 03 completed after 9m14s. It verified the original fixes
+and corrected counts, and exposed further boundary choices. Native capability
+and transcript membership have direct resolutions recorded in REVIEW.md.
+Asked two batched material questions: retain required builds for old-run
+recovery across upgrades; reject authored unwind/timing constructs and remove
+unsupported turn timeouts for the initial library-only delivery. Do not assume
+approval or launch dependent implementation while these remain unanswered.
+
+
+correction: The human explicitly rejects version-policy support AND non-support:
+NO POLICY and no explicit enforcement for version change across runs. Proposed
+build retention meant old executable/plugin copies and per-build hosts; explained
+that and removed it, digest gates, mismatch blocking and associated tests/claims.
+Do not reintroduce this as a requirement from reviewer concerns. Same-code replay
+is a proof scenario, not a version-handling policy.
+
+decision: The human approves rejecting authored defer/recover and unrecorded
+timing/cancellation observations, requesting explanation. Explained that Go stack
+unwind runs defers and recover can defeat suspension, while timing observations
+can change replay control flow. Library internals handle suspension; maintained
+workflows use explicit completion/error paths and library operations, with
+unsupported agent-turn timeouts removed. No new API is authorized for them.
+
+
+friction: Older Go-cache pruning reclaimed another 8 GiB, but did not measure
+or eliminate the full cache. The human reports the build cache above 100 GB
+and requests cleanup; started full `go clean -cache` scoped to that path.
+Do not confuse the amount removed with the cache's total remaining size.
+
+friction: User-authorized Docker cleanup initially failed on containerd/BuildKit
+I/O errors. Asked for restart because zoom-connect-postgres was running; human
+approved. Restarted Docker, restored that container and observed it healthy,
+then purged build cache and unused images. Persistent volumes were preserved.
+Docker's allocated disk image fell from 43.7 GiB to 6.9 GiB. No source data or
+application volumes were removed. Frontend dependencies are already installed
+from the existing local package cache; no duplicate dependency setup is needed.
+
+decision: Fresh independent Opus spec/plan review run
+01M5BJYVZXYGR9D9FM8XHTVQQ1.run-prompt reads the contract after the human's
+no-version-policy correction and authored unwind/timing decisions. Output path:
+ephemeral/reviews/durable-interactive-opus-spec-round-04.md.
+
+
+decision: Opus round 04 exposed an incorrect premise from round 03: ordinary
+workflow harnesses already use durable agentexecutor checkpoint/reattach, rather
+than conversation-only ResumeSession. Corrected the spec and reused that existing
+mechanism. Root confirmed binding.Adapter's actual route. Do not implement a new
+adapter lifecycle or regress working Claude/Pi/Agy continuation.
+
+decision: Clarified Run pending/same-ID reconstruction and caller deadline reuse,
+known-pure opaque-call admission, shared-host panic isolation and existing dormant
+cancellation/reconciliation. Rejected SERVICE restoration/recheck requirements and
+version policy under the human's explicit exclusions. Full adjudication in REVIEW.
+Ready for the two Sol 6.1 owners; a fresh spec review sees the pinned committed
+snapshot while they implement, avoiding serial idle time and duplicate proof.
+
+
+result: Full scoped Go-cache clean initially raced a concurrent writer (one
+bucket was recreated); a retry completed successfully. Measured cache afterward
+279 MiB while new compilation had already begun, and host free space 163 GiB.
+Docker build cache is zero; zoom-connect-postgres remains healthy. Do not
+repeatedly purge caches now that implementation is compiling.
+
+decision: Started exactly two requested gpt-6.1-sol workers in this shared
+worktree: runtime_impl owns J/E/I/H/P; authoring_impl owns A and generated output.
+Manager retains contract/review/worklog and final live acceptance. Fresh Opus run
+01M5BKY6SHM652B4XJH3QVSWD1.run-prompt reviews pinned afd5958a spec/source while
+they implement; output ephemeral/reviews/durable-interactive-opus-spec-round-05.md.
+
+
+decision: A reports a concrete migration gap: research-document's existing
+claimaudit.VerifyCurrent gate has no CLI exposure, while audit-index currently
+only prepares or performs a paid audit. Approved minimal --verify-current flag
+calling that existing verifier, preserving behavior through RunCommand. Assigned
+cmd/gimbal/audit_index.go (83 production lines) to A; baseline 11,609 and max
+13,200. No root API/new audit/duplicated revision algorithm is authorized.
+
+
+decision: Also expose existing validated ReadCompletion through --completion
+in that same CLI file: raw JSON reads would lose inventory/claim revision checks,
+including incomplete results used by repair loops. Both modes are read-only
+existing behavior, with direct JSON/exit semantics and no new paid operation.
+
+
+decision: Human chooses local then remote durability, same two owners and delivery.
+H ownership adds taskdaemon and daemon command (baseline 6,803/max 8,500); L5
+covers the actual remote daemon/transport restart and steering seam. P gets
+handwritten conversation routes (+95 lines). A generation is the admission gate.
+Preserve existing Stop and conversation product behaviors through replacement,
+including settled-idle local Codex model changes via private durable controls.
+Current spec/plan carry these and full review adjudication is in REVIEW.md.
+
+progress: Runtime reports focused core checks passing via explicit source-list
+`go test $(go list -f '{{join .GoFiles " "}}') interactive_test.go -run '^TestInteractive' -v`
+while built-in migration/init prevents the broad suite. Covers local suspension,
+finish, atomic chat/wait reopening/native-ID continuity, Group sibling/join,
+and exact 80,000-byte original/replay command output with no redispatch. These
+are cell-local stand-ins, not native/app integration claims; broad checks and
+live local then remote proof remain outstanding.
+
+
+decision: Runtime reports a restart-ingress construction need: accept durable
+input before the live controller/socket is available, using the same runstore
+writer briefly. Transfer internal/runstate/store.go (40 existing lines) from E
+to J for that storage boundary/helper (~80 added lines). J baseline 953/max1,400;
+E baseline7,388/max9,000. Busy ownership without controller remains retryable,
+never false acceptance; full interaction/owner identity and closed-state checks
+must survive even when a fact is rooted in the run journal.
+
+progress: A reports all maintained workflow sources individually pass admission,
+with migration-specific graph/test issues being fixed. Current A handwritten
+production count 12,239 / 13,200. Maintained example now persists its registered
+conversation admission/unfinished ID; generated SKGO sources are regenerated,
+not edited by hand. Final source/generation and checks remain outstanding.
+
+
+decision: A identifies validate-product Suite.Timeout as the concrete unsupported
+authored whole-workflow deadline (default1h; context.WithTimeout around all
+preparation/agent/browser work). Accepted its removal under the human-approved
+timing restriction and explicitly reported the consequence in chat/spec. Caller
+Run deadlines/cancellation remain supported; research-eval TrialMinutes remains
+preserved through recorded commands/control. A may add luna as missing default
+for the existing RoleAgenticDialogues required by ordinary conversation admission.
+No new root role/API is introduced.
+
+
+progress: A checkpoint 56af1883 carries admission/generation/workflow migrations;
+4d81e8f7 carries generated schemas/application bindings. Focused A checks passed:
+`go test ./internal/gimballint ./internal/generate ./internal/devgenerate ./internal/workflows/...`,
+`go test ./cmd/gimbal -run TestAuditIndexReadOnly`, generation-refusal tests,
+`go run ./cmd/gimbal lint ./internal/workflows/...`, `go generate ./...`.
+Hook's 100-path limit required two commits; no bypass and no repeated checks
+solely for committing. A's production count reported 12,239/13,200.
+
+progress: Runtime checkpoint 0621b7f0 contains core local replay/Interactive/
+shared-host source. Focused root Interactive and migrated conversation tests
+pass; frontend fixture/projection migrations remain before the local app build.
+Remote implementation has not started; local native checkpoint comes first.
+
+friction: The first real Codex/luna conversation failed before its first native
+turn: configuration override resumed a newly created thread without a persisted
+rollout. The override must apply only to an existing checkpoint after a durable
+configuration request. The same run exposed status projection comparing failed
+against the wrong literal, leaving the chat falsely Ready. Runtime owns both
+fixes; the failed run remains failed and the next attempt uses a new admission.
+
+finding: An initiating input was appended to the transcript only on successful
+agent completion. Confirmed native delivery followed by safe Stop/Finish must
+retain the human message too. Runtime is recording delivery from native model
+activity and preserving the original turn request during reconstruction.
+
+scope: Read-only remote mapping found volatile task/session/artifact and
+messaging request indexes, missing messaging steering/landed response, and a
+volatile daemon project index without startup invocation discovery. Assign
+backend/messaging.go and cmd/gimbal/messaging.go (329 existing lines) to H,
+expanding its measured baseline to 7,132 under the same 8,500 ceiling. After
+the local checkpoint, the authoring worker owns taskdaemon plus those messaging
+files; runtime retains runner/host/invocation/daemon integration. No remote
+source has changed yet and SERVICE restoration stays excluded.
+
+escalation: Real Codex/luna calls reject the private flat union schema, first
+for absent root object type and then for the root anyOf itself after adding
+that type. This is a provider construction constraint, not a passing native
+proof. Asked the human whether to permit an internal native decision envelope
+unwrapped and Polytype-validated by Interactive, versus retaining flat native
+JSON with another validation approach. No envelope change is authorized yet.
+
+finding: The next live browser attempt still remained Queued/Ready after the
+run failed. Polling included the new statuses, but projectConversations called
+List, which bypassed the workflow reduction in Get. Runtime now routes both
+inventory and detail through the same authoritative reduction and is adding a
+focused regression. Local native acceptance and remote implementation remain
+outstanding; successful focused checks have not been treated as live proof.
+
+decision: Human delegated the schema adjustment: "just whatever will work" and
+called it small potatoes. Use the existing generated response object with a
+decision chat/end union as the documented format across harnesses. Remove the
+private flat-schema shim rather than introducing hidden normalization or a
+provider-specific format. Public Go API and durable interaction semantics are
+unchanged. Resume local native acceptance, then remote work in that order.
+
+progress: Local native checks now exercise the real Codex luna path. The
+conversation resumes after an abrupt dormant-host restart with the same
+native thread and saved effort change; active steering, agent end/re-entry,
+Stop/resume and active Finish reach their required runtime states. The
+package-adjacent native sibling/join and absent-execution inbox checks pass.
+These observations released the already authorized remote follow-on. Full
+current-assets archive/UI acceptance and final checks/review remain open.
+
+finding: A consumed Stop control remained accepted in conversation metadata,
+making the sidebar falsely Queued. Project the exact consumed control IDs,
+rather than infer handling from waiting state. Closing already ended history
+also tried to send a new Finish and failed against its closed owner; closing
+that view must skip fresh admission. Live archive still needs final browser
+qualification. Do not confuse direct engine Finish proof with UI archive proof.
+
+limit: An accepted remote turn can retain an ephemeral dependency callback URL
+in its original native prompt. A daemon restart does not establish restoration
+of that endpoint. Preserve the accepted request/outcome or honest uncertainty;
+do not fabricate a new native operation, callback restoration API or SERVICE
+guarantee. The separate-daemon conversation proof has no such dependency.
+
+progress: Remote mappings/messaging checkpoint 1945d99d and daemon/control
+checkpoint e97e010c are committed. The real separate HTTP daemon qualification
+now covers restart/native identity, retained replies, active steer retry
+deduplication and safe active Finish. Current-assets browser checks confirm
+completed history closes and consumed Stop controls settle as completed.
+
+finding: A transient observation failure can set Contact unreachable; a later
+successful authoritative observation cleared status/error but left contact
+stale, disabling the composer despite live local execution. Successful data
+arrival must restore connected too. Runtime owns that focused regression/fix;
+clean active-close browser proof remains before acceptance.
+
+scope: Final admission found a real run-prompt callback timing violation. Assign
+cmd/gimbal/run_prompt.go (277 existing lines) to H before its migration,
+expanding the baseline to 7,409 under the unchanged 8,500 ceiling. Preserve
+the CLI deadline by constructing it outside the authored workflow callback;
+this is not another timeout-removal decision or a new timing API.
+
+finding: Independent Opus implementation review reproduced premature public
+Run success at dormancy, duplicate delivery during in-flight steering, and
+message acceptance after durable Finish. It also traced loss of successful
+chat/end during a Stop race and loss of the original live-hook release.
+These are contract failures; repair them without amending the accepted spec,
+then request a fresh whole-target review through consensus. Passing the earlier
+native demonstrations did not establish these race and direct-call contracts.
+
+friction: The authored-effects migration introduced maintained inline Python,
+which the existing release-automation gate rejects. Keep the gate; use supported
+recorded commands, including existing gimbal cancel, and validate that boundary
+before calling the migration complete.

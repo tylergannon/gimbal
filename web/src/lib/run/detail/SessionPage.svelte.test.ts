@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import { userEvent } from "vitest/browser";
-import { implementInterviewFixture } from "../fixtures/index.js";
+import { implementInteractiveFixture } from "../fixtures/index.js";
 import { RunObservation } from "../../observation/index.js";
 import Page from "./SessionPage.svelte";
 const remote = vi.hoisted(() => ({
@@ -57,7 +57,7 @@ vi.mock("../../../routes/steer.remote", () => ({
 const sessionID = "coding.1";
 const turnID = "coding.1/turn.3";
 function record() {
-  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const snapshot = structuredClone(implementInteractiveFixture.snapshot);
   snapshot.sessions[sessionID].workdir = "/work/feature";
   snapshot.sessions[sessionID].steers = [
     { message: "Keep the patch small", source: "person", landed: true, created: 1 },

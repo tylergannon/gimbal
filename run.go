@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
@@ -24,6 +25,8 @@ import (
 )
 
 type projectKey struct{}
+
+var dormantRuns sync.Map
 
 func runDir(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
@@ -48,28 +51,36 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	closed         bool
-	lifecycleMu    sync.Mutex
-	observationErr error
-	records        runstore.Run
-	rootNode       runstore.NodeID
-	nodeMu         sync.Mutex
-	nodeByKey      map[string]runstore.NodeID
-	dir            string                        // <project>/runs/<id>
-	models         map[WorkflowRole]ModelBinding // what each role the workflow names runs on
-	writer         *eventWriter
-	project        *eventWriter
-	store          *observation.Store
-	mu             sync.Mutex
-	sessions       map[string]*eventWriter
-	scopes         map[string]*scope                  // live scopes by key, for cancelScope
-	turns          map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
-	interviews     map[string]*interviewWaiter        // questions waiting for a person's answer
-	rootCancel     error                              // explicit cancellation of the root scope
-	errMu          sync.Mutex
-	recordErr      error
-	closeMu        sync.Mutex
-	closeErrs      []error
+	suspended          atomic.Bool
+	interactionMu      sync.Mutex
+	interactionEnded   map[string]bool
+	interactionCursor  uint64
+	interactionStates  map[runstore.NodeID]interactionState
+	interactionInputs  map[string]interactionInput
+	interactionOrder   []string
+	activeInteractions map[string]interactionRuntime
+	replay             map[runstore.NodeID][]runstore.Record
+	closed             bool
+	lifecycleMu        sync.Mutex
+	observationErr     error
+	records            runstore.Run
+	rootNode           runstore.NodeID
+	nodeMu             sync.Mutex
+	nodeByKey          map[string]runstore.NodeID
+	dir                string                        // <project>/runs/<id>
+	models             map[WorkflowRole]ModelBinding // what each role the workflow names runs on
+	writer             *eventWriter
+	project            *eventWriter
+	store              *observation.Store
+	mu                 sync.Mutex
+	sessions           map[string]*eventWriter
+	scopes             map[string]*scope                  // live scopes by key, for cancelScope
+	turns              map[string]context.CancelCauseFunc // running turns by id, for cancelTurn
+	rootCancel         error                              // explicit cancellation of the root scope
+	errMu              sync.Mutex
+	recordErr          error
+	closeMu            sync.Mutex
+	closeErrs          []error
 }
 
 // CloseError aggregates every HarnessAdapter.Close failure a run's sessions
@@ -118,7 +129,9 @@ func (r *run) closeError() error {
 	return &CloseError{errs: append([]error(nil), r.closeErrs...)}
 }
 
-// Run starts one run of a workflow and blocks until the body returns.
+// Run starts or reconstructs one recorded workflow activation. At an explicit
+// durable wait it releases authored execution and returns nil while the run
+// remains unfinished. Re-enter with the same run ID to reconstruct its work.
 // A TypeSafe key is required only when the workflow uses WithSupervisor.
 // models binds every role the workflow names to the harness, model, and reasoning
 // effort it runs on; a role the workflow names and models leaves out is a
@@ -139,14 +152,31 @@ func (r *run) closeError() error {
 // admitted to a concurrently running instance; shared-state use has no
 // supported contract. Hosted runs are submitted to an instance with a
 // workflow compiled into its binary.
-func Run(ctx context.Context, runID string, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) error {
+func Run(ctx context.Context, runID string, name string, models map[WorkflowRole]ModelBinding, body func(ctx context.Context) error) (result error) {
 	r, release, err := beginRun(ctx, runID, name, models)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if v := recover(); v != nil {
+			if _, ok := v.(suspension); ok {
+				r.suspended.Store(true)
+				dormantRuns.Store(r.dir, r)
+				result = nil
+				return
+			}
+			panic(v)
+		}
+	}()
 	err = func() error {
-		defer release()
-		return r.root(ctx, name, body)
+		defer func() {
+			if !r.suspended.Load() {
+				release()
+			}
+		}()
+		result := r.root(ctx, name, body)
+		r.suspended.Store(false)
+		return result
 	}()
 	// A panic that a Group child recovered comes back as the body's error
 	// and is raised again here, after the same terminal records a panic in
@@ -175,6 +205,16 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 		return nil, nil, errors.New("gimbal: Run requires a valid ULID run ID")
 	}
 	dir := filepath.Join(project, "runs", id)
+	if previous, ok := dormantRuns.LoadAndDelete(dir); ok {
+		r := previous.(*run)
+		r.suspended.Store(false)
+		r.scopes = make(map[string]*scope)
+		if err := r.loadReplay(); err != nil {
+			return nil, nil, err
+		}
+		return r, func() {}, nil
+	}
+
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
 	}
@@ -192,6 +232,9 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 	store, storeErr := observation.Open(observation.FromContext(ctx), id, name, dir, func() error {
 		var err error
 		records, err = runstate.Resolve(ctx, project).Create(ctx, runstore.Header{RunID: runstore.RunID(id), Workflow: name})
+		if errors.Is(err, runstore.ErrExists) {
+			records, err = runstate.Resolve(ctx, project).Open(ctx, runstore.RunID(id))
+		}
 		if err != nil {
 			return err
 		}
@@ -212,7 +255,10 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 		}
 		return nil, nil, headerErr
 	}
-	r := &run{records: records, rootNode: header.Root, nodeByKey: map[string]runstore.NodeID{"": header.Root}, dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc), interviews: make(map[string]*interviewWaiter)}
+	r := &run{interactionStates: map[runstore.NodeID]interactionState{}, interactionInputs: map[string]interactionInput{}, activeInteractions: map[string]interactionRuntime{}, records: records, rootNode: header.Root, nodeByKey: map[string]runstore.NodeID{"": header.Root}, dir: dir, models: models, writer: w, sessions: make(map[string]*eventWriter), scopes: make(map[string]*scope), turns: make(map[string]context.CancelCauseFunc)}
+	if err := r.loadReplay(); err != nil {
+		return nil, nil, err
+	}
 	r.observationFailure("open run log", err)
 	r.store = store
 	if d, ok := DefaultRegistry.Workflow(name); ok {
@@ -273,6 +319,9 @@ func (r *run) complete(ctx context.Context, name string, err error) error {
 func (r *run) root(ctx context.Context, name string, body func(ctx context.Context) error) error {
 	defer func() {
 		if v := recover(); v != nil {
+			if _, ok := v.(suspension); ok {
+				panic(v)
+			}
 			_ = r.finish(name, fmt.Errorf("gimbal: panic: %v", v))
 			panic(v)
 		}
@@ -282,7 +331,12 @@ func (r *run) root(ctx context.Context, name string, body func(ctx context.Conte
 		connection.Secrets = backend.NewMemorySecrets()
 		ctx = effects.WithConnection(ctx, connection)
 	}
-	return (&scope{run: r, node: r.rootNode}).do(ctx, body)
+	return (&scope{run: r, node: r.rootNode}).do(ctx, func(ctx context.Context) error {
+		if cause := r.rootCancellation(); cause != nil {
+			return cause
+		}
+		return body(ctx)
+	})
 }
 
 // finish writes the run's terminal records and closes what it holds:
@@ -359,57 +413,6 @@ func (r *run) removeTurn(id string) {
 // The run is the live.Controller the web runtime holds while the body
 // runs. Its methods are exported so the interface can name them; run itself
 // stays unexported, so nothing here is part of the package's API.
-
-type interviewWaiter struct {
-	answer chan string
-}
-
-func (r *run) registerInterviewQuestion(scope *scope, name string) (string, *interviewWaiter) {
-	_, node := scope.nextNode(runstore.Question, name)
-	id := string(node)
-	_ = r.activate(node)
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.interviews == nil {
-		r.interviews = make(map[string]*interviewWaiter)
-	}
-	waiter := &interviewWaiter{answer: make(chan string, 1)}
-	r.interviews[id] = waiter
-	return id, waiter
-}
-
-func (r *run) waitInterviewAnswer(ctx context.Context, questionID string, waiter *interviewWaiter) (string, error) {
-	select {
-	case answer := <-waiter.answer:
-		return answer, nil
-	case <-ctx.Done():
-		r.mu.Lock()
-		if r.interviews[questionID] == waiter {
-			delete(r.interviews, questionID)
-			r.mu.Unlock()
-			return "", ctx.Err()
-		}
-		r.mu.Unlock()
-		// AnswerInterview won the race with cancellation and removed this
-		// waiter only after accepting one answer into its buffered channel.
-		return <-waiter.answer, nil
-	}
-}
-
-// AnswerInterview delivers answer to the question waiting under questionID.
-// The first delivery removes the waiter; later or unknown ids are rejected.
-// An empty answer tells Interview that the person ended it.
-func (r *run) AnswerInterview(questionID, answer string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	waiter := r.interviews[questionID]
-	if waiter == nil {
-		return fmt.Errorf("gimbal: no pending interview question %q", questionID)
-	}
-	delete(r.interviews, questionID)
-	waiter.answer <- answer
-	return nil
-}
 
 // Steer sends message into the running turn of the session id, as the
 // person watching the run: the Steer record carries Source "person", which
@@ -500,6 +503,22 @@ func (r *run) CancelTurn(id string, cause error) error {
 	if scope == "." {
 		scope = "" // a session of the root scope
 	}
+	r.interactionMu.Lock()
+	address := ""
+	for candidate, active := range r.activeInteractions {
+		if active.session.id == session {
+			address = candidate
+			break
+		}
+	}
+	r.interactionMu.Unlock()
+	if address != "" {
+		err := r.acceptInputAtTurn(interactionInput{ID: string(runstore.NewRecordID()), Address: address, Stop: true, Message: errString(cause)}, id)
+		if err == nil {
+			r.event(scope, session, id, killedEvent(id, cause))
+		}
+		return err
+	}
 	r.event(scope, session, id, killedEvent(id, cause))
 	cancel(cause)
 	return nil
@@ -573,4 +592,17 @@ func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error 
 		return err
 	}
 	return nil
+}
+
+func (r *run) State() string {
+	r.lifecycleMu.Lock()
+	closed := r.closed
+	r.lifecycleMu.Unlock()
+	if closed {
+		return "terminal"
+	}
+	if r.suspended.Load() {
+		return "waiting"
+	}
+	return "active"
 }

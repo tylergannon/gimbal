@@ -3,28 +3,37 @@ package runner
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/executor"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runstate"
+	"github.com/tylergannon/gimbal/runstore"
 )
 
 // WorkflowDaemon admits independent runners in its own configured environment.
-// Its run index belongs to A, separately from central's route sidecars.
+// Its durable run index is separate from central's route sidecars.
 type WorkflowDaemon struct {
+	StateDir   string
 	Root       string
 	PluginDirs []string
 	mu         sync.Mutex
 	projects   map[string]string
+	requests   map[string]invocation.Request
+	recovering map[string]bool
 	registries map[string]*observation.Registry
 }
 
@@ -35,6 +44,18 @@ func (d *WorkflowDaemon) project(id string) (string, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	project := d.projects[id]
+	if project == "" {
+		var request invocation.Request
+		if err := executor.Read(filepath.Join(d.stateDir(), id+".json"), &request); err == nil && request.RunID == id {
+			if d.projects == nil {
+				d.projects = map[string]string{}
+			}
+			if d.requests == nil {
+				d.requests = map[string]invocation.Request{}
+			}
+			d.projects[id], d.requests[id], project = request.Project, request, request.Project
+		}
+	}
 	if project == "" {
 		return "", fmt.Errorf("workflow not found")
 	}
@@ -89,13 +110,35 @@ func (d *WorkflowDaemon) admit(v backend.Workflow) backend.WorkflowStatus {
 	if d.projects == nil {
 		d.projects = map[string]string{}
 	}
+	if d.requests == nil {
+		d.requests = map[string]invocation.Request{}
+	}
 	if _, exists := d.projects[v.ID]; exists {
+		prior, _ := json.Marshal(d.requests[v.ID])
+		next, _ := json.Marshal(request)
 		d.mu.Unlock()
-		status.Error = "workflow identity already admitted"
+		if string(prior) != string(next) {
+			status.Error = "workflow identity conflicts with admitted request"
+			return status
+		}
+		status.State = "running"
+		if snapshot, e := observation.NewRegistry(filepath.Join(project, ".gimbal")).Snapshot(v.ID); e == nil {
+			status.State = snapshot.Run.Status
+		}
 		return status
 	}
-	// Record the assigned identity before spawning; duplicate requests never run twice.
-	d.projects[v.ID] = project
+	if err := os.MkdirAll(d.stateDir(), 0700); err != nil {
+		d.mu.Unlock()
+		status.Error = err.Error()
+		return status
+	}
+	if err := executor.Write(filepath.Join(d.stateDir(), v.ID+".json"), request); err != nil {
+		d.mu.Unlock()
+		status.Error = err.Error()
+		return status
+	}
+	// Commit the assigned invocation before spawning, including its original route.
+	d.projects[v.ID], d.requests[v.ID] = project, request
 	d.mu.Unlock()
 	response, err := Spawn(request)
 	if err != nil {
@@ -156,6 +199,11 @@ func (d *WorkflowDaemon) Handler() http.Handler {
 			c, err = Connect(filepath.Join(project, ".gimbal"), v.Run)
 			if err == nil {
 				reply.Value, err = control(r.Context(), c, v)
+			} else if v.Action == "interactive" {
+				err = runstate.SubmitInteractive(r.Context(), filepath.Join(project, ".gimbal"), v.Run, v.Target, v.Message)
+				if err == nil {
+					d.recoverRun(context.Background(), v.Run)
+				}
 			}
 		}
 		if err != nil {
@@ -169,7 +217,7 @@ func (d *WorkflowDaemon) Handler() http.Handler {
 }
 
 type interfaceController interface {
-	AnswerInterview(string, string) error
+	SubmitInteractive(string, string) error
 	Steer(context.Context, string, string) (bool, error)
 	SteerLoop(string, string) error
 	CancelScope(string, error) error
@@ -179,8 +227,8 @@ type interfaceController interface {
 func control(ctx context.Context, c interfaceController, v backend.Control) (bool, error) {
 	cause := gimbal.Killed{Target: v.Target, By: v.By, Reason: v.Message}
 	switch v.Action {
-	case "answer":
-		return false, c.AnswerInterview(v.Target, v.Message)
+	case "interactive":
+		return false, c.SubmitInteractive(v.Target, v.Message)
 	case "steer":
 		return c.Steer(ctx, v.Target, v.Message)
 	case "loop":
@@ -288,4 +336,91 @@ func (d *WorkflowDaemon) registry(project string) *observation.Registry {
 		d.registries[project] = r
 	}
 	return r
+}
+
+func (d *WorkflowDaemon) stateDir() string {
+	if d.StateDir != "" {
+		return d.StateDir
+	}
+	if d.Root != "" {
+		return filepath.Join(d.Root, ".gimbal", "workflow-daemon")
+	}
+	root, _ := executor.Root("")
+	return filepath.Join(root, "workflows")
+}
+
+// Recover discovers accepted invocations before serving ingress. Journaled inbox
+// input remains runnable even if its sender died before receiving a response.
+func (d *WorkflowDaemon) Recover(ctx context.Context) error {
+	files, err := filepath.Glob(filepath.Join(d.stateDir(), "*.json"))
+	if err != nil {
+		return err
+	}
+	d.mu.Lock()
+	if d.projects == nil {
+		d.projects = map[string]string{}
+	}
+	if d.requests == nil {
+		d.requests = map[string]invocation.Request{}
+	}
+	for _, file := range files {
+		var request invocation.Request
+		if err := executor.Read(file, &request); err != nil {
+			d.mu.Unlock()
+			return err
+		}
+		if !runstore.ValidID(request.RunID) || filepath.Base(file) != request.RunID+".json" || !filepath.IsAbs(request.Project) {
+			d.mu.Unlock()
+			return fmt.Errorf("invalid durable workflow invocation %s", file)
+		}
+		d.projects[request.RunID], d.requests[request.RunID] = request.Project, request
+	}
+	ids := make([]string, 0, len(d.requests))
+	for id := range d.requests {
+		ids = append(ids, id)
+	}
+	d.mu.Unlock()
+	for _, id := range ids {
+		d.recoverRun(ctx, id)
+	}
+	return nil
+}
+func (d *WorkflowDaemon) recoverRun(ctx context.Context, id string) {
+	d.mu.Lock()
+	request, ok := d.requests[id]
+	if d.recovering == nil {
+		d.recovering = map[string]bool{}
+	}
+	if !ok || d.recovering[id] {
+		d.mu.Unlock()
+		return
+	}
+	d.recovering[id] = true
+	d.mu.Unlock()
+	go func() {
+		defer func() { d.mu.Lock(); delete(d.recovering, id); d.mu.Unlock() }()
+		state := filepath.Join(request.Project, ".gimbal")
+		for {
+			if ctx.Err() != nil {
+				return
+			}
+			if _, err := Connect(state, id); err == nil {
+				return
+			}
+			if snapshot, err := observation.NewRegistry(state).Snapshot(id); err == nil && snapshot.Run.Status != observation.StatusRunning {
+				return
+			}
+			if _, err := Spawn(request); err == nil {
+				return
+			} else if !errors.Is(err, runstore.ErrBusy) {
+				log.Printf("gimbal: recover remote %s: %v", id, err)
+				return
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(100 * time.Millisecond):
+			}
+		}
+	}()
 }

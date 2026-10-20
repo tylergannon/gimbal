@@ -20,15 +20,17 @@ import (
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
-	source  runstore.NodeID
-	node    runstore.NodeID
-	owner   *scope
-	adapter HarnessAdapter
-	name    string
-	model   string
-	effort  string
-	workdir string
-	id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
+	generationDelivered bool
+	interactiveDelivery func() error
+	source              runstore.NodeID
+	node                runstore.NodeID
+	owner               *scope
+	adapter             HarnessAdapter
+	name                string
+	model               string
+	effort              string
+	workdir             string
+	id                  string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
 	mu          sync.Mutex
 	native      string // the harness's session id, made on the first turn
@@ -68,6 +70,22 @@ func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session
 	}
 	s.adapter, s.model, s.effort = binding.Adapter, binding.Model, binding.Effort
 	scope.adopt(s)
+	for _, records := range scope.run.replay {
+		for _, record := range records {
+			if record.Session == s.node && record.Kind == "session-configuration" {
+				var configuration map[string]string
+				if json.Unmarshal(record.Payload, &configuration) == nil {
+					s.model, s.effort = configuration["model"], configuration["effort"]
+				}
+			}
+			if record.Session == s.node && record.Kind == "native-binding" {
+				var binding map[string]string
+				if json.Unmarshal(record.Payload, &binding) == nil {
+					s.native = binding["native"]
+				}
+			}
+		}
+	}
 	scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", s.adapter), Model: s.model, Effort: s.effort, Workdir: workdir})
 	return s
 }
@@ -227,6 +245,7 @@ type generationKey struct{}
 func generateResponse(ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, started *TurnStarted, output Output) ([]byte, error) {
 	s.mu.Lock()
 	s.generations++
+	s.generationDelivered = false
 	ordinal := s.generations
 	s.mu.Unlock()
 	node := s.owner.run.ensureNode(s.node, runstore.Action, "generate", ordinal, fmt.Sprintf("%s/generate.%d", s.id, ordinal), nil)
@@ -294,6 +313,13 @@ func (s *Session) create(ctx context.Context) error {
 	ordinal := s.creates
 	s.mu.Unlock()
 	node := s.owner.run.ensureNode(s.node, runstore.Action, "create", ordinal, fmt.Sprintf("%s/create.%d", s.id, ordinal), nil)
+	var saved map[string]string
+	if found, err := s.owner.run.outcome(node, &saved); found {
+		if err != nil {
+			return err
+		}
+		return s.adoptNative(saved["native"])
+	}
 	identity := actionIdentity(s.owner.node, s.node, node, "session")
 	createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
 	if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
@@ -339,6 +365,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		parent = s.node
 	}
 	turnNode := s.owner.run.ensureNode(parent, runstore.Action, "turn", ordinal, turnID, nil)
+	ctx = effects.WithReconstruction(ctx, s.owner.run.hasFact(turnNode, "intent"))
+	ctx, cancelAccepted := s.owner.run.acceptedContext(ctx, turnNode)
+	defer cancelAccepted()
 	if err := s.owner.run.recordingError(); err != nil {
 		s.mu.Lock()
 		s.running = false
@@ -354,6 +383,21 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		s.mu.Unlock()
 	}()
 
+	var saved struct {
+		Output []byte           `json:"output"`
+		Usage  map[string]Usage `json:"usage"`
+	}
+	if found, err := s.owner.run.outcome(turnNode, &saved); found {
+		if err == nil || s.owner.run.hasFact(turnNode, "prompt-delivered") {
+			if deliveryErr := s.notePromptDelivery(turnNode); deliveryErr != nil {
+				return nil, deliveryErr
+			}
+		}
+		if err == nil && validate != nil {
+			err = validate(saved.Output)
+		}
+		return saved.Output, err
+	}
 	if native == "" {
 		if err := s.create(ctx); err != nil {
 			return nil, err
@@ -443,7 +487,8 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			Schema   json.RawMessage
 			Files    []backend.TaskFile
 			Requires backend.Requirements
-		}{prompt, schema, files, effects.Requirements(ctx)}, identity)
+			Deadline time.Time
+		}{prompt, schema, files, effects.Requirements(ctx), operationDeadline(ctx)}, identity)
 		nativePrompt := prompt
 		finishCallback := func() {}
 		if err == nil && effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {
@@ -460,7 +505,15 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			err = s.admissionError(turnCtx)
 		}
 		if err == nil {
-			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, wrapped)
+			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, func(event AgentEvent) error {
+				switch event.Type {
+				case "session.step.started", "session.text.started", "session.tool.called":
+					if err := s.notePromptDelivery(turnNode); err != nil {
+						return err
+					}
+				}
+				return wrapped(event)
+			})
 		}
 		finishCallback()
 	}
@@ -769,6 +822,14 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 	native, running, turn, emit := s.native, s.running, s.turnID, s.activeEmit
 	s.mu.Unlock()
 	scope, _ := current(ctx)
+	owner := scope
+	if owner == nil {
+		owner = s.owner
+	}
+	ctx = effects.WithExecutionIdentity(effectContext(ctx, owner, turn), actionIdentity(owner.node, s.node, owner.run.nodeID(turn), "turn"))
+	if effects.InputID(ctx) == "" {
+		ctx = effects.WithInputID(ctx, string(runstore.NewRecordID()))
+	}
 	record := func(landed bool) {
 		if scope != nil {
 			scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message, Landed: landed})
@@ -779,7 +840,7 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 		record(false)
 		return false, nil
 	}
-	inboxKey := turn + fmt.Sprintf("/steer.%d", time.Now().UnixNano())
+	inboxKey := turn + "/steer/" + effects.InputID(ctx)
 	if emit != nil {
 		if err := emit(nativeEvent("session.inbox.enqueued", map[string]any{
 			"sessionID": native, "inboxID": inboxKey,
@@ -899,4 +960,24 @@ func (s *Session) reachable(ctx context.Context) error {
 		}
 	}
 	return fmt.Errorf("gimbal: session %q is not reachable from scope %q", s.name, active.key)
+}
+
+func (s *Session) notePromptDelivery(node runstore.NodeID) error {
+	s.mu.Lock()
+	if s.generationDelivered {
+		s.mu.Unlock()
+		return nil
+	}
+	s.generationDelivered = true
+	callback := s.interactiveDelivery
+	s.mu.Unlock()
+	if !s.owner.run.hasFact(node, "prompt-delivered") {
+		if err := s.owner.run.recordFact(node, s.owner.node, s.node, "prompt-delivered", struct{}{}, runstore.Committed); err != nil {
+			return err
+		}
+	}
+	if callback != nil {
+		return callback()
+	}
+	return nil
 }

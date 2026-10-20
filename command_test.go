@@ -192,11 +192,11 @@ func TestRunCommandKeepsLongOutputInAFile(t *testing.T) {
 	}
 	<-started
 	<-release
-	if len(stdout) >= 70003 || !strings.Contains(stdout, "bytes omitted") || !strings.Contains(stdout, "Complete output: ") || !strings.HasSuffix(stdout, "word end") {
-		t.Fatalf("RunCommand returned an unbounded or unusable preview (%d bytes): %q", len(stdout), stdout[max(0, len(stdout)-200):])
+	if stdout != strings.Repeat("word ", 14_000)+"end" {
+		t.Fatalf("RunCommand did not return the complete stream (%d bytes): %q", len(stdout), stdout[max(0, len(stdout)-200):])
 	}
 	row := find(commandRows(t, dir), "long.1")
-	if row.Stdout != stdout || row.StdoutFile == "" || row.StderrFile == "" {
+	if len(row.Stdout) > commandOutputLimit+100 || row.StdoutFile == "" || row.StderrFile == "" {
 		t.Fatalf("long.1 row = %+v, want the returned preview and both stream files", row)
 	}
 	whole, err := os.ReadFile(filepath.Join(dir, row.StdoutFile))

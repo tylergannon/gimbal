@@ -42,14 +42,20 @@ export type CancellationState = {
  */
 export type RunsData = {
   items: Array<RunItem>;
-  attention: Array<InterviewRow>;
+  attention: Array<InteractiveRow>;
   now: number;
 };
 
 /**
- * InterviewRow is one question an interview asked. An accepted answer updates the same row from pending to answered; an empty answer means the person ended the interview.
+ * InteractiveRow is one question an interactive asked. An accepted answer updates the same row from pending to answered; an empty answer means the person ended the interactive.
  */
-export type InterviewRow = {
+export type InteractiveRow = {
+  consumed: Array<string>;
+  ordinal: number;
+  unresolved: string;
+  address: string;
+  messages: Array<InteractiveMessage>;
+  ended_by: string;
   run: string;
   question_id: string;
   name: string;
@@ -60,4 +66,9 @@ export type InterviewRow = {
   answer: string;
   asked: number;
   answered: number;
+};
+
+export type InteractiveMessage = {
+  role: string;
+  message: string;
 };

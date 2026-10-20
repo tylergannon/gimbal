@@ -64,18 +64,33 @@ func (d *Daemon) writeBytes(v backend.Artifact, r io.Reader) error {
 	if err := d.admit(v.Owner); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp("", "gimbal-task-input-*"+filepath.Ext(v.Name))
+	inputDir := filepath.Join(d.stateRoot, "inputs")
+	if err := os.MkdirAll(inputDir, 0700); err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(inputDir, "gimbal-task-input-*"+filepath.Ext(v.Name))
 	if err != nil {
 		return err
 	}
 	_, err = io.Copy(file, r)
+	err = errors.Join(err, file.Sync())
 	err = errors.Join(err, file.Close())
+	if err == nil {
+		dir, e := os.Open(inputDir)
+		if e != nil {
+			return e
+		}
+		err = errors.Join(dir.Sync(), dir.Close())
+	}
 	if err != nil {
 		_ = os.Remove(file.Name())
 		return err
 	}
 	if old := d.files[v]; old != "" {
 		_ = os.Remove(old)
+	}
+	if err := d.writeState("files", key(v.Run, v.Task)+"\x00"+v.Name, savedFile{Artifact: v, Path: file.Name()}); err != nil {
+		return err
 	}
 	d.files[v] = file.Name()
 	return nil

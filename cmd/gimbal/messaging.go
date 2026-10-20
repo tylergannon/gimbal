@@ -18,10 +18,10 @@ import (
 )
 
 func newMessagingWorkerCommand() *cobra.Command {
-	var routeFile, readyFile string
+	var routeFile, readyFile, executorRoot string
 	var secretsStdin bool
 	var dirs []string
-	c := &cobra.Command{Use: "message-worker", Short: "Serve native actions through a runtime-loaded messaging plugin", Long: `Serve the configured request store/queue or HTTP endpoint on an operator-trusted network using the native task owner. --task-route is a JSON file with Name and Configuration; --plugin-dir contains compatible native .so plugins. Keep this worker alive for its actions and sessions; restarting does not resume them. Delivery budgets belong to the selected implementation and caller context. Missing acceptance or completion is an unresolved outcome, never proof of native failure. No automatic replay or host provisioning is provided. Release workflow scopes before stopping the worker.
+	c := &cobra.Command{Use: "message-worker", Short: "Serve native actions through a runtime-loaded messaging plugin", Long: `Serve the configured request store/queue or HTTP endpoint on an operator-trusted network using the native task owner. --task-route is a JSON file with Name and Configuration; --plugin-dir contains compatible native .so plugins. Reuse --executor-state-dir after restarting to recover accepted task and session mappings. Delivery budgets belong to the selected implementation and caller context. Missing acceptance or completion is an unresolved outcome, never proof of native failure. Accepted native work reattaches through its recorded executor identity; missing native evidence remains unresolved. No host provisioning is provided. Release workflow scopes before stopping the worker.
 
 Example: gimbal message-worker --plugin-dir /abs/plugins --task-route @/abs/filesystem.json
 Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain until their configured store is removed.`, RunE: func(c *cobra.Command, _ []string) error {
@@ -59,7 +59,7 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		if _, err := fmt.Fprintln(c.OutOrStdout(), "Messaging worker:", route.Name); err != nil {
 			return err
 		}
-		daemon := taskdaemon.New("")
+		daemon := taskdaemon.New(executorRoot)
 		daemon.Secrets = connection.Secrets
 		if daemon.Secrets == nil {
 			daemon.Secrets = backend.NewMemorySecrets()
@@ -76,6 +76,7 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		}
 		return err
 	}}
+	c.Flags().StringVar(&executorRoot, "executor-state-dir", "", "native executor state directory (reuse after restart)")
 	c.Flags().StringVar(&readyFile, "ready-file", "", "private readiness file written after worker starts listening")
 	c.Flags().BoolVar(&secretsStdin, "secrets-config-stdin", false, "read selected secrets backend configuration privately from standard input")
 	c.Flags().StringVar(&routeFile, "task-route", "", "messaging route JSON or @file")

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/tylergannon/gimbal/backend"
 	"io"
 	"os"
 	"os/exec"
@@ -21,14 +22,15 @@ import (
 )
 
 type Request struct {
-	Deadline    time.Time          `json:"deadline,omitzero"`
-	ID          executor.CommandID `json:"id"`
-	Command     string             `json:"command"`
-	Args        []string           `json:"args"`
-	Workdir     string             `json:"workdir"`
-	Environment []string           `json:"environment"`
-	Grace       time.Duration      `json:"grace,omitempty"`
-	Timeout     time.Duration      `json:"timeout"`
+	Reconstructing bool               `json:"-"`
+	Deadline       time.Time          `json:"deadline,omitzero"`
+	ID             executor.CommandID `json:"id"`
+	Command        string             `json:"command"`
+	Args           []string           `json:"args"`
+	Workdir        string             `json:"workdir"`
+	Environment    []string           `json:"environment"`
+	Grace          time.Duration      `json:"grace,omitempty"`
+	Timeout        time.Duration      `json:"timeout"`
 }
 type Result struct {
 	Forced    bool      `json:"forced,omitempty"`
@@ -77,6 +79,9 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	req.Workdir, err = filepath.Abs(req.Workdir)
 	if err != nil {
 		return executor.Descriptor{}, err
+	}
+	if req.Reconstructing && !executor.Exists(filepath.Join(root, string(req.ID), "request.json")) {
+		return executor.Descriptor{}, &backend.DeliveryUncertain{RequestID: string(req.ID), Err: errors.New("accepted native command evidence is unavailable; refusing fresh execution")}
 	}
 	binary, err := os.Executable()
 	if err != nil {

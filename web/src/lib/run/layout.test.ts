@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
 import {
-  implementInterviewFixture,
+  implementInteractiveFixture,
   planTripFixture,
   serviceOwnershipFixture,
 } from "./fixtures/index.js";
@@ -11,10 +11,10 @@ const operationName = (
   operation: ReturnType<typeof buildMapLayout>["nodes"][number]["operation"],
 ) => (operation.kind === "agent_call" ? operation.session : operation.name);
 
-test("lays out implement-interview recursively in source order", () => {
+test("lays out implement-interactive recursively in source order", () => {
   const layout = buildMapLayout(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
   );
 
   assert.deepEqual(
@@ -81,7 +81,7 @@ test("lays out implement-interview recursively in source order", () => {
   );
 });
 
-test("lays out plan-trip with pending interviews before its unexecuted planner", () => {
+test("lays out plan-trip with pending interactions before its unexecuted planner", () => {
   const layout = buildMapLayout(planTripFixture.graph, planTripFixture.snapshot);
 
   assert.deepEqual(
@@ -106,7 +106,7 @@ test("lays out plan-trip with pending interviews before its unexecuted planner",
     ["lodging", "transport"],
   );
   assert.equal(
-    layout.sheets.some((sheet) => sheet.scope.name === "interviewer"),
+    layout.sheets.some((sheet) => sheet.scope.name === "interactiveer"),
     false,
   );
   assert.equal(layout.groups.length, 1);
@@ -115,8 +115,8 @@ test("lays out plan-trip with pending interviews before its unexecuted planner",
 
 test("selected promise-loop instance drives every runtime fact", () => {
   const task2 = buildMapLayout(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
     { selectedInstances: { "implementation.1/task": "implementation.1/task.2" } },
   );
 
@@ -137,8 +137,8 @@ test("selected promise-loop instance drives every runtime fact", () => {
   );
 
   const task3 = buildMapLayout(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
     { selectedInstances: { "implementation.1/task": "implementation.1/task.3" } },
   );
   assert.deepEqual(
@@ -151,7 +151,7 @@ test("selected promise-loop instance drives every runtime fact", () => {
 });
 
 test("interrupted turns and commands are cancelled while genuine failures stay failed", () => {
-  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const snapshot = structuredClone(implementInteractiveFixture.snapshot);
   snapshot.turns["coding.1/turn.2"].interrupted = true;
   snapshot.turns["coding.1/turn.2"].error = "turn stopped";
   snapshot.commands["implementation.1/task.2/task-check.1"].interrupted = true;
@@ -159,7 +159,7 @@ test("interrupted turns and commands are cancelled while genuine failures stay f
   snapshot.commands["implementation.1/task.2/build.1"].exit_code = 2;
   snapshot.commands["implementation.1/task.2/build.1"].error = "build failed";
 
-  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot, {
+  const layout = buildMapLayout(implementInteractiveFixture.graph, snapshot, {
     selectedInstances: { "implementation.1/task": "implementation.1/task.2" },
   });
   const task2Nodes = layout.nodes.filter((node) => node.scopeKey === "implementation.1/task.2");
@@ -216,12 +216,12 @@ test("live folded elapsed time uses the render clock while ended and recorded sc
 });
 
 test("runtime ordinal scope names bind to their declared graph scopes", () => {
-  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const snapshot = structuredClone(implementInteractiveFixture.snapshot);
   for (const scope of Object.values(snapshot.scopes)) {
     if (scope.key) scope.name = scope.key.split("/").at(-1) ?? scope.name;
   }
 
-  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot);
+  const layout = buildMapLayout(implementInteractiveFixture.graph, snapshot);
   const implementation = layout.sheets.find((sheet) => sheet.scope.key === "implementation.1");
   const task = layout.sheets.find((sheet) => sheet.scope.key === "implementation.1/task.3");
   const coding = layout.nodes.find(
@@ -243,8 +243,8 @@ test("runtime ordinal scope names bind to their declared graph scopes", () => {
 
 test("folded summaries retain child-scope states and selected-instance facts", () => {
   const reconnaissance = buildMapLayout(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
     { foldedScopes: ["reconnaissance.1"] },
   ).sheets.find((sheet) => sheet.scope.key === "reconnaissance.1");
   assert.ok(reconnaissance);
@@ -269,8 +269,8 @@ test("folded summaries retain child-scope states and selected-instance facts", (
   );
 
   const task2 = buildMapLayout(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
     {
       selectedInstances: { "implementation.1/task": "implementation.1/task.2" },
       foldedScopes: ["implementation.1/task.2"],
@@ -286,8 +286,8 @@ test("folded summaries retain child-scope states and selected-instance facts", (
   );
 
   const implementation = buildMapLayout(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
     {
       selectedInstances: { "implementation.1/task": "implementation.1/task.2" },
       foldedScopes: ["implementation.1"],
@@ -305,13 +305,13 @@ test("folded summaries retain child-scope states and selected-instance facts", (
 });
 
 test("a refreshed snapshot replaces selected-instance runtime facts", () => {
-  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const snapshot = structuredClone(implementInteractiveFixture.snapshot);
   snapshot.turns["coding.1/turn.3"].ended = snapshot.turns["coding.1/turn.3"].started + 120_000;
   snapshot.turns["coding.1/turn.3"].duration = 120_000;
   snapshot.scopes["implementation.1/task.3"].status = "ended";
   snapshot.scopes["implementation.1/task.3"].ended = snapshot.turns["coding.1/turn.3"].ended;
 
-  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot, {
+  const layout = buildMapLayout(implementInteractiveFixture.graph, snapshot, {
     selectedInstances: { "implementation.1/task": "implementation.1/task.3" },
   });
   const coding = layout.nodes.find(
@@ -377,12 +377,12 @@ test("folded owners retain a service count without rendering process rows", () =
 });
 
 test("a delivery-unresolved turn is distinct from failed execution on the graph", () => {
-  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const snapshot = structuredClone(implementInteractiveFixture.snapshot);
   const turn = snapshot.turns["coding.1/turn.3"];
   turn.ended = turn.started + 1;
   turn.error = "retained native completion could not be delivered";
   turn.unresolved = true;
-  const layout = buildMapLayout(implementInterviewFixture.graph, snapshot);
+  const layout = buildMapLayout(implementInteractiveFixture.graph, snapshot);
   const node = layout.nodes.find((node) => operationName(node.operation) === "coding");
   assert.equal(node?.state, "needs-you");
 });

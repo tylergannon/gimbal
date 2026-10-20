@@ -2,6 +2,7 @@ package commandexecutor
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/executor"
 )
 
@@ -170,5 +172,18 @@ func TestNoImplicitDeadlineForProgrammaticSubmission(t *testing.T) {
 	deadline, err := os.ReadFile(filepath.Join(filepath.Dir(d.Result), "deadline.json"))
 	if err != nil || strings.TrimSpace(string(deadline)) != "null" {
 		t.Fatalf("implicit deadline %s: %v", deadline, err)
+	}
+}
+
+func TestReconstructionWithoutAcceptedEvidenceDoesNotDispatch(t *testing.T) {
+	root := t.TempDir()
+	marker := filepath.Join(root, "must-not-run")
+	_, err := Submit(root, Request{ID: executor.NewCommandID(), Command: "sh", Args: []string{"-c", "touch " + marker}, Workdir: root, Reconstructing: true})
+	var uncertain *backend.DeliveryUncertain
+	if !errors.As(err, &uncertain) {
+		t.Fatalf("missing accepted evidence: %v", err)
+	}
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatalf("unknown prior operation was dispatched: %v", err)
 	}
 }

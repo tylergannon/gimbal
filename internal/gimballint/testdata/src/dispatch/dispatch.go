@@ -14,19 +14,19 @@ var globalWorkers = map[string]worker{"implement": implement}
 func implement(context.Context) error { return nil }
 func review(context.Context) error    { return nil }
 
-func directMap(ctx context.Context, kind string) error {
+func directMap(ctx context.Context, kind string) error { // want "GIMBAL111-LIBRARY-EFFECTS"
 	workers := map[string]worker{"implement": implement, "review": review}
 	return workers[kind](ctx) // want `GIMBAL101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS`
 }
 
-func aliasedMap(ctx context.Context, kind string) error {
+func aliasedMap(ctx context.Context, kind string) error { // want "GIMBAL111-LIBRARY-EFFECTS"
 	workers := map[string]worker{"implement": implement, "review": review}
 	selected := workers[kind]
 	alias := selected
 	return alias(ctx) // want `GIMBAL101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS`
 }
 
-func opaque(ctx context.Context, selected worker) error {
+func opaque(ctx context.Context, selected worker) error { // want "GIMBAL111-LIBRARY-EFFECTS"
 	return selected(ctx) // want `GIMBAL101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS`
 }
 
@@ -48,7 +48,7 @@ func explicitSwitch(ctx context.Context, kind string) error {
 
 func helper(ctx context.Context) error { return implement(ctx) }
 
-func namedBody(ctx context.Context) error {
+func namedBody(ctx context.Context) error { // want "GIMBAL111-LIBRARY-EFFECTS"
 	workers := map[string]worker{"implement": implement}
 	return workers["implement"](ctx) // want `GIMBAL101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS`
 }
@@ -57,12 +57,12 @@ func namedWorkflow(ctx context.Context) error {
 	return gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "named", nil, namedBody)
 }
 
-func helperWithoutContext() error {
+func helperWithoutContext() error { // want "GIMBAL111-LIBRARY-EFFECTS"
 	return globalWorkers["implement"](context.Background()) // want `GIMBAL101-SIMPLE-WORKFLOWS/NO-DYNAMIC-WORKERS`
 }
 
 func workflow(ctx context.Context, kind string) error {
-	return gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "workflow", nil, func(ctx context.Context) error {
+	return gimbal.Run(ctx, "01ARZ3NDEKTSV4RRFFQ69G5FAV", "workflow", nil, func(ctx context.Context) error { // want "GIMBAL111-LIBRARY-EFFECTS"
 		if err := directMap(ctx, kind); err != nil {
 			return err
 		}
@@ -108,7 +108,7 @@ func fixedGroupPerIteration(ctx context.Context, items []string) error {
 	return nil
 }
 
-func groupInForInitializer(ctx context.Context, more func() bool) {
+func groupInForInitializer(ctx context.Context, more func() bool) { // want "GIMBAL111-LIBRARY-EFFECTS"
 	for group := gimbal.Group(ctx, "workers"); more(); {
 		group.Go("worker", implement) // want `GIMBAL110-SIMPLE-WORKFLOWS/NO-DYNAMIC-GROUP-CHILDREN`
 	}

@@ -33,7 +33,7 @@ func registry() []producer {
 	for _, item := range []struct{ pkg, entry, name string }{
 		{"implementinterview", "ImplementInterview", "implement-interview"},
 		{"implementation", "Implement", "implement"},
-		{"interview", "Interview", "interview"},
+		{"conversation", "Conversation", "conversation"},
 		{"pyramidsummary", "PyramidSummary", "pyramid-summary"},
 		{"researcheval", "ResearchEval", "research-eval"},
 		{"researchdocument", "ResearchDocument", "research-document"},

@@ -98,6 +98,9 @@ func (r *run) prepareAction(ctx context.Context, scope, session, node runstore.N
 	if err := r.recordingError(); err != nil {
 		return err
 	}
+	if r.hasFact(node, "intent") {
+		return nil
+	}
 	intent := map[string]any{"operation": kind, "input": input, "route": effects.Route(ctx), "identity": identity}
 	raw, err := r.payload(intent)
 	if err != nil {
@@ -154,7 +157,11 @@ func (r *run) finishAction(scope, session, node runstore.NodeID, result any, nat
 	if errors.As(nativeErr, &uncertain) {
 		category = "unresolved"
 	}
-	return r.recordFact(node, scope, session, "outcome", struct {
+	kind := "outcome"
+	if r.hasFact(node, "outcome") {
+		kind = "resolved-outcome"
+	}
+	return r.recordFact(node, scope, session, kind, struct {
 		Category string          `json:"category"`
 		Error    string          `json:"error,omitempty"`
 		Result   json.RawMessage `json:"result"`

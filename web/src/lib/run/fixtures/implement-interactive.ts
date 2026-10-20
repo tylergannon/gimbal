@@ -1,6 +1,6 @@
 import type {
   CommandRow,
-  InterviewRow,
+  InteractiveRow,
   ModelCallRow,
   RunRow,
   RunSnapshot,
@@ -11,10 +11,10 @@ import type {
 } from "../../observation/index.js";
 import type { Graph } from "../../workflow/types.js";
 
-const workflowFile = "internal/workflows/implementinterview/implementinterview.go";
+const workflowFile = "internal/workflows/implementinteractive/implementinteractive.go";
 
-export const implementInterviewGraph: Graph = {
-  name: "implement-interview",
+export const implementInteractiveGraph: Graph = {
+  name: "implement-interactive",
   source: { file: workflowFile, line: 45 },
   services: [],
   body: [
@@ -233,7 +233,7 @@ export const implementInterviewGraph: Graph = {
           session: "qa-orchestration",
           role: "qa-orchestration",
           prompt:
-            "Independently read the saved issue, reference directory, implementation, tests, and recorded command results. Make no source changes and do not treat the worker report as evidence. Start the generated interview example on a separate port with its interviewer bound to Terra or Sonnet, never Gemini. Use the installed Playwright through the shell to conduct successive human answers in a real browser; do not write proof programs or commit run artifacts, and cleanly stop the example process afterward. Complete is true only if you personally demonstrate every requirement in that running interface; tests and reports alone are insufficient.",
+            "Independently read the saved issue, reference directory, implementation, tests, and recorded command results. Make no source changes and do not treat the worker report as evidence. Start the generated interactive example on a separate port with its interactiveer bound to Terra or Sonnet, never Gemini. Use the installed Playwright through the shell to conduct successive human answers in a real browser; do not write proof programs or commit run artifacts, and cleanly stop the example process afterward. Complete is true only if you personally demonstrate every requirement in that running interface; tests and reports alone are insufficient.",
           supervisors: [],
         },
         { kind: "set", file: workflowFile, line: 137, key: "independent assessment" },
@@ -290,7 +290,7 @@ const started = 1_800_000_000_000;
 
 const run: RunRow = {
   id: runID,
-  name: "implement-interview",
+  name: "implement-interactive",
   status: "running",
   error: "",
   started,
@@ -301,7 +301,7 @@ const scopes = {
   "": {
     run: runID,
     key: "",
-    name: "implement-interview",
+    name: "implement-interactive",
     loop: false,
     status: "running",
     error: "",
@@ -432,7 +432,7 @@ const scopes = {
     task: {
       name: "Live answered timestamp",
       description:
-        "Wire the answered timestamp through the web answer flow so the interview row updates without a reload. Stay inside the observation rows.",
+        "Wire the answered timestamp through the web answer flow so the interactive row updates without a reload. Stay inside the observation rows.",
     },
     began: started + 2_794_000,
     ended: 0,
@@ -441,7 +441,7 @@ const scopes = {
         value: {
           name: "Live answered timestamp",
           description:
-            "Wire the answered timestamp through the web answer flow so the interview row updates without a reload. Stay inside the observation rows.",
+            "Wire the answered timestamp through the web answer flow so the interactive row updates without a reload. Stay inside the observation rows.",
         },
       },
     },
@@ -609,7 +609,7 @@ const turns = {
     session: "coding.1",
     scope: "implementation.1/task.3",
     prompt:
-      "Wire the answered timestamp through the web answer flow so the interview row updates without a reload. Stay inside the observation rows.",
+      "Wire the answered timestamp through the web answer flow so the interactive row updates without a reload. Stay inside the observation rows.",
     output_type: "text",
     result: "",
     error: "",
@@ -703,7 +703,7 @@ const modelCalls = {
   ],
 } satisfies Record<string, ModelCallRow[]>;
 
-const interviews = {} satisfies Record<string, InterviewRow>;
+const interactions = {} satisfies Record<string, InteractiveRow>;
 
 const commandRow = (scope: string, name: string, offset: number, exitCode = 0): CommandRow => ({
   run: runID,
@@ -738,13 +738,13 @@ const commands = {
   [`${task2}/test.1`]: commandRow(task2, "test", 2_584_000),
 } satisfies Record<string, CommandRow>;
 
-export const implementInterviewSnapshot: RunSnapshot = {
-  stream: "implement-interview-specimen",
+export const implementInteractiveSnapshot: RunSnapshot = {
+  stream: "implement-interactive-specimen",
   position: 38,
   run,
   scopes,
   sessions,
-  interviews,
+  interactions,
   turns,
   turn_usage: { "coding.1/turn.3": { "gpt-5.6-luna": usage } },
   model_calls: modelCalls,
@@ -758,7 +758,7 @@ export const implementInterviewSnapshot: RunSnapshot = {
   transcripts: {},
 };
 
-export const implementInterviewFixture = {
-  graph: implementInterviewGraph,
-  snapshot: implementInterviewSnapshot,
+export const implementInteractiveFixture = {
+  graph: implementInteractiveGraph,
+  snapshot: implementInteractiveSnapshot,
 };

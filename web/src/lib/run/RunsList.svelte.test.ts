@@ -41,7 +41,7 @@ test("four filters and revealed search preserve failed and cancelled history", a
   await screen.getByRole("button", { name: "Ended", exact: true }).click();
   await expect
     .element(
-      screen.getByRole("button", { name: "Open implement-interview 01M2QZ7PB3N6D0R9X2G5HKW8VY" }),
+      screen.getByRole("button", { name: "Open implement-interactive 01M2QZ7PB3N6D0R9X2G5HKW8VY" }),
     )
     .toBeVisible();
   await expect

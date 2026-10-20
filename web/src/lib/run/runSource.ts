@@ -97,7 +97,7 @@ function indexGraph(graph: Graph) {
 const graphKind: Record<string, string> = {
   Generate: "agent_call",
   Command: "command",
-  Interview: "interview",
+  Interactive: "interactive",
   PromiseLoop: "promise_loop",
   Iterate: "iterate",
   Scope: "scope",
@@ -214,7 +214,7 @@ export function bindRun(
     switch (operation.kind) {
       case "agent_call":
       case "command":
-      case "interview":
+      case "interactive":
         return bindStep(operation, resolve(path));
       case "service": {
         const scopeKey = resolve(path);
@@ -339,8 +339,8 @@ export function sourceFromGraph(graph: Graph): SourcePage {
           ];
         case "command":
           return [node("Command", op.name, op, scope)];
-        case "interview":
-          return [node("Interview", op.name, op, scope, { session: op.session })];
+        case "interactive":
+          return [node("Interactive", op.name, op, scope, { session: op.session })];
         case "session":
           return [node("NewSession", op.name, op, scope, { session: op.name })];
         case "set":

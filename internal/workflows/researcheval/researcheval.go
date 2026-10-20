@@ -702,7 +702,7 @@ func waitResearch(ctx context.Context, dir, id string, minutes int) (observation
 			return snap, err
 		}
 		if !cancelled && now-started >= float64(minutes*60) {
-			code, _, stderr, err := gimbal.RunCommand(ctx, "cancel-research", dir, "python3", "-c", cancelResearchCommand, dir, id)
+			code, _, stderr, err := gimbal.RunCommand(ctx, "cancel-research", dir, "gimbal", "cancel", id, "--work-dir", dir)
 			if err != nil || code != 0 {
 				return snap, fmt.Errorf("cancel research %s: exit %d: %s: %w", id, code, stderr, err)
 			}

@@ -317,7 +317,7 @@ func makeDirectory(ctx context.Context, path string, _ uint32) error {
 	return nil
 }
 func clock(ctx context.Context) (float64, error) {
-	code, stdout, stderr, err := gimbal.RunCommand(ctx, "read-clock", "/", "python3", "-c", "import time; print(time.monotonic())")
+	code, stdout, stderr, err := gimbal.RunCommand(ctx, "read-clock", "/", "node", "-e", "console.log(Number(process.hrtime.bigint())/1e9)")
 	if err != nil || code != 0 {
 		return 0, fmt.Errorf("clock: exit %d: %s: %w", code, stderr, err)
 	}

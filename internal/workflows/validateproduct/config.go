@@ -86,7 +86,7 @@ func readSuite(ctx context.Context, name string) (Suite, error) {
 		if err != nil || code != 0 {
 			return suite, fmt.Errorf("workload %s needs an existing workspace", w.Name)
 		}
-		code, realDir, stderr, err := gimbal.RunCommand(ctx, "resolve-workspace", "/", "python3", "-c", "import os,sys; print(os.path.realpath(sys.argv[1]))", w.Workdir)
+		code, realDir, stderr, err := gimbal.RunCommand(ctx, "resolve-workspace", "/", "node", "-e", `console.log(require("node:fs").realpathSync(process.argv[1]))`, w.Workdir)
 		if code != 0 {
 			return suite, fmt.Errorf("resolve workspace: %s", stderr)
 		}

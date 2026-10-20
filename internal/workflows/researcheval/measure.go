@@ -261,7 +261,7 @@ func sourceTexts(ctx context.Context, root string, c researchCase) (map[string]s
 		return nil, err
 	}
 	texts := map[string]string{}
-	code, body, stderr, err := gimbal.RunCommand(ctx, "read-source-corpus", root, "python3", "-c", readCorpusCommand, dir)
+	code, body, stderr, err := gimbal.RunCommand(ctx, "read-source-corpus", root, "node", "-e", readCorpusCommand, dir)
 	if err != nil || code != 0 {
 		return nil, fmt.Errorf("read source corpus: exit %d: %s: %w", code, stderr, err)
 	}

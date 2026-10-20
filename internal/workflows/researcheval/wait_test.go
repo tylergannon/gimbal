@@ -39,6 +39,7 @@ func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 			socket := filepath.Join(socketDir, "s")
+			t.Setenv("EVAL_CONTROL_SOCKET", socket)
 			listener, err := net.Listen("unix", socket)
 			if err != nil {
 				t.Fatal(err)
@@ -107,10 +108,16 @@ func TestWaitResearchReportsUnavailableCancellation(t *testing.T) {
 func installWatch(t *testing.T, state string) {
 	t.Helper()
 	bin := t.TempDir()
-	command := "#!/bin/sh\nexec cat \"$EVAL_SNAPSHOT\"\n"
+	command := `#!/bin/sh
+if [ "$1" = cancel ]; then
+ exec curl --fail --silent --show-error --unix-socket "$EVAL_CONTROL_SOCKET" -H "X-Gimbal-Project: $EVAL_PROJECT" -H 'Content-Type: application/json' --data "{\"run\":\"$2\"}" http://localhost/control/cancel
+fi
+exec cat "$EVAL_SNAPSHOT"
+`
 	if err := os.WriteFile(filepath.Join(bin, "gimbal"), []byte(command), 0700); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("EVAL_SNAPSHOT", state)
+	t.Setenv("EVAL_PROJECT", filepath.Dir(state))
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }

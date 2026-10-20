@@ -114,6 +114,17 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 		}
 		input := inputs[0]
 		if input.Disposition == "uncertain" {
+			if !continuing {
+				for _, control := range inputs {
+					if control.Finish {
+						state.Consumed = append(state.Consumed, control.ID)
+						state.Unresolved, state.Transcript.EndedBy, state.Waiting = "", "human", false
+						err = r.commitInteraction(state)
+						r.interactionMu.Unlock()
+						return state.Transcript, err
+					}
+				}
+			}
 			state.Unresolved = fmt.Sprintf("Input %s delivery is unresolved", input.ID)
 			_ = r.commitInteraction(state)
 			r.interactionMu.Unlock()
@@ -282,8 +293,15 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 			state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "assistant", Message: decision.Message})
 			state.Waiting = true
 		case end:
-			state.Transcript.EndedBy = "agent"
-			state.Waiting = false
+			for _, next := range pending {
+				if next.Disposition == "uncertain" {
+					state.Unresolved = fmt.Sprintf("Input %s delivery is unresolved", next.ID)
+				}
+			}
+			state.Waiting = state.Unresolved != ""
+			if !state.Waiting {
+				state.Transcript.EndedBy = "agent"
+			}
 		default:
 			r.interactionMu.Unlock()
 			return state.Transcript, errors.New("gimbal: invalid interaction decision")
@@ -292,6 +310,9 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 		r.interactionMu.Unlock()
 		if err != nil || state.Transcript.EndedBy != "" {
 			return state.Transcript, err
+		}
+		if state.Unresolved != "" {
+			panic(suspension{})
 		}
 	}
 }
@@ -538,7 +559,7 @@ func (r *run) closeInteractionInputs(scope string) {
 		if owner == "." {
 			owner = ""
 		}
-		if consumed[id] || input.Disposition == "unprocessed" || !(scope == "" || owner == scope || strings.HasPrefix(owner, scope+"/")) {
+		if consumed[id] || (input.Disposition == "unprocessed" || input.Disposition == "uncertain") || !(scope == "" || owner == scope || strings.HasPrefix(owner, scope+"/")) {
 			continue
 		}
 		input.Disposition = "unprocessed"

@@ -191,6 +191,7 @@ type activeInteractionAdapter struct {
 	steerErr error
 	calls    int
 	steers   int
+	output   string
 }
 
 func (*activeInteractionAdapter) CreateSession(context.Context, string, string, string) (string, error) {
@@ -208,6 +209,9 @@ func (a *activeInteractionAdapter) RunTurn(ctx context.Context, _ string, _ stri
 			return TurnResult{}, ctx.Err()
 		case <-a.release:
 		}
+	}
+	if a.output != "" {
+		return TurnResult{Output: json.RawMessage(a.output)}, nil
 	}
 	return TurnResult{Output: json.RawMessage(`{"decision":{"type":"chat","message":"Acknowledged"}}`)}, nil
 }
@@ -292,5 +296,51 @@ func TestInteractiveStopWaitsAndNextInputContinues(t *testing.T) {
 	_ = controller.acceptInteractive("dialogue", "finish", "", true)
 	if err := Run(ctx, id, "test", models, body); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInteractiveUncertainSteerCannotClaimAgentEnd(t *testing.T) {
+	ctx := Project(context.Background(), t.TempDir())
+	id := string(runstore.NewRunID())
+	adapter := &activeInteractionAdapter{started: make(chan struct{}), release: make(chan struct{}), steerErr: fmt.Errorf("lost steering acknowledgment"), output: `{"decision":{"type":"end"}}`}
+	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}
+	var controller *run
+	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
+	var ended string
+	body := func(ctx context.Context) error {
+		transcript, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+		ended = transcript.EndedBy
+		return err
+	}
+	if err := Run(ctx, id, "test", models, body); err != nil {
+		t.Fatal(err)
+	}
+	if err := controller.acceptInteractive("dialogue", "opening", "Hello", false); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, id, "test", models, body) }()
+	<-adapter.started
+	if err := controller.acceptInteractive("dialogue", "uncertain", "Please change course", false); err == nil {
+		t.Fatal("steering uncertainty hidden")
+	}
+	close(adapter.release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if ended != "" || controller.State() != "waiting" || controller.Runnable() {
+		t.Fatalf("uncertain end=%q state=%s runnable=%v", ended, controller.State(), controller.Runnable())
+	}
+	if err := controller.acceptInteractive("dialogue", "finish", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := Run(ctx, id, "test", models, body); err != nil {
+		t.Fatal(err)
+	}
+	if ended != "human" || adapter.calls != 1 {
+		t.Fatalf("finish=%s calls=%d", ended, adapter.calls)
+	}
+	if controller.interactionInputs["uncertain"].Disposition != "uncertain" {
+		t.Fatal("unknown delivery relabeled as unprocessed")
 	}
 }

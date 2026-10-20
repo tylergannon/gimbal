@@ -43,6 +43,9 @@ export function projectActivity(
   recordings: Header[],
 ): HomeEntry[] {
   const root = `/projects/${project}`;
+  // A conversation's controller waits for the same person as its session.
+  // Child workflows remain separate work; only its own backing run is hidden.
+  const controllers = new Set(sessions.map((item) => item.workflow_run).filter(Boolean));
   return [
     ...sessions.map((item) => ({
       path: `${root}/conversations/${item.id}`,
@@ -64,7 +67,7 @@ export function projectActivity(
           ? `turn ${item.requests.filter((request) => request.delivery === "turn").length}`
           : ""),
     })),
-    ...runs.map((item) => ({
+    ...runs.filter((item) => !controllers.has(item.run.id)).map((item) => ({
       path: `${root}/runs/${encodeURIComponent(item.run.id)}`,
       title: `${item.run.name} · ${item.run.id.split(".")[0].slice(-6)}`,
       kind: "Runs" as const,

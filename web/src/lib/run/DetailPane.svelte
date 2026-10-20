@@ -424,7 +424,7 @@
         {/each}
       </section>
       {#if pendingInteractive || interactive.status === 'unresolved' || interactive.status === 'active'}
-        <RunQuestions run={snapshot.run.id} question={interactive} composer />
+        <RunQuestions run={snapshot.run.id} question={interactive} composer turn={Object.values(snapshot.turns).find(row => row.session === interactive.session && !row.ended)?.id} />
       {/if}
     {:else if command}
       {@const failed = !command.interrupted && command.ended > 0 && command.exit_code !== 0}

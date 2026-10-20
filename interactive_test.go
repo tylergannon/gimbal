@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -581,4 +582,67 @@ func (a *restartInteractionAdapter) appendMarker(name, text string) error {
 	}
 	_, writeErr := file.WriteString(text)
 	return errors.Join(writeErr, file.Close())
+}
+
+type delayedInteractionAdapter struct {
+	*interactionAdapter
+	cancelled chan struct{}
+}
+
+func (a *delayedInteractionAdapter) RunTurn(ctx context.Context, _ string, _ string, _ json.RawMessage, _ func(AgentEvent) error) (TurnResult, error) {
+	close(a.started)
+	<-ctx.Done()
+	close(a.cancelled)
+	<-a.release
+	return TurnResult{}, ctx.Err()
+}
+func TestInteractiveInputFailureJoinsNativeTurnBeforeRunReturns(t *testing.T) {
+	adapter := &delayedInteractionAdapter{interactionAdapter: &interactionAdapter{started: make(chan struct{}), release: make(chan struct{})}, cancelled: make(chan struct{})}
+	directoryPath := t.TempDir()
+	injected := errors.New("input assignment recording failed")
+	var fail atomic.Bool
+	store := faultStore{Store: directory.Store{Root: filepath.Join(directoryPath, "runs")}, beforeAppend: func(facts []runstore.Fact) error {
+		if fail.Load() {
+			for _, fact := range facts {
+				var input interactionInput
+				if fact.Kind == "interaction-input" && json.Unmarshal(fact.Payload, &input) == nil && input.Disposition == "inflight" {
+					return injected
+				}
+			}
+		}
+		return nil
+	}}
+	ctx := WithRunStore(Project(t.Context(), directoryPath), store)
+	owners := make(chan *run, 1)
+	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { owners <- c.(*run); return func() {} })
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, string(runstore.NewRunID()), "join", map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}, func(ctx context.Context) error {
+			_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+			return err
+		})
+	}()
+	owner := <-owners
+	eventuallyInteractive(t, func() bool { return waitingInteractive(owner, 0) })
+	if err := owner.acceptInteractive("dialogue", "opening", "Hello", false); err != nil {
+		t.Fatal(err)
+	}
+	<-adapter.started
+	fail.Store(true)
+	if err := owner.acceptInteractive("dialogue", "second", "Steer", false); err != nil {
+		t.Fatal(err)
+	}
+	<-adapter.cancelled
+	select {
+	case err := <-done:
+		t.Fatalf("Run returned before native cessation: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if owner.State() == "terminal" {
+		t.Fatal("run closed its journal before native cessation")
+	}
+	close(adapter.release)
+	if err := <-done; !errors.Is(err, injected) {
+		t.Fatalf("input failure result %v", err)
+	}
 }

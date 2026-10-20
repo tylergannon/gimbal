@@ -116,6 +116,9 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 		if cancel != nil {
 			cancel(nil)
 		}
+		if result != nil {
+			<-result
+		}
 	}()
 	for {
 		if err := context.Cause(ctx); err != nil {
@@ -245,6 +248,7 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 		case <-ctx.Done():
 			cancel(context.Cause(ctx))
 			<-result
+			result = nil
 			return state.Transcript, context.Cause(ctx)
 		case <-active.wake:
 			continue

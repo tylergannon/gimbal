@@ -23,11 +23,12 @@
   const live = $derived(snapshot.run.status === 'running');
   const sessions = $derived(Object.values(snapshot.sessions).sort((a,b) => a.created - b.created));
   const waiting = $derived(Object.values(snapshot.interactions).filter(row => row.status === 'pending' && live));
+  const interactions = $derived(Object.values(snapshot.interactions).filter(row => live && ['pending', 'active', 'unresolved'].includes(row.status)).sort((a,b) => b.ordinal-a.ordinal));
   const activeTurn = $derived(Object.values(snapshot.turns).filter(row => !row.ended).sort((a,b) => b.started-a.started)[0]);
   const chosen = $derived(sessions.find(row => row.id === picked) ?? sessions.find(row => row.id === waiting[0]?.session || row.name === waiting[0]?.session) ?? sessions.find(row => row.id === activeTurn?.session) ?? sessions.at(-1));
   const turns = $derived(Object.values(snapshot.turns).filter(row => row.session === chosen?.id).sort((a,b) => a.started - b.started));
   const running = $derived(turns.find(row => !row.ended));
-  const question = $derived(waiting.find(row => row.session === chosen?.id || row.session === chosen?.name) ?? (waiting.length === 1 && !waiting[0].session ? waiting[0] : undefined));
+  const question = $derived(interactions.find(row => row.session === chosen?.id || row.session === chosen?.name) ?? (interactions.length === 1 && !interactions[0].session ? interactions[0] : undefined));
   const layout = $derived(graph ? buildMapLayout(graph, snapshot, { selectedInstances: selectedInstancesFor(running?.scope || turns.at(-1)?.scope || chosen?.scope || '') }) : undefined);
   const plannerScopes = $derived(layout?.sheets.filter(sheet => sheet.kind === 'loop' && sheet.scope.status === 'running' && layout?.loops.some(item => item.loop.name === sheet.scope.name && item.loop.planner === chosen?.name)) ?? []);
   const plannerScope = $derived(live && !running && plannerScopes.length === 1 ? plannerScopes[0].scope : undefined);

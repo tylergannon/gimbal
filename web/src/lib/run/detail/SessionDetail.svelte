@@ -25,6 +25,7 @@
 	import Outcome from './Outcome.svelte';
 	import Activity from './Activity.svelte';
 	import SteerBox from './SteerBox.svelte';
+	import RunQuestions from '../RunQuestions.svelte';
 	import PromptAndContext from './PromptAndContext.svelte';
 	import UsageTable from './UsageTable.svelte';
 	import Payload from './Payload.svelte';
@@ -55,6 +56,7 @@
 
 	const session = $derived(snapshot.sessions[turn.session]);
 	const ended = $derived(!!turn.ended);
+	const interaction = $derived(live && !ended ? Object.values(snapshot.interactions).find(row => row.session === turn.session && row.status === 'active') : undefined);
 
 	const outcomeState = $derived.by(() => {
 		if (turn.unresolved) return 'unresolved' as const;
@@ -202,12 +204,16 @@
 </div>
 
 {#if showSteering}
+  {#if interaction}
+    <RunQuestions run={snapshot.run.id} question={interaction} composer target={session?.name} turn={turn.id} />
+  {:else}
 	<SteerBox
 		run={snapshot.run.id}
     session={turn.session}
 		ended={ended || !live}
     reason={!live ? 'This run has ended. Steering is closed.' : ended ? 'This recorded turn has ended. Open agent focus to steer its running session.' : ''}
 	/>
+  {/if}
 {/if}
 
 <style>

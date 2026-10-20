@@ -131,7 +131,7 @@ type Manager struct {
 	workflowMu      sync.Mutex
 	WorkflowStart   func(context.Context, Conversation) error
 	WorkflowInput   func(string, string, string) error
-	WorkflowObserve func(string) (gimbal.InteractiveTranscript, string, error)
+	WorkflowObserve func(string) (gimbal.InteractiveTranscript, string, []string, error)
 	ctx             context.Context
 	projectDir      string
 	factory         AdapterFactory
@@ -424,7 +424,7 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 	m.refresh(item)
 	if m.WorkflowObserve != nil && item.WorkflowRun != "" {
 		before, _ := json.Marshal(item)
-		transcript, status, err := m.WorkflowObserve(item.WorkflowRun)
+		transcript, status, consumed, err := m.WorkflowObserve(item.WorkflowRun)
 		if err == nil || status == "unresolved" || status == "error" {
 			item.Messages = nil
 			for _, message := range transcript.Messages {
@@ -442,6 +442,9 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 			messageIndex := 0
 			for index := range item.Requests {
 				request := &item.Requests[index]
+				if request.Kind != "prompt" && slices.Contains(consumed, request.ID) {
+					request.Status = "completed"
+				}
 				if status == "error" && (request.Status == "accepted" || request.Status == "running") {
 					request.Status, request.Error = "failed", item.Error
 				}

@@ -242,6 +242,9 @@ func Wait(ctx context.Context, endpoint string, target Target, onEvent func(json
 }
 
 func terminalResult(result backend.Result, id string) (json.RawMessage, error) {
+	if result.Unresolved {
+		return result.Result, &backend.DeliveryUncertain{RequestID: id, Err: errors.New(result.Error)}
+	}
 	if result.Interrupted {
 		return result.Result, context.Canceled
 	}

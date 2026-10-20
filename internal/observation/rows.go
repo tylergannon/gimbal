@@ -116,6 +116,7 @@ type SessionRow struct {
 // the same row from pending to answered; an empty answer means the person
 // ended the interactive.
 type InteractiveRow struct {
+	Consumed   []string             `json:"consumed"`
 	Ordinal    int                  `json:"ordinal"`
 	Unresolved string               `json:"unresolved"`
 	Address    string               `json:"address"`

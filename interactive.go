@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
 )
@@ -58,6 +59,7 @@ type interactionState struct {
 	Waiting        bool                  `json:"waiting"`
 }
 type interactionRuntime struct {
+	ctx     context.Context
 	session *Session
 	cancel  context.CancelCauseFunc
 }
@@ -195,7 +197,7 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 		}
 		err = r.commitInteraction(state)
 		turnCtx, cancel := context.WithCancelCause(ctx)
-		r.activeInteractions[address] = interactionRuntime{session: session, cancel: cancel}
+		r.activeInteractions[address] = interactionRuntime{ctx: context.WithoutCancel(ctx), session: session, cancel: cancel}
 		session.mu.Lock()
 		session.interactiveDelivery = func() error {
 			r.interactionMu.Lock()
@@ -405,7 +407,7 @@ func (r *run) commitInteraction(state interactionState) error {
 	if state.Transcript.EndedBy != "" {
 		status = "ended"
 	}
-	event := InteractiveChanged{Status: status, Ordinal: state.Ordinal, ID: string(state.Node), Name: path.Base(state.Address), Address: state.Address, Transcript: state.Transcript, Waiting: state.Waiting, Error: state.Unresolved}
+	event := InteractiveChanged{Consumed: state.Consumed, Status: status, Ordinal: state.Ordinal, ID: string(state.Node), Name: path.Base(state.Address), Address: state.Address, Transcript: state.Transcript, Waiting: state.Waiting, Error: state.Unresolved}
 	lifecycle := LifecycleRecord{Time: time.Now().UTC(), Scope: state.Scope, Session: optionalString(state.Session), Event: event}
 	projection, err := json.Marshal(lifecycle)
 	if err != nil {
@@ -498,7 +500,7 @@ func (r *run) acceptInput(input interactionInput) error {
 		return nil
 	}
 	r.interactionMu.Unlock()
-	landed, err := active.session.Steer(context.Background(), message)
+	landed, err := active.session.Steer(effects.WithInputID(active.ctx, input.ID), message)
 	r.interactionMu.Lock()
 	if err != nil {
 		input.Disposition = "uncertain"

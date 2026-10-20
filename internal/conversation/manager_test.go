@@ -374,18 +374,50 @@ func TestListRefreshesWorkflowFailureAndKeepsUndeliveredInputQueued(t *testing.T
 	stored.Requests = []RequestState{{Request: request("queued", "hello")}}
 	stored.Requests[0].Status = "accepted"
 	manager.mu.Unlock()
-	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, error) {
-		return gimbal.InteractiveTranscript{}, "waiting", nil
+	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, []string, error) {
+		return gimbal.InteractiveTranscript{}, "waiting", nil, nil
 	}
 	waiting := manager.List()[0]
 	if waiting.Status != "waiting" || waiting.Requests[0].Status != "accepted" {
 		t.Fatalf("initial wait lost queued input: %+v", waiting)
 	}
-	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, error) {
-		return gimbal.InteractiveTranscript{}, "error", errors.New("native schema rejected")
+	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, []string, error) {
+		return gimbal.InteractiveTranscript{}, "error", nil, errors.New("native schema rejected")
 	}
 	failed := manager.List()[0]
 	if failed.Status != "error" || failed.Error != "native schema rejected" || failed.Revision <= waiting.Revision || failed.Requests[0].Status != "failed" {
 		t.Fatalf("list did not refresh failure: %+v", failed)
+	}
+}
+
+func TestWorkflowControlSettlesOnlyAfterItsDurableConsumption(t *testing.T) {
+	repository := newRepository(t)
+	manager, err := newMetadataManager(t.Context(), filepath.Join(repository, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) {
+		return &chatAdapter{sessions: make(map[string][]string)}, nil
+	}, "/bin/gimbal", "/instance", repository, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	item, err := manager.Create(t.Context(), NewConversation{Provider: "codex"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager.mu.Lock()
+	stored := manager.items[item.ID]
+	stored.WorkflowRun = "run"
+	stored.Requests = []RequestState{{Request: Request{ID: "stop", Kind: "interrupt"}, Status: "accepted"}, {Request: Request{ID: "another", Kind: "interrupt"}, Status: "accepted"}}
+	manager.mu.Unlock()
+	var consumed []string
+	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, []string, error) {
+		return gimbal.InteractiveTranscript{}, "waiting", consumed, nil
+	}
+	if got := manager.List()[0]; got.Requests[0].Status != "accepted" {
+		t.Fatal("waiting alone settled control")
+	}
+	consumed = []string{"stop"}
+	got := manager.List()[0]
+	if got.Requests[0].Status != "completed" || got.Requests[1].Status != "accepted" {
+		t.Fatalf("control dispositions=%+v", got.Requests)
 	}
 }

@@ -248,6 +248,7 @@ test("a row frame is one row of one table, replacing what was there", () => {
         row: {
           run: "run",
           question_id: "question-1",
+          consumed: [],
           ordinal: 1,
           unresolved: "",
           address: "loop.1/task.2/preferences",
@@ -276,6 +277,7 @@ test("a row frame is one row of one table, replacing what was there", () => {
         row: {
           run: "run",
           question_id: "question-1",
+          consumed: [],
           ordinal: 1,
           unresolved: "",
           address: "loop.1/task.2/preferences",

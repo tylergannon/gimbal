@@ -173,20 +173,22 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		}
 		return controller.SubmitInteractive(address, request)
 	}
-	conversations.WorkflowObserve = func(id string) (gimbal.InteractiveTranscript, string, error) {
+	conversations.WorkflowObserve = func(id string) (gimbal.InteractiveTranscript, string, []string, error) {
 		snapshot, err := p.registry.Snapshot(id)
 		if err != nil {
-			return gimbal.InteractiveTranscript{}, "unavailable", err
+			return gimbal.InteractiveTranscript{}, "unavailable", nil, err
 		}
 		transcript := gimbal.InteractiveTranscript{Messages: []gimbal.InteractiveMessage{}}
 		status := "waiting"
 		var verdict error
+		var consumed []string
 		rows := make([]observation.InteractiveRow, 0, len(snapshot.Interactions))
 		for _, row := range snapshot.Interactions {
 			rows = append(rows, row)
 		}
 		slices.SortFunc(rows, func(a, b observation.InteractiveRow) int { return cmp.Compare(a.Ordinal, b.Ordinal) })
 		for _, row := range rows {
+			consumed = append(consumed, row.Consumed...)
 			for _, message := range row.Messages {
 				transcript.Messages = append(transcript.Messages, gimbal.InteractiveMessage{Role: message.Role, Message: message.Message})
 			}
@@ -208,7 +210,7 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 			status = "error"
 			verdict = errors.New(snapshot.Run.Error)
 		}
-		return transcript, status, verdict
+		return transcript, status, consumed, verdict
 	}
 
 	p.promises, err = promises.Open(state)

@@ -246,6 +246,7 @@ type record struct {
 		OutputType string          `json:"output_type"`
 		Result     string          `json:"result"`
 		Ordinal    int             `json:"ordinal"`
+		Consumed   []string        `json:"consumed"`
 		Address    string          `json:"address"`
 		Waiting    bool            `json:"waiting"`
 		Transcript struct {
@@ -398,7 +399,7 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 				question = message.Message
 			}
 		}
-		s.interactions[rec.Event.ID] = &InteractiveRow{Ordinal: rec.Event.Ordinal, Unresolved: rec.Event.Error, Address: rec.Event.Address, Run: s.run.ID, QuestionID: rec.Event.ID, Name: rec.Event.Name, Scope: rec.Scope, Session: rec.Session, Question: question, Status: status, Asked: at, Messages: rec.Event.Transcript.Messages, EndedBy: rec.Event.Transcript.EndedBy}
+		s.interactions[rec.Event.ID] = &InteractiveRow{Consumed: rec.Event.Consumed, Ordinal: rec.Event.Ordinal, Unresolved: rec.Event.Error, Address: rec.Event.Address, Run: s.run.ID, QuestionID: rec.Event.ID, Name: rec.Event.Name, Scope: rec.Scope, Session: rec.Session, Question: question, Status: status, Asked: at, Messages: rec.Event.Transcript.Messages, EndedBy: rec.Event.Transcript.EndedBy}
 		changed = append(changed, change{tableInteractions, rec.Event.ID})
 	case "turn_started":
 		turn := s.turnLocked(Placement{Scope: rec.Scope, Session: rec.Session, Turn: rec.Turn})

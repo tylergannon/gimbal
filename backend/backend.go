@@ -49,6 +49,7 @@ type Turn struct {
 	Schema          json.RawMessage `json:",omitempty"`
 }
 type Target struct {
+	InputID           string `json:",omitempty"`
 	Run, ID, Message  string
 	ExecutionIdentity ExecutionIdentity
 }
@@ -101,6 +102,7 @@ type Events struct {
 	Error            string
 }
 type Result struct {
+	Unresolved    bool
 	Interrupted   bool
 	Done          bool
 	Result        json.RawMessage

@@ -179,9 +179,13 @@
   });
   function select(path: string) { markSeen(); fileChooser = false; projectChooser = false; void goto(path, { reset: false }); }
   async function close(path: string) {
-    if (path.startsWith(`${root}/conversations/`)) {
-      try { await archiveConversation({ project, conversation: path.slice(`${root}/conversations/`.length), id: crypto.randomUUID() }); }
-      catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); return; }
+    if (path.startsWith(`${root}/conversations/`) && path !== `${root}/conversations/new`) {
+      const id = path.slice(`${root}/conversations/`.length);
+      const item = conversations.find(item => item.id === id);
+      if (!item || (item.live && !["completed", "error", "failed", "cancelled", "canceled"].includes(item.status))) {
+        try { await archiveConversation({ project, conversation: id, id: crypto.randomUUID() }); }
+        catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); return; }
+      }
     }
     if (path.startsWith(`${root}/runs/`)) dismissedRuns.add(path);
     const index = open.findIndex(tab => tab.id === path);

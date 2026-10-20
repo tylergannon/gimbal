@@ -158,6 +158,7 @@ func (TurnEnded) lifecycleEvent() {}
 
 // InteractiveChanged projects one committed interaction transition.
 type InteractiveChanged struct {
+	Consumed   []string              `json:"consumed"`
 	Status     string                `json:"status"`
 	Ordinal    int                   `json:"ordinal"`
 	Error      string                `json:"error"`

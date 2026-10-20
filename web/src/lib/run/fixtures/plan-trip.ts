@@ -168,6 +168,7 @@ const interactions = {
   "01M2RWXNFFYQA4HHQWMQ252CYA": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYA",
+    consumed: [],
     ordinal: 1,
     unresolved: "",
     address: "research.1/lodging.1/preferences",
@@ -188,6 +189,7 @@ const interactions = {
   "01M2RWXNFFYQA4HHQWMQ252CYB": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYB",
+    consumed: [],
     ordinal: 1,
     unresolved: "",
     address: "research.1/transport.1/preferences",
@@ -208,6 +210,7 @@ const interactions = {
   "01M2RWXNFFYQA4HHQWMQ252CYF": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYF",
+    consumed: [],
     ordinal: 2,
     unresolved: "",
     address: "research.1/lodging.1/preferences",
@@ -227,6 +230,7 @@ const interactions = {
   "01M2RWXNFFYQA4HHQWMQ252CYG": {
     run: runID,
     question_id: "01M2RWXNFFYQA4HHQWMQ252CYG",
+    consumed: [],
     ordinal: 2,
     unresolved: "",
     address: "research.1/transport.1/preferences",

@@ -33,6 +33,7 @@ test("a retained question answers only its owning run and question", async () =>
   const question = {
     run: "run-a",
     question_id: "question-a",
+    consumed: [],
     ordinal: 1,
     unresolved: "",
     address: "preferences",

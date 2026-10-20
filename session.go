@@ -822,6 +822,14 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 	native, running, turn, emit := s.native, s.running, s.turnID, s.activeEmit
 	s.mu.Unlock()
 	scope, _ := current(ctx)
+	owner := scope
+	if owner == nil {
+		owner = s.owner
+	}
+	ctx = effects.WithExecutionIdentity(effectContext(ctx, owner, turn), actionIdentity(owner.node, s.node, owner.run.nodeID(turn), "turn"))
+	if effects.InputID(ctx) == "" {
+		ctx = effects.WithInputID(ctx, string(runstore.NewRecordID()))
+	}
 	record := func(landed bool) {
 		if scope != nil {
 			scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message, Landed: landed})
@@ -832,7 +840,7 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 		record(false)
 		return false, nil
 	}
-	inboxKey := turn + fmt.Sprintf("/steer.%d", time.Now().UnixNano())
+	inboxKey := turn + "/steer/" + effects.InputID(ctx)
 	if emit != nil {
 		if err := emit(nativeEvent("session.inbox.enqueued", map[string]any{
 			"sessionID": native, "inboxID": inboxKey,

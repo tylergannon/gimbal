@@ -69,14 +69,14 @@ func newMetadataManager(ctx context.Context, dir string, factory AdapterFactory,
 		histories[run] = history
 		return nil
 	}
-	m.WorkflowObserve = func(run string) (gimbal.InteractiveTranscript, string, error) {
+	m.WorkflowObserve = func(run string) (gimbal.InteractiveTranscript, string, []string, error) {
 		mu.Lock()
 		defer mu.Unlock()
 		history, ok := histories[run]
 		if !ok {
-			return gimbal.InteractiveTranscript{}, "", errors.New("fixture observation unavailable")
+			return gimbal.InteractiveTranscript{}, "", nil, errors.New("fixture observation unavailable")
 		}
-		return history, states[run], nil
+		return history, states[run], nil, nil
 	}
 	return m, nil
 }

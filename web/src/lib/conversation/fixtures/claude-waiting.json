@@ -31,7 +31,7 @@
     }
   ],
   "active_request": "",
-  "state": "{\"info\":{},\"family\":{},\"active\":{},\"message\":{\"chat\":[{\"id\":\"req-1/prompt\",\"type\":\"user\",\"text\":\"hi\",\"time\":{\"created\":1000},\"requestID\":\"req-1\"},{\"id\":\"req-1/msg_1\",\"type\":\"assistant\",\"agent\":\"codex\",\"model\":{\"id\":\"gpt-6-luna\",\"providerID\":\"openai\"},\"content\":[{\"type\":\"tool\",\"id\":\"so_1\",\"name\":\"StructuredOutput\",\"time\":{\"created\":1000,\"ran\":1000},\"state\":{\"status\":\"running\",\"input\":{\"state\":\"waiting\",\"message\":\"Hello there\\nfriend\"},\"metadata\":{}},\"executed\":true},{\"type\":\"text\",\"text\":\"Hello there\\nfriend\"}],\"time\":{\"created\":1000}}]},\"pending\":{},\"permission\":{},\"form\":{}}",
+  "state": "{\"info\":{},\"family\":{},\"active\":{},\"message\":{\"chat\":[{\"id\":\"req-1/prompt\",\"type\":\"user\",\"text\":\"hi\",\"time\":{\"created\":1000},\"requestID\":\"req-1\"},{\"id\":\"req-1/msg_1\",\"type\":\"assistant\",\"agent\":\"codex\",\"model\":{\"id\":\"gpt-6-luna\",\"providerID\":\"openai\"},\"content\":[{\"type\":\"tool\",\"id\":\"so_1\",\"name\":\"StructuredOutput\",\"time\":{\"created\":1000,\"ran\":1000},\"state\":{\"status\":\"running\",\"input\":{\"state\":\"waiting\",\"message\":\"Hello there\\nfriend\"},\"metadata\":{}},\"executed\":true},{\"type\":\"text\",\"text\":\"Hello there\\nfriend\",\"html\":\"\\u003cp\\u003eHello there\\nfriend\\u003c/p\\u003e\\n\"}],\"time\":{\"created\":1000}}]},\"pending\":{},\"permission\":{},\"form\":{}}",
   "revision": 1,
   "environment": "local",
   "placement": null,

@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"bytes"
 	"cmp"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,7 @@ import (
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
+	"github.com/yuin/goldmark"
 )
 
 // humanInput marks where Interactive puts the person's message in a turn's
@@ -84,6 +86,7 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 	seenInputs := map[string]bool{}
 	open, paired := false, -1
 	for _, turn := range turns {
+		start := len(messages)
 		request := requestForTurn(item, starters, matched, turn)
 		if request >= 0 {
 			matched[item.Requests[request].ID] = true
@@ -91,6 +94,9 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 		}
 		open = turn.Ended == 0 && !turn.Unresolved
 		paired = request
+		if request >= 0 && turn.Interrupted && turn.Ended != 0 && !turn.Unresolved {
+			item.Requests[request].Status = "canceled"
+		}
 		if request >= 0 && !open && (item.Requests[request].Status == "accepted" || item.Requests[request].Status == "running") {
 			item.Requests[request].Status = "completed"
 		}
@@ -122,6 +128,40 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 				}
 			}
 		}
+		projected := replyOnce(messages[start:], turn)
+		for _, row := range projected {
+			if row.Get("type") != "assistant" {
+				continue
+			}
+			parts, _ := row.Get("content").([]any)
+			for _, value := range parts {
+				part, _ := value.(*sessionstate.Obj)
+				if part.Get("type") == "tool" && turn.Interrupted && turn.Ended != 0 && !turn.Unresolved {
+					state, _ := part.Get("state").(*sessionstate.Obj)
+					if slices.Contains([]any{"pending", "streaming", "running"}, state.Get("status")) {
+						// The turn's cancellation receipt settles activity, not
+						// a successful tool result. Retain its observed output.
+						state.Set("status", "interrupted")
+						timing, _ := part.Get("time").(*sessionstate.Obj)
+						if timing == nil {
+							timing = sessionstate.NewObj()
+							part.Set("time", timing)
+						}
+						timing.Set("completed", float64(turn.Ended))
+					}
+				}
+				if text, ok := part.Get("text").(string); part.Get("type") == "text" && ok {
+					var html bytes.Buffer
+					// Goldmark's default renderer omits raw HTML and unsafe
+					// URLs. Only this server-produced markup is rendered.
+					if err := goldmark.Convert([]byte(text), &html); err != nil {
+						return false, err
+					}
+					part.Set("html", html.String())
+				}
+			}
+		}
+		messages = append(messages[:start], projected...)
 	}
 	// A steered prompt is part of the turn that took it, not a queued prompt.
 	for id, turnID := range steered {
@@ -286,6 +326,93 @@ func turnMessage(item *Conversation, request int, turn observation.TurnRow, row 
 
 var decisionStart = regexp.MustCompile(`^\s*\{\s*"decision"\s*:\s*\{`)
 var decisionMessageKey = regexp.MustCompile(`"message"\s*:\s*"`)
+var decisionFence = regexp.MustCompile("(?s)```(?:json)?\\s*(\\{.*?\\})\\s*```")
+
+// The recorded interaction decision is the answer, not a second assistant
+// response after the provider's presentation of that same decision.
+func replyOnce(rows []*sessionstate.Obj, turn observation.TurnRow) []*sessionstate.Obj {
+	reply, ready := recordedReply(turn.Result)
+	var last *sessionstate.Obj
+	for _, row := range rows {
+		if row.Get("type") != "assistant" {
+			continue
+		}
+		last = row
+		if ready {
+			continue
+		}
+		parts, _ := row.Get("content").([]any)
+		for _, value := range parts {
+			part, _ := value.(*sessionstate.Obj)
+			if part.Get("type") != "tool" || part.Get("name") != "StructuredOutput" {
+				continue
+			}
+			state, _ := part.Get("state").(*sessionstate.Obj)
+			raw, err := json.Marshal(state.Get("input"))
+			if input, ok := state.Get("input").(string); ok {
+				raw = []byte(input)
+			}
+			if err == nil {
+				reply, ready = recordedReply(string(raw))
+			}
+		}
+	}
+	if !ready || last == nil {
+		return rows
+	}
+	out := make([]*sessionstate.Obj, 0, len(rows))
+	for _, row := range rows {
+		if row.Get("type") != "assistant" {
+			out = append(out, row)
+			continue
+		}
+		parts, _ := row.Get("content").([]any)
+		kept := make([]any, 0, len(parts))
+		for _, value := range parts {
+			part, _ := value.(*sessionstate.Obj)
+			if part.Get("type") == "text" && (part.Get("conversationDecision") == true || strings.TrimSpace(fmt.Sprint(part.Get("text"))) == strings.TrimSpace(reply)) {
+				continue
+			}
+			kept = append(kept, value)
+		}
+		if row == last && reply != "" {
+			part := sessionstate.NewObj()
+			part.Set("type", "text")
+			part.Set("text", reply)
+			kept = append(kept, part)
+		}
+		row.Set("content", kept)
+		if len(kept) != 0 {
+			out = append(out, row)
+		}
+	}
+	return out
+}
+
+func recordedReply(raw string) (string, bool) {
+	type decision struct {
+		Type    string `json:"type"`
+		Message string `json:"message"`
+	}
+	var value struct {
+		Decision *decision `json:"decision"`
+		State    string    `json:"state"`
+		Value    struct {
+			Decision *decision `json:"decision"`
+		} `json:"value"`
+	}
+	if json.Unmarshal([]byte(raw), &value) != nil {
+		return "", false
+	}
+	d := value.Decision
+	if d == nil && value.State == "completed" {
+		d = value.Value.Decision
+	}
+	if d == nil || (d.Type != "chat" && d.Type != "end") {
+		return "", false
+	}
+	return d.Message, true
+}
 
 // decisionText shows an agent's chat reply as the reply. The conversation
 // protocol asks a harness for {"decision":{"type":"chat","message":...}}. A
@@ -297,8 +424,42 @@ func decisionText(row *sessionstate.Obj) {
 	kept := make([]any, 0, len(parts)+1)
 	for _, value := range parts {
 		part, ok := value.(*sessionstate.Obj)
-		if text, _ := part.Get("text").(string); ok && part.Get("type") == "text" && decisionStart.MatchString(text) {
-			if text = decisionMessage(text); text == "" {
+		if !ok {
+			continue
+		}
+		if text, _ := part.Get("text").(string); part.Get("type") == "text" {
+			// Only a validated protocol envelope is unwrapped. Preserve the
+			// surrounding prose and unrelated JSON/code as independent parts.
+			at := 0
+			for _, match := range decisionFence.FindAllStringSubmatchIndex(text, -1) {
+				reply, ready := recordedReply(text[match[2]:match[3]])
+				if !ready {
+					continue
+				}
+				if prefix := strings.TrimSpace(text[at:match[0]]); prefix != "" && prefix != reply {
+					prose := sessionstate.NewObj()
+					prose.Set("type", "text")
+					prose.Set("text", prefix)
+					kept = append(kept, prose)
+				}
+				if reply != "" {
+					decoded := sessionstate.NewObj()
+					decoded.Set("type", "text")
+					decoded.Set("text", reply)
+					decoded.Set("conversationDecision", true)
+					kept = append(kept, decoded)
+				}
+				at = match[1]
+			}
+			text = text[at:]
+			if reply, ready := recordedReply(text); ready {
+				text = reply
+				part.Set("conversationDecision", true)
+			} else if decisionStart.MatchString(text) {
+				text = decisionMessage(text)
+				part.Set("conversationDecision", true)
+			}
+			if strings.TrimSpace(text) == "" {
 				continue
 			}
 			part.Set("text", text)

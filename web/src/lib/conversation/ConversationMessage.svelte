@@ -26,7 +26,7 @@
     {#if !completionOnly}
     <article class="assistant">{#if !compact}<header><span class="avatar" aria-hidden="true">{provider.slice(0, 1)}</span><span>{provider} · {model} · {location}</span></header>{/if}
       {#each content as part, i (`${row.id}/${i}`)}
-        {#if part.type === 'text'}<p>{part.text}</p>
+        {#if part.type === 'text'}{#if part.html}<div class="prose">{@html part.html}</div>{:else}<p>{part.text}</p>{/if}
         {:else if part.type === 'reasoning' || part.type === 'tool'}<TranscriptEvent {part} />{/if}
         {#each runs[(row.content ?? []).indexOf(part)] ?? [] as run (run.id)}<RunEvent {project} {run} state={runStatuses[run.id]} />{/each}
       {/each}
@@ -42,6 +42,18 @@
 <style>
   article { min-width: 0; }
   p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15px; line-height: 22px; }
+  .prose { min-width: 0; overflow-wrap: anywhere; font-size: 15px; line-height: 22px; }
+  .prose :global(p) { margin: 0 0 12px; white-space: normal; }
+  .prose :global(:last-child) { margin-bottom: 0; }
+  .prose :global(h1), .prose :global(h2), .prose :global(h3), .prose :global(h4), .prose :global(h5), .prose :global(h6) { margin: 18px 0 8px; font-size: 1.05em; font-weight: 600; line-height: 1.4; }
+  .prose :global(ul) { list-style: disc; padding-left: 24px; margin: 8px 0 12px; }
+  .prose :global(ol) { list-style: decimal; padding-left: 24px; margin: 8px 0 12px; }
+  .prose :global(li + li) { margin-top: 4px; }
+  .prose :global(strong) { font-weight: 600; }
+  .prose :global(a) { text-decoration: underline; text-underline-offset: 3px; }
+  .prose :global(pre) { max-width: 100%; overflow: auto; padding: 12px; margin: 10px 0; background: var(--muted); border-radius: 6px; white-space: pre; }
+  .prose :global(code) { font-family: var(--font-mono); font-size: .875em; }
+  .prose :global(blockquote) { padding-left: 14px; border-left: 2px solid var(--border); color: var(--muted-foreground); }
   .user { align-self: flex-end; max-width: min(560px, 86%); padding: 12px 16px; background: var(--muted); border-radius: 12px; }
   .assistant { display: grid; gap: 12px; }
   header { display: flex; align-items: center; gap: 8px; color: var(--muted-foreground); font-size: 11px; }

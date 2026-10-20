@@ -7,17 +7,38 @@ bundle and embeds `web/build/` in `bin/gimbal`. Generators own their output;
 regenerate rather than hand-editing it. Generated build assets stay local.
 
 `just app` builds a Debug macOS app with its matching CLI in Resources. For native
-microphone validation, use `just app-validate`: it signs the built app with an
+user testing, use `just app-validate`: it signs the built app with an
 existing Developer ID Application certificate, using the release identity and
 entitlements. `MACOS_SIGNING_IDENTITY` chooses the exact identity; when omitted,
 the single valid Developer ID identity is used. Keep that identity and bundle ID
 stable across validation builds. An ad-hoc build identifies a code hash, so its
-microphone/speech permission grants cannot be assumed to survive rebuilds. Do
+Documents, microphone and speech permission grants cannot be assumed to survive rebuilds. Do
 not rename the app or reset macOS privacy permissions to get around this.
+
+Start each user-testing task by recording the existing authorized test app's
+absolute path, `CFBundleIdentifier`, signing identity and designated requirement.
+Reuse that context across candidates. Do not make commit-named app copies, invent
+bundle IDs, relabel/re-sign ad hoc for each revision, or overwrite the installed
+stable release. Stage candidate builds separately and replace the established
+test target only at an agreed handoff when its tester is idle. If the established
+signing identity is unavailable, report that blocker instead of falling back to
+ad-hoc signing or manufacturing certificates. Use the existing
+`MACOS_SIGNING_IDENTITY`/`scripts/sign-native-dev.sh` workflow; never weaken its
+designated requirement or change macOS permissions to avoid a prompt.
+
+Version/build numbers and visible source provenance are separate from privacy
+identity. `CFBundleVersion` alone does not explain TCC changes: compare the actual
+signing requirement, identifier and path. Debug metadata defaults to `0.1.0 (1)`;
+release packaging supplies the official version. Keep one stable test display
+name, report it as unreleased, and use the existing machine/build source readout
+for commit provenance instead of changing bundle metadata for every commit.
 
 Launch
 through `just app-run /absolute/disposable/catalog` to isolate its instance state.
-The current app is under `native/build/macos/DerivedData/Build/Products/Debug/`.
+The built app is under `native/build/macos/DerivedData/Build/Products/Debug/`.
+`app-run` only opens the prepared app; it does not replace `app-validate` or prove
+that the existing privacy identity was preserved. Verify the actual running PID,
+bundle path, isolated catalog and source before the first user action.
 For optimized/signed distribution probes, read [distribution.md](distribution.md).
 
 The app normally owns its bundled CLI server. Closing its window leaves that

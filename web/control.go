@@ -18,6 +18,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/auth"
+	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -55,6 +56,8 @@ func (h controlHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.steer(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/control/cancel":
 		h.cancel(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/control/conversations/record":
+		h.record(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/control/steer-loop":
 		h.steerLoop(w, r)
 	default:
@@ -130,6 +133,65 @@ func (h controlHandler) steerLoop(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(struct {
 		Queued bool `json:"queued"`
 	}{Queued: true})
+}
+
+// ControlRecord asks the host to record outside events into a conversation. A
+// blank Conversation means the record-only conversation for Source, created on
+// first use. Entries may be empty, which only resolves the conversation and its
+// cursor. Sending the same entries again records nothing twice.
+type ControlRecord struct {
+	Conversation string               `json:"conversation"`
+	Source       string               `json:"source"`
+	Title        string               `json:"title"`
+	Entries      []conversation.Entry `json:"entries"`
+}
+
+// ControlRecorded says where a ControlRecord landed. Cursor is the highest
+// sequence the conversation holds from the source.
+type ControlRecorded struct {
+	Conversation string `json:"conversation"`
+	Cursor       int64  `json:"cursor"`
+	Appended     int    `json:"appended"`
+}
+
+// record makes the host's own conversation manager create, resume and write the
+// conversation, so the running host never competes with another writer.
+func (h controlHandler) record(w http.ResponseWriter, r *http.Request) {
+	var request ControlRecord
+	if err := json.NewDecoder(io.LimitReader(r.Body, 8<<20)).Decode(&request); err != nil || request.Source == "" {
+		http.Error(w, "source and entries are required", http.StatusBadRequest)
+		return
+	}
+	p, err := h.project(r)
+	if err != nil || p == nil {
+		http.Error(w, "project is not admitted", http.StatusNotFound)
+		return
+	}
+	manager := p.Conversations()
+	id := request.Conversation
+	if id == "" {
+		if id, err = manager.Recording(r.Context(), request.Source, request.Title); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	appended, err := manager.Record(id, request.Source, request.Entries)
+	if err == nil {
+		var cursor int64
+		if cursor, err = manager.Cursor(id, request.Source); err == nil {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(ControlRecorded{Conversation: id, Cursor: cursor, Appended: appended})
+			return
+		}
+	}
+	switch {
+	case errors.Is(err, conversation.ErrNotFound):
+		http.Error(w, err.Error(), http.StatusNotFound)
+	case errors.Is(err, conversation.ErrWorkflowBacked):
+		http.Error(w, err.Error(), http.StatusConflict)
+	default:
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // cancel requests cancellation through the active run owner.

@@ -47,6 +47,10 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 		m.mu.Unlock()
 		return RequestState{}, errors.New("conversation: unavailable")
 	}
+	if len(m.cursors[id]) > 0 {
+		m.mu.Unlock()
+		return RequestState{}, ErrRecordOnly
+	}
 	for _, old := range item.Requests {
 		if old.ID == request.ID {
 			m.mu.Unlock()

@@ -107,6 +107,10 @@ type NewConversation struct {
 	Branch         string
 	Base           string
 	Environment    string
+
+	// recordSource makes the conversation record-only for that source, saved
+	// with its first cursor in the same file. Only Recording sets it.
+	recordSource string
 }
 
 // AdapterFactory resolves a provider name to its existing Gimbal harness.
@@ -143,6 +147,8 @@ type Manager struct {
 	projectID     string
 	remoteStates  map[string]*remoteState
 	remoteReaders sync.WaitGroup
+	cursors       map[string]map[string]int64
+	recordingMu   sync.Mutex
 }
 
 type managerKey struct{}
@@ -176,7 +182,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	}
 	manager := &Manager{
 		ctx: ctx, projectDir: projectDir, factory: factory, cli: cli, instanceDir: instanceDir, project: project, registry: registry,
-		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}), remoteStates: make(map[string]*remoteState),
+		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}), remoteStates: make(map[string]*remoteState), cursors: make(map[string]map[string]int64),
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -216,6 +222,9 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 				return nil, fmt.Errorf("conversation: read retained transport: %w", err)
 			}
 			manager.remoteStates[item.ID] = &remote
+		}
+		if len(record.Cursors) > 0 {
+			manager.cursors[item.ID] = record.Cursors
 		}
 		copy := item
 		manager.items[item.ID] = &copy
@@ -295,11 +304,19 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{},
 		Environment: environments.Local, Contact: "connected", Capabilities: localCapabilities(),
 	}
+	// save reads the cursor and transport maps, so it runs under m.mu, as it does everywhere else.
+	m.mu.Lock()
+	if in.recordSource != "" {
+		item.Live = false
+		m.cursors[id] = map[string]int64{in.recordSource: 0}
+	}
 	if err := m.save(item); err != nil {
+		delete(m.cursors, id)
+		m.mu.Unlock()
 		return Conversation{}, err
 	}
-	m.mu.Lock()
 	if m.closing {
+		delete(m.cursors, id)
 		m.mu.Unlock()
 		return Conversation{}, errors.New("conversation: runtime is shutting down")
 	}
@@ -501,6 +518,9 @@ func (m *Manager) Associate(id, runID, workflow, workdir string) error {
 	if item == nil || item.Worktree != workdir {
 		return errors.New("conversation: run must use the conversation's working directory")
 	}
+	if len(m.cursors[id]) > 0 {
+		return ErrRecordOnly
+	}
 	item.Revision++
 	item.Runs = append(item.Runs, Run{ID: runID, Workflow: workflow, Status: RunStatusRunning})
 	item.Updated = time.Now().UnixMilli()
@@ -606,6 +626,9 @@ func (m *Manager) Close() {
 type conversationRecord struct {
 	Conversation
 	Transport json.RawMessage `json:"transport,omitempty"`
+	// Cursors are the highest external sequence recorded per source. They are
+	// saved with the messages they describe and never projected to the page.
+	Cursors map[string]int64 `json:"cursors,omitempty"`
 }
 
 func (m *Manager) save(item *Conversation) error {
@@ -617,7 +640,7 @@ func (m *Manager) save(item *Conversation) error {
 			return err
 		}
 	}
-	data, err := json.MarshalIndent(conversationRecord{Conversation: *item, Transport: raw}, "", "  ")
+	data, err := json.MarshalIndent(conversationRecord{Conversation: *item, Transport: raw, Cursors: m.cursors[item.ID]}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("conversation: encode %s: %w", item.ID, err)
 	}

@@ -96,6 +96,7 @@ func TestNeedsSecrets(t *testing.T) {
 		{[]string{"run-prompt", "--model", "pi/diffusion/deepseek-4.1-flash", "hello"}, true},
 		{[]string{"upload-artifact", "proof.png"}, true},
 		{[]string{"runs"}, false},
+		{[]string{"zoom-connect", "record", "--call", "c"}, false},
 		{[]string{"opencode", "start"}, true},
 		{[]string{"opencode", "stop"}, false},
 		{[]string{"--help"}, false},

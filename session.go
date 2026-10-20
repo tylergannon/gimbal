@@ -63,6 +63,9 @@ func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session
 	s := &Session{name: name, workdir: workdir}
 	scope, err := current(ctx)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			s.createErr = err // Generate returns the cancellation, not a missing run
+		}
 		return s
 	}
 	binding, bound := scope.run.models[role]
@@ -333,7 +336,7 @@ func (s *Session) create(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		return s.adoptNative(saved["native"])
+		return s.adoptNative(ctx, saved["native"])
 	}
 	identity := actionIdentity(s.owner.node, s.node, node, "session")
 	createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
@@ -345,7 +348,7 @@ func (s *Session) create(ctx context.Context) error {
 	}
 	id, err := s.adapter.CreateSession(createCtx, s.model, s.effort, s.workdir)
 	recordErr := s.owner.run.finishAction(s.owner.node, s.node, node, map[string]string{"native": id}, err)
-	adoptErr := s.adoptNative(id)
+	adoptErr := s.adoptNative(ctx, id)
 	// Only an authoritative rejection proves that trying again is safe.
 	var rejected *backend.ContractRejected
 	if err != nil && !errors.As(err, &rejected) {
@@ -364,7 +367,7 @@ func (s *Session) create(ctx context.Context) error {
 // not validate, because that is what the turn produced.
 func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessage, onEvent func(AgentEvent) error, outputType string, validate func([]byte) error, started *TurnStarted) (json.RawMessage, error) {
 	s.mu.Lock()
-	if err := s.usable(); err != nil {
+	if err := s.usable(ctx); err != nil {
 		s.mu.Unlock()
 		return nil, err
 	}
@@ -777,12 +780,12 @@ func bindMessageRef(eventType string, ref map[string]any, native, canonical stri
 }
 
 // usable reports why s cannot start a turn. The caller holds s.mu.
-func (s *Session) usable() error {
+func (s *Session) usable(ctx context.Context) error {
 	switch {
-	case s.id == "":
+	case s.id == "" && s.createErr == nil:
 		return fmt.Errorf("gimbal: session %q was not created in a run", s.name)
 	case s.closed:
-		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+		return s.owner.endedError(ctx, fmt.Errorf("gimbal: session %s was used after its scope ended", s.id))
 	case s.createErr != nil:
 		return s.createErr
 	case s.running:
@@ -806,7 +809,7 @@ func (s *Session) admissionError(ctx context.Context) error {
 
 // adoptNative and scope teardown exchange ownership under the same mutex. If
 // teardown already saw an empty native ID, this admission owns its release.
-func (s *Session) adoptNative(id string) error {
+func (s *Session) adoptNative(ctx context.Context, id string) error {
 	if id == "" {
 		return nil
 	}
@@ -815,7 +818,7 @@ func (s *Session) adoptNative(id string) error {
 	closed := s.closed
 	s.mu.Unlock()
 	if closed {
-		return errors.Join(fmt.Errorf("gimbal: session %s was created after its scope ended", s.id), s.stopNative())
+		return errors.Join(s.owner.endedError(ctx, fmt.Errorf("gimbal: session %s was created after its scope ended", s.id)), s.stopNative())
 	}
 	return nil
 }
@@ -934,7 +937,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 		return nil, err
 	}
 	s.mu.Lock()
-	err = s.usable()
+	err = s.usable(ctx)
 	native := s.native
 	s.mu.Unlock()
 	if err != nil {
@@ -957,7 +960,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 		}
 		id, nativeErr := s.adapter.Fork(forkCtx, native)
 		recordErr := scope.run.finishAction(scope.node, fork.node, node, map[string]string{"native": id}, nativeErr)
-		err = errors.Join(nativeErr, recordErr, fork.adoptNative(id))
+		err = errors.Join(nativeErr, recordErr, fork.adoptNative(ctx, id))
 		if err == nil {
 			err = scope.run.nativeBinding(scope.node, fork.node, node, id)
 		}
@@ -992,7 +995,7 @@ func (s *Session) reachable(ctx context.Context) error {
 	closed := s.closed
 	s.mu.Unlock()
 	if closed {
-		return fmt.Errorf("gimbal: session %s was used after its scope ended", s.id)
+		return owner.endedError(ctx, fmt.Errorf("gimbal: session %s was used after its scope ended", s.id))
 	}
 	for scope := active; scope != nil; scope = scope.parent {
 		if scope == owner {

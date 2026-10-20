@@ -690,6 +690,102 @@ func TestGroupFirstErrorCancelsTheRest(t *testing.T) {
 	}
 }
 
+// A group cancels a sibling by ending its scope ahead of its body, so a
+// sibling that has not yet entered a session was cancelled, not careless.
+func TestGroupCancelledSiblingBeforeItEntersASession(t *testing.T) {
+	for _, createFirst := range []bool{false, true} {
+		t.Run(fmt.Sprintf("session-created-before-cancel=%v", createFirst), func(t *testing.T) {
+			boom := errors.New("boom")
+			f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+				if prompt != "fail" {
+					t.Errorf("the cancelled sibling reached the adapter with %q", prompt)
+				}
+				return "", boom
+			}}
+			ready := make(chan struct{})
+			var late error
+			err := runTest(t, bind(f, "m", "candidate"), func(ctx context.Context) error {
+				g := Group(ctx, "bakeoff")
+				g.Go("attempt", func(ctx context.Context) error {
+					sibling, _ := current(ctx)
+					var session *Session
+					if createFirst {
+						session = NewSession(ctx, "candidate", "/w")
+					}
+					close(ready)
+					<-ctx.Done()
+					_ = sibling.end() // The group's cancellation has ended this scope; its body is still running.
+					if !createFirst {
+						session = NewSession(ctx, "candidate", "/w")
+					}
+					_, late = session.Generate[Text](ctx, "wait")
+					return late
+				})
+				g.Go("attempt", func(ctx context.Context) error {
+					<-ready
+					_, err := NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "fail")
+					return err
+				})
+				return g.Wait()
+			})
+			if !errors.Is(err, boom) {
+				t.Fatalf("Wait = %v, want boom", err)
+			}
+			if !errors.Is(late, context.Canceled) {
+				t.Fatalf("the late sibling ended with %v, want context.Canceled", late)
+			}
+		})
+	}
+}
+
+// slowCreate holds the "/slow" workdir's CreateSession until its ctx is
+// cancelled and then returns a native session anyway, as an adapter does
+// when the cancellation arrives too late to stop the allocation.
+type slowCreate struct {
+	*fake
+	entered chan struct{}
+}
+
+func (a *slowCreate) CreateSession(ctx context.Context, model, effort, workdir string) (string, error) {
+	if workdir == "/slow" {
+		close(a.entered)
+		<-ctx.Done()
+	}
+	return a.fake.CreateSession(ctx, model, effort, workdir)
+}
+
+func TestGroupCancelledSiblingInsideTheAdapterReleasesItsSession(t *testing.T) {
+	boom := errors.New("boom")
+	f := &slowCreate{fake: &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
+		return "", boom
+	}}, entered: make(chan struct{})}
+	var slow error
+	err := runTest(t, bind(f, "m", "candidate"), func(ctx context.Context) error {
+		g := Group(ctx, "bakeoff")
+		g.Go("attempt", func(ctx context.Context) error {
+			_, slow = NewSession(ctx, "candidate", "/slow").Generate[Text](ctx, "wait")
+			return slow
+		})
+		g.Go("attempt", func(ctx context.Context) error {
+			<-f.entered
+			_, err := NewSession(ctx, "candidate", "/w").Generate[Text](ctx, "fail")
+			return err
+		})
+		return g.Wait()
+	})
+	if !errors.Is(err, boom) {
+		t.Fatalf("Wait = %v, want boom", err)
+	}
+	if !errors.Is(slow, context.Canceled) {
+		t.Fatalf("the sibling inside the adapter ended with %v, want context.Canceled", slow)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.made != 2 || len(f.closed) != 2 {
+		t.Fatalf("created %d native sessions and closed %v, want both closed", f.made, f.closed)
+	}
+}
+
 func TestFork(t *testing.T) {
 	f := &fake{answer: func(ctx context.Context, session, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (string, error) {
 		return session, nil

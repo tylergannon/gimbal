@@ -66,33 +66,27 @@ func (m *Manager) SetupEnvironment(ctx context.Context, environment string) (Set
 	return setup, nil
 }
 
-// observedHarnesses offers each machine harness's models as canonical
-// selections, once each. A model the harness reports that cannot run on that
-// harness is not offered. When the reported default is such a model (an older
-// remote helper's Pi default, for example) the harness stays offered with
-// Gimbal's own default instead of disappearing; its reported state still shows.
+// observedHarnesses offers each machine harness's reported models as canonical
+// selections, once each. A reported model that cannot run on that harness is
+// not offered, and no model the machine did not report is ever added. When the
+// reported default is not offered, the first offered model leads instead; a
+// harness with no offerable model is left out of the choices, and its reported
+// state still shows in HarnessStates.
 func observedHarnesses(states []environments.Harness, fallback []Harness) []Harness {
 	if len(states) == 0 {
 		return fallback
 	}
 	result := []Harness{}
 	for _, h := range states {
-		model, _, err := providerModel(h.ID, h.Default)
-		if err != nil {
-			if model, _, err = providerModel(h.ID, ""); err != nil {
-				continue
-			}
-		}
 		models := []string{}
-		for _, reported := range h.Models {
-			if offered, _, err := providerModel(h.ID, reported); err == nil && !slices.Contains(models, offered) {
+		for _, reported := range append([]string{h.Default}, h.Models...) {
+			if offered, _, err := providerModel(h.ID, reported); reported != "" && err == nil && !slices.Contains(models, offered) {
 				models = append(models, offered)
 			}
 		}
-		if !slices.Contains(models, model) {
-			models = append([]string{model}, models...)
+		if len(models) > 0 {
+			result = append(result, harnessOptions(h.ID, models[0], models))
 		}
-		result = append(result, harnessOptions(h.ID, model, models))
 	}
 	return result
 }

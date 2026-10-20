@@ -131,14 +131,15 @@ test("leaving a chat destroys Rename without losing its message draft", async ()
     .toHaveValue("Unsent followup");
 });
 
-// getByRole is strict: a second alert with the same error fails this lookup.
-test("a failed run shows its error once", async () => {
-  const error = "gimbal: agentic-dialogues.1: codex: model is not supported";
-  const current = {
+const failedRecord = (error: string, requestError: string, delivery: string) =>
+  ({
     ...record("failed"),
     live: false,
     status: "error",
     error,
+    state: JSON.stringify({
+      message: { failed: [{ id: "user", type: "user", requestID: "request", text: "hello" }] },
+    }),
     requests: [
       {
         id: "request",
@@ -146,11 +147,28 @@ test("a failed run shows its error once", async () => {
         kind: "prompt",
         message: "hello",
         status: "failed",
-        error,
-        delivery: "durable",
+        error: requestError,
+        delivery,
       },
     ],
-  } as Conversation;
+  }) as unknown as Conversation;
+const visible = (text: string) => (document.body.textContent?.split(text).length ?? 1) - 1;
+
+// The same failure is copied to the conversation and its request; either way it is read once.
+for (const delivery of ["turn", "durable"]) {
+  test(`a failed ${delivery} request shows its error once`, async () => {
+    const error = "gimbal: agentic-dialogues.1: codex: model is not supported";
+    const current = failedRecord(error, error, delivery);
+    const screen = await render(ConversationView, { project: "project", current, active: true });
+    await expect.element(screen.getByText(error, { exact: true })).toBeVisible();
+    expect(visible(error)).toBe(1);
+  });
+}
+
+test("distinct conversation and request errors are each shown", async () => {
+  const current = failedRecord("run ended: first cause", "turn failed: second cause", "turn");
   const screen = await render(ConversationView, { project: "project", current, active: true });
-  await expect.element(screen.getByRole("alert")).toHaveTextContent(error);
+  await expect.element(screen.getByText("turn failed: second cause")).toBeVisible();
+  expect(visible("run ended: first cause")).toBe(1);
+  expect(visible("turn failed: second cause")).toBe(1);
 });

@@ -94,13 +94,15 @@ func TestLocalSetupSelectionsCreateReloadAndBind(t *testing.T) {
 }
 
 // An older remote helper may report a Pi default that is no longer routable.
-// The harness stays offered with Gimbal's own default; the reported model is not.
-func TestObservedHarnessesReplaceUnroutableReportedDefault(t *testing.T) {
+// Only its valid reported models are offered, led by the first; nothing the
+// machine did not report is added.
+func TestObservedHarnessesOfferOnlyValidReportedModels(t *testing.T) {
 	got := observedHarnesses([]environments.Harness{
 		{ID: "pi", Default: "anthropic/claude-haiku-4-5", Models: []string{"anthropic/claude-haiku-4-5", "diffusion/glm-5.3", "pi/diffusion/glm-5.3"}},
 		{ID: "opencode", Default: "gpt-5-nano", Models: []string{"gpt-5-nano"}},
+		{ID: "agy", Default: "claude-haiku-4-5", Models: []string{"claude-haiku-4-5"}},
 	}, nil)
-	if len(got) != 2 || got[0].Default != "pi/diffusion/deepseek-4.1-flash" || !slices.Equal(got[0].Models, []string{"pi/diffusion/deepseek-4.1-flash", "pi/diffusion/glm-5.3"}) {
+	if len(got) != 2 || got[0].Default != "pi/diffusion/glm-5.3" || !slices.Equal(got[0].Models, []string{"pi/diffusion/glm-5.3"}) {
 		t.Fatalf("pi offered %+v", got)
 	}
 	if got[1].Default != "opencode/gpt-5-nano" || !slices.Equal(got[1].Models, []string{"opencode/gpt-5-nano"}) {
@@ -134,5 +136,40 @@ func TestFailedWorkflowStartLeavesRecoverableConversation(t *testing.T) {
 	state, err := m.Submit(item.ID, Request{ID: "second", Created: 2, Kind: "prompt", Message: "hello again"})
 	if err != nil || state.Status != "accepted" {
 		t.Fatalf("retry = %+v, %v", state, err)
+	}
+}
+
+// When the host cannot say whether the run was admitted, the assigned run
+// identity stays, and the retry sends input to it instead of starting another.
+func TestUncertainWorkflowStartKeepsRunIdentity(t *testing.T) {
+	dir := t.TempDir()
+	m, err := newMetadataManager(t.Context(), filepath.Join(dir, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return &chatAdapter{sessions: map[string][]string{}}, nil }, "gimbal", "instance", dir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close()
+	starts := 0
+	m.WorkflowStart = func(_ context.Context, item Conversation, _ backend.Route) error {
+		starts++
+		return &backend.DeliveryUncertain{RequestID: item.WorkflowRun, Err: errors.New("admission reply lost")}
+	}
+	m.WorkflowInput = func(string, string, string) error { return nil }
+	item, err := m.Create(t.Context(), NewConversation{Provider: "claude", SharedCheckout: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = m.Submit(item.ID, Request{ID: "first", Created: 1, Kind: "prompt", Message: "hello"})
+	if _, ok := errors.AsType[*backend.DeliveryUncertain](err); !ok {
+		t.Fatalf("Submit = %v", err)
+	}
+	kept, _ := m.Get(item.ID)
+	if kept.WorkflowRun == "" {
+		t.Fatal("uncertain start released its run identifier")
+	}
+	if _, err := m.Submit(item.ID, Request{ID: "first", Created: 1, Kind: "prompt", Message: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := m.Get(item.ID); starts != 1 || again.WorkflowRun != kept.WorkflowRun {
+		t.Fatalf("retry started %d runs; run %q then %q", starts, kept.WorkflowRun, again.WorkflowRun)
 	}
 }

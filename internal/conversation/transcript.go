@@ -3,6 +3,7 @@ package conversation
 import (
 	"cmp"
 	"encoding/json"
+	"fmt"
 	"maps"
 	"regexp"
 	"slices"
@@ -233,11 +234,10 @@ var decisionMessageKey = regexp.MustCompile(`"message"\s*:\s*"`)
 // protocol asks a harness for {"decision":{"type":"chat","message":...}}. A
 // harness without a tool for it streams that JSON as ordinary text. Claude
 // delivers it as the input of its StructuredOutput completion tool, which the
-// page hides, so a step whose only reply is there gets it as text.
+// page hides, so the reply is added as text unless the step already shows it.
 func decisionText(row *sessionstate.Obj) {
 	parts, _ := row.Get("content").([]any)
 	kept := make([]any, 0, len(parts)+1)
-	replied := false
 	for _, value := range parts {
 		part, ok := value.(*sessionstate.Obj)
 		if text, _ := part.Get("text").(string); ok && part.Get("type") == "text" && decisionStart.MatchString(text) {
@@ -246,22 +246,26 @@ func decisionText(row *sessionstate.Obj) {
 			}
 			part.Set("text", text)
 		}
-		if text, _ := part.Get("text").(string); ok && part.Get("type") == "text" && strings.TrimSpace(text) != "" {
-			replied = true
-		}
 		kept = append(kept, value)
 	}
-	if !replied {
-		for _, value := range parts {
-			if part, ok := value.(*sessionstate.Obj); ok && part.Get("type") == "tool" && part.Get("name") == "StructuredOutput" {
-				if text := completionMessage(part); text != "" {
-					reply := sessionstate.NewObj()
-					reply.Set("type", "text")
-					reply.Set("text", text)
-					kept = append(kept, reply)
-				}
-			}
+	// Narration may share the step with the completion tool; the reply is added
+	// after it unless the step already shows exactly that text.
+	for _, value := range parts {
+		part, ok := value.(*sessionstate.Obj)
+		if !ok || part.Get("type") != "tool" || part.Get("name") != "StructuredOutput" {
+			continue
 		}
+		text := completionMessage(part)
+		if text == "" || slices.ContainsFunc(kept, func(other any) bool {
+			shown, ok := other.(*sessionstate.Obj)
+			return ok && shown.Get("type") == "text" && strings.TrimSpace(fmt.Sprint(shown.Get("text"))) == strings.TrimSpace(text)
+		}) {
+			continue
+		}
+		reply := sessionstate.NewObj()
+		reply.Set("type", "text")
+		reply.Set("text", text)
+		kept = append(kept, reply)
 	}
 	if parts != nil {
 		row.Set("content", kept)

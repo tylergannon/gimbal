@@ -565,6 +565,49 @@ func TestClaudeStructuredOutputReplyIsVisible(t *testing.T) {
 	}
 }
 
+// Claude's projector puts narration text and the StructuredOutput call on the
+// same assistant message. The narration stays, and the real reply is added.
+func TestClaudeNarrationDoesNotHideTheStructuredReply(t *testing.T) {
+	const envelope = `{"state":"completed","value":{"decision":{"type":"chat","message":"The answer is 42."}}}`
+	for name, narration := range map[string]string{"narrated": "I checked the files.", "repeated": "The answer is 42."} {
+		t.Run(name, func(t *testing.T) {
+			manager, registry, project, item := conversationWithRun(t, observeWith("waiting"))
+			submit(t, manager, item.ID, Request{ID: "req-1", Created: 500, Message: "what is it"})
+			journal := newJournal()
+			journal.consumed("req-1")
+			journal.startTurn(1, "what is it")
+			journal.native(1, "session.text.started", `{"sessionID":"ses_a","assistantMessageID":"msg_1"}`)
+			journal.native(1, "session.text.delta", `{"sessionID":"ses_a","assistantMessageID":"msg_1","delta":"`+narration+`"}`)
+			journal.native(1, "session.text.ended", `{"sessionID":"ses_a","assistantMessageID":"msg_1","text":"`+narration+`"}`)
+			journal.structuredReply(1, envelope)
+			journal.endTurn(1)
+			run, _ := manager.Get(item.ID)
+			journal.open(t, registry, project, run.WorkflowRun)
+			live, _ := manager.Get(item.ID)
+			rows := chatRows(t, live)
+			var texts, tools []string
+			for _, part := range parts(rows[1]) {
+				switch part["type"] {
+				case "text":
+					texts = append(texts, part["text"].(string))
+				case "tool":
+					tools = append(tools, part["name"].(string))
+				}
+			}
+			want := "[" + narration + " The answer is 42.]"
+			if narration == "The answer is 42." {
+				want = "[The answer is 42.]"
+			}
+			if fmt.Sprint(texts) != want || fmt.Sprint(tools) != "[StructuredOutput]" {
+				t.Fatalf("texts %q tools %v, want %s", texts, tools, want)
+			}
+			if name == "narrated" {
+				goldenFixture(t, "claude-narrated", live)
+			}
+		})
+	}
+}
+
 // The reply streams in as the tool input is written.
 func TestClaudeStructuredOutputReplyStreams(t *testing.T) {
 	manager, registry, project, item := conversationWithRun(t, observeWith("working"))

@@ -4,6 +4,7 @@ import type { Conversation } from "#lib/skgo/conversation/types";
 import ConversationView from "./ConversationView.svelte";
 import claudeCompleted from "./fixtures/claude-completed.json";
 import claudeWaiting from "./fixtures/claude-waiting.json";
+import claudeNarrated from "./fixtures/claude-narrated.json";
 import codexTurns from "./fixtures/codex-turns.json";
 import steeredTurns from "./fixtures/steered-turns.json";
 
@@ -152,6 +153,19 @@ for (const [name, fixture] of [
       .element(screen.getByText(/StructuredOutput|"decision"|"state"/))
       .not.toBeInTheDocument();
   });
+
+test("Claude narration and the StructuredOutput reply both show", async () => {
+  const screen = await render(ConversationView, {
+    project: "project",
+    current: claudeNarrated as unknown as Conversation,
+    active: true,
+  });
+  await expect.element(screen.getByText("I checked the files.", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("The answer is 42.", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByText(/StructuredOutput|"decision"|"state"/))
+    .not.toBeInTheDocument();
+});
 
 test("Codex replies show once each, per turn, with no queued prompt", async () => {
   const screen = await render(ConversationView, {

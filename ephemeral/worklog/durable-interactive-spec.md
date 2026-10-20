@@ -304,3 +304,36 @@ decision chat/end union as the documented format across harnesses. Remove the
 private flat-schema shim rather than introducing hidden normalization or a
 provider-specific format. Public Go API and durable interaction semantics are
 unchanged. Resume local native acceptance, then remote work in that order.
+
+progress: Local native checks now exercise the real Codex luna path. The
+conversation resumes after an abrupt dormant-host restart with the same
+native thread and saved effort change; active steering, agent end/re-entry,
+Stop/resume and active Finish reach their required runtime states. The
+package-adjacent native sibling/join and absent-execution inbox checks pass.
+These observations released the already authorized remote follow-on. Full
+current-assets archive/UI acceptance and final checks/review remain open.
+
+finding: A consumed Stop control remained accepted in conversation metadata,
+making the sidebar falsely Queued. Project the exact consumed control IDs,
+rather than infer handling from waiting state. Closing already ended history
+also tried to send a new Finish and failed against its closed owner; closing
+that view must skip fresh admission. Live archive still needs final browser
+qualification. Do not confuse direct engine Finish proof with UI archive proof.
+
+limit: An accepted remote turn can retain an ephemeral dependency callback URL
+in its original native prompt. A daemon restart does not establish restoration
+of that endpoint. Preserve the accepted request/outcome or honest uncertainty;
+do not fabricate a new native operation, callback restoration API or SERVICE
+guarantee. The separate-daemon conversation proof has no such dependency.
+
+progress: Remote mappings/messaging checkpoint 1945d99d and daemon/control
+checkpoint e97e010c are committed. The real separate HTTP daemon qualification
+now covers restart/native identity, retained replies, active steer retry
+deduplication and safe active Finish. Current-assets browser checks confirm
+completed history closes and consumed Stop controls settle as completed.
+
+finding: A transient observation failure can set Contact unreachable; a later
+successful authoritative observation cleared status/error but left contact
+stale, disabling the composer despite live local execution. Successful data
+arrival must restore connected too. Runtime owns that focused regression/fix;
+clean active-close browser proof remains before acceptance.

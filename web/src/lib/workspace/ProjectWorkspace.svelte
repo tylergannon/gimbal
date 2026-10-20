@@ -33,6 +33,7 @@
   import { nativeMessage, recordingControl, recordingTime, type NativeStatus } from './native';
   import { conversationsForWorkspace, conversationNeedsUpdates, completedReply, conversationStatus } from './conversations';
   import { harnessName } from '#lib/conversation/names';
+  import { openMachines } from '#lib/environments/navigation';
 
   let { project, name, projects, restored = [], sidebarPreference = null, seenReplies = [], onplace, children }: {
     project: string; name: string; projects: { id: string; path: string }[]; restored?: WindowTab[]; sidebarPreference?: boolean | null; seenReplies?: { path: string; request: string }[]; onplace?: (place: WindowState) => void; children: Snippet;
@@ -327,7 +328,7 @@
     <div class="pager">{#if after}<button onclick={() => after = ''}>Newest</button>{/if}{#if history.next}<button onclick={() => after = history.next}>Older recordings</button>{/if}</div>
   {/snippet}
   {#snippet sidebarFooter()}
-    <nav class="tools" aria-label="Project tools"><a class="row" href={root}>Project home</a><a class="row" href={`/settings/machines/projects/${project}`}><ServerIcon size={14} />Machines</a></nav>
+    <nav class="tools" aria-label="Project tools"><a class="row" href={root}>Project home</a><button class="row" onclick={() => openMachines()}><ServerIcon size={14} />Machines</button></nav>
   {/snippet}
 </WorkspaceShell>
 </div>
@@ -361,8 +362,9 @@
   .pager button { padding: 4px 0; border: 0; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 12px; cursor: pointer; }
   .pager button:hover { color: var(--foreground); }
   .tools { display: grid; gap: 4px; }
-  .tools a { color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
-  .tools a:hover { color: var(--foreground); }
+  .tools button { border:0; background:transparent; text-align:left; font:inherit; cursor:pointer; }
+  .tools a, .tools button { color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
+  .tools a:hover, .tools button:hover { color: var(--foreground); }
   .projects, .upload { padding: 8px 10px; font-size: 12px; }
   summary { cursor: pointer; color: var(--muted-foreground); }
   .upload form { display: grid; gap: 8px; padding-top: 8px; }

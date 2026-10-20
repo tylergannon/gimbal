@@ -42,13 +42,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/claimaudit"
@@ -165,14 +161,15 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 			return fmt.Errorf("source-dir must be outside research-dir")
 		}
 	}
-	tokenCounter, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("resolve token counter: %w", err)
+	code, tokenCounter, stderr, err := gimbal.RunCommand(ctx, "resolve-executable", env.WorkDir, "sh", "-c", "command -v gimbal")
+	if err != nil || code != 0 {
+		return fmt.Errorf("resolve token counter: exit %d: %s: %w", code, stderr, err)
 	}
-	if err := os.MkdirAll(researchDir, 0o755); err != nil {
+	tokenCounter = strings.TrimSpace(tokenCounter)
+	if err := makeDirectory(ctx, researchDir, 0o755); err != nil {
 		return fmt.Errorf("create research directory: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(documentPath), 0o755); err != nil {
+	if err := makeDirectory(ctx, filepath.Dir(documentPath), 0o755); err != nil {
 		return fmt.Errorf("create document directory: %w", err)
 	}
 
@@ -184,7 +181,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 	if sourceDir != "" {
 		sourceMode = "fixed"
 		sharedSources = filepath.Join(researchDir, "sources")
-		if err := copyOriginals(sourceDir, sharedSources); err != nil {
+		if err := copyOriginals(ctx, sourceDir, sharedSources); err != nil {
 			return err
 		}
 	}
@@ -218,10 +215,10 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 				return fmt.Errorf("research topic %d needs a name and at least one question", topicNumber)
 			}
 			topicDir := filepath.Join(researchDir, fmt.Sprintf("topic-%03d", topicNumber))
-			if err := os.MkdirAll(filepath.Join(topicDir, "sources"), 0o755); err != nil {
+			if err := makeDirectory(ctx, filepath.Join(topicDir, "sources"), 0o755); err != nil {
 				return err
 			}
-			if err := os.MkdirAll(filepath.Join(topicDir, "clips"), 0o755); err != nil {
+			if err := makeDirectory(ctx, filepath.Join(topicDir, "clips"), 0o755); err != nil {
 				return err
 			}
 			groupDirs[groupNumber] = append(groupDirs[groupNumber], topicDir)
@@ -243,7 +240,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		}
 		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[0] {
-			if err := verifyResearchFloor(dir, sharedSources, minSources); err != nil {
+			if err := verifyResearchFloor(ctx, dir, sharedSources, minSources); err != nil {
 				return err
 			}
 		}
@@ -262,7 +259,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		}
 		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[1] {
-			if err := verifyResearchFloor(dir, sharedSources, minSources); err != nil {
+			if err := verifyResearchFloor(ctx, dir, sharedSources, minSources); err != nil {
 				return err
 			}
 		}
@@ -281,7 +278,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		}
 		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[2] {
-			if err := verifyResearchFloor(dir, sharedSources, minSources); err != nil {
+			if err := verifyResearchFloor(ctx, dir, sharedSources, minSources); err != nil {
 				return err
 			}
 		}
@@ -300,7 +297,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		}
 		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[3] {
-			if err := verifyResearchFloor(dir, sharedSources, minSources); err != nil {
+			if err := verifyResearchFloor(ctx, dir, sharedSources, minSources); err != nil {
 				return err
 			}
 		}
@@ -319,7 +316,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		}
 		gimbal.SetJSON(ctx, "research result", result)
 		for _, dir := range groupDirs[4] {
-			if err := verifyResearchFloor(dir, sharedSources, minSources); err != nil {
+			if err := verifyResearchFloor(ctx, dir, sharedSources, minSources); err != nil {
 				return err
 			}
 		}
@@ -336,7 +333,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		gimbal.WithScopeTemplate(indexContext), gimbal.WithSupervisor(indexCoach, researchCoachPrompt)); err != nil {
 		return err
 	}
-	if err := requireNonemptyFile(indexPath); err != nil {
+	if err := requireNonemptyFile(ctx, indexPath); err != nil {
 		return fmt.Errorf("semantic index: %w", err)
 	}
 	auditPath := filepath.Join(researchDir, claimaudit.StateDir, "AUDIT.md")
@@ -364,7 +361,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 			if exit != 0 {
 				return fmt.Errorf("prepare claim audit: %s", strings.TrimSpace(stderr))
 			}
-			inventoryData, err := os.ReadFile(inventoryPath)
+			inventoryData, err := readFile(ctx, inventoryPath)
 			if err != nil {
 				return fmt.Errorf("read prepared claim inventory: %w", err)
 			}
@@ -386,13 +383,13 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 					extractionError = strings.TrimSpace(stderr)
 					return nil
 				}
-				completion, readErr := claimaudit.ReadCompletion(researchDir)
+				completion, readErr := readCompletion(ctx, researchDir)
 				if readErr != nil {
 					return fmt.Errorf("read claim audit completion: %w", readErr)
 				}
 				if exit == 0 && completion.Complete {
 					allowed = completion.AuthoringAllowed
-					if err := saveAuditPass(researchDir, "initial", repair, completion); err != nil {
+					if err := saveAuditPass(ctx, researchDir, "initial", repair, completion); err != nil {
 						return err
 					}
 					break
@@ -403,10 +400,12 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 				if attempt == 3 {
 					return fmt.Errorf("claim audit transient retries exhausted")
 				}
-				time.Sleep(time.Duration(attempt) * time.Second)
+				if _, _, _, err := gimbal.RunCommand(ctx, "audit-retry-wait", env.WorkDir, "sleep", strconv.Itoa(attempt)); err != nil {
+					return err
+				}
 			}
 			if !allowed {
-				candidateData, err := os.ReadFile(filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
+				candidateData, err := readFile(ctx, filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
 				if err != nil {
 					return fmt.Errorf("read claim review candidates: %w", err)
 				}
@@ -429,13 +428,13 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 						extractionError = strings.TrimSpace(stderr)
 						return nil
 					}
-					completion, readErr := claimaudit.ReadCompletion(researchDir)
+					completion, readErr := readCompletion(ctx, researchDir)
 					if readErr != nil {
 						return fmt.Errorf("read claim audit completion: %w", readErr)
 					}
 					if exit == 0 && completion.Complete {
 						allowed = completion.AuthoringAllowed
-						if err := saveAuditPass(researchDir, "initial", repair, completion); err != nil {
+						if err := saveAuditPass(ctx, researchDir, "initial", repair, completion); err != nil {
 							return err
 						}
 						break
@@ -446,7 +445,9 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 					if attempt == 3 {
 						return fmt.Errorf("reviewed claim audit transient retries exhausted")
 					}
-					time.Sleep(time.Duration(attempt) * time.Second)
+					if _, _, _, err := gimbal.RunCommand(ctx, "audit-retry-wait", env.WorkDir, "sleep", strconv.Itoa(attempt)); err != nil {
+						return err
+					}
 				}
 			}
 			return nil
@@ -474,7 +475,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 			return err
 		}
 	}
-	if err := claimaudit.VerifyCurrent(researchDir); err != nil {
+	if err := verifyAudit(ctx, researchDir); err != nil {
 		return fmt.Errorf("claim audit before authoring: %w", err)
 	}
 
@@ -484,7 +485,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 		gimbal.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
 		return err
 	}
-	if err := requireNonemptyFile(documentPath); err != nil {
+	if err := requireNonemptyFile(ctx, documentPath); err != nil {
 		return fmt.Errorf("document: %w", err)
 	}
 
@@ -511,7 +512,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 			}
 			gimbal.SetJSON(ctx, "editorial verdict", verdict)
 			if tokens <= params.TokenBudget && verdict.OnlyNitpicks && len(verdict.MaterialIssues) == 0 && len(verdict.MissingTopics) == 0 {
-				if err := claimaudit.VerifyCurrent(researchDir); err != nil {
+				if err := verifyAudit(ctx, researchDir); err != nil {
 					return fmt.Errorf("claim audit changed before final acceptance: %w", err)
 				}
 				accepted = true
@@ -520,10 +521,10 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 
 			if len(verdict.MissingTopics) > 0 {
 				gapDir := filepath.Join(researchDir, fmt.Sprintf("editorial-gap-%02d", round))
-				if err := os.MkdirAll(filepath.Join(gapDir, "sources"), 0o755); err != nil {
+				if err := makeDirectory(ctx, filepath.Join(gapDir, "sources"), 0o755); err != nil {
 					return err
 				}
-				if err := os.MkdirAll(filepath.Join(gapDir, "clips"), 0o755); err != nil {
+				if err := makeDirectory(ctx, filepath.Join(gapDir, "clips"), 0o755); err != nil {
 					return err
 				}
 				gapIndex := filepath.Join(gapDir, "INDEX.md")
@@ -541,7 +542,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 					return err
 				}
 				gimbal.SetJSON(ctx, "gap research result", result)
-				if err := verifyResearchFloor(gapDir, sharedSources, requiredSources); err != nil {
+				if err := verifyResearchFloor(ctx, gapDir, sharedSources, requiredSources); err != nil {
 					return err
 				}
 				if _, err := curator.Generate[gimbal.Text](ctx, updateIndexPrompt,
@@ -564,7 +565,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 						if exit != 0 {
 							return fmt.Errorf("prepare gap audit: %s", strings.TrimSpace(stderr))
 						}
-						inventoryData, err := os.ReadFile(inventoryPath)
+						inventoryData, err := readFile(ctx, inventoryPath)
 						if err != nil {
 							return fmt.Errorf("read prepared gap claim inventory: %w", err)
 						}
@@ -586,13 +587,13 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 								extractionError = strings.TrimSpace(stderr)
 								return nil
 							}
-							completion, readErr := claimaudit.ReadCompletion(researchDir)
+							completion, readErr := readCompletion(ctx, researchDir)
 							if readErr != nil {
 								return fmt.Errorf("read gap audit completion: %w", readErr)
 							}
 							if exit == 0 && completion.Complete {
 								allowed = completion.AuthoringAllowed
-								if err := saveAuditPass(researchDir, fmt.Sprintf("gap-%02d", round), repair, completion); err != nil {
+								if err := saveAuditPass(ctx, researchDir, fmt.Sprintf("gap-%02d", round), repair, completion); err != nil {
 									return err
 								}
 								break
@@ -603,10 +604,12 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 							if attempt == 3 {
 								return fmt.Errorf("gap audit transient retries exhausted")
 							}
-							time.Sleep(time.Duration(attempt) * time.Second)
+							if _, _, _, err := gimbal.RunCommand(ctx, "audit-retry-wait", env.WorkDir, "sleep", strconv.Itoa(attempt)); err != nil {
+								return err
+							}
 						}
 						if !allowed {
-							candidateData, err := os.ReadFile(filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
+							candidateData, err := readFile(ctx, filepath.Join(researchDir, claimaudit.StateDir, "review-candidates.json"))
 							if err != nil {
 								return fmt.Errorf("read claim review candidates: %w", err)
 							}
@@ -629,13 +632,13 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 									extractionError = strings.TrimSpace(stderr)
 									return nil
 								}
-								completion, readErr := claimaudit.ReadCompletion(researchDir)
+								completion, readErr := readCompletion(ctx, researchDir)
 								if readErr != nil {
 									return fmt.Errorf("read gap audit completion: %w", readErr)
 								}
 								if exit == 0 && completion.Complete {
 									allowed = completion.AuthoringAllowed
-									if err := saveAuditPass(researchDir, fmt.Sprintf("gap-%02d", round), repair, completion); err != nil {
+									if err := saveAuditPass(ctx, researchDir, fmt.Sprintf("gap-%02d", round), repair, completion); err != nil {
 										return err
 									}
 									break
@@ -646,7 +649,9 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 								if attempt == 3 {
 									return fmt.Errorf("reviewed gap audit transient retries exhausted")
 								}
-								time.Sleep(time.Duration(attempt) * time.Second)
+								if _, _, _, err := gimbal.RunCommand(ctx, "audit-retry-wait", env.WorkDir, "sleep", strconv.Itoa(attempt)); err != nil {
+									return err
+								}
 							}
 						}
 						return nil
@@ -680,7 +685,7 @@ func ResearchDocument(ctx context.Context, env gimbal.Env, params Params) error 
 				gimbal.WithSupervisor(compressionCoach, compressionCoachPrompt)); err != nil {
 				return err
 			}
-			return requireNonemptyFile(documentPath)
+			return requireNonemptyFile(ctx, documentPath)
 		})
 		if err != nil {
 			return err
@@ -700,105 +705,88 @@ func absoluteFrom(workDir, name string) (string, error) {
 	if !filepath.IsAbs(name) {
 		name = filepath.Join(workDir, name)
 	}
-	return filepath.Abs(name)
+	return filepath.Clean(name), nil
 }
 
-func verifyResearchFloor(dir, sharedSources string, minimum int) error {
-	sources := 0
+func verifyResearchFloor(ctx context.Context, dir, sharedSources string, minimum int) error {
 	sourceRoot := filepath.Join(dir, "sources")
 	if sharedSources != "" {
 		sourceRoot = sharedSources
 	}
-	err := filepath.WalkDir(sourceRoot, func(_ string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if !entry.IsDir() {
-			sources++
-		}
-		return nil
-	})
+	code, stdout, stderr, err := gimbal.RunCommand(ctx, "count-sources", dir, "sh", "-c", `find "$1" -type f | wc -l`, "count-sources", sourceRoot)
+	if err != nil || code != 0 {
+		return fmt.Errorf("inspect research sources: exit %d: %s: %w", code, stderr, err)
+	}
+	sources, err := strconv.Atoi(strings.TrimSpace(stdout))
 	if err != nil {
-		return fmt.Errorf("inspect research sources: %w", err)
+		return err
 	}
 	if sources < minimum {
 		return fmt.Errorf("research floor not met in %s: found %d source files, need at least %d", dir, sources, minimum)
 	}
-	if err := requireNonemptyFile(filepath.Join(dir, "INDEX.md")); err != nil {
-		return fmt.Errorf("research floor not met in %s: %w", dir, err)
+	return requireNonemptyFile(ctx, filepath.Join(dir, "INDEX.md"))
+}
+
+func requireNonemptyFile(ctx context.Context, name string) error {
+	code, _, stderr, err := gimbal.RunCommand(ctx, "check-file", filepath.Dir(name), "sh", "-c", `test -f "$1" && test -s "$1"`, "check-file", name)
+	if err != nil || code != 0 {
+		return fmt.Errorf("%s is not a nonempty regular file: exit %d: %s: %w", name, code, stderr, err)
 	}
 	return nil
 }
 
-func requireNonemptyFile(name string) error {
-	info, err := os.Stat(name)
-	if err != nil {
-		return err
-	}
-	if !info.Mode().IsRegular() || info.Size() == 0 {
-		return fmt.Errorf("%s is not a nonempty regular file", name)
+func copyOriginals(ctx context.Context, sourceDir, target string) error {
+	code, _, stderr, err := gimbal.RunCommand(ctx, "copy-originals", sourceDir, "sh", "-c", `set -eu
+ test -z "$(find "$1" -type l -print -quit)"
+ mkdir -p -- "$2"
+ cp -R -- "$1/." "$2/"`, "copy-originals", sourceDir, target)
+	if err != nil || code != 0 {
+		return fmt.Errorf("copy original sources: exit %d: %s: %w", code, stderr, err)
 	}
 	return nil
 }
 
-func copyOriginals(sourceDir, target string) error {
-	root, err := filepath.Abs(sourceDir)
-	if err != nil {
-		return err
+func readFile(ctx context.Context, name string) ([]byte, error) {
+	code, body, stderr, err := gimbal.RunCommand(ctx, "read-file", filepath.Dir(name), "cat", "--", name)
+	if err != nil || code != 0 {
+		return nil, fmt.Errorf("read %s: exit %d: %s: %w", name, code, stderr, err)
 	}
-	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		if rel == "." {
-			return nil
-		}
-		if entry.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("fixed source corpus contains symlink %s", path)
-		}
-		dest := filepath.Join(target, rel)
-		if entry.IsDir() {
-			return os.MkdirAll(dest, 0o755)
-		}
-		if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-			return err
-		}
-		in, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		out, err := os.Create(dest)
-		if err != nil {
-			_ = in.Close()
-			return err
-		}
-		_, copyErr := io.Copy(out, in)
-		inErr := in.Close()
-		closeErr := out.Close()
-		if copyErr != nil {
-			return copyErr
-		}
-		if inErr != nil {
-			return inErr
-		}
-		return closeErr
-	})
+	return []byte(body), nil
 }
-
-func saveAuditPass(researchDir, stage string, pass int, completion claimaudit.Completion) error {
-	path := filepath.Join(researchDir, claimaudit.StateDir, "history")
-	if err := os.MkdirAll(path, 0o755); err != nil {
-		return err
+func makeDirectory(ctx context.Context, name string, _ uint32) error {
+	code, _, stderr, err := gimbal.RunCommand(ctx, "create-directory", "/", "mkdir", "-p", "--", name)
+	if err != nil || code != 0 {
+		return fmt.Errorf("create %s: exit %d: %s: %w", name, code, stderr, err)
 	}
+	return nil
+}
+func readCompletion(ctx context.Context, dir string) (claimaudit.Completion, error) {
+	var result claimaudit.Completion
+	code, body, stderr, err := gimbal.RunCommand(ctx, "read-audit-completion", dir, "gimbal", "audit-index", "--completion", "--research-dir", dir)
+	if err != nil || code != 0 {
+		return result, fmt.Errorf("read audit completion: exit %d: %s: %w", code, stderr, err)
+	}
+	err = json.Unmarshal([]byte(body), &result)
+	return result, err
+}
+func verifyAudit(ctx context.Context, dir string) error {
+	code, _, stderr, err := gimbal.RunCommand(ctx, "verify-current-audit", dir, "gimbal", "audit-index", "--verify-current", "--research-dir", dir)
+	if err != nil || code != 0 {
+		return fmt.Errorf("verify audit: exit %d: %s: %w", code, stderr, err)
+	}
+	return nil
+}
+func saveAuditPass(ctx context.Context, researchDir, stage string, pass int, completion claimaudit.Completion) error {
 	data, err := json.MarshalIndent(completion, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(path, fmt.Sprintf("%s-pass-%02d.json", stage, pass)), append(data, '\n'), 0o644)
+	name := filepath.Join(researchDir, claimaudit.StateDir, "history", fmt.Sprintf("%s-pass-%02d.json", stage, pass))
+	code, _, stderr, err := gimbal.RunCommand(ctx, "save-audit-pass", researchDir, "sh", "-c", `mkdir -p -- "$(dirname "$1")" && printf '%s\n' "$2" > "$1"`, "save-audit-pass", name, string(data))
+	if err != nil || code != 0 {
+		return fmt.Errorf("save audit pass: exit %d: %s: %w", code, stderr, err)
+	}
+	return nil
 }
 
 const extractClaimsPrompt = `Your task is to write claim records for the prepared research index. Read only the inventory and local research files named in context; the Gimbal codebase, skills, design notes, and audit-index command are outside this task. The workflow runs the audit after you finish.

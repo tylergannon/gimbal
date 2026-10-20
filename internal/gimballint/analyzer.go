@@ -44,13 +44,14 @@ const gimbalPath = "github.com/tylergannon/gimbal"
 var rules string
 
 // Analyzer checks the accepted Gimbal workflow lint rules. Its worker-dispatch
-// analysis intentionally follows only source-visible functions in the current
-// package; it is not whole-program pointer analysis.
+// analysis follows local worker dispatch; effect admission also carries
+// source-visible dependency facts across package boundaries.
 var Analyzer = &analysis.Analyzer{
-	Name:     "gimballint",
-	Doc:      rules,
-	Requires: []*analysis.Analyzer{inspect.Analyzer, buildssa.Analyzer},
-	Run:      run,
+	Name:      "gimballint",
+	Doc:       rules,
+	Requires:  []*analysis.Analyzer{inspect.Analyzer, buildssa.Analyzer},
+	Run:       run,
+	FactTypes: []analysis.Fact{new(effectFact)},
 }
 
 type boundary struct {
@@ -77,6 +78,7 @@ type unit struct {
 func run(pass *analysis.Pass) (any, error) {
 	inspectResult := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 	info := indexSyntax(pass, inspectResult)
+	reportEffects(pass, info)
 	reportSetSyntax(pass, info)
 	reportValueDeclarations(pass)
 	reportPromptSyntax(pass)
@@ -190,6 +192,9 @@ func indexSyntax(pass *analysis.Pass, in *inspector.Inspector) *syntaxInfo {
 			case *ast.FuncDecl:
 				if n.Body != nil {
 					u := &unit{node: n, body: n.Body, directCalls: make(map[*types.Func]bool)}
+					if pass.Pkg.Path() != gimbalPath && workflowSignature(pass, n) {
+						u.workflow = true
+					}
 					si.units = append(si.units, u)
 					markUnit(si, n.Body, u)
 				}
@@ -208,7 +213,7 @@ func indexSyntax(pass *analysis.Pass, in *inspector.Inspector) *syntaxInfo {
 			case *ast.CallExpr:
 				name, ok := gimbalCall(pass, n)
 				if ok {
-					if u := enclosingUnit(si, n); u != nil && pass.Pkg.Path() != gimbalPath && isWorkflowOperation(name) {
+					if u := enclosingUnit(si, n); u != nil && pass.Pkg.Path() != gimbalPath && isWorkflowOperation(name) && name != "Run" {
 						u.workflow = true
 					}
 					if callbackIndex, ok := callbackArgument(name); ok && callbackIndex < len(n.Args) {
@@ -769,7 +774,7 @@ func isSetCall(pass *analysis.Pass, call *ast.CallExpr) bool {
 
 func isWorkflowOperation(name string) bool {
 	switch name {
-	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interview", "Set", "SetJSON", "Check", "Service":
+	case "Run", "Scope", "Group", "Go", "PromiseLoop", "Tasks", "Iterate", "NewSession", "Fork", "Generate", "Interactive", "Set", "SetJSON", "RunCommand", "Check", "Service":
 		return true
 	default:
 		return false
@@ -901,4 +906,17 @@ func unparen[T ast.Expr](expr T) ast.Expr {
 		}
 		current = paren.X
 	}
+}
+
+func workflowSignature(pass *analysis.Pass, decl *ast.FuncDecl) bool {
+	obj, _ := pass.TypesInfo.Defs[decl.Name].(*types.Func)
+	if obj == nil {
+		return false
+	}
+	sig, _ := obj.Type().(*types.Signature)
+	if sig == nil || sig.Params().Len() < 2 {
+		return false
+	}
+	named, ok := sig.Params().At(1).Type().(*types.Named)
+	return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == gimbalPath && named.Obj().Name() == "Env"
 }

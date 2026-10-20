@@ -202,10 +202,10 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 		})
 		return false
 
-	case "Interview":
+	case "Interactive":
 		name, ok := e.constant(call, 1)
 		if !ok {
-			e.diag(call.Pos(), "Interview's name is not a constant, so the interview is not read")
+			e.diag(call.Pos(), "Interactive's name is not a constant, so the interactive is not read")
 			return false
 		}
 		if len(call.Args) < 3 {
@@ -213,10 +213,10 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 		}
 		speaker, ok := e.binding(call.Args[2])
 		if !ok {
-			e.diag(call.Args[2].Pos(), "Interview's session is not a session declared in an enclosing body")
+			e.diag(call.Args[2].Pos(), "Interactive's session is not a session declared in an enclosing body")
 			return false
 		}
-		e.emit(out, workflow.Interview{Source: e.at(call.Pos()), Name: name, Session: speaker.name, Requirements: declarations.requirements})
+		e.emit(out, workflow.Interactive{Source: e.at(call.Pos()), Name: name, Session: speaker.name, Requirements: declarations.requirements})
 		return false
 
 	case "RunCommand":

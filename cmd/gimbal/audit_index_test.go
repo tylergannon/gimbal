@@ -44,3 +44,62 @@ func TestAuditIndexReturnsRepairableClaimErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestAuditIndexReadOnlyModesKeepCompletionValidation(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "INDEX.md"), []byte("A documented limit.\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := claimaudit.Prepare(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, claimaudit.StateDir, "claims.jsonl"), nil, 0644); err != nil {
+		t.Fatal(err)
+	}
+	begun, err := claimaudit.Begin(dir, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"--completion", "--verify-current"} {
+		var output bytes.Buffer
+		command := newAuditIndexCommand(&output)
+		command.SetArgs([]string{mode, "--research-dir", dir})
+		err := command.Execute()
+		if mode == "--completion" {
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got claimaudit.Completion
+			if err := json.Unmarshal(output.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Revision != begun.Revision || got.Complete || got.AuthoringAllowed {
+				t.Fatalf("completion changed: %+v", got)
+			}
+		} else if err == nil || !strings.Contains(err.Error(), "does not allow authoring") {
+			t.Fatalf("incomplete audit passed freshness gate: %v", err)
+		}
+	}
+	path := filepath.Join(dir, claimaudit.StateDir, "completion.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	corrupted := bytes.Replace(raw, []byte(begun.Revision), []byte("different-revision"), 1)
+	if err := os.WriteFile(path, corrupted, 0644); err != nil {
+		t.Fatal(err)
+	}
+	command := newAuditIndexCommand(&bytes.Buffer{})
+	command.SetArgs([]string{"--completion", "--research-dir", dir})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "revision does not match") {
+		t.Fatalf("invalid revision accepted: %v", err)
+	}
+}
+
+func TestAuditIndexReadOnlyModesAreExclusive(t *testing.T) {
+	command := newAuditIndexCommand(&bytes.Buffer{})
+	command.SetArgs([]string{"--completion", "--verify-current", "--research-dir", t.TempDir()})
+	if err := command.Execute(); err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("combined modes: %v", err)
+	}
+}

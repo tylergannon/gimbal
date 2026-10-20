@@ -1,105 +1,116 @@
 package researcheval
 
 import (
-	"context"
-	"errors"
+	"encoding/json"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
-	"time"
 
-	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
-
-	"github.com/tylergannon/gimbal/runstore"
 )
 
 func TestWaitResearchFollowsChildAndCancelsByIdentity(t *testing.T) {
-	for _, timeout := range []bool{false, true} {
-		name := "completion"
-		if timeout {
-			name = "timeout"
-		}
-		t.Run(name, func(t *testing.T) {
-			state := t.TempDir()
-			started := make(chan string, 1)
-			finish := make(chan struct{})
-			done := make(chan error, 1)
-			var controller live.Controller
-			ctx := live.WithHook(gimbal.Project(t.Context(), state), func(id string, c live.Controller) func() {
-				controller = c
-				started <- id
-				return func() {}
-			})
-			go func() {
-				done <- gimbal.Run(ctx, string(runstore.NewRunID()), "child", nil, func(ctx context.Context) error {
-					select {
-					case <-finish:
-						return nil
-					case <-ctx.Done():
-						return context.Cause(ctx)
-					}
-				})
-			}()
-			id := <-started
-			reader := observation.NewRegistry(state)
-			initial, err := reader.Snapshot(id)
-			if err != nil || initial.Run.Status != observation.StatusRunning {
-				t.Fatalf("initial: %+v, %v", initial.Run, err)
-			}
-			controls := live.NewRuns()
-			resolved := false
-			controls.Resolve = func(got string) (live.Controller, error) {
-				if got != id {
-					t.Fatalf("resolved %q instead of %q", got, id)
+	for _, deadline := range []bool{false, true} {
+		t.Run(map[bool]string{false: "completion", true: "deadline"}[deadline], func(t *testing.T) {
+			project := t.TempDir()
+			state := filepath.Join(project, "snapshot.json")
+			writeSnapshot := func(status string) {
+				t.Helper()
+				body, _ := json.Marshal(observation.RunSnapshot{Run: observation.RunRow{ID: "child", Status: status}})
+				if err := os.WriteFile(state, append(body, '\n'), 0600); err != nil {
+					t.Error(err)
 				}
-				resolved = true
-				return controller, nil
 			}
-			waitCtx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
-			defer cancel()
-			if !timeout {
-				close(finish)
+			status := observation.StatusCompleted
+			if deadline {
+				status = observation.StatusRunning
 			}
-			snapshot, err := waitResearch(waitCtx, reader, controls, id)
-			if timeout {
-				if !errors.Is(err, context.DeadlineExceeded) || !resolved || snapshot.Run.Status == observation.StatusRunning {
-					t.Fatalf("timeout: %+v, %v, resolved=%v", snapshot.Run, err, resolved)
-				}
-			} else if err != nil || snapshot.Run.Status != observation.StatusCompleted {
-				t.Fatalf("completion: %+v, %v", snapshot.Run, err)
+			writeSnapshot(status)
+			installWatch(t, state)
+			var mu sync.Mutex
+			cancelled := ""
+			socketDir, err := os.MkdirTemp("/tmp", "eval-wait-")
+			if err != nil {
+				t.Fatal(err)
 			}
-			select {
-			case runErr := <-done:
-				if !timeout && runErr != nil {
-					t.Fatalf("child completion: %v", runErr)
+			t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
+			socket := filepath.Join(socketDir, "s")
+			listener, err := net.Listen("unix", socket)
+			if err != nil {
+				t.Fatal(err)
+			}
+			server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var request struct {
+					Run string `json:"run"`
 				}
-				if timeout && runErr == nil {
-					t.Fatal("timed out child returned success")
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					http.Error(w, err.Error(), 400)
+					return
 				}
-			case <-time.After(3 * time.Second):
-				t.Fatal("child did not settle")
+				mu.Lock()
+				cancelled = request.Run
+				mu.Unlock()
+				if r.URL.Path != "/control/cancel" || r.Header.Get("X-Gimbal-Project") != project {
+					http.Error(w, "incorrect target", 400)
+					return
+				}
+				writeSnapshot(observation.StatusFailed)
+				w.WriteHeader(200)
+			})}
+			go func() { _ = server.Serve(listener) }()
+			t.Cleanup(func() { _ = server.Close() })
+			controls := filepath.Join(project, ".gimbal", "control")
+			if err := os.MkdirAll(controls, 0700); err != nil {
+				t.Fatal(err)
+			}
+			body, _ := json.Marshal(map[string]any{"pid": 1, "socket": socket})
+			if err := os.WriteFile(filepath.Join(controls, "host.json"), body, 0600); err != nil {
+				t.Fatal(err)
+			}
+			minutes := 1
+			if deadline {
+				minutes = 0
+			}
+			snap, err := waitResearch(workflowContext(t), project, "child", minutes)
+			mu.Lock()
+			gotCancelled := cancelled
+			mu.Unlock()
+			if deadline {
+				if err == nil || !strings.Contains(err.Error(), "trial deadline") || gotCancelled != "child" || snap.Run.Status != observation.StatusFailed {
+					t.Fatalf("deadline: %+v %v target=%q", snap.Run, err, gotCancelled)
+				}
+			} else if err != nil || snap.Run.Status != observation.StatusCompleted || gotCancelled != "" {
+				t.Fatalf("completion: %+v %v target=%q", snap.Run, err, gotCancelled)
 			}
 		})
 	}
 }
 
 func TestWaitResearchReportsUnavailableCancellation(t *testing.T) {
-	state := t.TempDir()
-	dir := filepath.Join(state, "runs", "child")
-	writer, err := observation.Open(nil, "child", "child", dir, func() error { return os.MkdirAll(dir, 0755) })
-	if err != nil {
+	project := t.TempDir()
+	state := filepath.Join(project, "snapshot.json")
+	body, _ := json.Marshal(observation.RunSnapshot{Run: observation.RunRow{ID: "child", Status: observation.StatusRunning}})
+	if err := os.WriteFile(state, append(body, '\n'), 0600); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = writer.Close() }()
-	controls := live.NewRuns()
-	unavailable := errors.New("controller unavailable")
-	controls.Resolve = func(string) (live.Controller, error) { return nil, unavailable }
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	_, err = waitResearch(ctx, observation.NewRegistry(state), controls, "child")
-	if !errors.Is(err, unavailable) {
-		t.Fatalf("cancellation error: %v", err)
+	installWatch(t, state)
+	snap, err := waitResearch(workflowContext(t), project, "child", 0)
+	if err == nil || !strings.Contains(err.Error(), "cancel research child") || snap.Run.Status != observation.StatusRunning {
+		t.Fatalf("unavailable cancellation: %+v %v", snap.Run, err)
 	}
+}
+
+func installWatch(t *testing.T, state string) {
+	t.Helper()
+	bin := t.TempDir()
+	command := "#!/bin/sh\nexec cat \"$EVAL_SNAPSHOT\"\n"
+	if err := os.WriteFile(filepath.Join(bin, "gimbal"), []byte(command), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("EVAL_SNAPSHOT", state)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }

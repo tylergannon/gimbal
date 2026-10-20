@@ -28,7 +28,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -69,12 +68,12 @@ func Implement(ctx context.Context, env gimbal.Env, params Params) error {
 	if err != nil {
 		return fmt.Errorf("outcomes-file: %w", err)
 	}
-	raw, err := os.ReadFile(outcomesFile)
-	if err != nil {
-		return fmt.Errorf("outcomes file: %w", err)
+	code, raw, stderr, err := gimbal.RunCommand(ctx, "read-outcomes", env.WorkDir, "cat", "--", outcomesFile)
+	if err != nil || code != 0 {
+		return fmt.Errorf("outcomes file: exit %d: %s: %w", code, stderr, err)
 	}
 	var outcomes []string
-	if err := json.Unmarshal(raw, &outcomes); err != nil {
+	if err := json.Unmarshal([]byte(raw), &outcomes); err != nil {
 		return fmt.Errorf("outcomes file must be a JSON array of strings: %w", err)
 	}
 	if len(outcomes) == 0 {
@@ -149,9 +148,6 @@ func Implement(ctx context.Context, env gimbal.Env, params Params) error {
 			return fmt.Errorf("outcome %d incomplete after %d tasks", outcomeNumber, tasksRun)
 		}
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -162,7 +158,7 @@ func absoluteFrom(workDir, name string) (string, error) {
 	if !filepath.IsAbs(name) {
 		name = filepath.Join(workDir, name)
 	}
-	return filepath.Abs(name)
+	return filepath.Clean(name), nil
 }
 
 const completionRule = `Advance to the next outcome when independent validation sees the current outcome working at 90–95% with only small gaps. Never take another lap to polish the last 5%. A substantial unmet requirement may justify another task within the current outcome; do not start later outcomes while it remains unmet.`

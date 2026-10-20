@@ -11,52 +11,44 @@ import (
 // Graph is the shape of this workflow, read from the source of Implement.
 var Graph = workflow.Graph{
 	Name:     "implement",
-	Source:   workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 64},
+	Source:   workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 63},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 65}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 65}, Case: "params.MaxTasksPerOutcome < 1", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 80}, Branches: []workflow.Branch{
-			{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 80}, Case: "len(outcomes) == 0", Exits: true, Body: []workflow.Operation{}},
-		}},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 89}, Key: "outcomes file"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 90}, Key: "repository"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 91}, Key: "maximum tasks per outcome"},
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 92}, Key: "completion rule"},
-		workflow.Iterate{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 95}, Name: "outcome", Services: []workflow.Service{}, Body: []workflow.Operation{
-			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 97}, Key: "outcome"},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 98}, Name: "sprint-planning", From: ""},
-			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 99}, Name: "architectural-critique", From: ""},
-			workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 100}, Name: "implementation", Planner: "sprint-planning", Supervisors: []workflow.Supervisor{
-				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 101}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
+		workflow.Command{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 71}, Name: "read-outcomes"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 88}, Key: "outcomes file"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 89}, Key: "repository"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 90}, Key: "maximum tasks per outcome"},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 91}, Key: "completion rule"},
+		workflow.Iterate{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 94}, Name: "outcome", Services: []workflow.Service{}, Body: []workflow.Operation{
+			workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 96}, Key: "outcome"},
+			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 97}, Name: "sprint-planning", From: ""},
+			workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 98}, Name: "architectural-critique", From: ""},
+			workflow.PromiseLoop{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 99}, Name: "implementation", Planner: "sprint-planning", Supervisors: []workflow.Supervisor{
+				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 100}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
 			}, Services: []workflow.Service{}, Body: []workflow.Operation{
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 108}, Name: "coding", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 109}, Name: "architectural-critique", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 110}, Session: "coding", Role: "coding", Prompt: "Read the selected outcome and task with its definition of done. Implement only that task in the repository and gather useful evidence. Do not edit the outcomes file or this workflow; do not commit, push, merge, deploy, or add proof scripts or run output. Preserve unrelated work. Report what changed and what you personally observed.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 111}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 107}, Name: "coding", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 108}, Name: "architectural-critique", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 109}, Session: "coding", Role: "coding", Prompt: "Read the selected outcome and task with its definition of done. Implement only that task in the repository and gather useful evidence. Do not edit the outcomes file or this workflow; do not commit, push, merge, deploy, or add proof scripts or run output. Preserve unrelated work. Report what changed and what you personally observed.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 110}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 116}, Key: "worker report"},
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 118}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 118}, Case: "command := strings.TrimSpace(task.Validation.Command); command != \"\"", Exits: false, Body: []workflow.Operation{
-						workflow.Command{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 119}, Name: "task check"},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 115}, Key: "worker report"},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 117}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 117}, Case: "command := strings.TrimSpace(task.Validation.Command); command != \"\"", Exits: false, Body: []workflow.Operation{
+						workflow.Command{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 118}, Name: "task check"},
 					}},
 				}},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 125}, Name: "qa-orchestration", From: ""},
-				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 126}, Name: "architectural-critique", From: ""},
-				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 127}, Session: "qa-orchestration", Role: "qa-orchestration", Prompt: "Independently validate the selected task and current outcome. Inspect the repository and recorded evidence, then personally observe behavior that checks alone do not establish. Make no source changes and do not treat the worker report as proof. ValidationPassed is true when the outcome holds at 90–95% with no substantial gap. List optional polish in SmallGaps; list only genuinely unmet requirements or invalid evidence in SubstantialGaps. Do not demand 100% or work from later outcomes.", Supervisors: []workflow.Supervisor{
-					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 128}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 124}, Name: "qa-orchestration", From: ""},
+				workflow.Session{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 125}, Name: "architectural-critique", From: ""},
+				workflow.AgentCall{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 126}, Session: "qa-orchestration", Role: "qa-orchestration", Prompt: "Independently validate the selected task and current outcome. Inspect the repository and recorded evidence, then personally observe behavior that checks alone do not establish. Make no source changes and do not treat the worker report as proof. ValidationPassed is true when the outcome holds at 90–95% with no substantial gap. List optional polish in SmallGaps; list only genuinely unmet requirements or invalid evidence in SubstantialGaps. Do not demand 100% or work from later outcomes.", Supervisors: []workflow.Supervisor{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 127}, Session: "architectural-critique", Role: "architectural-critique", Instruction: "Steer only on concrete over-engineering, gold-plating, unrequested behavior, or work beyond the selected outcome. Do not edit source, create new requirements, or treat style preferences and optional polish as blockers."},
 				}},
-				workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 133}, Key: "independent assessment"},
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 134}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 134}, Case: "assessment.ValidationPassed && len(assessment.SubstantialGaps) == 0", Exits: true, Body: []workflow.Operation{}},
+				workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 132}, Key: "independent assessment"},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 133}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 133}, Case: "assessment.ValidationPassed && len(assessment.SubstantialGaps) == 0", Exits: true, Body: []workflow.Operation{}},
 				}},
-				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 138}, Branches: []workflow.Branch{
-					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 138}, Case: "tasksRun >= params.MaxTasksPerOutcome", Exits: true, Body: []workflow.Operation{}},
+				workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 137}, Branches: []workflow.Branch{
+					{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 137}, Case: "tasksRun >= params.MaxTasksPerOutcome", Exits: true, Body: []workflow.Operation{}},
 				}},
-			}},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 148}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 148}, Case: "!completed", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
 	},

@@ -1,7 +1,8 @@
 package researcheval
 
 import (
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/tylergannon/gimbal/internal/observation"
 )
@@ -21,7 +22,8 @@ type roleMeasurement struct {
 // it measures occupied agent time, not elapsed workflow time.
 func roleMeasurements(snapshot observation.RunSnapshot) []roleMeasurement {
 	roles := map[string]*roleMeasurement{}
-	for _, session := range snapshot.Sessions {
+	for _, id := range slices.Sorted(maps.Keys(snapshot.Sessions)) {
+		session := snapshot.Sessions[id]
 		row := roles[session.Name]
 		if row == nil {
 			row = &roleMeasurement{Role: session.Name, ByModel: map[string]observation.Usage{}, CostKnown: true}
@@ -29,7 +31,8 @@ func roleMeasurements(snapshot observation.RunSnapshot) []roleMeasurement {
 		}
 		row.Sessions++
 	}
-	for id, turn := range snapshot.Turns {
+	for _, id := range slices.Sorted(maps.Keys(snapshot.Turns)) {
+		turn := snapshot.Turns[id]
 		session, ok := snapshot.Sessions[turn.Session]
 		if !ok {
 			continue
@@ -40,7 +43,8 @@ func roleMeasurements(snapshot observation.RunSnapshot) []roleMeasurement {
 		if len(snapshot.TurnUsage[id]) == 0 {
 			row.CostKnown = false
 		}
-		for model, usage := range snapshot.TurnUsage[id] {
+		for _, model := range slices.Sorted(maps.Keys(snapshot.TurnUsage[id])) {
+			usage := snapshot.TurnUsage[id][model]
 			sum := row.ByModel[model]
 			sum.Input += usage.Input
 			sum.CacheRead += usage.CacheRead
@@ -55,12 +59,21 @@ func roleMeasurements(snapshot observation.RunSnapshot) []roleMeasurement {
 		}
 	}
 	result := make([]roleMeasurement, 0, len(roles))
-	for _, row := range roles {
+	for _, role := range slices.Sorted(maps.Keys(roles)) {
+		row := roles[role]
 		if row.Turns == 0 {
 			row.CostKnown = false
 		}
 		result = append(result, *row)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Role < result[j].Role })
+	slices.SortFunc(result, func(a, b roleMeasurement) int {
+		if a.Role < b.Role {
+			return -1
+		}
+		if a.Role > b.Role {
+			return 1
+		}
+		return 0
+	})
 	return result
 }

@@ -118,7 +118,6 @@ func TestUserTestingStages(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			s, input := suiteFixture(t, tc.n)
-			s.Timeout = "10s"
 			s.PlaywrightCLI = filepath.Join(filepath.Dir(input), "browser")
 			encoder := filepath.Join(filepath.Dir(input), "ffmpeg")
 			encoderBody := "#!/bin/sh\nprintf '%s\\n' \"$@\" > ffmpeg-args\nfor arg do if [ \"$previous\" = -i ]; then input=$arg; fi; previous=$arg; last=$arg; done\ncp \"$input\" \"$last\"\n"
@@ -257,19 +256,27 @@ func TestStaticWorkflowGraph(t *testing.T) {
 		t.Fatalf("graph diagnostics: %+v", Graph.Diagnostics)
 	}
 	var found bool
-	for _, op := range Graph.Body {
-		if group, ok := op.(workflow.Group); ok && group.Name == "user-testing" {
-			found = true
-			if len(group.Children) != 3 {
-				t.Fatalf("children: %+v", group.Children)
+	var visit func([]workflow.Operation)
+	visit = func(body []workflow.Operation) {
+		for _, op := range body {
+			if scope, ok := op.(workflow.Scope); ok {
+				visit(scope.Body)
 			}
-			for i, name := range []string{"tester1", "tester2", "tester3"} {
-				if group.Children[i].Name != name {
-					t.Fatalf("slot %d: %s", i, group.Children[i].Name)
+			if group, ok := op.(workflow.Group); ok && group.Name == "user-testing" {
+				found = true
+				if len(group.Children) != 3 {
+					t.Fatalf("children: %+v", group.Children)
+				}
+				for i, name := range []string{"tester1", "tester2", "tester3"} {
+					if group.Children[i].Name != name {
+						t.Fatalf("slot %d: %s", i, group.Children[i].Name)
+					}
 				}
 			}
 		}
+
 	}
+	visit(Graph.Body)
 	if !found {
 		t.Fatal("missing explicit tester group")
 	}

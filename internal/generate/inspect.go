@@ -445,8 +445,8 @@ func (b *pageBuilder) body(ops []workflow.Operation, initial []contextField, sco
 			n.Requirements = op.Requirements
 			n.Yields = op.Yields
 			n.Note = "Runs a command. Any context it writes is not shown here."
-		case workflow.Interview:
-			n = b.node("Interview", op.Name, scope, op.Source, ctx)
+		case workflow.Interactive:
+			n = b.node("Interactive", op.Name, scope, op.Source, ctx)
 			n.Requirements = op.Requirements
 			n.Session = op.Session
 		case workflow.Scope:

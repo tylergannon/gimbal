@@ -1,6 +1,9 @@
 package researchdocument
 
 import (
+	"context"
+	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/runstore"
 	"os"
 	"path/filepath"
 	"strings"
@@ -45,13 +48,13 @@ func TestVerifyResearchFloor(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := verifyResearchFloor(dir, "", 2); err == nil || !strings.Contains(err.Error(), "found 1 source files, need at least 2") {
+	if err := checkFloor(t, dir, "", 2); err == nil || !strings.Contains(err.Error(), "found 1 source files, need at least 2") {
 		t.Fatalf("verifyResearchFloor below minimum = %v", err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "sources", "two.md"), []byte("source two"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := verifyResearchFloor(dir, "", 2); err != nil {
+	if err := checkFloor(t, dir, "", 2); err != nil {
 		t.Fatalf("verifyResearchFloor at minimum: %v", err)
 	}
 	shared := filepath.Join(dir, "sources")
@@ -59,7 +62,7 @@ func TestVerifyResearchFloor(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(topic, "INDEX.md"), []byte("index of shared originals"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := verifyResearchFloor(topic, shared, 2); err != nil {
+	if err := checkFloor(t, topic, shared, 2); err != nil {
 		t.Fatalf("shared originals require no per-topic copies: %v", err)
 	}
 }
@@ -114,4 +117,9 @@ func TestAuditReviewContextContainsOnlyLocalAuditPaths(t *testing.T) {
 			t.Errorf("missing review input %s", filename)
 		}
 	}
+}
+
+func checkFloor(t *testing.T, dir, shared string, min int) error {
+	t.Helper()
+	return gimbal.Run(gimbal.Project(t.Context(), t.TempDir()), string(runstore.NewRunID()), "check-floor", nil, func(ctx context.Context) error { return verifyResearchFloor(ctx, dir, shared, min) })
 }

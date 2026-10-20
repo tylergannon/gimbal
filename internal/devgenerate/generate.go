@@ -210,7 +210,7 @@ func (g *Generator) run(ctx context.Context, selected []bool, stockPackages []st
 	}
 	if stockSelected {
 		// Only built-in package names are accepted by StockGenerator. Authored
-		// non-stock graphs (interview/implementinterview) remain independent.
+		// non-stock graphs (implementinterview) remain independent.
 		var stock []string
 		if stockPackages != nil {
 			stock = []string{}
@@ -235,7 +235,7 @@ func (g *Generator) run(ctx context.Context, selected []bool, stockPackages []st
 		switch p.kind {
 		case "observation-types":
 			wrote, err = g.observation.GenerateResult(polytype.Compose(
-				polytype.DeclareType(polytype.TypeSpec{PackagePath: module + "/internal/observation", Name: "InterviewRow"}),
+				polytype.DeclareType(polytype.TypeSpec{PackagePath: module + "/internal/observation", Name: "InteractiveRow"}),
 				polytype.DeclareType(polytype.TypeSpec{PackagePath: module + "/internal/observation", Name: "TurnRow"}),
 			), codegen.Options{TargetDir: filepath.Join(g.root, p.dir), TypeScript: &codegen.TypeScriptOptions{Dir: filepath.Join(g.root, "web/src/lib/observation")}})
 		case "workflow-types":

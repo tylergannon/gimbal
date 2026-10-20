@@ -38,16 +38,14 @@ package researcheval
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io/fs"
-	"os"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/polytype"
 )
@@ -135,10 +133,6 @@ type report struct {
 
 // ResearchEval measures research candidates and checks a frozen choice on holdout.
 func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
-	registry, controls := observation.FromContext(ctx), live.RunsFrom(ctx)
-	if registry == nil || controls == nil {
-		return fmt.Errorf("research-eval requires a hosted run")
-	}
 	maxTrials, minutes, fixed := 3, 60, ""
 	if params.MaxTrials.Present {
 		maxTrials = params.MaxTrials.Value
@@ -156,397 +150,396 @@ func ResearchEval(ctx context.Context, env gimbal.Env, params Params) error {
 	if err != nil {
 		return err
 	}
-	if _, err := os.Stat(output); !os.IsNotExist(err) {
-		return fmt.Errorf("output-dir must not already exist")
+	code, suiteDir, stderr, err := gimbal.RunCommand(ctx, "prepare-evaluation", env.WorkDir, "sh", "-c", `set -eu
+ test ! -e "$1"
+ mkdir -p -- "$1"
+ mktemp -d "${TMPDIR:-/tmp}/gimbal-eval-private-XXXXXXXX"`, "prepare-evaluation", output)
+	if err != nil || code != 0 {
+		return fmt.Errorf("prepare evaluation: exit %d: %s: %w", code, stderr, err)
 	}
-	if err := os.MkdirAll(output, 0o755); err != nil {
-		return err
-	}
-	suiteDir, err := os.MkdirTemp("", "gimbal-eval-private-")
-	if err != nil {
-		return err
-	}
-	defer func() { _ = os.RemoveAll(suiteDir) }()
+	suiteDir = strings.TrimSpace(suiteDir)
 	privateDir := suiteDir
-	if params.SuiteDir.Present {
-		suiteDir, err = absoluteFrom(env.WorkDir, params.SuiteDir.Value)
+	var result report
+	var parentID string
+	resultErr := gimbal.Scope(ctx, "evaluation", func(ctx context.Context) error {
+		if params.SuiteDir.Present {
+			suiteDir, err = absoluteFrom(env.WorkDir, params.SuiteDir.Value)
+			if err != nil {
+				return err
+			}
+		} else if err := materializeSuite(ctx, suiteDir); err != nil {
+			return err
+		}
+		s, err := loadSuite(ctx, suiteDir)
 		if err != nil {
 			return err
 		}
-	} else if err := materializeSuite(suiteDir); err != nil {
-		return err
-	}
-	s, err := loadSuite(suiteDir)
-	if err != nil {
-		return err
-	}
-	if !params.SuiteDir.Present {
-		// Keep the answer key in memory until the research being assessed has ended.
-		if err := os.Remove(filepath.Join(suiteDir, "suite.json")); err != nil {
-			return err
+		if !params.SuiteDir.Present {
+			// Keep the answer key in memory until the research being assessed has ended.
+			if err := removePath(ctx, filepath.Join(suiteDir, "suite.json")); err != nil {
+				return err
+			}
 		}
-	}
-	candidates, err := loadCandidates(env.WorkDir, params.CandidatesFile)
-	if err != nil {
-		return err
-	}
-	executable, err := os.Executable()
-	if err != nil {
-		return err
-	}
-	// The child's --project must be this very hosted project. Checking a live
-	// registry record under the requested root establishes that before submission.
-	if err := verifyProject(env.WorkDir, registry); err != nil {
-		return err
-	}
-	result := report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. First-pass audit cleanliness is distinct from independent correctness. The one-repair goal is reported, not an eligibility cutoff. Full-run price covers recorded agent and claim-audit usage; automatic supervisor Jev checks are not metered here. Candidate selection uses only priced research and index roles plus claim-audit input; unpriced fixed roles remain unknown in full-run price. Downstream turns and time appear by role and may differ between candidates."}
-	if err := writeJSON(filepath.Join(output, "report.json"), result); err != nil {
-		return err
-	}
-	gimbal.Set(ctx, "candidate allowlist", jsonText(candidates))
-	gimbal.Set(ctx, "maximum development trials", maxTrials)
-	gimbal.Set(ctx, "evaluation rules", plannerRules)
-	gimbal.Set(ctx, "evaluation report", filepath.Join(output, "report.json"))
-	parentID, err := reportRun(env.WorkDir, registry, filepath.Join(output, "report.json"))
-	if err != nil {
-		return err
-	}
-
-	// Preserve measured overhead even when calibration or cancellation ends the run.
-	defer func() {
-		if snapshot, err := registry.Snapshot(parentID); err == nil {
-			result.EvaluationCostUSD, result.EvaluationCostKnown = researchCost(snapshot)
-		}
-		_ = writeJSON(filepath.Join(output, "report.json"), result)
-	}()
-
-	// Sanity-check the semantic assessor on labeled good and corrupted outputs
-	// before spending on candidates. This detects obvious judge failures; it is
-	// not a statistical estimate of judge accuracy on arbitrary research.
-	calibrationIndex := 0
-	for calibrationCtx, corrupted := range gimbal.Iterate(ctx, "calibrate-assessor", []bool{false, true}) {
-		calibrationIndex++
-		dir := filepath.Join(privateDir, fmt.Sprintf("assessor-check-%d", calibrationIndex))
-		sources := filepath.Join(dir, "sources")
-		if err := copySources(sources, map[string]string{"manual.md": "For version 3, the request limit is 12 KiB. Version 2 allowed 32 KiB.\n"}); err != nil {
-			return err
-		}
-		c := researchCase{Facts: []fact{{ID: "current-limit", Statement: "For version 3, the request limit is 12 KiB.", Evidence: []evidence{{Source: "manual.md", Quote: "For version 3, the request limit is 12 KiB."}}}}}
-		gold, document, index := filepath.Join(dir, "gold.json"), filepath.Join(dir, "document.md"), filepath.Join(dir, "index")
-		if err := writeJSON(gold, c); err != nil {
-			return err
-		}
-		if err := os.WriteFile(document, []byte("For version 3, the request limit is 12 KiB. See sources/manual.md.\n"), 0644); err != nil {
-			return err
-		}
-		assertion := "For version 3, the request limit is 12 KiB."
-		if corrupted {
-			assertion = "For version 3, the request limit is 32 KiB."
-		}
-		if err := copySources(index, map[string]string{"INDEX.md": assertion + " See [manual](sources/manual.md).\n", "sources/manual.md": "For version 3, the request limit is 12 KiB. Version 2 allowed 32 KiB.\n"}); err != nil {
-			return err
-		}
-		gimbal.Set(calibrationCtx, "assessment gold", gold)
-		gimbal.Set(calibrationCtx, "original source directory", sources)
-		gimbal.Set(calibrationCtx, "trial document", document)
-		gimbal.Set(calibrationCtx, "trial corpus", index)
-		assessor := gimbal.NewSession(calibrationCtx, "research-eval-assessment", env.WorkDir)
-		quality, err := assessor.Generate[Quality](calibrationCtx, qualityPrompt, gimbal.WithScopeTemplate(assessmentContext))
+		candidates, err := loadCandidates(ctx, env.WorkDir, params.CandidatesFile)
 		if err != nil {
 			return err
 		}
-		if err := writeJSON(filepath.Join(output, fmt.Sprintf("calibration-%02d.json", calibrationIndex)), quality); err != nil {
+		code, executable, stderr, err := gimbal.RunCommand(ctx, "resolve-executable", env.WorkDir, "sh", "-c", "command -v gimbal")
+		if err != nil || code != 0 {
+			return fmt.Errorf("resolve executable: exit %d: %s: %w", code, stderr, err)
+		}
+		executable = strings.TrimSpace(executable)
+		// The child's --project must be this very hosted project. Checking a live
+		// registry record under the requested root establishes that before submission.
+		if err := verifyProject(ctx, env.WorkDir); err != nil {
 			return err
 		}
-		if len(quality.Facts) != 1 || quality.Facts[0].ID != "current-limit" || !quality.Facts[0].DocumentCovered || (!corrupted && !quality.Facts[0].IndexCovered) || quality.DocumentAssertions < 1 || quality.IndexAssertions < 1 || len(quality.UnsupportedDocumentClaims) != 0 || (len(quality.UnsupportedIndexClaims) > 0) != corrupted {
+		result = report{Suite: s.Name, FixedModel: fixed, Trials: []trialResult{}, PriceBasis: priceBasis, Limitation: "Provisional result from a small controlled-source comparison; model judgments and catalog-price proxies, not open-web quality or a population success rate. First-pass audit cleanliness is distinct from independent correctness. The one-repair goal is reported, not an eligibility cutoff. Full-run price covers recorded agent and claim-audit usage; automatic supervisor Jev checks are not metered here. Candidate selection uses only priced research and index roles plus claim-audit input; unpriced fixed roles remain unknown in full-run price. Downstream turns and time appear by role and may differ between candidates."}
+		if err := writeJSON(ctx, filepath.Join(output, "report.json"), result); err != nil {
+			return err
+		}
+		gimbal.Set(ctx, "candidate allowlist", jsonText(candidates))
+		gimbal.Set(ctx, "maximum development trials", maxTrials)
+		gimbal.Set(ctx, "evaluation rules", plannerRules)
+		gimbal.Set(ctx, "evaluation report", filepath.Join(output, "report.json"))
+		parentID, err = reportRun(ctx, env.WorkDir, filepath.Join(output, "report.json"))
+		if err != nil {
+			return err
+		}
+
+		// Sanity-check the semantic assessor on labeled good and corrupted outputs
+		// before spending on candidates. This detects obvious judge failures; it is
+		// not a statistical estimate of judge accuracy on arbitrary research.
+		calibrationIndex := 0
+		for calibrationCtx, corrupted := range gimbal.Iterate(ctx, "calibrate-assessor", []bool{false, true}) {
+			calibrationIndex++
+			dir := filepath.Join(privateDir, fmt.Sprintf("assessor-check-%d", calibrationIndex))
+			sources := filepath.Join(dir, "sources")
+			if err := copySources(ctx, sources, map[string]string{"manual.md": "For version 3, the request limit is 12 KiB. Version 2 allowed 32 KiB.\n"}); err != nil {
+				return err
+			}
+			c := researchCase{Facts: []fact{{ID: "current-limit", Statement: "For version 3, the request limit is 12 KiB.", Evidence: []evidence{{Source: "manual.md", Quote: "For version 3, the request limit is 12 KiB."}}}}}
+			gold, document, index := filepath.Join(dir, "gold.json"), filepath.Join(dir, "document.md"), filepath.Join(dir, "index")
+			if err := writeJSON(ctx, gold, c); err != nil {
+				return err
+			}
+			if err := writeFile(ctx, document, []byte("For version 3, the request limit is 12 KiB. See sources/manual.md.\n"), 0644); err != nil {
+				return err
+			}
+			assertion := "For version 3, the request limit is 12 KiB."
 			if corrupted {
-				result.Calibration.FalseNegatives++
+				assertion = "For version 3, the request limit is 32 KiB."
+			}
+			if err := copySources(ctx, index, map[string]string{"INDEX.md": assertion + " See [manual](sources/manual.md).\n", "sources/manual.md": "For version 3, the request limit is 12 KiB. Version 2 allowed 32 KiB.\n"}); err != nil {
+				return err
+			}
+			gimbal.Set(calibrationCtx, "assessment gold", gold)
+			gimbal.Set(calibrationCtx, "original source directory", sources)
+			gimbal.Set(calibrationCtx, "trial document", document)
+			gimbal.Set(calibrationCtx, "trial corpus", index)
+			assessor := gimbal.NewSession(calibrationCtx, "research-eval-assessment", env.WorkDir)
+			quality, err := assessor.Generate[Quality](calibrationCtx, qualityPrompt, gimbal.WithScopeTemplate(assessmentContext))
+			if err != nil {
+				return err
+			}
+			if err := writeJSON(ctx, filepath.Join(output, fmt.Sprintf("calibration-%02d.json", calibrationIndex)), quality); err != nil {
+				return err
+			}
+			if len(quality.Facts) != 1 || quality.Facts[0].ID != "current-limit" || !quality.Facts[0].DocumentCovered || (!corrupted && !quality.Facts[0].IndexCovered) || quality.DocumentAssertions < 1 || quality.IndexAssertions < 1 || len(quality.UnsupportedDocumentClaims) != 0 || (len(quality.UnsupportedIndexClaims) > 0) != corrupted {
+				if corrupted {
+					result.Calibration.FalseNegatives++
+				} else {
+					result.Calibration.FalsePositives++
+				}
+			}
+			if corrupted {
+				result.Calibration.BadSamples++
 			} else {
-				result.Calibration.FalsePositives++
+				result.Calibration.GoodSamples++
+			}
+			if err := removePath(ctx, dir); err != nil {
+				return err
 			}
 		}
-		if corrupted {
-			result.Calibration.BadSamples++
-		} else {
-			result.Calibration.GoodSamples++
+		if result.Calibration.FalseNegatives != 0 || result.Calibration.FalsePositives != 0 {
+			return fmt.Errorf("assessor calibration failed: %+v; optimization not started", result.Calibration)
 		}
-		if err := os.RemoveAll(dir); err != nil {
+		result.CalibrationPassed = true
+		if err := writeJSON(ctx, filepath.Join(output, "report.json"), result); err != nil {
 			return err
 		}
-	}
-	if result.Calibration.FalseNegatives != 0 || result.Calibration.FalsePositives != 0 {
-		return fmt.Errorf("assessor calibration failed: %+v; optimization not started", result.Calibration)
-	}
-	result.CalibrationPassed = true
-	if err := writeJSON(filepath.Join(output, "report.json"), result); err != nil {
-		return err
-	}
-	planner := gimbal.NewSession(ctx, "research-eval-planning", env.WorkDir)
-	loop := gimbal.PromiseLoop(ctx, "optimize-research", "Find an economical research/indexing combination that passes the fixed quality measure with few audit repairs. Select only supplied candidate IDs; finish by dispatching select for the frozen holdout check.", planner)
-	trialCount, heldout := 0, false
-	for taskCtx, task := range loop.Tasks {
-		phase := "development"
-		choice, ok := candidateByID(candidates, strings.TrimSpace(task.Name))
-		if task.Name == "select" || trialCount >= maxTrials {
-			phase = "holdout"
-			choice, ok = bestCandidate(candidates, result.Trials, s)
-			if !ok {
-				break
-			}
-			result.Selected = choice.ID
-		} else if !ok {
-			return fmt.Errorf("planner selected unknown candidate %q", task.Name)
-		}
-		trialCount++
-		var cases []researchCase
-		for _, c := range s.Cases {
-			if c.Split == phase {
-				cases = append(cases, c)
-			}
-		}
-		for caseCtx, c := range gimbal.Iterate(taskCtx, "case", cases) {
-			started := time.Now()
-			dir, err := os.MkdirTemp("", "gimbal-research-trial-")
-			if err != nil {
-				return err
-			}
-			dir, err = filepath.EvalSymlinks(dir)
-			if err != nil {
-				return err
-			}
-			corpus, document := filepath.Join(dir, "research"), filepath.Join(dir, "document.md")
-			originals, err := sourceTexts(suiteDir, c)
-			if err != nil {
-				return err
-			}
-			sourceDir := filepath.Join(dir, "source-input")
-			err = copySources(sourceDir, originals)
-			if err != nil {
-				return err
-			}
-			row := trialResult{Candidate: choice, Case: c.ID, Split: phase, Directory: dir}
-			args := []string{"run", "research-document", "--project", env.WorkDir, "--work-dir", dir, "--goal", c.Goal, "--source-dir", sourceDir, "--research-dir", corpus, "--output", document, "--token-budget", "1800", "--min-sources-per-topic", "1", "--max-editorial-rounds", "3", "--research-indexing", choice.ResearchModel, "--index-curation", choice.IndexModel}
-			if fixed != "" {
-				args = append(args, "--research-planning", fixed, "--document-authoring", fixed, "--editorial-review", fixed, "--document-supervision", fixed)
-			}
-			if params.ResearchInstance.Present {
-				args = append(args, "--instance-dir", params.ResearchInstance.Value)
-			}
-			// Submission is brief and must deliver the accepted ID even if the
-			// caller cancels meanwhile; the parent then cancels and joins that ID.
-			submitCtx, endSubmit := context.WithTimeout(context.WithoutCancel(caseCtx), time.Minute)
-			exit, stdout, stderr, launchErr := gimbal.RunCommand(submitCtx, "start-research", env.WorkDir, executable, args...)
-			endSubmit()
-			if launchErr != nil || exit != 0 {
-				row.Error = fmt.Sprintf("research submission failed (acceptance may be unknown): exit=%d error=%v %s", exit, launchErr, stderr)
-			} else {
-				row.RunID = strings.TrimSpace(stdout)
-				trialCtx, endTrial := context.WithTimeout(caseCtx, time.Duration(minutes)*time.Minute)
-				snapshot, runErr := waitResearch(trialCtx, registry, controls, row.RunID)
-				endTrial()
-				if runErr != nil {
-					row.Error = runErr.Error()
+		planner := gimbal.NewSession(ctx, "research-eval-planning", env.WorkDir)
+		loop := gimbal.PromiseLoop(ctx, "optimize-research", "Find an economical research/indexing combination that passes the fixed quality measure with few audit repairs. Select only supplied candidate IDs; finish by dispatching select for the frozen holdout check.", planner)
+		trialCount, heldout := 0, false
+		for taskCtx, task := range loop.Tasks {
+			phase := "development"
+			choice, ok := candidateByID(candidates, strings.TrimSpace(task.Name))
+			if task.Name == "select" || trialCount >= maxTrials {
+				phase = "holdout"
+				choice, ok = bestCandidate(candidates, result.Trials, s)
+				if !ok {
+					break
 				}
-				row.CostUSD, row.CostKnown = researchCost(snapshot)
-				row.Roles = roleMeasurements(snapshot)
+				result.Selected = choice.ID
+			} else if !ok {
+				return fmt.Errorf("planner selected unknown candidate %q", task.Name)
 			}
-			if raw, readErr := os.ReadFile(filepath.Join(corpus, ".semantic-index", "completion.json")); readErr == nil {
-				if err := json.Unmarshal(raw, &row.Audit); err != nil {
-					row.Error = "invalid audit summary: " + err.Error()
+			trialCount++
+			var cases []researchCase
+			for _, c := range s.Cases {
+				if c.Split == phase {
+					cases = append(cases, c)
 				}
-			} else {
-				row.CostKnown = false
 			}
-			row.InitialAuditClean, row.OneRepairAuditClean, row.AuditRepairPasses, row.JevInputTokens = auditHistory(corpus)
-			if !row.Audit.Complete {
-				// Completed passes alone are archived; retain current partial
-				// usage but do not call an interrupted request's price known.
-				row.JevInputTokens += row.Audit.Metrics.InputTokens
-				row.CostKnown = false
-			}
-			row.CostUSD += float64(row.JevInputTokens) * 0.042 / 1_000_000
-			row.ComparableCostUSD, row.ComparableCostKnown = comparableCost(row.Roles, row.JevInputTokens, row.Audit.Complete)
-			if row.Error == "" {
-				goldPath := filepath.Join(privateDir, fmt.Sprintf("assessment-gold-%03d-%s.json", trialCount, c.ID))
-				if err := writeJSON(goldPath, c); err != nil {
+			for caseCtx, c := range gimbal.Iterate(taskCtx, "case", cases) {
+				started, err := clock(ctx)
+				if err != nil {
 					return err
 				}
-				gimbal.Set(caseCtx, "assessment gold", goldPath)
-				gimbal.Set(caseCtx, "original source directory", sourceDir)
-				gimbal.Set(caseCtx, "trial document", document)
-				gimbal.Set(caseCtx, "trial corpus", corpus)
-				assessor := gimbal.NewSession(caseCtx, "research-eval-assessment", env.WorkDir)
-				assessCtx, endAssess := context.WithTimeout(caseCtx, 5*time.Minute)
-				quality, assessErr := assessor.Generate[Quality](assessCtx, qualityPrompt, gimbal.WithScopeTemplate(assessmentContext))
-				endAssess()
-				if err := os.Remove(goldPath); err != nil {
+				code, dir, stderr, err := gimbal.RunCommand(caseCtx, "create-trial", env.WorkDir, "sh", "-c", `mktemp -d "${TMPDIR:-/tmp}/gimbal-research-trial-XXXXXXXX"`)
+				if code != 0 {
+					return fmt.Errorf("create trial: %s", stderr)
+				}
+				dir = strings.TrimSpace(dir)
+				if err != nil {
 					return err
 				}
-				if assessErr != nil {
-					row.Error = assessErr.Error()
+				dir, err = realPath(ctx, dir)
+				if err != nil {
+					return err
+				}
+				corpus, document := filepath.Join(dir, "research"), filepath.Join(dir, "document.md")
+				originals, err := sourceTexts(ctx, suiteDir, c)
+				if err != nil {
+					return err
+				}
+				sourceDir := filepath.Join(dir, "source-input")
+				err = copySources(ctx, sourceDir, originals)
+				if err != nil {
+					return err
+				}
+				row := trialResult{Candidate: choice, Case: c.ID, Split: phase, Directory: dir}
+				args := []string{"run", "research-document", "--project", env.WorkDir, "--work-dir", dir, "--goal", c.Goal, "--source-dir", sourceDir, "--research-dir", corpus, "--output", document, "--token-budget", "1800", "--min-sources-per-topic", "1", "--max-editorial-rounds", "3", "--research-indexing", choice.ResearchModel, "--index-curation", choice.IndexModel}
+				if fixed != "" {
+					args = append(args, "--research-planning", fixed, "--document-authoring", fixed, "--editorial-review", fixed, "--document-supervision", fixed)
+				}
+				if params.ResearchInstance.Present {
+					args = append(args, "--instance-dir", params.ResearchInstance.Value)
+				}
+				// The recorded submission outcome preserves its accepted child identity.
+				exit, stdout, stderr, launchErr := gimbal.RunCommand(caseCtx, "start-research", env.WorkDir, executable, args...)
+				if launchErr != nil || exit != 0 {
+					row.Error = fmt.Sprintf("research submission failed (acceptance may be unknown): exit=%d error=%v %s", exit, launchErr, stderr)
 				} else {
-					if err := writeJSON(filepath.Join(dir, "quality.json"), quality); err != nil {
+					row.RunID = strings.TrimSpace(stdout)
+					snapshot, runErr := waitResearch(caseCtx, env.WorkDir, row.RunID, minutes)
+					if runErr != nil {
+						row.Error = runErr.Error()
+					}
+					row.CostUSD, row.CostKnown = researchCost(snapshot)
+					row.Roles = roleMeasurements(snapshot)
+				}
+				if raw, readErr := readFile(ctx, filepath.Join(corpus, ".semantic-index", "completion.json")); readErr == nil {
+					if err := json.Unmarshal(raw, &row.Audit); err != nil {
+						row.Error = "invalid audit summary: " + err.Error()
+					}
+				} else {
+					row.CostKnown = false
+				}
+				row.InitialAuditClean, row.OneRepairAuditClean, row.AuditRepairPasses, row.JevInputTokens = auditHistory(ctx, corpus)
+				if !row.Audit.Complete {
+					// Completed passes alone are archived; retain current partial
+					// usage but do not call an interrupted request's price known.
+					row.JevInputTokens += row.Audit.Metrics.InputTokens
+					row.CostKnown = false
+				}
+				row.CostUSD += float64(row.JevInputTokens) * 0.042 / 1_000_000
+				row.ComparableCostUSD, row.ComparableCostKnown = comparableCost(row.Roles, row.JevInputTokens, row.Audit.Complete)
+				if row.Error == "" {
+					goldPath := filepath.Join(privateDir, fmt.Sprintf("assessment-gold-%03d-%s.json", trialCount, c.ID))
+					if err := writeJSON(ctx, goldPath, c); err != nil {
 						return err
 					}
-					var queryScores []queryScore
-					for queryCtx, q := range gimbal.Iterate(caseCtx, "query", c.Queries) {
-						before, err := registry.Snapshot(parentID)
-						if err != nil {
+					gimbal.Set(caseCtx, "assessment gold", goldPath)
+					gimbal.Set(caseCtx, "original source directory", sourceDir)
+					gimbal.Set(caseCtx, "trial document", document)
+					gimbal.Set(caseCtx, "trial corpus", corpus)
+					assessor := gimbal.NewSession(caseCtx, "research-eval-assessment", env.WorkDir)
+					quality, assessErr := assessor.Generate[Quality](caseCtx, qualityPrompt, gimbal.WithScopeTemplate(assessmentContext))
+					if err := removePath(ctx, goldPath); err != nil {
+						return err
+					}
+					if assessErr != nil {
+						row.Error = assessErr.Error()
+					} else {
+						if err := writeJSON(ctx, filepath.Join(dir, "quality.json"), quality); err != nil {
 							return err
 						}
-						queryResult := queryScore{ID: q.ID, ExpectedEvidence: len(q.Evidence)}
-						read := map[string]string{}
-						entry, err := os.ReadFile(filepath.Join(corpus, "INDEX.md"))
-						if err != nil {
-							return err
-						}
-						read["INDEX.md"] = string(entry)
-						queryResult.Reads, queryResult.Bytes = 1, len(entry)
-						if len(entry) > 18000 {
-							queryResult.Error = "initial index exceeds byte budget"
-						}
-						reader := gimbal.NewSession(queryCtx, "research-eval-reading", dir)
-						var answer ReaderStep
-						for stepCtx, _ := range gimbal.Iterate(queryCtx, "navigate", []int{0, 1, 2, 3}) {
-							if queryResult.Error != "" {
-								break
+						var queryScores []queryScore
+						for queryCtx, q := range gimbal.Iterate(caseCtx, "query", c.Queries) {
+							before, err := snapshot(ctx, env.WorkDir, parentID)
+							if err != nil {
+								return err
 							}
-							gimbal.Set(stepCtx, "question", q.Question)
-							gimbal.Set(stepCtx, "read passages", jsonText(read))
-							gimbal.Set(stepCtx, "remaining file reads", 6-queryResult.Reads)
-							readCtx, endRead := context.WithTimeout(stepCtx, 2*time.Minute)
-							step, err := reader.Generate[ReaderStep](readCtx, readerPrompt, gimbal.WithScopeTemplate(readerContext))
-							endRead()
+							queryResult := queryScore{ID: q.ID, ExpectedEvidence: len(q.Evidence)}
+							read := map[string]string{}
+							entry, err := readFile(ctx, filepath.Join(corpus, "INDEX.md"))
+							if err != nil {
+								return err
+							}
+							read["INDEX.md"] = string(entry)
+							queryResult.Reads, queryResult.Bytes = 1, len(entry)
+							if len(entry) > 18000 {
+								queryResult.Error = "initial index exceeds byte budget"
+							}
+							reader := gimbal.NewSession(queryCtx, "research-eval-reading", dir)
+							var answer ReaderStep
+							for stepCtx, _ := range gimbal.Iterate(queryCtx, "navigate", []int{0, 1, 2, 3}) {
+								if queryResult.Error != "" {
+									break
+								}
+								gimbal.Set(stepCtx, "question", q.Question)
+								gimbal.Set(stepCtx, "read passages", jsonText(read))
+								gimbal.Set(stepCtx, "remaining file reads", 6-queryResult.Reads)
+								step, err := reader.Generate[ReaderStep](stepCtx, readerPrompt, gimbal.WithScopeTemplate(readerContext))
+								if err != nil {
+									queryResult.Error = err.Error()
+									break
+								}
+								if len(step.Paths) == 0 {
+									answer = step
+									break
+								}
+								if len(step.Paths) > 2 {
+									queryResult.Error = "more than two paths requested in one turn"
+									break
+								}
+								for _, name := range step.Paths {
+									path, err := readerPath(corpus, name)
+									if err != nil {
+										queryResult.Error = "invalid path"
+										break
+									}
+									key, _ := filepath.Rel(corpus, path)
+									key = filepath.ToSlash(key)
+									if _, exists := read[key]; exists {
+										continue
+									}
+									if queryResult.Reads >= 6 {
+										queryResult.Error = "read budget exceeded"
+										break
+									}
+									resolved, err := realPath(ctx, path)
+									if err != nil || !inside(corpus, resolved) {
+										queryResult.Error = "path unavailable or outside corpus"
+										break
+									}
+									body, err := readFile(ctx, path)
+									if err != nil || queryResult.Bytes+len(body) > 18000 {
+										queryResult.Error = "file unavailable or byte budget exceeded"
+										break
+									}
+									read[key] = string(body)
+									queryResult.Reads++
+									queryResult.Bytes += len(body)
+								}
+								if queryResult.Error != "" {
+									break
+								}
+							}
+							normalizeCitations(corpus, &answer)
+							queryResult.Answer = answer.Answer
+							after, err := snapshot(ctx, env.WorkDir, parentID)
+							if err != nil {
+								return err
+							}
+							if err := readerTelemetry(before, after); err != nil {
+								queryResult.Error = err.Error()
+							}
+							found, exact := exactAnswer(q, answer, read, originals)
+							queryResult.FoundEvidence = found
+							gimbal.Set(queryCtx, "query gold", jsonText(q))
+							gimbal.Set(queryCtx, "reader answer", jsonText(answer))
+							gimbal.Set(queryCtx, "retrieved passages", jsonText(read))
+							judge := gimbal.NewSession(queryCtx, "research-eval-assessment", env.WorkDir)
+							judgment, err := judge.Generate[AnswerGrade](queryCtx, answerPrompt, gimbal.WithScopeTemplate(answerContext))
 							if err != nil {
 								queryResult.Error = err.Error()
-								break
 							}
-							if len(step.Paths) == 0 {
-								answer = step
-								break
+							queryResult.Success = exact && queryResult.Error == "" && judgment.Correct && judgment.Grounded
+							queryScores = append(queryScores, queryResult)
+							if err := writeJSON(ctx, filepath.Join(dir, "query-"+q.ID+".json"), struct {
+								Answer ReaderStep
+								Grade  AnswerGrade
+								Score  queryScore
+							}{answer, judgment, queryResult}); err != nil {
+								return err
 							}
-							if len(step.Paths) > 2 {
-								queryResult.Error = "more than two paths requested in one turn"
-								break
-							}
-							for _, name := range step.Paths {
-								path, err := readerPath(corpus, name)
-								if err != nil {
-									queryResult.Error = "invalid path"
-									break
-								}
-								key, _ := filepath.Rel(corpus, path)
-								key = filepath.ToSlash(key)
-								if _, exists := read[key]; exists {
-									continue
-								}
-								if queryResult.Reads >= 6 {
-									queryResult.Error = "read budget exceeded"
-									break
-								}
-								resolved, err := filepath.EvalSymlinks(path)
-								if err != nil || !inside(corpus, resolved) {
-									queryResult.Error = "path unavailable or outside corpus"
-									break
-								}
-								body, err := os.ReadFile(path)
-								if err != nil || queryResult.Bytes+len(body) > 18000 {
-									queryResult.Error = "file unavailable or byte budget exceeded"
-									break
-								}
-								read[key] = string(body)
-								queryResult.Reads++
-								queryResult.Bytes += len(body)
-							}
-							if queryResult.Error != "" {
-								break
-							}
+							gimbal.Set(queryCtx, "query score", jsonText(queryResult))
 						}
-						normalizeCitations(corpus, &answer)
-						queryResult.Answer = answer.Answer
-						after, err := registry.Snapshot(parentID)
+						row.Quality, err = scoreQuality(c, quality, queryScores)
 						if err != nil {
-							return err
+							row.Error = err.Error()
 						}
-						if err := readerTelemetry(before, after); err != nil {
-							queryResult.Error = err.Error()
-						}
-						found, exact := exactAnswer(q, answer, read, originals)
-						queryResult.FoundEvidence = found
-						gimbal.Set(queryCtx, "query gold", jsonText(q))
-						gimbal.Set(queryCtx, "reader answer", jsonText(answer))
-						gimbal.Set(queryCtx, "retrieved passages", jsonText(read))
-						judge := gimbal.NewSession(queryCtx, "research-eval-assessment", env.WorkDir)
-						judgeCtx, endJudge := context.WithTimeout(queryCtx, 2*time.Minute)
-						judgment, err := judge.Generate[AnswerGrade](judgeCtx, answerPrompt, gimbal.WithScopeTemplate(answerContext))
-						endJudge()
-						if err != nil {
-							queryResult.Error = err.Error()
-						}
-						queryResult.Success = exact && queryResult.Error == "" && judgment.Correct && judgment.Grounded
-						queryScores = append(queryScores, queryResult)
-						if err := writeJSON(filepath.Join(dir, "query-"+q.ID+".json"), struct {
-							Answer ReaderStep
-							Grade  AnswerGrade
-							Score  queryScore
-						}{answer, judgment, queryResult}); err != nil {
-							return err
-						}
-						gimbal.Set(queryCtx, "query score", jsonText(queryResult))
-					}
-					row.Quality, err = scoreQuality(c, quality, queryScores)
-					if err != nil {
-						row.Error = err.Error()
 					}
 				}
+				finished, err := clock(ctx)
+				if err != nil {
+					return err
+				}
+				row.Seconds = finished - started
+				row.Quality.Passed = row.Quality.Passed && row.Error == "" && row.Audit.Complete && row.Audit.CoverageComplete && row.Audit.AuthoringAllowed
+				// Move finished evidence out of the next worker's temporary
+				// neighborhood. Preserve bytes; native logs retain original paths.
+				archive := filepath.Join(output, "trials", fmt.Sprintf("trial-%03d-%s", trialCount, c.ID))
+				if err := makeDirectory(ctx, filepath.Dir(archive), 0755); err != nil {
+					return err
+				}
+				if err := movePath(ctx, dir, archive); err != nil {
+					return fmt.Errorf("archive trial before starting another: %w", err)
+				}
+				row.OriginalDirectory, row.Directory = dir, archive
+				result.Trials = append(result.Trials, row)
+				result.Candidates = summarizeCandidates(candidates, result.Trials)
+				if err := writeJSON(ctx, filepath.Join(output, "report.json"), result); err != nil {
+					return err
+				}
+				gimbal.Set(caseCtx, "trial measurement", jsonText(row))
 			}
-			row.Seconds = time.Since(started).Seconds()
-			row.Quality.Passed = row.Quality.Passed && row.Error == "" && row.Audit.Complete && row.Audit.CoverageComplete && row.Audit.AuthoringAllowed
-			// Move finished evidence out of the next worker's temporary
-			// neighborhood. Preserve bytes; native logs retain original paths.
-			archive := filepath.Join(output, "trials", fmt.Sprintf("trial-%03d-%s", trialCount, c.ID))
-			if err := os.MkdirAll(filepath.Dir(archive), 0755); err != nil {
-				return err
-			}
-			if err := os.Rename(dir, archive); err != nil {
-				return fmt.Errorf("archive trial before starting another: %w", err)
-			}
-			row.OriginalDirectory, row.Directory = dir, archive
-			result.Trials = append(result.Trials, row)
-			result.Candidates = summarizeCandidates(candidates, result.Trials)
-			if err := writeJSON(filepath.Join(output, "report.json"), result); err != nil {
-				return err
-			}
-			gimbal.Set(caseCtx, "trial measurement", jsonText(row))
-			if err := caseCtx.Err(); err != nil {
-				return err
+			gimbal.Set(taskCtx, "development measurements", jsonText(result.Trials))
+			if phase == "holdout" {
+				heldout = true
+				break
 			}
 		}
-		gimbal.Set(taskCtx, "development measurements", jsonText(result.Trials))
-		if phase == "holdout" {
-			heldout = true
-			break
+		if err := loop.Err(); err != nil {
+			return err
 		}
-	}
-	if err := loop.Err(); err != nil {
-		return err
-	}
-	if snapshot, err := registry.Snapshot(parentID); err == nil {
-		result.EvaluationCostUSD, result.EvaluationCostKnown = researchCost(snapshot)
-	}
-	result.Fulfilled = heldout && result.Selected != ""
-	for _, trial := range result.Trials {
-		if trial.Split == "holdout" {
-			result.Fulfilled = result.Fulfilled && trial.Quality.Passed
+		if snapshot, err := snapshot(ctx, env.WorkDir, parentID); err == nil {
+			result.EvaluationCostUSD, result.EvaluationCostKnown = researchCost(snapshot)
 		}
+		result.Fulfilled = heldout && result.Selected != ""
+		for _, trial := range result.Trials {
+			if trial.Split == "holdout" {
+				result.Fulfilled = result.Fulfilled && trial.Quality.Passed
+			}
+		}
+		if err := writeJSON(ctx, filepath.Join(output, "report.json"), result); err != nil {
+			return err
+		}
+		if !result.Fulfilled {
+			return fmt.Errorf("research evaluation promise unfulfilled; see %s", filepath.Join(output, "report.json"))
+		}
+		return nil
+	})
+	cleanupErr := removePath(ctx, privateDir)
+	if parentID != "" {
+		if snap, err := snapshot(ctx, env.WorkDir, parentID); err == nil {
+			result.EvaluationCostUSD, result.EvaluationCostKnown = researchCost(snap)
+		}
+		resultErr = errors.Join(resultErr, writeJSON(ctx, filepath.Join(output, "report.json"), result))
 	}
-	if err := writeJSON(filepath.Join(output, "report.json"), result); err != nil {
-		return err
-	}
-	if !result.Fulfilled {
-		return fmt.Errorf("research evaluation promise unfulfilled; see %s", filepath.Join(output, "report.json"))
-	}
-	return nil
+	return errors.Join(resultErr, cleanupErr)
 }
 
 const plannerRules = `Use task.Name exactly equal to an allowed candidate ID, or select. Include each name only once in the current backlog. Research_model controls source collection and topic indexing; index_model controls combined-index curation, claim extraction and repair. Start with a cheap baseline, then compare a small number of combinations changing one role while holding the other fixed. Terra and Sonnet are available for testing whether stronger indexing pays for itself. Use per-role usage, summed turn time, audit repairs and independent quality to identify where additional model capability helps; tokens and time measure workload, not cognitive difficulty by themselves. Each candidate dispatch runs all development cases. One complete passing trial per development case is sufficient for eligibility; failed attempts remain visible and cannot be ignored. Use the default three-round budget for a practical comparison, not exhaustive provider coverage or mandatory repeats. Once a baseline and a controlled comparison have produced an eligible choice, dispatch select rather than spending the remaining budget. Actual quality and price measurements determine eligibility; never treat a provider failure as proof of bad reasoning. Code freezes the cheapest eligible candidate and performs one withheld evaluation. Results are provisional evidence for these fixed-source cases, not a population success rate. End by dispatching select, not an empty backlog. The final holdout is never a tuning target. Do not use tools, edit files, change thresholds or answers, or claim success without the code's holdout result. First-pass audit cleanliness, one-repair cleanliness and final independent correctness are separate measures.`
@@ -567,31 +560,31 @@ func absoluteFrom(root, name string) (string, error) {
 	if !filepath.IsAbs(name) {
 		name = filepath.Join(root, name)
 	}
-	return filepath.Abs(name)
+	return filepath.Clean(name), nil
 }
 func jsonText(v any) string { b, _ := json.Marshal(v); return string(b) }
 func inside(root, path string) bool {
 	rel, err := filepath.Rel(root, path)
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
-func materializeSuite(dir string) error {
-	return fs.WalkDir(bundledSuite, "suite", func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
+func materializeSuite(ctx context.Context, dir string) error {
+	for _, path := range []string{"suite/atlas/sources/capacity.md", "suite/atlas/sources/delivery.md", "suite/atlas/sources/regions.md", "suite/atlas/sources/retention.md", "suite/atlas/sources/visibility.md", "suite/cedar/sources/loans.md", "suite/cedar/sources/membership.md", "suite/cedar/sources/renewals.md", "suite/cedar/sources/returns.md", "suite/cedar/sources/saturday.md", "suite/suite.json"} {
 		rel, _ := filepath.Rel("suite", path)
 		target := filepath.Join(dir, rel)
-		if d.IsDir() {
-			return os.MkdirAll(target, 0o755)
+		if err := makeDirectory(ctx, filepath.Dir(target), 0755); err != nil {
+			return err
 		}
-		b, err := bundledSuite.ReadFile(path)
+		body, err := bundledSuite.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(target, b, 0o644)
-	})
+		if err := writeFile(ctx, target, body, 0644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
-func loadCandidates(root string, file polytype.Optional[string]) ([]candidate, error) {
+func loadCandidates(ctx context.Context, root string, file polytype.Optional[string]) ([]candidate, error) {
 	models := []struct{ id, model string }{
 		{"flash", "gemini-3.8-flash-medium"}, {"luna", "gpt-5.6-luna"},
 		{"terra", "gpt-5.6-terra"}, {"haiku", "claude-haiku-4-5"}, {"sonnet", "claude-sonnet-5-5"},
@@ -611,7 +604,7 @@ func loadCandidates(root string, file polytype.Optional[string]) ([]candidate, e
 		if err != nil {
 			return nil, err
 		}
-		b, err := os.ReadFile(path)
+		b, err := readFile(ctx, path)
 		if err != nil {
 			return nil, err
 		}
@@ -674,61 +667,61 @@ func bestCandidate(list []candidate, trials []trialResult, s suite) (candidate, 
 	}
 	return best, found
 }
-func verifyProject(dir string, registry *observation.Registry) error {
-	entries, err := os.ReadDir(filepath.Join(dir, ".gimbal", "runs"))
+func verifyProject(ctx context.Context, dir string) error {
+	rows, err := runningIDs(ctx, dir)
 	if err != nil {
-		return fmt.Errorf("work-dir must be the owning hosted project: %w", err)
+		return err
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		snap, err := registry.Snapshot(entry.Name())
-		if err == nil && snap.Run.Status == observation.StatusRunning {
-			return nil
-		}
+	if len(rows) == 0 {
+		return fmt.Errorf("work-dir is not an observed running project; use equal --project and --work-dir")
 	}
-	return fmt.Errorf("work-dir is not an observed running project; use equal --project and --work-dir")
+	return nil
 }
-func waitResearch(ctx context.Context, registry *observation.Registry, controls *live.Runs, id string) (observation.RunSnapshot, error) {
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
+func waitResearch(ctx context.Context, dir, id string, minutes int) (observation.RunSnapshot, error) {
+	started, err := clock(ctx)
+	if err != nil {
+		return observation.RunSnapshot{}, err
+	}
 	cancelled := false
 	for {
-		snapshot, err := registry.Snapshot(id)
+		snap, err := snapshot(ctx, dir, id)
 		if err != nil {
-			return snapshot, fmt.Errorf("accepted research %s is not in the parent's project: %w", id, err)
+			return snap, err
 		}
-		if snapshot.Run.Status != observation.StatusRunning {
+		if snap.Run.Status != observation.StatusRunning && snap.Run.Status != "waiting" {
 			if cancelled {
-				return snapshot, context.Cause(ctx)
+				return snap, fmt.Errorf("research %s exceeded its trial deadline", id)
 			}
-			if snapshot.Run.Status != observation.StatusCompleted {
-				return snapshot, fmt.Errorf("research %s ended %s: %s", id, snapshot.Run.Status, snapshot.Run.Error)
+			if snap.Run.Status != observation.StatusCompleted {
+				return snap, fmt.Errorf("research %s ended %s: %s", id, snap.Run.Status, snap.Run.Error)
 			}
-			return snapshot, nil
+			return snap, nil
 		}
-		if ctx.Err() != nil && !cancelled {
-			controller, err := controls.InProgress(id)
-			if err != nil {
-				return snapshot, fmt.Errorf("cancel research %s: %w", id, err)
-			}
-			if err := controller.CancelScope("", context.Cause(ctx)); err != nil {
-				return snapshot, err
+		now, err := clock(ctx)
+		if err != nil {
+			return snap, err
+		}
+		if !cancelled && now-started >= float64(minutes*60) {
+			code, _, stderr, err := gimbal.RunCommand(ctx, "cancel-research", dir, "python3", "-c", cancelResearchCommand, dir, id)
+			if err != nil || code != 0 {
+				return snap, fmt.Errorf("cancel research %s: exit %d: %s: %w", id, code, stderr, err)
 			}
 			cancelled = true
 		}
-		<-ticker.C
+		if _, _, _, err := gimbal.RunCommand(ctx, "wait-research", dir, "sleep", "0.25"); err != nil {
+			return snap, err
+		}
 	}
 }
 func researchCost(snapshot observation.RunSnapshot) (float64, bool) {
 	var cost float64
 	known := len(snapshot.Turns) > 0
-	for id := range snapshot.Turns {
+	for _, id := range slices.Sorted(maps.Keys(snapshot.Turns)) {
 		if len(snapshot.TurnUsage[id]) == 0 {
 			known = false
 		}
-		for model, usage := range snapshot.TurnUsage[id] {
+		for _, model := range slices.Sorted(maps.Keys(snapshot.TurnUsage[id])) {
+			usage := snapshot.TurnUsage[id][model]
 			part, priced := observation.TotalCost(observation.Total{ByModel: map[string]observation.Usage{model: usage}})
 			cost += part
 			known = known && priced
@@ -757,13 +750,13 @@ func comparableCost(roles []roleMeasurement, jevInputTokens int64, auditComplete
 	return cost, known && seen["research-indexing"] && seen["index-curation"]
 }
 
-func auditHistory(corpus string) (bool, bool, int, int64) {
-	paths, _ := filepath.Glob(filepath.Join(corpus, ".semantic-index", "history", "*-pass-*.json"))
+func auditHistory(ctx context.Context, corpus string) (bool, bool, int, int64) {
+	paths, _ := globPaths(ctx, filepath.Join(corpus, ".semantic-index", "history", "*-pass-*.json"))
 	first, one := false, false
 	var tokens int64
 	phaseRepairs := map[string]int{}
 	for _, path := range paths {
-		b, err := os.ReadFile(path)
+		b, err := readFile(ctx, path)
 		if err != nil {
 			continue
 		}
@@ -786,37 +779,35 @@ func auditHistory(corpus string) (bool, bool, int, int64) {
 		}
 	}
 	repairs := 0
-	for _, passes := range phaseRepairs {
+	for _, phase := range slices.Sorted(maps.Keys(phaseRepairs)) {
+		passes := phaseRepairs[phase]
 		repairs += passes
 	}
 	return first, one, repairs, tokens
 }
 
-func reportRun(dir string, registry *observation.Registry, reportPath string) (string, error) {
-	entries, err := os.ReadDir(filepath.Join(dir, ".gimbal", "runs"))
+func reportRun(ctx context.Context, dir, reportPath string) (string, error) {
+	ids, err := runningIDs(ctx, dir)
 	if err != nil {
 		return "", err
 	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		snap, err := registry.Snapshot(entry.Name())
+	for _, id := range ids {
+		snap, err := snapshot(ctx, dir, id)
 		if err != nil {
 			continue
 		}
 		var value string
 		_ = json.Unmarshal(snap.Scopes[""].Values["evaluation report"].Value, &value)
 		if value == reportPath {
-			return snap.Run.ID, nil
+			return id, nil
 		}
 	}
 	return "", fmt.Errorf("current evaluation record unavailable")
 }
-
 func readerTelemetry(before, after observation.RunSnapshot) error {
 	observed := false
-	for id, turn := range after.Turns {
+	for _, id := range slices.Sorted(maps.Keys(after.Turns)) {
+		turn := after.Turns[id]
 		if _, old := before.Turns[id]; old {
 			continue
 		}
@@ -848,29 +839,33 @@ func containsTool(v any, adapter string) bool {
 			// result; neither reads a file outside the measured protocol.
 			return (adapter != "*claude.adapter" || x["name"] != "StructuredOutput") && (adapter != "*agy.adapter" || x["name"] != "finish")
 		}
-		for _, child := range x {
+		for _, key := range slices.Sorted(maps.Keys(x)) {
+			child := x[key]
 			if containsTool(child, adapter) {
 				return true
 			}
 		}
 	case []any:
-		if slices.ContainsFunc(x, func(child any) bool { return containsTool(child, adapter) }) {
-			return true
+		for _, child := range x {
+			if containsTool(child, adapter) {
+				return true
+			}
 		}
 	}
 	return false
 }
 
-func copySources(dir string, originals map[string]string) error {
-	for name, body := range originals {
+func copySources(ctx context.Context, dir string, originals map[string]string) error {
+	for _, name := range slices.Sorted(maps.Keys(originals)) {
+		body := originals[name]
 		path, err := within(dir, name)
 		if err != nil {
 			return err
 		}
-		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		if err := makeDirectory(ctx, filepath.Dir(path), 0755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+		if err := writeFile(ctx, path, []byte(body), 0644); err != nil {
 			return err
 		}
 	}

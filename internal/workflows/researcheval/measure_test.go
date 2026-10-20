@@ -12,11 +12,12 @@ import (
 )
 
 func TestBundledSuiteEvidence(t *testing.T) {
+	ctx := workflowContext(t)
 	dir := t.TempDir()
-	if err := materializeSuite(dir); err != nil {
+	if err := materializeSuite(ctx, dir); err != nil {
 		t.Fatal(err)
 	}
-	s, err := loadSuite(dir)
+	s, err := loadSuite(ctx, dir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,6 +118,7 @@ func TestReaderContextWithholdsGoldAndOtherCases(t *testing.T) {
 }
 
 func TestAuditAccountingSumsPassesWithoutChargingCachedJudgments(t *testing.T) {
+	ctx := workflowContext(t)
 	corpus := t.TempDir()
 	dir := filepath.Join(corpus, ".semantic-index", "history")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -130,17 +132,18 @@ func TestAuditAccountingSumsPassesWithoutChargingCachedJudgments(t *testing.T) {
 	second.Metrics.RepairPass = 1
 	gap := auditSummary{Complete: true, CoverageComplete: true, AuthoringAllowed: true}
 	for name, a := range map[string]auditSummary{"initial-pass-00.json": first, "initial-pass-01.json": second, "gap-1-pass-00.json": gap} {
-		if err := writeJSON(filepath.Join(dir, name), a); err != nil {
+		if err := writeJSON(ctx, filepath.Join(dir, name), a); err != nil {
 			t.Fatal(err)
 		}
 	}
-	clean, one, repairs, tokens := auditHistory(corpus)
+	clean, one, repairs, tokens := auditHistory(ctx, corpus)
 	if clean || !one || repairs != 1 || tokens != 120 {
 		t.Fatalf("%v %v %d %d", clean, one, repairs, tokens)
 	}
 }
 
 func TestAuditAccountingIncludesRepairsBeforeFirstCompletion(t *testing.T) {
+	ctx := workflowContext(t)
 	corpus := t.TempDir()
 	dir := filepath.Join(corpus, ".semantic-index", "history")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -152,11 +155,11 @@ func TestAuditAccountingIncludesRepairsBeforeFirstCompletion(t *testing.T) {
 	gap := initial
 	gap.Metrics.RepairPass = 1
 	for name, a := range map[string]auditSummary{"initial-pass-02.json": initial, "gap-1-pass-01.json": gap} {
-		if err := writeJSON(filepath.Join(dir, name), a); err != nil {
+		if err := writeJSON(ctx, filepath.Join(dir, name), a); err != nil {
 			t.Fatal(err)
 		}
 	}
-	first, one, repairs, _ := auditHistory(corpus)
+	first, one, repairs, _ := auditHistory(ctx, corpus)
 	if first || one || repairs != 3 {
 		t.Fatalf("first=%v one=%v repairs=%d", first, one, repairs)
 	}

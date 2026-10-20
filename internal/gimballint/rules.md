@@ -234,3 +234,27 @@ GIMBAL113 requires `WithYields` to be the inline context argument of `Service`,
 `RunCommand`, or `Check`. Assigning it to a context or passing it through another
 context modifier is rejected, so outputs belong to exactly one producer.
 Scope ordering and avoiding repeated publication remain workflow-author responsibilities.
+
+## Library-owned effects (GIMBAL111)
+
+Every admitted workflow entry and its source-visible helpers, including helpers
+in other repository packages, must use Gimbal operations for effects and
+nondeterministic observations. This applies even when the workflow has no
+Interactive call. Mutable files are read through recorded RunCommand outcomes;
+replay never rereads them. RunCommand returns complete stdout and stderr.
+
+Authored goroutines, channels, select, map iteration, defer/recover, clocks,
+randomness, context timeouts/deadlines, cancellation observations and direct
+filesystem, process or network operations are rejected. Use explicit cleanup
+on completion/error paths and existing RunCommand, Check or Service calls.
+Slice/array loops and map lookups remain ordinary Go. Sort map keys with
+slices.Sorted(maps.Keys(values)) before traversal; JSON's standard map ordering
+is also admitted. Each Interactive name is a constant at its call site.
+
+The exact opaque-call allowlist lives in effects.go. It admits named pure
+formatting, errors, lexical paths, conversions, JSON/YAML decoding, embedded
+binary reads and collection/string calculations. Unknown opaque calls are
+rejected, including opaque internal helpers; known source is traversed rather
+than trusted by package name. CLI launchers and ordinary host setup outside
+authored execution are outside this boundary. Generation applies the same
+admission rule before publishing a workflow.

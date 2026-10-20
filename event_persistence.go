@@ -182,9 +182,10 @@ func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) err
 		}
 		record.Event = ended
 	}
-	if err := r.recordFact(node, r.nodeID(scope), r.optionalNodeID(session), "lifecycle", record, runstore.Committed); err != nil {
-		return err
-	}
+	// A failure to record durably is returned, but the run log and the
+	// observation still describe what happened: a degraded store is the
+	// thing they exist to show.
+	recordErr := r.recordFact(node, r.nodeID(scope), r.optionalNodeID(session), "lifecycle", record, runstore.Committed)
 	raw, err := json.Marshal(record)
 	if err == nil && r.writer != nil {
 		raw, err = r.writer.writeLifecycleRecord(record, true)
@@ -194,7 +195,7 @@ func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) err
 		raw, _ = json.Marshal(record)
 	}
 	r.observationFailure("observe lifecycle", r.observeLifecycle(scope, session, turn, event, raw))
-	return nil
+	return recordErr
 }
 
 func (w *eventWriter) writeLifecycleRecord(record LifecycleRecord, withSeq bool) (json.RawMessage, error) {

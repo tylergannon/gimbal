@@ -665,7 +665,7 @@ test("an unseeded retained run panel renders the query result", async () => {
   await expect.element(mapRegion(screen)).toBeVisible();
 });
 
-test("an open session hides the guarded run controls the map keeps", async () => {
+test("an open interaction keeps session controls and hides run cancellation", async () => {
   const snapshot = multiAgentSnapshot();
   const { screen } = await renderRunningPage({ graph: planTripFixture.graph, snapshot });
   await screen.getByRole("button", { name: "Cancel run", exact: true }).click();
@@ -677,9 +677,11 @@ test("an open session hides the guarded run controls the map keeps", async () =>
   await expect
     .element(screen.getByRole("button", { name: "Cancel run", exact: true }))
     .not.toBeInTheDocument();
+  const chat = screen.getByRole("region", { name: "Agent chat" });
+  await expect.element(chat.getByRole("button", { name: "Stop turn", exact: true })).toBeVisible();
   await expect
-    .element(screen.getByRole("button", { name: "Stop turn", exact: true }))
-    .not.toBeInTheDocument();
+    .element(chat.getByRole("button", { name: "Finish interaction", exact: true }))
+    .toBeVisible();
 });
 
 test("recorded runs offer no cleanup retry controls", async () => {

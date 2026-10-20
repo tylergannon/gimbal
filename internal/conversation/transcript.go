@@ -62,7 +62,7 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 	for _, turn := range turns {
 		for _, rows := range run.Transcripts[turn.ID].Snapshot.State.Message {
 			for _, row := range rows {
-				if id, _ := row.Get("id").(string); strings.HasPrefix(id, turn.ID+"/steer/") {
+				if id := transcriptInputID(run.Transcripts[turn.ID], row); strings.HasPrefix(id, turn.ID+"/steer/") {
 					steered[strings.TrimPrefix(id, turn.ID+"/steer/")] = turn.ID
 				}
 			}
@@ -96,7 +96,7 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 		state := run.Transcripts[turn.ID].Snapshot.State
 		for _, key := range slices.Sorted(maps.Keys(state.Message)) {
 			for _, row := range state.Message[key] {
-				if row = turnMessage(item, request, turn, row); row != nil {
+				if row = turnMessage(item, request, turn, row, run.Transcripts[turn.ID]); row != nil {
 					messages = append(messages, row)
 				}
 			}
@@ -198,11 +198,30 @@ func requestForTurn(item *Conversation, starters []int, matched map[string]bool,
 	return -1
 }
 
+// transcriptInputID resolves a normalized inbox row through its journaled
+// provenance. Only Gimbal's own user inputs carry prompt/steer identities;
+// assistant and provider-native rows retain their canonical IDs.
+func transcriptInputID(transcript observation.Transcript, row *sessionstate.Obj) string {
+	id, _ := row.Get("id").(string)
+	if row.Get("type") != "user" {
+		return id
+	}
+	var ref struct {
+		Provider  string `json:"provider"`
+		MessageID string `json:"messageID"`
+	}
+	if json.Unmarshal(transcript.Provenance[id], &ref) == nil && ref.Provider == "gimbal" && ref.MessageID != "" {
+		return ref.MessageID
+	}
+	return id
+}
+
 // turnMessage re-keys one projected row for the chat, or drops it. request is
 // the index of the turn's request, or -1.
-func turnMessage(item *Conversation, request int, turn observation.TurnRow, row *sessionstate.Obj) *sessionstate.Obj {
+func turnMessage(item *Conversation, request int, turn observation.TurnRow, row *sessionstate.Obj, transcript observation.Transcript) *sessionstate.Obj {
 	row = row.Clone()
-	id, _ := row.Get("id").(string)
+	id := transcriptInputID(transcript, row)
+	row.Set("id", id)
 	if request < 0 {
 		// The wrapped prompt carries the conversation purpose, not the person's words.
 		if id == turn.ID+"/prompt" {

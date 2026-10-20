@@ -141,13 +141,14 @@ func (f *journalFixture) open(t *testing.T, registry *observation.Registry, proj
 	}
 	for _, line := range f.session {
 		var record struct {
-			Turn  string          `json:"turn"`
-			Event json.RawMessage `json:"event"`
+			Turn      string          `json:"turn"`
+			Event     json.RawMessage `json:"event"`
+			NativeRef json.RawMessage `json:"native_ref"`
 		}
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.Event(observation.Placement{Session: fixtureSession, Turn: record.Turn}, record.Event, nil); err != nil {
+		if err := store.Event(observation.Placement{Session: fixtureSession, Turn: record.Turn}, record.Event, record.NativeRef); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -662,5 +663,64 @@ func TestDecisionMessageShowsOnlyTheReply(t *testing.T) {
 		if got := decisionMessage(text); got != want {
 			t.Errorf("%s: got %q want %q", text, got, want)
 		}
+	}
+}
+
+// The runtime normalizes inbox IDs before journaling. Their original prompt
+// and steer identities survive in native_ref, not in the projected row ID.
+func TestNormalizedInboxIDsKeepHumanPromptsAndSteerOwnership(t *testing.T) {
+	observe := observeWith("working", gimbal.InteractiveMessage{Role: "user", Message: "Start"})
+	manager, registry, project, item := conversationWithRun(t, observe)
+	submit(t, manager, item.ID, Request{ID: "req-1", Created: 500, Message: "Start"}, Request{ID: "req-2", Created: 600, Message: "go on"}, Request{ID: "req-3", Created: 700, Message: "go on"})
+	journal := newJournal()
+	journal.consumed("req-1")
+	journal.startTurn(1, "Start")
+	journal.steer(1, "req-2", "go on")
+	journal.chatReply(1, "On it")
+	journal.endTurn(1)
+	journal.consumed("req-1", "req-2", "req-3")
+	journal.startTurn(2, "go on")
+	ids := map[string]string{}
+	for i, line := range journal.session {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatal(err)
+		}
+		event := rec["event"].(map[string]any)
+		data := event["data"].(map[string]any)
+		id, ok := data["inboxID"].(string)
+		if !ok {
+			continue
+		}
+		normalized := ids[id]
+		if normalized == "" {
+			normalized = fmt.Sprintf("msg_normalized_%d", len(ids)+1)
+			ids[id] = normalized
+		}
+		data["inboxID"] = normalized
+		rec["native_ref"] = map[string]any{"provider": "gimbal", "messageID": id, "normalizedMessageID": normalized, "turnID": rec["turn"]}
+		raw, err := json.Marshal(rec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		journal.session[i] = string(raw)
+	}
+	run, _ := manager.Get(item.ID)
+	journal.open(t, registry, project, run.WorkflowRun)
+	live, _ := manager.Get(item.ID)
+	rows := chatRows(t, live)
+	if got, want := fmt.Sprint(rowIDs(rows)), `[req-1/prompt req-1/msg_1 req-1/turn-1/steer/req-2 req-3/prompt req-3/msg_2]`; got != want {
+		t.Fatalf("rows got %s want %s", got, want)
+	}
+	if got, want := deliveries(live), "req-1=turn/completed req-2=steer/completed req-3=turn/running"; got != want {
+		t.Fatalf("requests got %s want %s", got, want)
+	}
+	if rows[0]["text"] != "Start" || rows[2]["text"] != "go on" || rows[3]["text"] != "go on" {
+		t.Fatalf("human prompts: %v", rows)
+	}
+	journal.write(t, project, run.WorkflowRun)
+	replayed := reopen(t, project, live, observe)
+	if replayed.State != live.State || deliveries(replayed) != deliveries(live) {
+		t.Fatalf("normalized input replay differs")
 	}
 }

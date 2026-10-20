@@ -29,6 +29,9 @@
   const projection = $derived(record.state ? JSON.parse(record.state) as ProjectionState : undefined);
   const messages = $derived(projection?.message[record.id] ?? []);
   const grouped = $derived(sessionTurns(record,messages));
+  // A failed turn presents its own error inside the turn; the page-level lines below repeat nothing it shows.
+  const turnIds = $derived(new Set(messages.length ? grouped.turns.map(turn => turn.request.id) : []));
+  const turnErrors = $derived(new Set(messages.length ? grouped.turns.flatMap(turn => turn.request.error ? [turn.request.error] : []) : []));
   const associated = $derived(new Set(grouped.turns.flatMap(turn => turn.messages.flatMap(message => Object.values(runEvents(message,record,turn.request)).flat().map(run => run.id)))));
   const unassigned = $derived(record.runs.filter(run => !associated.has(run.id)));
   let finding = $state(false);
@@ -103,11 +106,11 @@
     {#if working}<p class="activity" role="status">{uncertain ? 'Contact lost. The request may still be running; Stop is still available.' : stopping ? 'Stopping…' : `${provider} is working…`}</p>
     {:else if record.status === 'canceled' && !messages.length}<p class="activity" role="status">Stopped</p>{/if}
     {#if record.cleanup_pending}<p class="notice" role="status">Cleanup is not confirmed. Gimbal retains ownership; use Retry cleanup to confirm it.</p>{/if}
-    {#if record.error}<p class="notice" role="alert">{record.error}</p>{/if}
+    {#if record.error && !turnErrors.has(record.error)}<p class="notice" role="alert">{record.error}</p>{/if}
     {#each record.requests ?? [] as request (request.id)}
       {#if request.kind === 'prompt' && request.status === 'accepted'}<p class="activity">Queued · {request.message}</p>
       {:else if request.status === 'unprocessed'}<p class="activity">Unprocessed · {request.message}</p>
-      {:else if request.error && request.id !== record.active_request}<p class="notice" role="alert">{request.error}</p>{/if}
+      {:else if request.error && !turnIds.has(request.id) && request.error !== record.error && request.id !== record.active_request}<p class="notice" role="alert">{request.error}</p>{/if}
     {/each}
     {#if !record.live}<p class="notice">Saved history. Start a new conversation to continue.</p>{/if}
     {#if inventory.error}<p class="notice" role="status">Server disconnected. The request may still be running. <button onclick={() => inventory.refresh()}>Reconnect</button></p>{/if}

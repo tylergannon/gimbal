@@ -43,21 +43,32 @@ func buildRevision() string {
 	return build
 }
 
+// inProcessHarnesses run inside Gimbal itself, so no executable of that name
+// is expected on the machine. Pi's adapter is native Go.
+var inProcessHarnesses = []string{"pi"}
+
 func localFacts() (string, []Harness) {
+	return localFactsFor(exec.LookPath)
+}
+
+func localFactsFor(lookPath func(string) (string, error)) (string, []Harness) {
 	build := buildRevision()
 	models := modelalias.Newest()
 	hs := []Harness{}
 	for _, id := range []string{"claude", "codex", "agy", "opencode", "pi"} {
 		h := Harness{ID: id, Models: models[id], State: HarnessUnknown, Detail: "Sign-in has not been verified on this machine"}
-		defaults := map[string]string{"claude": "haiku", "codex": "gpt-6-luna", "agy": "gemini-3.8-flash-low", "opencode": "opencode/gpt-5-nano", "pi": "anthropic/claude-haiku-4-5"}
+		defaults := map[string]string{"claude": "haiku", "codex": "gpt-6-luna", "agy": "gemini-3.8-flash-low", "opencode": "opencode/gpt-5-nano", "pi": "pi/diffusion/deepseek-4.1-flash"}
 		h.Default = defaults[id]
-		if resolved, e := modelalias.Resolve(modelalias.Selection{Name: h.Default}); e == nil {
+		// OpenCode and Pi native ids do not name their harness; their selection does.
+		if resolved, e := modelalias.Resolve(modelalias.Selection{Name: h.Default}); e == nil && id != "opencode" && id != "pi" {
 			h.Default = resolved.Model
 		}
 		if !slices.Contains(h.Models, h.Default) {
 			h.Models = append([]string{h.Default}, h.Models...)
 		}
-		if _, e := exec.LookPath(id); e != nil {
+		if slices.Contains(inProcessHarnesses, id) {
+			h.Detail = "Built into Gimbal; provider sign-in has not been verified on this machine"
+		} else if _, e := lookPath(id); e != nil {
 			h.State = HarnessMissing
 			h.Detail = "Not installed on this machine"
 		}

@@ -97,6 +97,19 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 	}
 	if start {
 		if err := m.WorkflowStart(m.ctx, snapshot, route); err != nil {
+			// A definitely rejected start leaves no run identifier, so the next
+			// message starts a fresh run. When the host cannot say whether the run
+			// was admitted, the assigned identity stays so a retry cannot duplicate it.
+			if _, uncertain := errors.AsType[*backend.DeliveryUncertain](err); !uncertain {
+				m.mu.Lock()
+				if item := m.items[id]; item != nil && item.WorkflowRun == snapshot.WorkflowRun {
+					item.WorkflowRun = ""
+					if saveErr := m.save(item); saveErr != nil {
+						err = errors.Join(err, saveErr)
+					}
+				}
+				m.mu.Unlock()
+			}
 			return RequestState{}, err
 		}
 	}

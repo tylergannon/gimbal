@@ -36,6 +36,8 @@ type recoveryDaemon struct {
 	outage                                                          bool
 	effectFile                                                      string
 	injected                                                        bool
+	ignoreInterrupt, completeStalled                                bool
+	interrupts                                                      int
 }
 type fakeThread struct {
 	model  string
@@ -154,16 +156,19 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 					} else {
 						finish = true
 					}
-				} else {
+				} else if (thread.model != "stalled" && thread.model != "chat") || d.completeStalled {
 					finish = true
 				}
 			case "thread/archive":
 				d.archives++
 				thread.status = "notLoaded"
 			case "turn/interrupt":
-				thread.status = "idle"
-				if len(thread.turns) > 0 {
-					thread.turns[len(thread.turns)-1].Status = "interrupted"
+				d.interrupts++
+				if !d.ignoreInterrupt {
+					thread.status = "idle"
+					if len(thread.turns) > 0 {
+						thread.turns[len(thread.turns)-1].Status = "interrupted"
+					}
 				}
 			}
 			mode := d.mode
@@ -241,6 +246,8 @@ func (d *recoveryDaemon) finish(ws *websocket.Conn, id string) {
 	case "planning":
 		d.planning++
 		answer = `{"tasks":[{"name":"implement","description":"complete this outcome","definition_of_done":"working","validation":{"command":"","query":"observe"}}],"next":0}`
+	case "chat":
+		answer = mustEncode(map[string]any{"decision": map[string]string{"type": "chat", "message": "reply from " + turn.ID}})
 	case "qa":
 		d.validations++
 		answer = `{"validation_passed":true,"observed":"inspected existing effect","substantial_gaps":[],"small_gaps":[]}`
@@ -467,4 +474,241 @@ func TestRecoveredFinalAnswerIsNotReplacedByCommentary(t *testing.T) {
 	if err != nil || answer != "native final" {
 		t.Fatalf("answer = %q, %v", answer, err)
 	}
+}
+
+// Codex may record an interrupted turn without delivering its terminal
+// notification. The thread history is then the confirmation, and Stop must not
+// leave the conversation unresolved.
+func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
+	shortenControlTimeout(t)
+	ad, d := newRecoveryDaemon(t, "default")
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "stalled", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	turnCtx, stop := context.WithCancel(ctx)
+	result := make(chan error, 1)
+	go func() {
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "sleep", nil, func(gimbal.AgentEvent) error { return nil })
+		result <- err
+	}()
+	for {
+		d.mu.Lock()
+		started := d.starts
+		d.mu.Unlock()
+		if started == 1 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	stop()
+	err = <-result
+	if _, uncertain := errors.AsType[*backend.DeliveryUncertain](err); uncertain || !errors.Is(err, context.Canceled) {
+		t.Fatalf("confirmed stop reported %v", err)
+	}
+}
+
+func shortenControlTimeout(t *testing.T) {
+	t.Helper()
+	old := controlTimeout
+	oldPoll := busyPoll
+	controlTimeout, busyPoll = 200*time.Millisecond, 10*time.Millisecond
+	t.Cleanup(func() { controlTimeout, busyPoll = old, oldPoll })
+}
+
+// stopStalledTurn starts a turn the daemon acknowledges but never advances and
+// stops it, returning the adapter's report.
+func stopStalledTurn(t *testing.T, ctx context.Context, ad *adapter, d *recoveryDaemon, id string, prompt string, want int) error {
+	t.Helper()
+	turnCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	result := make(chan error, 1)
+	go func() {
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn-"+prompt)), id, prompt, nil, func(gimbal.AgentEvent) error { return nil })
+		result <- err
+	}()
+	for {
+		d.mu.Lock()
+		started := d.starts
+		d.mu.Unlock()
+		if started >= want && acknowledged(ad, id) {
+			break
+		}
+		select {
+		case err := <-result:
+			return err
+		case <-time.After(time.Millisecond):
+		}
+	}
+	stop()
+	return <-result
+}
+
+func (d *recoveryDaemon) count(read func() int) int {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return read()
+}
+
+func eventually(t *testing.T, ready func() bool) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); !ready(); time.Sleep(time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("condition never held")
+		}
+	}
+}
+
+// Stop after turn/start was acknowledged but before any event is uncertain only
+// about cessation: delivery is certain, and a next prompt waits for the earlier
+// native turn instead of overlapping it, failing, or replaying it.
+func TestUnconfirmedStopAfterAcknowledgementDoesNotOverlapNextTurn(t *testing.T) {
+	shortenControlTimeout(t)
+	ad, d := newRecoveryDaemon(t, "default")
+	d.ignoreInterrupt = true
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "stalled", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = stopStalledTurn(t, ctx, ad, d, id, "first", 1)
+	uncertain, ok := errors.AsType[*backend.DeliveryUncertain](err)
+	if !ok || !uncertain.Accepted || uncertain.RequestID != "turn-1" || !errors.Is(err, context.Canceled) {
+		t.Fatalf("unconfirmed stop reported %v", err)
+	}
+	starts := func() int { return d.starts }
+	interrupts := func() int { return d.interrupts }
+	base := d.count(interrupts)
+
+	// (a) The earlier turn is still in progress: the next prompt waits, nothing
+	// is started, and the call has not failed.
+	var events []string
+	var eventsMu sync.Mutex
+	result := make(chan error, 1)
+	var output json.RawMessage
+	go func() {
+		out, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn-second")), id, "second", nil, func(event gimbal.AgentEvent) error {
+			eventsMu.Lock()
+			defer eventsMu.Unlock()
+			events = append(events, string(mustJSON(event)))
+			return nil
+		})
+		output = out.Output
+		result <- err
+	}()
+	eventually(t, func() bool { return d.count(interrupts) > base })
+	time.Sleep(50 * time.Millisecond)
+	select {
+	case err := <-result:
+		t.Fatalf("waiting prompt returned %v", err)
+	default:
+	}
+	if d.count(starts) != 1 {
+		t.Fatalf("turn/start while earlier turn runs: %d", d.count(starts))
+	}
+
+	// (d) Late terminal output of the earlier turn reaches the connection while
+	// the new prompt is still waiting.
+	d.mu.Lock()
+	ws := d.sockets[len(d.sockets)-1]
+	d.mu.Unlock()
+	late := json.RawMessage(mustEncode(map[string]any{"id": "late", "type": "agentMessage", "phase": "final_answer", "text": "late-old"}))
+	_ = fakeSend(ws, map[string]any{"method": "item/completed", "params": map[string]any{"threadId": id, "turnId": "turn-1", "item": late}})
+	_ = fakeSend(ws, map[string]any{"method": "turn/completed", "params": map[string]any{"threadId": id, "turn": map[string]string{"id": "turn-1", "status": "completed"}}})
+
+	// (b) The earlier turn settles, then exactly one next prompt starts.
+	d.mu.Lock()
+	d.threads[id].turns[0].Status = "interrupted"
+	d.threads[id].status = "idle"
+	d.completeStalled = true
+	d.mu.Unlock()
+	if err := <-result; err != nil {
+		t.Fatalf("next prompt: %v", err)
+	}
+	if d.count(starts) != 2 {
+		t.Fatalf("starts %d", d.count(starts))
+	}
+	eventsMu.Lock()
+	seen := strings.Join(events, "\n")
+	eventsMu.Unlock()
+	if string(output) != `"implemented"` || strings.Contains(seen, "late-old") {
+		t.Fatalf("new prompt got output %s events %s", output, seen)
+	}
+}
+
+// (c) Stop or Finish while the next prompt waits abandons it: Codex never saw
+// it, so the report is plain cancellation and nothing is started.
+func TestStopWhileNextPromptWaitsSubmitsNothing(t *testing.T) {
+	shortenControlTimeout(t)
+	ad, d := newRecoveryDaemon(t, "default")
+	d.ignoreInterrupt = true
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "stalled", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = stopStalledTurn(t, ctx, ad, d, id, "first", 1)
+	waitCtx, abandon := context.WithCancel(ctx)
+	result := make(chan error, 1)
+	go func() {
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(waitCtx, backend.NewExecutionIdentity("turn-second")), id, "second", nil, func(gimbal.AgentEvent) error { return nil })
+		result <- err
+	}()
+	eventually(t, func() bool { return d.count(func() int { return d.interrupts }) >= 2 })
+	abandon()
+	err = <-result
+	_, uncertain := errors.AsType[*backend.DeliveryUncertain](err)
+	if !errors.Is(err, context.Canceled) || uncertain || d.count(func() int { return d.starts }) != 1 {
+		t.Fatalf("abandoned prompt: err=%v starts=%d", err, d.starts)
+	}
+}
+
+// A native turn that already completed is authoritative even when cancellation
+// arrives while its terminal notification is being handled.
+func TestNativeCompletionRacingStopIsReturned(t *testing.T) {
+	ad, _ := newRecoveryDaemon(t, "default")
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "plain", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	turnCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	out, err := ad.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "go", nil, func(event gimbal.AgentEvent) error {
+		if event.Type == "session.step.ended" {
+			stop()
+		}
+		return nil
+	})
+	if turnCtx.Err() == nil {
+		t.Fatal("fixture never cancelled during the terminal notification")
+	}
+	if err != nil || string(out.Output) != `"implemented"` {
+		t.Fatalf("racing completion: out=%s err=%v", out.Output, err)
+	}
+}
+
+func mustJSON(v any) []byte {
+	b, _ := json.Marshal(v)
+	return b
+}
+
+// acknowledged reports whether the adapter has seen turn/start's answer.
+func acknowledged(ad *adapter, id string) bool {
+	s, err := ad.session(id)
+	if err != nil {
+		return false
+	}
+	active := s.getActive()
+	if active == nil {
+		return false
+	}
+	active.mu.Lock()
+	defer active.mu.Unlock()
+	return active.turnID != ""
 }

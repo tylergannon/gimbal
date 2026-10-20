@@ -193,7 +193,11 @@ func (r MessageRequest) Validate() error {
 // It never establishes native failure or cessation; the request remains owned.
 type DeliveryUncertain struct {
 	RequestID string
-	Err       error
+	// Accepted is set only by an executor that saw the native operation
+	// acknowledge the request: delivery is certain and only its outcome or
+	// cessation is not. A RequestID alone never implies it.
+	Accepted bool
+	Err      error
 }
 
 func (e *DeliveryUncertain) Error() string {

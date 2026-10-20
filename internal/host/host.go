@@ -159,11 +159,14 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
 	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation, route backend.Route) error {
 		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item)})
-		spec := item.Model
-		if item.Effort != "" {
-			spec += ":" + item.Effort
+		spec, err := conversation.RoleSpec(item)
+		if err != nil {
+			return err
 		}
-		_, err := p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, TaskRoute: route, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
+		_, err = p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, TaskRoute: route, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
+		if err != nil {
+			err = p.startOutcome(item.WorkflowRun, err)
+		}
 		return err
 	}
 	conversations.WorkflowInput = func(id, address, request string) error {
@@ -499,3 +502,14 @@ func (o *Owner) SetPluginDirs(dirs []string) {
 
 func (p *Project) Recordings() *transcript.DurableStore { return p.recordings }
 func (p *Project) Promises() *promises.Store            { return p.promises }
+
+// startOutcome marks a failed start as unresolved unless the route record
+// proves the run never began. The record is the admission fact: a missing
+// record or a failed admission is definite; anything else may have started.
+func (p *Project) startOutcome(run string, err error) error {
+	record, readErr := p.readRoute(run)
+	if errors.Is(readErr, os.ErrNotExist) || (readErr == nil && record.Admission == "failed") {
+		return err
+	}
+	return &backend.DeliveryUncertain{RequestID: run, Err: errors.Join(err, readErr)}
+}

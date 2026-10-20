@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/tylergannon/gimbal/internal/environments"
+	"slices"
 )
 
 // SetupEnvironment observes choices on the selected machine without starting a
@@ -65,21 +66,27 @@ func (m *Manager) SetupEnvironment(ctx context.Context, environment string) (Set
 	return setup, nil
 }
 
+// observedHarnesses offers each machine harness's reported models as canonical
+// selections, once each. A reported model that cannot run on that harness is
+// not offered, and no model the machine did not report is ever added. When the
+// reported default is not offered, the first offered model leads instead; a
+// harness with no offerable model is left out of the choices, and its reported
+// state still shows in HarnessStates.
 func observedHarnesses(states []environments.Harness, fallback []Harness) []Harness {
 	if len(states) == 0 {
 		return fallback
 	}
 	result := []Harness{}
 	for _, h := range states {
-		model, _, err := providerModel(h.ID, h.Default)
-		if err != nil {
-			continue
+		models := []string{}
+		for _, reported := range append([]string{h.Default}, h.Models...) {
+			if offered, _, err := providerModel(h.ID, reported); reported != "" && err == nil && !slices.Contains(models, offered) {
+				models = append(models, offered)
+			}
 		}
-		models := h.Models
-		if len(models) == 0 {
-			models = []string{model}
+		if len(models) > 0 {
+			result = append(result, harnessOptions(h.ID, models[0], models))
 		}
-		result = append(result, harnessOptions(h.ID, model, models))
 	}
 	return result
 }

@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/tylergannon/gimbal/backend"
@@ -41,6 +42,7 @@ type scope struct {
 
 	endOnce     sync.Once
 	endErr      error
+	finished    atomic.Bool // the scope's body has returned; ended alone may be cancellation racing the body
 	children    []*scope
 	mu          sync.Mutex
 	ordinals    map[string]int // the last ordinal given to each child scope and session name
@@ -103,11 +105,27 @@ func current(ctx context.Context) (*scope, error) {
 		ended := s.ended
 		s.mu.Unlock()
 		if ended {
-			return nil, fmt.Errorf("gimbal: scope ended: %q", s.key)
+			return nil, s.endedError(ctx, fmt.Errorf("gimbal: scope ended: %q", s.key))
 		}
 		return s, nil
 	}
 	return nil, errors.New("gimbal: no scope in the ctx; it must come from gimbal.Run")
+}
+
+// endedError is why ctx's work cannot use s, which has ended: ended. A scope
+// ends the moment its ctx is cancelled, before the body it ran has returned,
+// so work still unwinding from that cancellation was cancelled, not careless,
+// and gets ctx's own error and cause. Once the body has returned, any use is
+// use of a finished scope and gets ended.
+func (s *scope) endedError(ctx context.Context, ended error) error {
+	err := ctx.Err()
+	if err == nil || s.finished.Load() {
+		return ended
+	}
+	if cause := context.Cause(ctx); cause != err {
+		return fmt.Errorf("%w: %w", err, cause)
+	}
+	return err
 }
 
 // next names the next child of s called name. The caller holds s.mu.
@@ -215,6 +233,7 @@ func (s *scope) begin(ctx context.Context) context.Context {
 // records its result, and returns its body's result joined with any required
 // service failure or incomplete service cleanup.
 func (s *scope) finish(bodyErr error) error {
+	s.finished.Store(true)
 	serviceCleanupErr := s.end()
 
 	s.mu.Lock()

@@ -1,0 +1,79 @@
+{
+  "workflow_run": "run",
+  "id": "chat",
+  "title": "Codex conversation",
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "effort": "",
+  "shared_checkout": false,
+  "base": "",
+  "branch": "gimbal/conversation",
+  "worktree": "/project",
+  "native_session": "",
+  "live": true,
+  "status": "waiting",
+  "error": "",
+  "created": 1,
+  "updated": 1,
+  "messages": [
+    {
+      "role": "user",
+      "text": "go on",
+      "created": 0
+    },
+    {
+      "role": "assistant",
+      "text": "one",
+      "created": 0
+    },
+    {
+      "role": "user",
+      "text": "go on",
+      "created": 0
+    },
+    {
+      "role": "assistant",
+      "text": "two",
+      "created": 0
+    }
+  ],
+  "runs": [],
+  "requests": [
+    {
+      "id": "req-1",
+      "created": 500,
+      "kind": "prompt",
+      "message": "go on",
+      "target": "",
+      "file_id": "",
+      "status": "completed",
+      "delivery": "turn",
+      "error": ""
+    },
+    {
+      "id": "req-2",
+      "created": 600,
+      "kind": "prompt",
+      "message": "go on",
+      "target": "",
+      "file_id": "",
+      "status": "completed",
+      "delivery": "turn",
+      "error": ""
+    }
+  ],
+  "active_request": "",
+  "state": "{\"info\":{},\"family\":{},\"active\":{},\"message\":{\"chat\":[{\"id\":\"req-1/prompt\",\"type\":\"user\",\"text\":\"go on\",\"time\":{\"created\":1000},\"requestID\":\"req-1\"},{\"id\":\"req-1/msg_1\",\"type\":\"assistant\",\"agent\":\"codex\",\"model\":{\"id\":\"gpt-6-luna\",\"providerID\":\"openai\"},\"content\":[{\"type\":\"text\",\"text\":\"one\"}],\"time\":{\"created\":1000}},{\"id\":\"req-2/prompt\",\"type\":\"user\",\"text\":\"go on\",\"time\":{\"created\":1000},\"requestID\":\"req-2\"},{\"id\":\"req-2/msg_2\",\"type\":\"assistant\",\"agent\":\"codex\",\"model\":{\"id\":\"gpt-6-luna\",\"providerID\":\"openai\"},\"content\":[{\"type\":\"text\",\"text\":\"two\"}],\"time\":{\"created\":1000}}]},\"pending\":{},\"permission\":{},\"form\":{}}",
+  "revision": 1,
+  "environment": "local",
+  "placement": null,
+  "contact": "connected",
+  "capabilities": {
+    "steer": true,
+    "fork": true,
+    "worktree": true,
+    "browse": true,
+    "clone": true
+  },
+  "cleanup_pending": false
+}

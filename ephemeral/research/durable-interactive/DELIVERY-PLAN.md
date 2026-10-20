@@ -122,6 +122,9 @@ will reuse valid evidence rather than rerun unchanged broad suites. A changed
 input or a new failure justifies rerunning the affected check.
 
 Use the actual maintained app/workflow paths for the live demonstrations.
+Codex `luna` proves native continuity through the existing optional resume
+capability; unsupported providers remain honestly unresolved after restart.
+Remote placement carries input through existing ControlWorkflow transport.
 Unit stand-ins do not prove native continuity or browser behavior. Do not
 commit proof programs, transcripts, screenshots, run logs or results dumps;
 report observed proof in chat/PR, with repeatable checks beside their code.

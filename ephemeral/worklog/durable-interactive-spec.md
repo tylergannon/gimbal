@@ -122,3 +122,12 @@ migration. One final validation pass follows combined source and generation,
 not repeated broad proof per subtask. Manager owns spec and integration.
 Fresh Opus run 01M5BEMKTNQKNMWWBQ1F9C8J1A.run-prompt reviews the complete
 contract and plan at ephemeral/reviews/durable-interactive-opus-spec-round-03.md.
+
+
+decision: Opus round 03 completed after 9m14s. It verified the original fixes
+and corrected counts, and exposed further boundary choices. Native capability
+and transcript membership have direct resolutions recorded in REVIEW.md.
+Asked two batched material questions: retain required builds for old-run
+recovery across upgrades; reject authored unwind/timing constructs and remove
+unsupported turn timeouts for the initial library-only delivery. Do not assume
+approval or launch dependent implementation while these remain unanswered.

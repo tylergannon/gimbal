@@ -67,3 +67,36 @@ The round-02 Opus report is retained at
 The authoritative contract is now `specs/durable-interactive.md`; the old
 SPEC.md is a pointer. A fresh independent review reads that full contract and
 the single delivery plan, without a defect checklist or expected verdict.
+
+
+## Round-03 disposition (awaiting human decisions)
+
+Claude Opus run 01M5BEMKTNQKNMWWBQ1F9C8J1A.run-prompt completed successfully
+and produced `ephemeral/reviews/durable-interactive-opus-spec-round-03.md`.
+It confirmed all five original findings were materially addressed, then found
+five further contract gaps. It reproduced the corrected six baselines exactly.
+
+- F1 pending HITL: upgrade-blocked conversations need a viable recovery path.
+  Asked whether to retain required executable/plugin artifacts and share Go
+  execution hosts per build. This preserves same-code replay rather than
+  requiring changed-code migration or permanent blocked tabs.
+- F2 accepted: reuse the internal optional native ResumeSession capability;
+  Codex is the required restart-continuity harness (`luna`). Other harnesses
+  retain their existing visible unresolved-recovery limitation. Assigned
+  codex.go/recovery.go to H (1,199 existing lines, H baseline 6,528/max 7,500).
+  No resource-retention policy or public HarnessAdapter method was added.
+- F3/F4 pending HITL: asked together whether to reject authored defer/recover
+  and unrecorded timing/cancellation observations. Proposed explicit completion
+  paths and existing library commands for waits, with unsupported agent-turn
+  timeouts removed rather than silently inventing an API.
+- F5 accepted: per-occurrence returned transcripts include only confirmed
+  delivered human input plus committed replies. Pending/unresolved/unprocessed
+  input remains visible separately; a message consumed in N+1 appears only in
+  that call's result. Order follows delivered messages within durable turns.
+- The lower-severity remote ingress gap is resolved by routing interaction
+  controls through existing ControlWorkflow transport, retaining environment
+  placement. No new backend interface method is needed.
+- Applied the TypeScript generated-header counting clarification.
+
+Implementation has not started. The two batched questions are necessary
+material authoring/upgrade choices, not requests to reapprove internal tactics.

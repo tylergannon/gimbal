@@ -1,6 +1,7 @@
 # Durable Interactive execution
 
-Status: implementation contract pending the final independent spec/plan review.
+Status: revised draft; round-03 review leaves upgrade recovery and authored
+unwinding/timing behavior pending human decisions. Do not implement yet.
 The behavioral choices reflect the human's brief, answers and delegated choice
 of the simplest correct initial behavior. No implementation or live proof has
 been performed.
@@ -112,7 +113,7 @@ the slice spec can settle file organization without changing these contracts.
 | J: durable records and inbox | Durable identity, committed batches, inbox acceptance and durable transition storage; no provider calls or scheduling policy | Storage consistency and recovery format | 913 | 1,400 |
 | E: execution and replay | Reconstruct library operations, scopes, session bindings and concurrent branches; distinguish suspension from terminal outcomes | Workflow execution semantics | 3,923 | 5,500 |
 | I: interaction protocol | Interpret chat/end, transcript, human message/finish input and turn delivery; use J for durable transitions and E for execution | Human/agent interaction contract | 102 | 900 |
-| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 5,329 | 6,200 |
+| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 6,528 | 7,500 |
 | P: presentation | Project durable lifecycle and interaction state into run/chat views and route user actions through durable acceptance | Product presentation and observation | 13,787 | 14,800 |
 | A: workflow admission | Accept only library-owned effects, migrate maintained workflows, expose Interactive in extraction/diagrams and replace Interview support | Accepted workflow language and static representation | 11,526 | 13,200 |
 
@@ -125,9 +126,10 @@ human/agent protocol can change without changing generic replay or Group.
 
 Budgets count all physical lines, including comments and blanks, in
 handwritten production Go/TypeScript/Svelte source. Exclude tests, testdata,
-fixtures, mocks, stories and generated source. For Go a generated header is
-an actual `^// Code generated .* DO NOT EDIT\.$` comment before the package
-clause, never a string emitted by a generator; `_gen.go` and `.gen.*` suffixes
+fixtures, mocks, stories and generated source. For Go and TypeScript, a
+generated header is an actual `^// Code generated .* DO NOT EDIT\.$` comment
+(before the Go package clause, or in the TypeScript header),
+never a string emitted by a generator; `_gen.go` and `.gen.*` suffixes
 also identify generated output. Generated output must match its source.
 Expanded baselines count existing affected code, not just newly written code.
 The measured ownership sets are:
@@ -140,7 +142,8 @@ The measured ownership sets are:
 - I: `interview.go` until removed, `interactive.go`, and new handwritten
   interaction protocol source including `internal/interaction/**` if useful.
 - H: Go source in `internal/{host,runner,invocation,conversation,live}/`,
-  `backend/backend.go`, `registry.go`, `cmd/gimbal/main.go`.
+  `backend/backend.go`, `registry.go`, `cmd/gimbal/main.go`,
+  `codex/codex.go` and `codex/recovery.go` (existing resume capability).
 - P: Go source in `internal/observation/` and `web/runview/`;
   Go/TypeScript/Svelte in `web/src/lib/{conversation,run,observation}/`;
   `web/src/lib/workflow/types.ts`; workspace `ProjectWorkspace.svelte`,
@@ -319,10 +322,16 @@ accepted content and ordering are preserved. A committed chat always creates
 its logical wait, including when pending input makes that wait immediately
 runnable again. No second human message is needed to repair a lost wake-up.
 
-The returned transcript contains durably accepted human messages and committed
-assistant chat replies in their recorded order. Transport retries, replay,
-and duplicate provider observations do not add duplicate transcript messages.
-Control signals are not fabricated as human prose or assistant replies.
+Each returned transcript contains only user messages confirmed delivered to
+that occurrence's native turns, plus assistant replies committed by that
+occurrence. Pending, unresolved or unprocessed inputs are excluded; their
+honest disposition remains visible in the conversation view. Input accepted
+during occurrence N but delivered in N+1 belongs only to N+1's transcript.
+Within a turn, user messages retain acceptance order; replies follow the turn's
+delivered messages, and turns retain durable execution order. Transport retries,
+replay and duplicate observations cannot duplicate transcript entries. Control
+signals are never fabricated as prose. The conversation view may additionally
+show accepted but unconsumed input with its actual disposition.
 
 A finish signal is durable control, not an instruction that the model must
 choose to obey. It prevents further ordinary turn dispatch for that
@@ -372,6 +381,16 @@ for completed operations. Preserve scope parentage, stored values, session
 binding including native identity, and completed results. Reconstruct through
 ordinary deterministic control flow; do not serialize Go stacks. Saved graph
 metadata alone does not reconstruct executable code.
+
+Rebinding a native session uses an internal optional capability with the
+existing ResumeSession method shape, not a new public HarnessAdapter method
+or a detach/retain requirement. Codex already supplies it and is the required
+restart-continuity harness for this delivery. If another harness lacks that
+capability, preserve its saved identity/input and show actionable unresolved
+recovery after restart; do not replace it with a fresh native session.
+This matches the existing non-Codex recovery limit. Adding their native resume
+implementations is outside this delivery. Continuing an existing activation
+still uses each harness's supported turn/steer/interrupt contract.
 
 Concurrent branches retain authored identities independent of scheduling.
 Record any library-controlled nondeterministic choice needed to reproduce
@@ -423,7 +442,11 @@ The host executes runnable workflows from different projects using shared Go
 execution capacity in their selected environment. Logical run lifetime is
 independent of any activation. Replace separate conversation execution
 ownership with ordinary workflow admission, operations, controls and records.
-Chat naming and workspace metadata may remain product data.
+Chat naming and workspace metadata may remain product data. This applies to
+local and non-local workflow placement in the selected execution environment.
+Remote ingress uses existing ControlWorkflow transport with interaction/input
+identity in its control payload, routed to that environment's durable owner;
+no new root API or backend interface method is required.
 
 Ingress must not require an in-memory waiter or a run classified as actively
 executing. During restart, requests are either durably accepted or receive a
@@ -506,7 +529,7 @@ screenshots or execution logs are committed as evidence.
 | C3 | Cell-local: J | Record recovery preserves valid committed batches and enforces writer authority; interrupted acknowledgement does not require duplicate admission |
 | C4 | Cell-local: E | Reconstruction uses saved run/scope/session identities, context and completed outputs without redispatching completed commands or turns; incompatible code or unconfirmed native work remains actionable and recoverable; RunCommand returns complete stdout/stderr above 64 KiB on original execution and replay while display excerpts stay bounded |
 | C5 | Cell-local: E | A waiting branch leaves runnable siblings progressing; all-waiting work becomes dormant; neither path emits terminal teardown or alters SERVICE claims because of suspension |
-| C6 | Cell-local: I | Polytype validates the specified chat/end alternatives; ordered transcripts and durable EndedBy distinguish agent/human completion, with no invented ending on error; conversation re-entry waits or uses pending input instead of spinning |
+| C6 | Cell-local: I | Polytype validates the specified chat/end alternatives; per-occurrence transcripts include only confirmed delivered input and committed replies in the specified order; durable EndedBy distinguishes agent/human completion, with no invented ending on error; conversation re-entry waits or uses pending input instead of spinning |
 | C7 | Cell-local: I | Active input steers; a confirmed missed steer remains pending; uncertain delivery is not blindly repeated |
 | C8 | Cell-local: I | Finish is durable and idempotent, interrupts the active turn when safe, completes normally, and prevents late results from reopening the interaction |
 | C9 | Cell-local: H | Runnable runs from different projects share host capacity with independent invocation data and authoritative execution ownership |
@@ -519,8 +542,9 @@ screenshots or execution logs are committed as evidence.
 | L4 | Integration: J, E, I, H, P and native adapter | An agent end leaves the conversation available on its existing run without autonomous repeated turns; archive during an active turn then causes safe interruption, EndedBy human, normal Interactive return and actual successful workflow completion; unconfirmed cessation is shown honestly |
 
 Cell-local tests may use contract-faithful stand-ins. Live claims use the real
-application and native adapter, with the cheapest unversioned model alias for
-the harness used (`luna`, `haiku` or `flash`); report which one actually ran.
+application and native adapter, with the unversioned Codex `luna` alias for restart-continuity claims.
+Other live checks use the cheapest alias of their harness (`luna`, `haiku` or
+`flash`); report which one actually ran.
 The proof must show behavior, not merely a green gate. It does not assert any
 policy about native agent resource retention or release.
 

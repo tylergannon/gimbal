@@ -490,10 +490,10 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 	}
 	if item.WorkflowRun != "" {
 		// The run's journal is the transcript. A run not yet opened shows only the
-		// admitted prompt; an unreadable one keeps the last projection.
+		// admitted prompt; one that cannot be read leaves a transcript already shown.
 		run, err := m.registry.Snapshot(item.WorkflowRun)
 		if err == nil || errors.Is(err, observation.ErrNoRun) || errors.Is(err, runstore.ErrIncomplete) {
-			if changed, err := projectTranscript(item, run); err == nil && changed {
+			if changed, err := projectTranscript(item, run, err == nil); err == nil && changed {
 				item.Revision++
 				item.Updated = time.Now().UnixMilli()
 				_ = m.save(item)

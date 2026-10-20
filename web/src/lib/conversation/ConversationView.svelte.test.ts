@@ -2,6 +2,10 @@ import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import type { Conversation } from "#lib/skgo/conversation/types";
 import ConversationView from "./ConversationView.svelte";
+import claudeCompleted from "./fixtures/claude-completed.json";
+import claudeWaiting from "./fixtures/claude-waiting.json";
+import codexTurns from "./fixtures/codex-turns.json";
+import steeredTurns from "./fixtures/steered-turns.json";
 
 const remote = vi.hoisted(() => ({
   watch: vi.fn(() => {
@@ -129,4 +133,51 @@ test("leaving a chat destroys Rename without losing its message draft", async ()
   await expect
     .element(screen.getByRole("textbox", { name: "Message Chat rename" }))
     .toHaveValue("Unsent followup");
+});
+
+// These render the conversation exactly as the Go manager produced it for a
+// recorded run, so the reply has to be visible through the real page.
+for (const [name, fixture] of [
+  ["completed", claudeCompleted],
+  ["waiting", claudeWaiting],
+] as const)
+  test(`a Claude ${name} StructuredOutput reply is visible as the chat reply`, async () => {
+    const screen = await render(ConversationView, {
+      project: "project",
+      current: fixture as unknown as Conversation,
+      active: true,
+    });
+    await expect.element(screen.getByText(/Hello there\s+friend/)).toBeVisible();
+    await expect
+      .element(screen.getByText(/StructuredOutput|"decision"|"state"/))
+      .not.toBeInTheDocument();
+  });
+
+test("Codex replies show once each, per turn, with no queued prompt", async () => {
+  const screen = await render(ConversationView, {
+    project: "project",
+    current: codexTurns as unknown as Conversation,
+    active: true,
+  });
+  await expect.element(screen.getByText("one", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("two", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText(/"decision"/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Queued/)).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("region", { name: "Turn 2", exact: true })).toBeVisible();
+});
+
+test("a steered prompt is not queued and the second turn is the running one", async () => {
+  const screen = await render(ConversationView, {
+    project: "project",
+    current: steeredTurns as unknown as Conversation,
+    active: true,
+  });
+  await expect.element(screen.getByText(/Queued/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText("turn 2", { exact: true })).toBeVisible();
+  const first = screen.getByRole("region", { name: "Turn 1", exact: true });
+  await expect.element(first.getByText("go on", { exact: true })).toBeVisible();
+  await expect.element(first.getByText("On it", { exact: true })).toBeVisible();
+  const second = screen.getByRole("region", { name: "Turn 2", exact: true });
+  await expect.element(second.getByText("go on", { exact: true })).toBeVisible();
+  expect(screen.getByText("go on", { exact: true }).elements()).toHaveLength(2);
 });

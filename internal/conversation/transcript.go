@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"cmp"
 	"encoding/json"
 	"maps"
 	"regexp"
@@ -21,7 +22,18 @@ const humanInput = "\n\nHuman input:\n"
 // projection is the same one the run page shows. This re-keys it for the chat:
 // the person's own message replaces the wrapped prompt, and every row carries
 // the request it answers. It reports whether the visible state changed.
-func projectTranscript(item *Conversation, run observation.RunSnapshot) (bool, error) {
+//
+// A turn belongs to the request whose input the interactive consumed to start
+// it: the interactive record lists consumed inputs in the order it took them,
+// and a prompt starts a turn when it is consumed. A steer never starts one; the
+// session journals it as the inbox item turn/steer/<request>, which names the
+// request it delivered. A prompt that was stopped before it started is never
+// consumed, so a later prompt with the same words cannot be mistaken for it.
+// When the run is not available, a transcript already shown is kept.
+func projectTranscript(item *Conversation, run observation.RunSnapshot, available bool) (bool, error) {
+	if !available && showsTurns(item.State) {
+		return false, nil
+	}
 	before, _ := json.Marshal([]any{item.State, item.Requests})
 	turns := make([]observation.TurnRow, 0, len(run.Turns))
 	for _, turn := range run.Turns {
@@ -34,16 +46,52 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot) (bool, e
 		return strings.Compare(a.ID, b.ID)
 	})
 
+	byID := map[string]int{}
+	for index := range item.Requests {
+		request := &item.Requests[index]
+		if request.Kind == "prompt" {
+			byID[request.ID] = index
+			if request.Delivery == "turn" || request.Delivery == "steer" {
+				request.Delivery = "durable"
+			}
+		}
+	}
+	// steered maps each steered request to the turn that took it.
+	steered := map[string]string{}
+	for _, turn := range turns {
+		for _, rows := range run.Transcripts[turn.ID].Snapshot.State.Message {
+			for _, row := range rows {
+				if id, _ := row.Get("id").(string); strings.HasPrefix(id, turn.ID+"/steer/") {
+					steered[strings.TrimPrefix(id, turn.ID+"/steer/")] = turn.ID
+				}
+			}
+		}
+	}
+	var starters []int
+	for _, row := range slices.SortedFunc(maps.Values(run.Interactions), func(a, b observation.InteractiveRow) int {
+		return cmp.Or(cmp.Compare(a.Ordinal, b.Ordinal), strings.Compare(a.QuestionID, b.QuestionID))
+	}) {
+		for _, id := range row.Consumed {
+			if index, ok := byID[id]; ok && steered[id] == "" && !slices.Contains(starters, index) {
+				starters = append(starters, index)
+			}
+		}
+	}
+
 	matched := map[string]bool{}
 	var messages []*sessionstate.Obj
-	open := false
+	open, paired := false, -1
 	for _, turn := range turns {
-		request := requestForTurn(item, matched, turn)
+		request := requestForTurn(item, starters, matched, turn)
 		if request >= 0 {
 			matched[item.Requests[request].ID] = true
 			item.Requests[request].Delivery = "turn"
 		}
 		open = turn.Ended == 0 && !turn.Unresolved
+		paired = request
+		if request >= 0 && !open && (item.Requests[request].Status == "accepted" || item.Requests[request].Status == "running") {
+			item.Requests[request].Status = "completed"
+		}
 		state := run.Transcripts[turn.ID].Snapshot.State
 		for _, key := range slices.Sorted(maps.Keys(state.Message)) {
 			for _, row := range state.Message[key] {
@@ -53,15 +101,24 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot) (bool, e
 			}
 		}
 	}
-	// Steered prompts become part of the turn that took them.
-	for index := range item.Requests {
-		request := &item.Requests[index]
-		if request.Kind != "prompt" || matched[request.ID] {
+	// A steered prompt is part of the turn that took it, not a queued prompt.
+	for id, turnID := range steered {
+		index, ok := byID[id]
+		if !ok {
 			continue
 		}
-		if slices.ContainsFunc(messages, func(row *sessionstate.Obj) bool { return row.Get("requestID") == request.ID }) {
-			request.Delivery = "steer"
+		request := &item.Requests[index]
+		request.Delivery = "steer"
+		if request.Status == "accepted" || request.Status == "running" {
+			request.Status = "running"
+			if run.Turns[turnID].Ended != 0 || run.Turns[turnID].Unresolved {
+				request.Status = "completed"
+			}
 		}
+	}
+	if open && paired >= 0 && item.Status == StatusWorking {
+		item.ActiveRequest = item.Requests[paired].ID
+		item.Requests[paired].Status = "running"
 	}
 	// A prompt the workflow has accepted but not yet started is the current
 	// turn. It shows at once, ahead of the harness's first event.
@@ -72,6 +129,9 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot) (bool, e
 				continue
 			}
 			request.Delivery = "turn"
+			if item.Status == StatusWorking {
+				item.ActiveRequest, request.Status = request.ID, "running"
+			}
 			row := sessionstate.NewObj()
 			row.Set("id", request.ID+"/prompt")
 			row.Set("type", "user")
@@ -94,22 +154,40 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot) (bool, e
 	return string(before) != string(after), nil
 }
 
+// showsTurns reports whether a saved projection holds more than the prompts
+// admitted before the run opened.
+func showsTurns(state gimbal.JSONText) bool {
+	var saved sessionstate.ProjectionState
+	if json.Unmarshal([]byte(state), &saved) != nil {
+		return false
+	}
+	for _, rows := range saved.Message {
+		for _, row := range rows {
+			if row.Get("type") != "user" {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func timeCreated(created int64) *sessionstate.Obj {
 	out := sessionstate.NewObj()
 	out.Set("created", float64(created))
 	return out
 }
 
-// requestForTurn pairs a turn with the first not yet paired prompt request
-// whose message the turn's prompt carries. Turns run in admission order, so
-// repeated identical messages pair one to one.
-func requestForTurn(item *Conversation, matched map[string]bool, turn observation.TurnRow) int {
+// requestForTurn pairs a turn with the next request the interactive consumed to
+// start a turn, in the order it consumed them. The turn's prompt must carry that
+// request's message; a turn whose prompt matches none is left unpaired.
+func requestForTurn(item *Conversation, starters []int, matched map[string]bool, turn observation.TurnRow) int {
 	_, human, found := strings.Cut(turn.Prompt, humanInput)
 	if !found {
 		return -1
 	}
-	for index, request := range item.Requests {
-		if request.Kind != "prompt" || matched[request.ID] {
+	for _, index := range starters {
+		request := item.Requests[index]
+		if matched[request.ID] {
 			continue
 		}
 		if strings.HasPrefix(human, request.Message+"\n\nRespond with") || (request.FileID != "" && strings.HasPrefix(human, request.Message+"\n\nRead the attached file ")) {
@@ -152,11 +230,14 @@ var decisionStart = regexp.MustCompile(`^\s*\{\s*"decision"\s*:\s*\{`)
 var decisionMessageKey = regexp.MustCompile(`"message"\s*:\s*"`)
 
 // decisionText shows an agent's chat reply as the reply. The conversation
-// protocol asks a harness for {"decision":{"type":"chat","message":...}}, and
-// a harness without a tool for it streams that JSON as ordinary text.
+// protocol asks a harness for {"decision":{"type":"chat","message":...}}. A
+// harness without a tool for it streams that JSON as ordinary text. Claude
+// delivers it as the input of its StructuredOutput completion tool, which the
+// page hides, so a step whose only reply is there gets it as text.
 func decisionText(row *sessionstate.Obj) {
 	parts, _ := row.Get("content").([]any)
-	kept := make([]any, 0, len(parts))
+	kept := make([]any, 0, len(parts)+1)
+	replied := false
 	for _, value := range parts {
 		part, ok := value.(*sessionstate.Obj)
 		if text, _ := part.Get("text").(string); ok && part.Get("type") == "text" && decisionStart.MatchString(text) {
@@ -165,22 +246,56 @@ func decisionText(row *sessionstate.Obj) {
 			}
 			part.Set("text", text)
 		}
+		if text, _ := part.Get("text").(string); ok && part.Get("type") == "text" && strings.TrimSpace(text) != "" {
+			replied = true
+		}
 		kept = append(kept, value)
+	}
+	if !replied {
+		for _, value := range parts {
+			if part, ok := value.(*sessionstate.Obj); ok && part.Get("type") == "tool" && part.Get("name") == "StructuredOutput" {
+				if text := completionMessage(part); text != "" {
+					reply := sessionstate.NewObj()
+					reply.Set("type", "text")
+					reply.Set("text", text)
+					kept = append(kept, reply)
+				}
+			}
+		}
 	}
 	if parts != nil {
 		row.Set("content", kept)
 	}
 }
 
-// decisionMessage is the chat message of a complete decision, or the part of
-// it that has streamed so far.
+// completionMessage is the chat message in a StructuredOutput tool's input, or
+// the part of it that has streamed so far. The input is a completion envelope,
+// {"state":"completed","value":{"decision":...}} or {"state":"waiting",
+// "message":...}, and is a JSON string until the tool call is whole.
+func completionMessage(tool *sessionstate.Obj) string {
+	state, _ := tool.Get("state").(*sessionstate.Obj)
+	switch input := state.Get("input").(type) {
+	case string:
+		return decisionMessage(input)
+	case *sessionstate.Obj:
+		raw, err := json.Marshal(input)
+		if err != nil {
+			return ""
+		}
+		return decisionMessage(string(raw))
+	}
+	return ""
+}
+
+// decisionMessage is the chat message of a decision, bare or inside a
+// completion envelope, or the part of it that has streamed so far.
 func decisionMessage(text string) string {
 	var whole struct {
 		Decision struct {
 			Message string `json:"message"`
 		} `json:"decision"`
 	}
-	if json.Unmarshal([]byte(text), &whole) == nil {
+	if json.Unmarshal([]byte(text), &whole) == nil && whole.Decision.Message != "" {
 		return whole.Decision.Message
 	}
 	at := decisionMessageKey.FindStringIndex(text)

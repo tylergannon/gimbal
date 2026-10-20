@@ -343,8 +343,13 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 				drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
 				_, drainErr := readTurn(drainCtx, current, current.registerThread(sessionID), sessionID, turn, active.emit)
 				confirmed = drainErr == nil || errors.Is(drainErr, errTurnInterrupted)
-				if !confirmed && drainCtx.Err() == nil {
-					snapshot, readErr := readThread(drainCtx, current, sessionID, "notLoaded")
+				drainCancel()
+				if !confirmed {
+					// The terminal notification can be missing while native history
+					// already records the outcome; read it with its own budget.
+					readCtx, readCancel := context.WithTimeout(context.Background(), controlTimeout)
+					snapshot, readErr := readThread(readCtx, current, sessionID, "notLoaded")
+					readCancel()
 					if readErr == nil {
 						for _, native := range snapshot.Turns {
 							if native.ID == turn && (native.Status == "completed" || native.Status == "interrupted" || native.Status == "failed") {

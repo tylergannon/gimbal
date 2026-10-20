@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/runstore"
@@ -34,6 +35,7 @@ type interactionAdapter struct {
 	landed             bool
 	steerErr           error
 	successAfterCancel bool
+	onCancel           func() (TurnResult, error)
 	closes             int
 }
 
@@ -54,6 +56,9 @@ func (a *interactionAdapter) RunTurn(ctx context.Context, native, prompt string,
 		close(a.started)
 		select {
 		case <-ctx.Done():
+			if a.onCancel != nil {
+				return a.onCancel()
+			}
 			if !a.successAfterCancel {
 				return TurnResult{}, ctx.Err()
 			}
@@ -644,5 +649,54 @@ func TestInteractiveInputFailureJoinsNativeTurnBeforeRunReturns(t *testing.T) {
 	close(adapter.release)
 	if err := <-done; !errors.Is(err, injected) {
 		t.Fatalf("input failure result %v", err)
+	}
+}
+
+// Each adapter shape is a way a provider can report an interrupted native turn.
+func TestInteractiveStopSettlesWhateverTheAdapterReports(t *testing.T) {
+	for name, onCancel := range map[string]func() (TurnResult, error){
+		"canceled": nil,
+		"native":   func() (TurnResult, error) { return TurnResult{}, errors.New("codex: the turn was interrupted") },
+		"empty":    func() (TurnResult, error) { return TurnResult{}, nil },
+		"uncertain": func() (TurnResult, error) {
+			return TurnResult{}, &backend.DeliveryUncertain{RequestID: "t", Err: errors.New("unconfirmed")}
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			adapter := &interactionAdapter{started: make(chan struct{}), release: make(chan struct{}), onCancel: onCancel, replies: []string{"", `{"decision":{"type":"chat","message":"Back again"}}`}}
+			r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+				_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+				return err
+			})
+			_ = r.acceptInteractive("dialogue", "opening", "Hello", false)
+			<-adapter.started
+			if err := r.acceptInput(interactionInput{Address: "dialogue", ID: "stop", Stop: true}); err != nil {
+				t.Fatal(err)
+			}
+			deadline := time.After(3 * time.Second)
+			for !waitingInteractive(r, 1) {
+				select {
+				case err := <-done:
+					t.Fatalf("workflow ended on Stop: %v", err)
+				case <-deadline:
+					t.Fatal("never settled")
+				case <-time.After(time.Millisecond):
+				}
+			}
+			if err := r.acceptInteractive("dialogue", "next", "Continue", false); err != nil {
+				t.Fatal(err)
+			}
+			eventuallyInteractive(t, func() bool { return waitingInteractive(r, 3) })
+			adapter.mu.Lock()
+			native, calls := adapter.native, adapter.calls
+			adapter.mu.Unlock()
+			if native != "native-continuity" || calls != 2 {
+				t.Fatalf("native %q calls %d", native, calls)
+			}
+			_ = r.acceptInteractive("dialogue", "finish", "", true)
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }

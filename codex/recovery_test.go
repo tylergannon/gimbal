@@ -154,7 +154,7 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 					} else {
 						finish = true
 					}
-				} else {
+				} else if thread.model != "stalled" {
 					finish = true
 				}
 			case "thread/archive":
@@ -466,5 +466,38 @@ func TestRecoveredFinalAnswerIsNotReplacedByCommentary(t *testing.T) {
 	answer, err := readTurnFrom(t.Context(), conn, ch, "thread-1", "turn-1", newProjector("thread-1", "turn-1", "coding", func(gimbal.AgentEvent) error { return nil }), seed, final)
 	if err != nil || answer != "native final" {
 		t.Fatalf("answer = %q, %v", answer, err)
+	}
+}
+
+// Codex may record an interrupted turn without delivering its terminal
+// notification. The thread history is then the confirmation, and Stop must not
+// leave the conversation unresolved.
+func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
+	ad, d := newRecoveryDaemon(t, "default")
+	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
+	defer cancel()
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "stalled", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	turnCtx, stop := context.WithCancel(ctx)
+	result := make(chan error, 1)
+	go func() {
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "sleep", nil, func(gimbal.AgentEvent) error { return nil })
+		result <- err
+	}()
+	for {
+		d.mu.Lock()
+		started := d.starts
+		d.mu.Unlock()
+		if started == 1 {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	stop()
+	err = <-result
+	if _, uncertain := errors.AsType[*backend.DeliveryUncertain](err); uncertain || !errors.Is(err, context.Canceled) {
+		t.Fatalf("confirmed stop reported %v", err)
 	}
 }

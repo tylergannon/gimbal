@@ -204,9 +204,10 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 				status = "working"
 			}
 		}
-		if snapshot.Run.Status == observation.StatusCompleted {
+		switch snapshot.Run.Status {
+		case observation.StatusCompleted:
 			status = "completed"
-		} else if snapshot.Run.Status == observation.StatusFailed || snapshot.Run.Status == observation.StatusCancelled {
+		case observation.StatusFailed, observation.StatusCancelled:
 			status = "error"
 			verdict = errors.New(snapshot.Run.Error)
 		}

@@ -415,6 +415,21 @@ func TestWorkflowControlSettlesOnlyAfterItsDurableConsumption(t *testing.T) {
 	if got := manager.List()[0]; got.Requests[0].Status != "accepted" {
 		t.Fatal("waiting alone settled control")
 	}
+	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, []string, error) {
+		return gimbal.InteractiveTranscript{}, "unavailable", nil, errors.New("transient observation failure")
+	}
+	if got := manager.List()[0]; got.Contact != "unreachable" {
+		t.Fatal("missing contact loss")
+	}
+	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, []string, error) {
+		return gimbal.InteractiveTranscript{}, "working", nil, nil
+	}
+	if got := manager.List()[0]; got.Contact != "connected" || got.Status != "working" {
+		t.Fatalf("contact did not recover: %+v", got)
+	}
+	manager.WorkflowObserve = func(string) (gimbal.InteractiveTranscript, string, []string, error) {
+		return gimbal.InteractiveTranscript{}, "waiting", consumed, nil
+	}
 	consumed = []string{"stop"}
 	got := manager.List()[0]
 	if got.Requests[0].Status != "completed" || got.Requests[1].Status != "accepted" {

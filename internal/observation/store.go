@@ -547,17 +547,6 @@ func (s *Store) commandLocked(scope, id string) *CommandRow {
 	return row
 }
 
-// interactiveLocked is one question row, created on first sight so replaying a
-// partial log still preserves an accepted answer.
-func (s *Store) interactiveLocked(scope, session, questionID string) *InteractiveRow {
-	if row, ok := s.interactions[questionID]; ok {
-		return row
-	}
-	row := &InteractiveRow{Run: s.run.ID, QuestionID: questionID, Scope: scope, Session: session}
-	s.interactions[questionID] = row
-	return row
-}
-
 // turnLocked is one turn's row, created from its placement on first sight so
 // a test can feed native events alone.
 func (s *Store) turnLocked(at Placement) *TurnRow {

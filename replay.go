@@ -55,7 +55,7 @@ func (r *run) expand(raw json.RawMessage) (json.RawMessage, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	return io.ReadAll(reader)
 }
 func (r *run) outcome(node runstore.NodeID, into any) (bool, error) {

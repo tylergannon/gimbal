@@ -15,7 +15,7 @@ func Spawn(request invocation.Request) (Response, error) {
 		request.RunID = string(runstore.NewRunID())
 	}
 	read, write := io.Pipe()
-	go func() { defer write.Close(); _ = Run(request, write) }()
+	go func() { defer func() { _ = write.Close() }(); _ = Run(request, write) }()
 	var response Response
 	if err := json.NewDecoder(read).Decode(&response); err != nil {
 		return response, err

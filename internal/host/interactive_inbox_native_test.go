@@ -83,7 +83,7 @@ func TestNativeInboxSurvivesAbsentExecution(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer records.Close()
+		defer func() { _ = records.Close() }()
 		rows, err := records.Read(ctx, 0, 4096)
 		if err != nil {
 			t.Fatal(err)

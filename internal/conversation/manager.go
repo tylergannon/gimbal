@@ -112,16 +112,8 @@ type NewConversation struct {
 type AdapterFactory func(string) (gimbal.HarnessAdapter, error)
 
 type activeConversation struct {
-	turnMu    sync.Mutex
-	admitMu   sync.Mutex
-	steerMu   sync.Mutex
-	adapter   gimbal.HarnessAdapter
-	session   string
-	resume    bool
-	request   string
-	cancel    context.CancelFunc
-	remote    *environments.Binding
-	observing bool
+	admitMu sync.Mutex
+	remote  *environments.Binding
 }
 
 // Manager is owned by one host project. Durable state is under projectDir;
@@ -426,6 +418,7 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 		before, _ := json.Marshal(item)
 		transcript, status, consumed, err := m.WorkflowObserve(item.WorkflowRun)
 		if err == nil || status == "unresolved" || status == "error" {
+			item.Contact = "connected"
 			item.Messages = nil
 			for _, message := range transcript.Messages {
 				item.Messages = append(item.Messages, Message{Role: message.Role, Text: message.Message})
@@ -605,18 +598,6 @@ func (m *Manager) Close() {
 	m.mu.Unlock()
 	m.remoteReaders.Wait()
 	close(m.closed)
-}
-
-// background registers before spawning so Close cannot miss a not-yet-started
-// observer or queue continuation. Call without holding m.mu.
-func (m *Manager) background(fn func()) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.closing {
-		return
-	}
-	m.remoteReaders.Add(1)
-	go func() { defer m.remoteReaders.Done(); fn() }()
 }
 
 type conversationRecord struct {

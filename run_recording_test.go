@@ -479,8 +479,8 @@ func TestCommandOutputSurvivesSpoolRemovalInFreshProcess(t *testing.T) {
 	id := string(runstore.NewRunID())
 	if err := Run(Project(t.Context(), project), id, "large-output", nil, func(ctx context.Context) error {
 		code, out, _, err := RunCommand(ctx, "large", project, "sh", "-c", `head -c 1048576 /dev/zero | tr '\000' x; printf err >&2`)
-		if code != 0 || len(out) >= 1<<20 {
-			t.Fatalf("output was not bounded: code=%d length=%d", code, len(out))
+		if code != 0 || out != strings.Repeat("x", 1<<20) {
+			t.Fatalf("caller output was incomplete: code=%d length=%d", code, len(out))
 		}
 		return err
 	}); err != nil {

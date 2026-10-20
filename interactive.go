@@ -342,9 +342,10 @@ func (r *run) refreshInteractions() {
 					if r.interactionEnded == nil {
 						r.interactionEnded = map[string]bool{}
 					}
-					if lifecycle.Event.Kind == "run_ended" {
+					switch lifecycle.Event.Kind {
+					case "run_ended":
 						r.interactionEnded[""] = true
-					} else if lifecycle.Event.Kind == "scope_ended" {
+					case "scope_ended":
 						r.interactionEnded[lifecycle.Scope] = true
 					}
 				}
@@ -561,7 +562,7 @@ func (r *run) closeInteractionInputs(scope string) {
 		if owner == "." {
 			owner = ""
 		}
-		if consumed[id] || (input.Disposition == "unprocessed" || input.Disposition == "uncertain") || !(scope == "" || owner == scope || strings.HasPrefix(owner, scope+"/")) {
+		if consumed[id] || (input.Disposition == "unprocessed" || input.Disposition == "uncertain") || (scope != "" && owner != scope && !strings.HasPrefix(owner, scope+"/")) {
 			continue
 		}
 		input.Disposition = "unprocessed"

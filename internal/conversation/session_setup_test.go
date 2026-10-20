@@ -83,13 +83,3 @@ func TestRenameChangesTitleWithoutChangingNativeSession(t *testing.T) {
 		t.Fatal("accepted blank title")
 	}
 }
-
-type bindingChat struct {
-	persistentChatAdapter
-	model, effort, workdir string
-}
-
-func (a *bindingChat) ResumeSession(ctx context.Context, id, model, effort, workdir string) error {
-	a.model, a.effort, a.workdir = model, effort, workdir
-	return a.persistentChatAdapter.ResumeSession(ctx, id, model, effort, workdir)
-}

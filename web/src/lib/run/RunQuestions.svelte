@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import type { InteractiveRow } from '#lib/observation';
   import { answerInteractive, finishInteractive } from '../../routes/interactive.remote';
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
@@ -8,7 +9,8 @@
   const instance = $props.id();
   const form = $derived(answerInteractive.for(`run-question-${run}-${question.question_id}-${instance}`));
   let feedback = $state('');
- let requestId=$state(crypto.randomUUID());
+  let requestId = $state('');
+  onMount(() => { requestId = crypto.randomUUID(); });
  let finishing=$state(false);
  async function finish(){finishing=true;feedback='';try{await finishInteractive({run,address:question.address,id:crypto.randomUUID()});feedback='Finish accepted.';}catch(error){if(!navigateOnUnauthorized(error))feedback=errorMessage(error);}finally{finishing=false;}}
 </script>

@@ -73,7 +73,7 @@ func SubmitInteractive(ctx context.Context, project, id, address, request string
 	if err != nil {
 		return err
 	}
-	defer records.Close()
+	defer func() { _ = records.Close() }()
 	header, err := records.Header(ctx)
 	if err != nil {
 		return err

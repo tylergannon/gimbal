@@ -10,7 +10,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
@@ -194,23 +193,6 @@ func TestAlternateLocalEnvironmentUsesLocalHarnessAndSelectedDirectory(t *testin
 	done := waitRequest(t, manager, item.ID, item.Requests[0].ID, "completed")
 	if done.Worktree != alternate || done.Placement.Value.Machine.ID != environments.Local || done.Environment != "local-notes" {
 		t.Fatalf("alternate placement=%+v", done)
-	}
-}
-
-func waitRemoteAdmission(t *testing.T, fixture *remoteFixture) {
-	t.Helper()
-	deadline := time.Now().Add(time.Second)
-	for {
-		fixture.mu.Lock()
-		started := fixture.admissions > 0
-		fixture.mu.Unlock()
-		if started {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("remote turn not admitted")
-		}
-		time.Sleep(time.Millisecond)
 	}
 }
 

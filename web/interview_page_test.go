@@ -61,11 +61,11 @@ func TestRunPageKeepsInteractiveHistoryAcrossQuestionsAndReload(t *testing.T) {
 		json.RawMessage(`{"seq":1,"time":"2026-09-17T17:00:00Z","scope":"","event":{"kind":"run_started","name":"interactive-ssr-fixture"}}`),
 		json.RawMessage(`{"seq":2,"time":"2026-09-17T17:00:01Z","scope":"preferences.1","event":{"kind":"scope_began","name":"preferences.1"}}`),
 		json.RawMessage(`{"seq":3,"time":"2026-09-17T17:00:02Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"session_created","name":"interactiveer","adapter":"fixture","model":"test-model","workdir":"/w"}}`),
-		json.RawMessage(`{"seq":4,"time":"2026-09-17T17:00:03Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.1","event":{"kind":"turn_started","prompt":"first","output_type":"gimbal.interactiveDecision"}}`),
-		json.RawMessage(`{"seq":5,"time":"2026-09-17T17:00:04Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.1","event":{"kind":"turn_ended","result":"{\"question\":\"Which color?\"}"}}`),
-		json.RawMessage(`{"seq":6,"time":"2026-09-17T17:00:05Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_question_asked","name":"preferences","question_id":"question-1","question":"Which color?"}}`),
-		json.RawMessage(`{"seq":7,"time":"2026-09-17T17:00:06Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_question_answered","question_id":"question-1","answer":"Blue"}}`),
-		json.RawMessage(`{"seq":8,"time":"2026-09-17T17:00:07Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.2","event":{"kind":"turn_started","prompt":"second","output_type":"gimbal.interactiveDecision"}}`),
+		json.RawMessage(`{"seq":4,"time":"2026-09-17T17:00:03Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.1","event":{"kind":"turn_started","prompt":"first","output_type":"gimbal.interactiveOutput"}}`),
+		json.RawMessage(`{"seq":5,"time":"2026-09-17T17:00:04Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.1","event":{"kind":"turn_ended","result":"{\"decision\":{\"type\":\"chat\",\"message\":\"Which color?\"}}"}}`),
+		json.RawMessage(`{"seq":6,"time":"2026-09-17T17:00:05Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_changed","id":"question-1","name":"preferences","address":"preferences.1/preferences","ordinal":1,"consumed":["initial"],"status":"waiting","waiting":true,"transcript":{"messages":[{"role":"user","message":"Help me plan."},{"role":"assistant","message":"Which color?"}],"ended_by":""},"error":""}}`),
+		json.RawMessage(`{"seq":7,"time":"2026-09-17T17:00:06Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_changed","id":"question-1","name":"preferences","address":"preferences.1/preferences","ordinal":1,"consumed":["initial","blue"],"status":"active","waiting":false,"transcript":{"messages":[{"role":"user","message":"Help me plan."},{"role":"assistant","message":"Which color?"},{"role":"user","message":"Blue"}],"ended_by":""},"error":""}}`),
+		json.RawMessage(`{"seq":8,"time":"2026-09-17T17:00:07Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.2","event":{"kind":"turn_started","prompt":"second","output_type":"gimbal.interactiveOutput"}}`),
 	} {
 		if err := store.Lifecycle(record); err != nil {
 			t.Fatalf("fold %s: %v", record, err)
@@ -121,8 +121,8 @@ func TestRunPageKeepsInteractiveHistoryAcrossQuestionsAndReload(t *testing.T) {
 	}
 
 	for _, record := range []json.RawMessage{
-		json.RawMessage(`{"seq":9,"time":"2026-09-17T17:00:08Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.2","event":{"kind":"turn_ended","result":"{\"question\":\"What shade?\"}"}}`),
-		json.RawMessage(`{"seq":10,"time":"2026-09-17T17:00:09Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_question_asked","name":"preferences","question_id":"question-2","question":"What shade?"}}`),
+		json.RawMessage(`{"seq":9,"time":"2026-09-17T17:00:08Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","turn":"preferences.1/interactiveer.1/turn.2","event":{"kind":"turn_ended","result":"{\"decision\":{\"type\":\"chat\",\"message\":\"What shade?\"}}"}}`),
+		json.RawMessage(`{"seq":10,"time":"2026-09-17T17:00:09Z","scope":"preferences.1","session":"preferences.1/interactiveer.1","event":{"kind":"interactive_changed","id":"question-1","name":"preferences","address":"preferences.1/preferences","ordinal":1,"consumed":["initial","blue"],"status":"waiting","waiting":true,"transcript":{"messages":[{"role":"user","message":"Help me plan."},{"role":"assistant","message":"Which color?"},{"role":"user","message":"Blue"},{"role":"assistant","message":"What shade?"}],"ended_by":""},"error":""}}`),
 	} {
 		if err := store.Lifecycle(record); err != nil {
 			t.Fatalf("fold %s: %v", record, err)

@@ -25,10 +25,6 @@ func (m *Manager) ConfigureModel(id, model, effort string) (Conversation, error)
 	if item.ActiveRequest != "" || item.CleanupPending || item.Contact == "unreachable" || (item.Status != "idle" && item.Status != "canceled" && item.Status != "waiting") {
 		return Conversation{}, errors.New("conversation: wait for a settled idle session before changing model")
 	}
-	active := m.active[id]
-	if active != nil && active.request != "" {
-		return Conversation{}, errors.New("conversation: a turn is still running")
-	}
 	if item.WorkflowRun != "" {
 		if m.WorkflowInput == nil {
 			return Conversation{}, errors.New("conversation: workflow host unavailable")

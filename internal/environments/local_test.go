@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/gimbal/internal/modelalias"
 )
 
 func repository(t *testing.T) string {
@@ -101,12 +103,16 @@ func TestExplicitCloneReconcilesAndRejectsNewMutation(t *testing.T) {
 }
 func TestHarnessMetadataUsesCheapDefaultsAndNeverInventsAuthentication(t *testing.T) {
 	_, hs := localFacts()
+	claudeDefault, err := modelalias.Resolve(modelalias.Selection{Name: "haiku"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, h := range hs {
 		if h.State == HarnessReady {
 			t.Fatal("installation claimed authentication")
 		}
-		if h.ID == "claude" && !strings.HasPrefix(h.Default, "claude-haiku-") {
-			t.Fatalf("Claude default left the Haiku family: %s", h.Default)
+		if h.ID == "claude" && h.Default != claudeDefault.Model {
+			t.Fatalf("Claude default = %q, want resolved haiku alias %q", h.Default, claudeDefault.Model)
 		}
 		if !slices.Contains(h.Models, h.Default) {
 			t.Fatal("default missing from models")

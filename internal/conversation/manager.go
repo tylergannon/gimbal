@@ -677,7 +677,11 @@ func providerModel(provider, model string) (string, string, error) {
 		return model, "", nil
 	case "claude":
 		if model == "" {
-			model = "claude-haiku-4-5"
+			resolved, err := modelalias.Resolve(modelalias.Selection{Name: "haiku"})
+			if err != nil {
+				return "", "", fmt.Errorf("conversation: resolve default Claude model: %w", err)
+			}
+			model = resolved.Model
 		}
 		if !strings.HasPrefix(model, "claude-") {
 			return "", "", fmt.Errorf("conversation: model %q is not a Claude model", model)

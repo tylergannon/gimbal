@@ -1,0 +1,5 @@
+# Issue 624: OpenCode selection ran on Codex
+
+failure: The conversation stored (provider, model) but host.go passed only item.Model as the agentic-dialogues role spec. A bare `gpt-5-nano` resolves to Codex through modelalias's `gpt-` prefix rule. Environment harness defaults (internal/environments/local.go) collapsed `opencode/gpt-5-nano` to its native `gpt-5-nano`, so the offered default lost its harness. Pi's default `anthropic/claude-haiku-4-5` and offered `diffusion/*` ids never resolved.
+correction: The selected provider is authoritative. Create canonicalizes OpenCode (`opencode/`) and Pi (`pi/`) selections and rejects any model that resolves to another harness; conversation.RoleSpec refuses a saved mismatch before the workflow starts.
+verification: go test ./internal/conversation ./internal/binding ./internal/modelalias ./internal/environments ./internal/host ./internal/invocation with GOMAXPROCS=2. No live provider calls; the UI's own model strings were not observed, so the exact string the native picker sent is inferred.

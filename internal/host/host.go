@@ -159,11 +159,11 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
 	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation, route backend.Route) error {
 		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item)})
-		spec := item.Model
-		if item.Effort != "" {
-			spec += ":" + item.Effort
+		spec, err := conversation.RoleSpec(item)
+		if err != nil {
+			return err
 		}
-		_, err := p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, TaskRoute: route, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
+		_, err = p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, TaskRoute: route, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
 		return err
 	}
 	conversations.WorkflowInput = func(id, address, request string) error {

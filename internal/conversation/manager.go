@@ -352,7 +352,14 @@ func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 		if err != nil {
 			return Setup{}, err
 		}
-		models := slices.Clone(newest[provider])
+		models := []string{}
+		for _, native := range newest[provider] {
+			offered, _, err := providerModel(provider, native)
+			if err != nil {
+				return Setup{}, err
+			}
+			models = append(models, offered)
+		}
 		if !slices.Contains(models, model) {
 			models = append([]string{model}, models...)
 		}
@@ -641,6 +648,10 @@ func (m *Manager) save(item *Conversation) error {
 	return nil
 }
 
+// providerModel returns the model as a Gimbal selection name that resolves to
+// provider's harness. OpenCode and Pi native ids are ambiguous without their
+// harness prefix (a bare "gpt-5-nano" resolves to Codex), so the selected
+// provider decides the prefix rather than the model string's shape.
 func providerModel(provider, model string) (string, string, error) {
 	switch provider {
 	case "codex":
@@ -671,15 +682,34 @@ func providerModel(provider, model string) (string, string, error) {
 		if model == "" {
 			model = "opencode/gpt-5-nano"
 		}
-		return model, "", nil
+		if !strings.HasPrefix(model, "opencode/") {
+			model = "opencode/" + model
+		}
+		return providerSelection(provider, model)
 	case "pi":
 		if model == "" {
-			model = "anthropic/claude-haiku-4-5"
+			model = "pi/diffusion/deepseek-4.1-flash"
 		}
-		return model, "", nil
+		if strings.HasPrefix(model, "diffusion/") {
+			model = "pi/" + model
+		}
+		return providerSelection(provider, model)
 	default:
 		return "", "", fmt.Errorf("conversation: unknown provider %q", provider)
 	}
+}
+
+// providerSelection refuses a model that would run on another harness than
+// the one the person selected.
+func providerSelection(provider, model string) (string, string, error) {
+	resolved, err := modelalias.Resolve(modelalias.Selection{Name: model})
+	if err != nil {
+		return "", "", fmt.Errorf("conversation: %s cannot run model %q: %w", provider, model, err)
+	}
+	if resolved.Harness != provider {
+		return "", "", fmt.Errorf("conversation: model %q runs on %s, not %s", model, resolved.Harness, provider)
+	}
+	return model, "", nil
 }
 
 func providerLabel(provider string) string {

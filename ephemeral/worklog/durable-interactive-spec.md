@@ -30,3 +30,13 @@ decision: Archive interrupts an active turn unless doing so would leave
 unrecoverable or corrupt state. Interruption is turn-scoped; the workflow
 continues normally after safe cessation. An unconfirmed stop remains
 recoverable/unresolved rather than being reported as successful completion.
+
+correction: Tyler forbids direct I/O, clocks, randomness and equivalent
+nondeterministic operations in workflow functions. They must use the library;
+an author promise that arbitrary operations are replay-safe is insufficient.
+Ordinary deterministic Go control flow remains. A possible Activity concept
+is future work, not part of this change.
+
+correction: Batch independent spec questions where plausible; Tyler explicitly
+overrides the grilling skill's one-question-at-a-time interview format to
+avoid unnecessarily prolonged authoring.

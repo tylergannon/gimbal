@@ -62,6 +62,19 @@ normal scope teardown. A waiting branch does not stop runnable siblings. A
 run may become dormant when none of its branches can progress. Suspension
 follows an explicit wait, never an inactivity threshold.
 
+## Workflow authoring contract
+
+Workflow functions use the Gimbal library for external effects and
+nondeterministic observations. Direct file reads or writes, clocks, randomness,
+and equivalent operations outside the library are forbidden in workflow
+functions, even when an author considers them safe to repeat. Ordinary Go
+control flow and deterministic local computation remain ordinary Go.
+
+Replay reconstructs that control flow using recorded library-operation
+outcomes. Accepting arbitrary user I/O under an author-supplied replay-safety
+promise is not the contract. A possible future `Activity` concept for custom
+work is outside this change; no Activity API is introduced here.
+
 ## Explicit exclusion: SERVICE lifecycle
 
 Suspension must not close, release, or otherwise alter any service or SERVICE
@@ -78,7 +91,7 @@ cells with file ownership and code-volume budgets, harden contracts external
 seams first, then define routed behavioral claims and exclusions. Run
 spec-review before this draft governs work.
 
-Contract decisions requiring alignment include replay-safe ordinary Go work,
-steering delivery races, the return contract
-of `Interactive`, and the unit of shared execution capacity. These are open
+Contract decisions requiring alignment include steering delivery races,
+the return contract of `Interactive`, and the unit of shared execution
+capacity. These are open
 authoring decisions, not implementation permission to choose silently.

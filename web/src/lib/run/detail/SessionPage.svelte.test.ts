@@ -240,7 +240,6 @@ test("focus renders new messages, text deltas, tool progress/results and retry c
     id: "live-tool",
     content: [{ type: "text", text: "New live result" }],
   });
-  await screen.getByRole("button", { name: /Read live file.*ok/ }).click();
   await expect.element(screen.getByText("New live result", { exact: true })).toBeVisible();
   await event("session.retry.scheduled", {
     attempt: 2,

@@ -15,6 +15,7 @@
   const error = $derived(part.state?.error ? typeof part.state.error === 'string' ? part.state.error : part.state.error.message ?? JSON.stringify(part.state.error) : '');
   const terminal = $derived(`$ ${detail}${output ? `\n${output}` : ''}${error ? `\n${error}` : ''}`);
   const structuredOutput = $derived((part.state?.content ?? []).filter((entry: JSONObject) => !['text', 'transcript'].includes(entry.type)));
+  const progress = $derived(['running', 'streaming'].includes(status) ? part.state?.metadata : undefined);
 </script>
 
 {#if part.type === 'reasoning'}
@@ -37,6 +38,7 @@
         {#if part.state?.input}<StructuredValue value={part.state.input} />{/if}
         {#if output}<Payload label="output" text={output} maxHeight={300} />{/if}
         {#each structuredOutput as content (content)}<StructuredValue value={content} />{/each}
+        {#if progress}<StructuredValue value={progress} />{/if}
         {#if error}<Payload label="error" text={error} tone="error" />{/if}
       {/if}
     </div>

@@ -118,3 +118,42 @@ unwinding and deterministic replay, including removal of unsupported agent-turn
 timeouts. Spec/plan now require library-controlled suspension unwind, rejected
 authored constructs, explicit completion cleanup and existing library waits.
 F2/F5 and remote ingress resolutions remain as recorded above.
+
+
+## Round-04 adjudication and implementation handoff
+
+Opus run 01M5BJYVZXYGR9D9FM8XHTVQQ1.run-prompt completed successfully. Its
+report is `ephemeral/reviews/durable-interactive-opus-spec-round-04.md`.
+
+- F1 accepted factual correction: the review's prior conversation-only resume
+  premise was wrong for ordinary workflows. Verified binding.Adapter uses
+  agentexecutor for agy/claude/codex/pi. Spec/plan now reuse existing durable
+  executor checkpoint/reattach and deterministic IDs, without a new lifecycle
+  interface or a Codex-only restriction. Assigned the existing executor/effects
+  modules and root loop/service/supervision/doc files to E. E baseline 7,428,
+  max 9,000; H drops the obsolete Codex conversation ownership to 5,329/max 6,500.
+- F2: shared-host ordinary panic containment is a derived isolation requirement
+  and is now explicit at the per-run activation boundary. Existing Run/Group
+  panic reporting remains. Actual host loss is distinct from human cancellation.
+  The demand for service restoration/missing-service rechecks is rejected under
+  the human's explicit SERVICE exclusion; no such guarantee or check is added.
+  The human's no-version-policy decision likewise precludes an update policy.
+- F3 accepted clarification through existing Run signature: logical call remains
+  pending during dormancy, authored stacks unwind, same-ID re-entry reconstructs;
+  direct callers supply body/bindings and need ingress for human input. Original
+  caller deadline is recorded once, stays wall-clock during dormancy and is reused
+  in accepted operation requests. No new exported suspension result/sentinel.
+- F4 accepted: narrow deterministic opaque-function allowlist, source-visible
+  helper traversal, rejected unknown calls; sorted map keys/standard JSON map
+  ordering are allowed forms. Existing godoc examples must match admission.
+- F5: existing dormant cancellation and retry reconciliation are made explicit.
+  Unconfirmed external cessation may remain unresolved, as the human's original
+  brief already requires. Rejected an invented abandon/success outcome or an
+  eventual-settlement guarantee. Cleanup retains existing cancellation behavior;
+  suspension itself performs none, with SERVICE restoration still deferred.
+
+The manager accepts this one-unit/two-owner handoff under the human's delegated
+plan authority. A fresh spec/plan review uses the committed source snapshot while
+implementation proceeds, so its target is stable and broad build checks are not
+duplicated. Construction blockers still return to the manager; no implementer
+amends the durable contract.

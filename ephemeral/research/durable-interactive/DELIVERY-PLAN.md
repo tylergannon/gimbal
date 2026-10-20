@@ -1,8 +1,7 @@
 # Durable Interactive: one delivery unit
 
-Status: finalized proposal reflecting human decisions; independent Opus rereview pending. Do not
-start implementation until the manager resolves that review and finalizes
-this handoff. This document is a per-slice technical plan; `specs/durable-interactive.md` holds the durable contract.
+Status: manager-approved implementation handoff reflecting human decisions
+and independent Opus review adjudication. This document is a per-slice technical plan; `specs/durable-interactive.md` holds the durable contract.
 
 ## Ownership and shape
 
@@ -97,8 +96,11 @@ agent-turn timeouts without a library equivalent. Do not add APIs for these.
    conversation re-entry; agent end cannot cause an autonomous spin loop.
 3. Wire shared hosting and the ordinary conversation workflow through the
    real application's existing project and placement paths. Persist enough
-   invocation information for same-code reconstruction and startup
-   discovery. Preserve services/claims on suspension without defining their
+   invocation information for reconstruction and startup discovery. Keep Run
+   logically pending during dormancy; same-ID re-entry reconstructs it. Reuse
+   recorded accepted deadlines rather than recomputing them. Catch ordinary
+   workflow panics at the shared host per-run boundary, preserving other runs.
+   Keep dormant cancellation and reconciliation controls meaningful. Preserve services/claims on suspension without defining their
    restoration behavior.
 4. Replace the app's live-waiter admission path with durable message/archive
    ingress and project the real unfinished/terminal/recovery states. Read
@@ -129,8 +131,9 @@ will reuse valid evidence rather than rerun unchanged broad suites. A changed
 input or a new failure justifies rerunning the affected check.
 
 Use the actual maintained app/workflow paths for the live demonstrations.
-Codex `luna` proves native continuity through the existing optional resume
-capability; unsupported providers remain honestly unresolved after restart.
+Native continuity uses the existing workflow executor checkpoint/reattach path
+for Claude, Codex, Pi and Agy; a harness without it stays honestly unresolved
+when continuation cannot be established.
 Remote placement carries input through existing ControlWorkflow transport.
 Unit stand-ins do not prove native continuity or browser behavior. Do not
 commit proof programs, transcripts, screenshots, run logs or results dumps;

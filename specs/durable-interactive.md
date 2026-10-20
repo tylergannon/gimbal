@@ -1,7 +1,7 @@
 # Durable Interactive execution
 
-Status: contract updated with the human's round-03 decisions; final independent
-spec/plan review pending. No implementation or live proof is claimed.
+Status: implementation contract incorporating human decisions and independent
+Opus review adjudication. No implementation or live proof is claimed.
 
 ## Overview and goals
 
@@ -121,9 +121,9 @@ the slice spec can settle file organization without changing these contracts.
 | Cell | Responsibility and boundary | Reason to change | Current lines | Proposed maximum |
 | --- | --- | --- | ---: | ---: |
 | J: durable records and inbox | Durable identity, committed batches, inbox acceptance and durable transition storage; no provider calls or scheduling policy | Storage consistency and recovery format | 913 | 1,400 |
-| E: execution and replay | Reconstruct library operations, scopes, session bindings and concurrent branches; distinguish suspension from terminal outcomes | Workflow execution semantics | 3,923 | 5,500 |
+| E: execution and replay | Reconstruct library operations, scopes, session bindings and concurrent branches; distinguish suspension from terminal outcomes | Workflow execution semantics | 7,428 | 9,000 |
 | I: interaction protocol | Interpret chat/end, transcript, human message/finish input and turn delivery; use J for durable transitions and E for execution | Human/agent interaction contract | 102 | 900 |
-| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 6,528 | 7,500 |
+| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 5,329 | 6,500 |
 | P: presentation | Project durable lifecycle and interaction state into run/chat views and route user actions through durable acceptance | Product presentation and observation | 13,787 | 14,800 |
 | A: workflow admission | Accept only library-owned effects, migrate maintained workflows, expose Interactive in extraction/diagrams and replace Interview support | Accepted workflow language and static representation | 11,526 | 13,200 |
 
@@ -147,13 +147,14 @@ The measured ownership sets are:
 - J: `runstore/**/*.go`.
 - E: root `run.go`, `scope.go`, `group.go`, `iterate.go`, `session.go`,
   `command.go`, `run_recording.go`, `event_persistence.go`, `artifact.go`,
-  `schema.go`, `events.go`, `harness.go`, `env.go`; `internal/runstate/**/*.go`.
+  `schema.go`, `events.go`, `harness.go`, `env.go`, `loop.go`, `service.go`,
+  `remote_execution.go`, `supervise.go`, `supervise_jev.go`, `doc.go`; Go source
+  in `internal/{runstate,agentexecutor,executor,commandexecutor,effects}/`.
   New root execution/replay source belongs to E.
 - I: `interview.go` until removed, `interactive.go`, and new handwritten
   interaction protocol source including `internal/interaction/**` if useful.
 - H: Go source in `internal/{host,runner,invocation,conversation,live}/`,
-  `backend/backend.go`, `registry.go`, `cmd/gimbal/main.go`,
-  `codex/codex.go` and `codex/recovery.go` (existing resume capability).
+  `backend/backend.go`, `registry.go`, `cmd/gimbal/main.go`.
 - P: Go source in `internal/observation/` and `web/runview/`;
   Go/TypeScript/Svelte in `web/src/lib/{conversation,run,observation}/`;
   `web/src/lib/workflow/types.ts`; workspace `ProjectWorkspace.svelte`,
@@ -392,15 +393,37 @@ binding including native identity, and completed results. Reconstruct through
 ordinary deterministic control flow; do not serialize Go stacks. Saved graph
 metadata alone does not reconstruct executable code.
 
-Rebinding a native session uses an internal optional capability with the
-existing ResumeSession method shape, not a new public HarnessAdapter method
-or a detach/retain requirement. Codex already supplies it and is the required
-restart-continuity harness for this delivery. If another harness lacks that
-capability, preserve its saved identity/input and show actionable unresolved
-recovery after restart; do not replace it with a fresh native session.
-This matches the existing non-Codex recovery limit. Adding their native resume
-implementations is outside this delivery. Continuing an existing activation
-still uses each harness's supported turn/steer/interrupt contract.
+Native continuity uses the existing workflow executor path: recorded node
+identity determines executor session/turn IDs; session checkpoints and per-turn
+results permit reattachment to accepted work, including completed and active
+turns. Reuse that path in internal/agentexecutor and internal/executor, with
+its existing SaveSession/LoadSession behavior in Claude, Codex, Pi and Agy.
+Do not route ordinary workflows through the old conversation-manager-only
+ResumeSession mechanism or add a public HarnessAdapter method. A harness
+without checkpoint/reattach capability retains saved identity/input and shows
+unresolved recovery when continuation cannot be established; never substitute
+a fresh native session. This is a correctness capability, not a resource policy.
+
+Run keeps its existing signature and blocks until actual logical completion or
+settled cancellation/error. Dormancy does not return success, a suspension
+error or a new exported sentinel. The authored body/branch stacks unwind;
+library coordination may await input without retaining those authored stacks.
+Calling Run with the same existing run ID reconstructs that run from its
+recorded work using the supplied body/bindings. Hosted admission persists the
+registered workflow and inputs for startup reconstruction. Direct callers
+supply them again on re-entry. A direct Run without installed ingress remains
+pending at an Interactive wait until ingress is provided or its caller cancels;
+it does not invent human input or silently finish. Existing hosted/example
+entry points supply the control ingress.
+
+The caller's original absolute run deadline is recorded at admission and keeps
+running during dormancy; reconstruction does not reset it. Caller cancellation
+remains an explicit request to stop the logical run. Each accepted native or
+command operation reuses its recorded deadline/request on reattachment, so a
+new activation cannot create conflicting accepted inputs by recomputing time.
+Expired deadlines and cancellation use normal cancellation/reconciliation,
+without blind native redispatch. These library-owned caller semantics do not
+permit authored context timing observations. Update Run's godoc accordingly.
 
 Concurrent branches retain authored identities independent of scheduling.
 Record any library-controlled nondeterministic choice needed to reproduce
@@ -444,12 +467,24 @@ INTERFACE ExecutionHost:
     submit(address, input) -> DurableAcknowledgement | Error
     schedule(runIdentity)
     observe(runIdentity) -> CommittedState
+    cancel(runOrScope, cause) -> Acknowledgement | Error
+    reconcile(runIdentity) -> CurrentRecoveryState
 ```
 
 The host executes runnable workflows from different projects using shared Go
 execution capacity in their selected environment. Logical run lifetime is
 independent of any activation. Replace separate conversation execution
 ownership with ordinary workflow admission, operations, controls and records.
+A shared-host activation boundary contains an ordinary authored panic as that
+run's failed outcome; another project's runs remain controllable and runnable.
+Run/Group retain panic reporting, while the host catches the escaped panic at
+the per-run boundary. Host loss/restart alone is not human cancellation and must not invent logical
+completion or cancellation facts. Host restart releases its Go activations; accepted native
+work remains subject to the existing executor checkpoint/reattach contract.
+No code/plugin update policy is established here. SERVICE lifecycle and
+restoration across host restart remain deferred, without a new missing-service
+check, restart action or restoration guarantee.
+
 Chat naming and workspace metadata may remain product data. This applies to
 local and non-local workflow placement in the selected execution environment.
 Remote ingress uses existing ControlWorkflow transport with interaction/input
@@ -470,6 +505,19 @@ not make arbitrary provider effects exactly once.
 
 ### Presentation and workflow admission: P and A
 
+Dormant and unresolved runs retain the existing explicit cancellation control.
+Cancel the logical run/scope, not merely its current activation; activate only
+the library cleanup/reconciliation needed to settle that cancellation, without
+replaying completed effect bodies. Actual cancellation uses existing terminal
+cleanup behavior. Suspension alone never runs that cleanup. If native cessation
+or cleanup is unconfirmed, retain its owned recoverable state and report it;
+there is no invented successful ending. Reconciliation can be retried by the
+host/control path by re-reading accepted executor work, without new native
+turn dispatch. Expose retry-recovery and cancellation with the actual cause and
+native/run identity. Uncertainty may remain unresolved when the external state
+cannot be confirmed; no forced abandon outcome or eventual-settlement promise
+is introduced. SERVICE restoration/rechecks remain excluded.
+
 P projects committed identity, replies, input disposition and execution state.
 Waiting and dormancy remain visibly unfinished; successful completion,
 cancellation and unresolved recovery are distinguishable. Human messages and
@@ -483,6 +531,20 @@ workflow bodies and their source-visible helpers cannot perform external
 effects or nondeterministic observations outside the library. A helper is not
 an escape hatch. Diagnostics reject prohibited authored code; the contract
 does not require a general Go sandbox or invent an Activity mechanism.
+Admission follows source-visible helpers across repository packages and uses
+an explicit narrow allowlist for known deterministic opaque functions. Unknown
+opaque calls are rejected, not trusted by package membership. Formatting/error
+construction, lexical path operations, scalar conversions, JSON encoding and
+pure collection/string calculations are eligible; ambient I/O, process cwd
+reads (including filepath.Abs), callbacks into unknown effectful code and direct
+context cancellation/deadline operations are not. Maintain the precise admitted
+function table beside the analyzer and admit only its known deterministic forms.
+Deterministic map lookup is allowed; raw map range is rejected. The known
+slices.Sorted(maps.Keys(m)) composition and standard JSON map-key ordering are
+admitted deterministic forms. This is a static authoring boundary, not a
+whole-Go sandbox. Revise public godoc for Steer, Killed, Group and package
+lifetime guidance to stop teaching newly forbidden authored constructs;
+steering/control still comes through library-owned ingress/concurrency.
 Migrate all maintained built-ins/examples to these rules using the existing
 library operations, including complete RunCommand outputs, and admit them
 through the same checks as project workflows.
@@ -540,8 +602,8 @@ screenshots or execution logs are committed as evidence.
 | C6 | Cell-local: I | Polytype validates the specified chat/end alternatives; per-occurrence transcripts include only confirmed delivered input and committed replies in the specified order; durable EndedBy distinguishes agent/human completion, with no invented ending on error; conversation re-entry waits or uses pending input instead of spinning |
 | C7 | Cell-local: I | Active input steers; a confirmed missed steer remains pending; uncertain delivery is not blindly repeated |
 | C8 | Cell-local: I | Finish is durable and idempotent, interrupts the active turn when safe, completes normally, and prevents late results from reopening the interaction |
-| C9 | Cell-local: H | Runnable runs from different projects share host capacity with independent invocation data and authoritative execution ownership |
-| C10 | Cell-local: H | Pending durable input is discovered after restart or lost notification without requiring a second human message or a competing activation |
+| C9 | Cell-local: H | Runnable runs from different projects share host capacity with independent invocation data and authoritative execution ownership; a panic in one run leaves other runs and host controls working |
+| C10 | Cell-local: H | Pending durable input is discovered after restart or lost notification without requiring a second human message or a competing activation; dormant cancellation and retry-reconciliation preserve ownership and honest unresolved outcomes |
 | C11 | Cell-local: P | Committed replies and waiting/runnable/terminal/unresolved state are rendered honestly; message/archive actions use durable addresses and acknowledgements |
 | C12 | Cell-local: A | Prohibited nondeterminism, effects, authored defer/recover and unrecorded timing/cancellation observations in bodies/helpers are rejected; Interactive replaces Interview in accepted API and workflow inspection; maintained built-ins/examples pass the same admission checks after migration |
 | L1 | Integration: J, E, I, H, P and native adapter | In the real app, converse, observe chat/wait, restart the host, send again, and observe the same run, native session continuity, scoped context, prior results and nonduplicated transcript |
@@ -550,9 +612,9 @@ screenshots or execution logs are committed as evidence.
 | L4 | Integration: J, E, I, H, P and native adapter | An agent end leaves the conversation available on its existing run without autonomous repeated turns; archive during an active turn then causes safe interruption, EndedBy human, normal Interactive return and actual successful workflow completion; unconfirmed cessation is shown honestly |
 
 Cell-local tests may use contract-faithful stand-ins. Live claims use the real
-application and native adapter, with the unversioned Codex `luna` alias for restart-continuity claims.
-Other live checks use the cheapest alias of their harness (`luna`, `haiku` or
-`flash`); report which one actually ran.
+application and native adapter, with the cheapest unversioned alias of the exercised harness (`luna`,
+`haiku` or `flash`); report which one actually ran. Native continuity uses the
+existing workflow executor checkpoint/reattach path, not a new adapter lifecycle.
 The proof must show behavior, not merely a green gate. It does not assert any
 policy about native agent resource retention or release.
 

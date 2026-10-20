@@ -146,3 +146,36 @@ unwind runs defers and recover can defeat suspension, while timing observations
 can change replay control flow. Library internals handle suspension; maintained
 workflows use explicit completion/error paths and library operations, with
 unsupported agent-turn timeouts removed. No new API is authorized for them.
+
+
+friction: Older Go-cache pruning reclaimed another 8 GiB, but did not measure
+or eliminate the full cache. The human reports the build cache above 100 GB
+and requests cleanup; started full `go clean -cache` scoped to that path.
+Do not confuse the amount removed with the cache's total remaining size.
+
+friction: User-authorized Docker cleanup initially failed on containerd/BuildKit
+I/O errors. Asked for restart because zoom-connect-postgres was running; human
+approved. Restarted Docker, restored that container and observed it healthy,
+then purged build cache and unused images. Persistent volumes were preserved.
+Docker's allocated disk image fell from 43.7 GiB to 6.9 GiB. No source data or
+application volumes were removed. Frontend dependencies are already installed
+from the existing local package cache; no duplicate dependency setup is needed.
+
+decision: Fresh independent Opus spec/plan review run
+01M5BJYVZXYGR9D9FM8XHTVQQ1.run-prompt reads the contract after the human's
+no-version-policy correction and authored unwind/timing decisions. Output path:
+ephemeral/reviews/durable-interactive-opus-spec-round-04.md.
+
+
+decision: Opus round 04 exposed an incorrect premise from round 03: ordinary
+workflow harnesses already use durable agentexecutor checkpoint/reattach, rather
+than conversation-only ResumeSession. Corrected the spec and reused that existing
+mechanism. Root confirmed binding.Adapter's actual route. Do not implement a new
+adapter lifecycle or regress working Claude/Pi/Agy continuation.
+
+decision: Clarified Run pending/same-ID reconstruction and caller deadline reuse,
+known-pure opaque-call admission, shared-host panic isolation and existing dormant
+cancellation/reconciliation. Rejected SERVICE restoration/recheck requirements and
+version policy under the human's explicit exclusions. Full adjudication in REVIEW.
+Ready for the two Sol 6.1 owners; a fresh spec review sees the pinned committed
+snapshot while they implement, avoiding serial idle time and duplicate proof.

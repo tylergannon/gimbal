@@ -130,3 +130,27 @@ test("leaving a chat destroys Rename without losing its message draft", async ()
     .element(screen.getByRole("textbox", { name: "Message Chat rename" }))
     .toHaveValue("Unsent followup");
 });
+
+// getByRole is strict: a second alert with the same error fails this lookup.
+test("a failed run shows its error once", async () => {
+  const error = "gimbal: agentic-dialogues.1: codex: model is not supported";
+  const current = {
+    ...record("failed"),
+    live: false,
+    status: "error",
+    error,
+    requests: [
+      {
+        id: "request",
+        created: 1,
+        kind: "prompt",
+        message: "hello",
+        status: "failed",
+        error,
+        delivery: "durable",
+      },
+    ],
+  } as Conversation;
+  const screen = await render(ConversationView, { project: "project", current, active: true });
+  await expect.element(screen.getByRole("alert")).toHaveTextContent(error);
+});

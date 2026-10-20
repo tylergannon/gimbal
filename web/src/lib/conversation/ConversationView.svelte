@@ -107,7 +107,7 @@
     {#each record.requests ?? [] as request (request.id)}
       {#if request.kind === 'prompt' && request.status === 'accepted'}<p class="activity">Queued · {request.message}</p>
       {:else if request.status === 'unprocessed'}<p class="activity">Unprocessed · {request.message}</p>
-      {:else if request.error && request.id !== record.active_request}<p class="notice" role="alert">{request.error}</p>{/if}
+      {:else if request.error && request.error !== record.error && request.id !== record.active_request}<p class="notice" role="alert">{request.error}</p>{/if}
     {/each}
     {#if !record.live}<p class="notice">Saved history. Start a new conversation to continue.</p>{/if}
     {#if inventory.error}<p class="notice" role="status">Server disconnected. The request may still be running. <button onclick={() => inventory.refresh()}>Reconnect</button></p>{/if}

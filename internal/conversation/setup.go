@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/tylergannon/gimbal/internal/environments"
+	"slices"
 )
 
 // SetupEnvironment observes choices on the selected machine without starting a
@@ -65,6 +66,11 @@ func (m *Manager) SetupEnvironment(ctx context.Context, environment string) (Set
 	return setup, nil
 }
 
+// observedHarnesses offers each machine harness's models as canonical
+// selections, once each. A model the harness reports that cannot run on that
+// harness is not offered. When the reported default is such a model (an older
+// remote helper's Pi default, for example) the harness stays offered with
+// Gimbal's own default instead of disappearing; its reported state still shows.
 func observedHarnesses(states []environments.Harness, fallback []Harness) []Harness {
 	if len(states) == 0 {
 		return fallback
@@ -73,11 +79,18 @@ func observedHarnesses(states []environments.Harness, fallback []Harness) []Harn
 	for _, h := range states {
 		model, _, err := providerModel(h.ID, h.Default)
 		if err != nil {
-			continue
+			if model, _, err = providerModel(h.ID, ""); err != nil {
+				continue
+			}
 		}
-		models := h.Models
-		if len(models) == 0 {
-			models = []string{model}
+		models := []string{}
+		for _, reported := range h.Models {
+			if offered, _, err := providerModel(h.ID, reported); err == nil && !slices.Contains(models, offered) {
+				models = append(models, offered)
+			}
+		}
+		if !slices.Contains(models, model) {
+			models = append([]string{model}, models...)
 		}
 		result = append(result, harnessOptions(h.ID, model, models))
 	}

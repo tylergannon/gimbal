@@ -97,6 +97,14 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 	}
 	if start {
 		if err := m.WorkflowStart(m.ctx, snapshot, route); err != nil {
+			// The run never began: keep no identifier for it, so the conversation
+			// stays idle and the next message starts a fresh run.
+			m.mu.Lock()
+			if item := m.items[id]; item != nil && item.WorkflowRun == snapshot.WorkflowRun {
+				item.WorkflowRun = ""
+				_ = m.save(item)
+			}
+			m.mu.Unlock()
 			return RequestState{}, err
 		}
 	}

@@ -133,7 +133,7 @@ func TestRunHelpShowsTheInputsAndTheRoles(t *testing.T) {
 			t.Errorf("run review --help lacks %s:\n%s", flag, help)
 		}
 	}
-	for _, phrase := range []string{"independent process", "client exits", "instance startup environment", "optional effort"} {
+	for _, phrase := range []string{"share their host's Go execution capacity", "Exiting this client does not cancel the run", "re-enters unfinished runs", "instance startup environment", "optional effort"} {
 		if !strings.Contains(help, phrase) {
 			t.Errorf("run review --help lacks %q", phrase)
 		}

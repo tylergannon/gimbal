@@ -157,3 +157,39 @@ func TestStopAndFinishUseOrdinaryWorkflowIngress(t *testing.T) {
 		t.Fatalf("controls %+v", inputs)
 	}
 }
+
+func TestFirstInputWaitsForItsOneWorkflowOwner(t *testing.T) {
+	m, item := managerWithControl(t, &controlledChat{})
+	starts, deliveries := 0, 0
+	var originalRun, originalInput string
+	m.WorkflowStart = func(_ context.Context, item Conversation) error { starts++; originalRun = item.WorkflowRun; return nil }
+	m.WorkflowInput = func(run, address, raw string) error {
+		deliveries++
+		if run != originalRun || address != "conversation" {
+			t.Fatal("handoff changed run or address")
+		}
+		if originalInput == "" {
+			originalInput = raw
+		} else if originalInput != raw {
+			t.Fatal("startup retry changed input identity/content")
+		}
+		if deliveries < 3 {
+			return errors.New("gimbal: interaction owner is starting or unavailable; retry input with the same ID")
+		}
+		return nil
+	}
+	first := request("first-message", "Retain this exact message")
+	state, err := m.Submit(item.ID, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || deliveries != 3 || state.Status != "accepted" {
+		t.Fatalf("starts=%d deliveries=%d state=%+v", starts, deliveries, state)
+	}
+	if _, err := m.Submit(item.ID, first); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || deliveries != 3 {
+		t.Fatal("accepted retry restarted or redelivered")
+	}
+}

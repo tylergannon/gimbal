@@ -1,8 +1,11 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"strings"
+	"time"
 
 	"github.com/tylergannon/gimbal/runstore"
 )
@@ -84,8 +87,23 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 		}
 	}
 	raw, _ := json.Marshal(map[string]any{"id": request.ID, "message": message, "finish": request.Kind == "finish", "stop": request.Kind == "interrupt"})
-	if err := m.WorkflowInput(snapshot.WorkflowRun, "conversation", string(raw)); err != nil {
-		return RequestState{}, err
+	// The runner announces its controller before its Go body installs the
+	// first Interactive owner. Keep this first handoff in the same request,
+	// with one run and one input identity; only the ready owner can admit it.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		err := m.WorkflowInput(snapshot.WorkflowRun, "conversation", string(raw))
+		if err == nil {
+			break
+		}
+		if !start || !strings.Contains(err.Error(), "interaction owner is starting or unavailable") || time.Now().After(deadline) {
+			return RequestState{}, err
+		}
+		select {
+		case <-m.ctx.Done():
+			return RequestState{}, context.Cause(m.ctx)
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 	state := RequestState{Request: request, Status: "accepted", Delivery: "durable"}
 	m.mu.Lock()

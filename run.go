@@ -154,9 +154,9 @@ func Run(ctx context.Context, runID string, name string, models map[WorkflowRole
 		return err
 	}
 	defer release()
-	if completed, err := r.completedResult(); completed {
+	if completed, _ := r.completedResult(); completed {
 		r.closeObservers()
-		return err
+		return errors.New("gimbal: run is already completed")
 	}
 	err = r.root(ctx, name, body)
 	// A panic that a Group child recovered comes back as the body's error
@@ -322,7 +322,7 @@ func (r *run) finish(name string, err error) error {
 	r.event("", "", "", Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))})
 	r.recordFailure("flush run store", r.records.Flush(context.Background()))
 	r.closeObservers()
-	err = errors.Join(err, r.recordingError(), r.observationError())
+	err = errors.Join(err, r.recordingError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
 }

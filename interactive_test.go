@@ -18,6 +18,7 @@ import (
 
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/runstore"
+	"github.com/tylergannon/gimbal/runstore/directory"
 )
 
 type interactionAdapter struct {
@@ -308,7 +309,7 @@ func TestInteractiveRestartChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := Project(context.Background(), state)
+	ctx := WithRunStore(Project(context.Background(), state), pauseInteractionStore{Store: directory.Store{Root: filepath.Join(state, "runs")}, state: state})
 	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() {
 		go func() {
 			_ = http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -410,14 +411,23 @@ func TestInteractiveResultsContextAndSessionSurviveRestart(t *testing.T) {
 	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting })
 	send("one", "First", false)
 	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting && len(s.Transcript.Messages) == 2 })
+	// Hold the transition after owner admission, before the accepted input
+	// can be consumed or dispatched. Its acknowledgement has already returned.
+	if err := os.WriteFile(filepath.Join(state, "pause-input"), nil, 0600); err != nil {
+		t.Fatal(err)
+	}
+	send("two", "Second", false)
+	eventuallyInteractive(t, func() bool { _, err := os.Stat(filepath.Join(state, "input-blocked")); return err == nil })
 	if err := child.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
 	_ = child.Wait()
 	first := string(mustReadInteractive(t, filepath.Join(state, "runs", id, "run.jsonl")))
+	if err := os.Remove(filepath.Join(state, "pause-input")); err != nil {
+		t.Fatal(err)
+	}
 	start()
-	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting && len(s.Transcript.Messages) == 2 })
-	send("two", "Second", false)
+	// No resend: startup must find and consume the acknowledged queue item.
 	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting && len(s.Transcript.Messages) == 4 })
 	send("finish", "", true)
 	if err := child.Wait(); err != nil {
@@ -479,4 +489,48 @@ func TestInteractiveIdleConfigurationAndFinalDeregistration(t *testing.T) {
 	if len(r.scopes) != 0 {
 		t.Fatal("terminal run retained live scopes")
 	}
+}
+
+// This store fixture pauses only the uncommitted transition in the child. It
+// lets the parent crash the real process after input acknowledgement.
+type pauseInteractionStore struct {
+	runstore.Store
+	state string
+}
+type pauseInteractionRun struct {
+	runstore.Run
+	state string
+}
+
+func (s pauseInteractionStore) Create(ctx context.Context, header runstore.Header) (runstore.Run, error) {
+	r, err := s.Store.Create(ctx, header)
+	if err != nil {
+		return nil, err
+	}
+	return pauseInteractionRun{r, s.state}, nil
+}
+func (s pauseInteractionStore) Open(ctx context.Context, id runstore.RunID) (runstore.Run, error) {
+	r, err := s.Store.Open(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return pauseInteractionRun{r, s.state}, nil
+}
+func (r pauseInteractionRun) Append(ctx context.Context, facts []runstore.Fact, d runstore.Durability) ([]runstore.Record, error) {
+	for _, fact := range facts {
+		if fact.Kind != "interaction" {
+			continue
+		}
+		var state interactionState
+		if json.Unmarshal(fact.Payload, &state) == nil && state.ActiveInput == "two" {
+			if _, err := os.Stat(filepath.Join(r.state, "pause-input")); err == nil {
+				if err := os.WriteFile(filepath.Join(r.state, "input-blocked"), nil, 0600); err != nil {
+					return nil, err
+				}
+				<-ctx.Done()
+				return nil, ctx.Err()
+			}
+		}
+	}
+	return r.Run.Append(ctx, facts, d)
 }

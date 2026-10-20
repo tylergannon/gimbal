@@ -452,7 +452,9 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 						}
 					}
 				}
-				if (status == "waiting" && (request.Status == "running" || delivered)) || status == "completed" {
+				if status == "completed" && request.Kind == "prompt" && !delivered && request.Status != "completed" {
+					request.Status = "unprocessed"
+				} else if (status == "waiting" && (request.Status == "running" || delivered)) || status == "completed" {
 					if request.Status == "accepted" || request.Status == "running" {
 						request.Status = "completed"
 					}

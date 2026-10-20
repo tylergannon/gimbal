@@ -128,7 +128,7 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 			// Finish closes ingress at acceptance, including queued messages that
 			// were accepted before it. They must never start another native turn.
 			for _, input := range inputs {
-				if input.Finish {
+				if input.Finish && state.ActiveInput == "" {
 					state.Consumed = append(state.Consumed, input.ID)
 					state.Transcript.EndedBy, state.Waiting = "human", false
 					state.ActiveInput, state.Prompt = "", ""
@@ -256,10 +256,17 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 			session.mu.Unlock()
 			r.interactionMu.Lock()
 			r.refreshInteractions()
+			input := r.interactionInputs[state.ActiveInput]
 			if !state.InputPublished && (completed.err == nil || delivered) {
-				input := r.interactionInputs[state.ActiveInput]
 				state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: input.Message})
 				state.InputPublished = true
+				input.Disposition = "delivered"
+			} else if !state.InputPublished && errors.Is(completed.err, context.Canceled) {
+				input.Disposition = "unprocessed"
+			}
+			if err := r.updateInput(input); err != nil {
+				r.interactionMu.Unlock()
+				return state.Transcript, err
 			}
 			finish, stop := false, false
 			for _, next := range r.pendingInput(state) {

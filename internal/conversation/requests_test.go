@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/runstate"
 )
@@ -37,7 +38,7 @@ func newMetadataManager(ctx context.Context, dir string, factory AdapterFactory,
 		histories[item.WorkflowRun], states[item.WorkflowRun] = history, item.Status
 	}
 	m.mu.Unlock()
-	m.WorkflowStart = func(_ context.Context, item Conversation) error {
+	m.WorkflowStart = func(_ context.Context, item Conversation, _ backend.Route) error {
 		mu.Lock()
 		defer mu.Unlock()
 		histories[item.WorkflowRun] = gimbal.InteractiveTranscript{}
@@ -162,7 +163,11 @@ func TestFirstInputWaitsForItsOneWorkflowOwner(t *testing.T) {
 	m, item := managerWithControl(t, &controlledChat{})
 	starts, deliveries := 0, 0
 	var originalRun, originalInput string
-	m.WorkflowStart = func(_ context.Context, item Conversation) error { starts++; originalRun = item.WorkflowRun; return nil }
+	m.WorkflowStart = func(_ context.Context, item Conversation, _ backend.Route) error {
+		starts++
+		originalRun = item.WorkflowRun
+		return nil
+	}
 	m.WorkflowInput = func(run, address, raw string) error {
 		deliveries++
 		if run != originalRun || address != "conversation" {

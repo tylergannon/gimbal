@@ -3,7 +3,6 @@ package runner
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -13,14 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/executor"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
-	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/runstore"
 )
 
@@ -199,11 +196,6 @@ func (d *WorkflowDaemon) Handler() http.Handler {
 			c, err = Connect(filepath.Join(project, ".gimbal"), v.Run)
 			if err == nil {
 				reply.Value, err = control(r.Context(), c, v)
-			} else if v.Action == "interactive" {
-				err = runstate.SubmitInteractive(r.Context(), filepath.Join(project, ".gimbal"), v.Run, v.Target, v.Message)
-				if err == nil {
-					d.recoverRun(context.Background(), v.Run)
-				}
 			}
 		}
 		if err != nil {
@@ -400,27 +392,17 @@ func (d *WorkflowDaemon) recoverRun(ctx context.Context, id string) {
 	go func() {
 		defer func() { d.mu.Lock(); delete(d.recovering, id); d.mu.Unlock() }()
 		state := filepath.Join(request.Project, ".gimbal")
-		for {
-			if ctx.Err() != nil {
-				return
-			}
-			if _, err := Connect(state, id); err == nil {
-				return
-			}
-			if snapshot, err := observation.NewRegistry(state).Snapshot(id); err == nil && snapshot.Run.Status != observation.StatusRunning {
-				return
-			}
-			if _, err := Spawn(request); err == nil {
-				return
-			} else if !errors.Is(err, runstore.ErrBusy) {
-				log.Printf("gimbal: recover remote %s: %v", id, err)
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case <-time.After(100 * time.Millisecond):
-			}
+		if ctx.Err() != nil {
+			return
+		}
+		if _, err := Connect(state, id); err == nil {
+			return
+		}
+		if snapshot, err := observation.NewRegistry(state).Snapshot(id); err == nil && snapshot.Run.Status != observation.StatusRunning {
+			return
+		}
+		if _, err := Spawn(request); err != nil {
+			log.Printf("gimbal: startup remote run %s unavailable: %v", id, err)
 		}
 	}()
 }

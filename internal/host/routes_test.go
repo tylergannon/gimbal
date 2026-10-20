@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/invocation"
@@ -148,5 +149,64 @@ func TestRejectedWorkflowAdmissionIsKnownFailed(t *testing.T) {
 	}
 	if record.Admission != "failed" {
 		t.Fatalf("known rejection marked %s", record.Admission)
+	}
+}
+
+func TestLocalWorkflowRetainsRemoteTaskDirectoryAndRoute(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/tasks/cleanup" {
+			t.Errorf("unexpected native dispatch %s", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(backend.Reply{})
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	owner := New(ctx, t.TempDir())
+	defer owner.Close()
+	project, err := owner.AdmitProject(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	configuration, _ := json.Marshal(map[string]string{"endpoint": server.URL})
+	route := backend.Route{Name: "http", Configuration: configuration, Label: "Separate daemon"}
+	id, err := project.Start(invocation.Request{Workflow: "conversation", Input: json.RawMessage(`{"purpose":"Remote placement."}`), WorkDir: "/only-on-remote-daemon/repository", TaskRoute: route})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(project.Dir(), "invocations", id+".json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var saved invocation.Request
+	if err := json.Unmarshal(raw, &saved); err != nil {
+		t.Fatal(err)
+	}
+	if saved.WorkDir != "/only-on-remote-daemon/repository" || saved.TaskRoute.Name != "http" || string(saved.TaskRoute.Configuration) != string(configuration) {
+		t.Fatalf("saved placement=%+v", saved)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		control, err := project.Runs().InProgress(id)
+		if err == nil {
+			err = control.SubmitInteractive("conversation", `{"id":"finish","finish":true}`)
+		}
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	for {
+		snapshot, err := project.Registry().Snapshot(id)
+		if err == nil && snapshot.Run.Status == observation.StatusCompleted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("completion=%+v %v", snapshot.Run, err)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

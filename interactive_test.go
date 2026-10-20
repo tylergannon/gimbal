@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
@@ -304,7 +305,7 @@ func TestInteractiveRestartChild(t *testing.T) {
 	if state == "" {
 		t.Skip("restart child")
 	}
-	adapter := &interactionAdapter{}
+	adapter := &restartInteractionAdapter{interactionAdapter: &interactionAdapter{}, state: state}
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -327,6 +328,17 @@ func TestInteractiveRestartChild(t *testing.T) {
 		return func() {}
 	})
 	err = Run(ctx, os.Getenv("GIMBAL_INTERACTIVE_RESTART_ID"), "restart", map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}, func(ctx context.Context) error {
+		var prior Text
+		if err := Scope(ctx, "completed", func(ctx context.Context) error {
+			var err error
+			prior, err = NewSession(ctx, RoleAgenticDialogues, "").Generate[Text](ctx, "Saved generation.")
+			return err
+		}); err != nil {
+			return err
+		}
+		if prior != "saved-generation" {
+			return fmt.Errorf("saved generation lost: %q", prior)
+		}
 		code, out, _, err := RunCommand(ctx, "once", state, "sh", "-c", "printf x >> executions; printf saved-result")
 		if err != nil {
 			return err
@@ -441,9 +453,16 @@ func TestInteractiveResultsContextAndSessionSurviveRestart(t *testing.T) {
 	if !strings.HasPrefix(second, first) {
 		t.Fatal("restart replaced prior history")
 	}
-	if strings.Count(second, `"kind":"turn_started"`) != 2 {
+	if strings.Count(second, `"kind":"turn_started"`) != 3 {
 		t.Fatalf("turn history: %s", second)
 	}
+	if got := string(mustReadInteractive(t, filepath.Join(state, "generations"))); got != "x" {
+		t.Fatalf("completed Generate redispatched: %q", got)
+	}
+	if got := string(mustReadInteractive(t, filepath.Join(state, "closes"))); strings.Count(got, "\n") != 2 {
+		t.Fatalf("completed scope cleanup repeated: %q", got)
+	}
+
 }
 func mustReadInteractive(t *testing.T, path string) []byte {
 	t.Helper()
@@ -533,4 +552,33 @@ func (r pauseInteractionRun) Append(ctx context.Context, facts []runstore.Fact, 
 		}
 	}
 	return r.Run.Append(ctx, facts, d)
+}
+
+type restartInteractionAdapter struct {
+	*interactionAdapter
+	state string
+}
+
+func (a *restartInteractionAdapter) CreateSession(ctx context.Context, _, _, _ string) (string, error) {
+	return effects.ExecutionIdentityFromContext(ctx).ExecutorSession, nil
+}
+func (a *restartInteractionAdapter) RunTurn(ctx context.Context, native, prompt string, schema json.RawMessage, emit func(AgentEvent) error) (TurnResult, error) {
+	if len(schema) == 0 {
+		if err := a.appendMarker("generations", "x"); err != nil {
+			return TurnResult{}, err
+		}
+		return TurnResult{Output: json.RawMessage(`"saved-generation"`)}, nil
+	}
+	return a.interactionAdapter.RunTurn(ctx, native, prompt, schema, emit)
+}
+func (a *restartInteractionAdapter) Close(_ context.Context, native string) error {
+	return a.appendMarker("closes", native+"\n")
+}
+func (a *restartInteractionAdapter) appendMarker(name, text string) error {
+	file, err := os.OpenFile(filepath.Join(a.state, name), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, writeErr := file.WriteString(text)
+	return errors.Join(writeErr, file.Close())
 }

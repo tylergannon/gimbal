@@ -14,9 +14,9 @@ import (
 	"path/filepath"
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/environments"
@@ -157,13 +157,13 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
-	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation) error {
+	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation, route backend.Route) error {
 		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item)})
 		spec := item.Model
 		if item.Effort != "" {
 			spec += ":" + item.Effort
 		}
-		_, err := p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
+		_, err := p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, TaskRoute: route, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
 		return err
 	}
 	conversations.WorkflowInput = func(id, address, request string) error {
@@ -255,21 +255,14 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 			continue
 		}
 		go func() {
-			for {
-				if _, e := runner.Connect(state, request.RunID); e == nil {
-					return
-				}
-				if _, e := runner.Spawn(request); e == nil {
-					return
-				} else if !errors.Is(e, runstore.ErrBusy) {
-					log.Printf("gimbal: recover %s: %v", request.RunID, e)
-					return
-				}
-				select {
-				case <-p.ctx.Done():
-					return
-				case <-time.After(100 * time.Millisecond):
-				}
+			if p.ctx.Err() != nil {
+				return
+			}
+			if _, err := runner.Connect(state, request.RunID); err == nil {
+				return
+			}
+			if _, err := runner.Spawn(request); err != nil {
+				log.Printf("gimbal: startup run %s unavailable: %v", request.RunID, err)
 			}
 		}()
 	}
@@ -440,7 +433,7 @@ func (p *Project) Start(request invocation.Request) (string, error) {
 	if !filepath.IsAbs(request.WorkDir) {
 		return "", errors.New("work_dir must be absolute")
 	}
-	if request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local" {
+	if (request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local") && (request.TaskRoute.Name == "" || request.TaskRoute.Name == "local") && request.TaskEndpoint == "" {
 		if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
 			return "", errors.New("work_dir must be an existing directory")
 		}

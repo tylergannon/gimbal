@@ -1,6 +1,7 @@
 package conversation
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -249,5 +250,31 @@ func TestRemotePreparationRetryRetainsOriginalCheckoutIdentity(t *testing.T) {
 	}
 	if err = restored.Cleanup(t.Context(), item.ID); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestRemoteConversationPassesItsRetainedTaskRouteToWorkflow(t *testing.T) {
+	m, _, _ := remoteManager(t, &remoteFixture{})
+	var admitted Conversation
+	var taskRoute backend.Route
+	m.WorkflowStart = func(_ context.Context, item Conversation, route backend.Route) error {
+		admitted = item
+		taskRoute = route
+		return nil
+	}
+	item, err := m.Start(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true}, "Remember remote context")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if admitted.WorkflowRun == "" || admitted.Worktree != "/remote/project" || taskRoute.Name != "http" {
+		t.Fatalf("admission=%+v route=%+v", admitted, taskRoute)
+	}
+	m.mu.RLock()
+	expected := m.remoteStates[item.ID].Target.Route
+	m.mu.RUnlock()
+	gotRaw, _ := json.Marshal(taskRoute)
+	wantRaw, _ := json.Marshal(expected)
+	if string(gotRaw) != string(wantRaw) {
+		t.Fatalf("route changed: got %s want %s", gotRaw, wantRaw)
 	}
 }

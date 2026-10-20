@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/runstore"
 )
 
@@ -72,6 +73,19 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 		}
 	}
 	snapshot := clone(item)
+	route := backend.Route{}
+	if start && remotePlacement(item) {
+		if state := m.remoteStates[id]; state != nil {
+			route = state.Target.Route
+		}
+		if active := m.active[id]; active != nil && active.remote != nil {
+			route = active.remote.Target.Route
+		}
+		if route.Name == "" {
+			m.mu.Unlock()
+			return RequestState{}, errors.New("conversation: retained remote route is unavailable")
+		}
+	}
 	m.mu.Unlock()
 	message := request.Message
 	if request.FileID != "" {
@@ -82,7 +96,7 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 		message += "\n\nRead the attached file " + name + " at " + path + "."
 	}
 	if start {
-		if err := m.WorkflowStart(m.ctx, snapshot); err != nil {
+		if err := m.WorkflowStart(m.ctx, snapshot, route); err != nil {
 			return RequestState{}, err
 		}
 	}

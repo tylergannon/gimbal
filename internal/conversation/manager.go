@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/environments"
 	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
@@ -121,7 +122,7 @@ type activeConversation struct {
 // conversation sessions may persist their native identity with the transcript.
 type Manager struct {
 	workflowMu      sync.Mutex
-	WorkflowStart   func(context.Context, Conversation) error
+	WorkflowStart   func(context.Context, Conversation, backend.Route) error
 	WorkflowInput   func(string, string, string) error
 	WorkflowObserve func(string) (gimbal.InteractiveTranscript, string, []string, error)
 	ctx             context.Context
@@ -443,16 +444,16 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 				}
 				delivered := false
 				if request.Kind == "prompt" {
-					for messageIndex < len(transcript.Messages) {
-						message := transcript.Messages[messageIndex]
-						messageIndex++
+					for cursor := messageIndex; cursor < len(transcript.Messages); cursor++ {
+						message := transcript.Messages[cursor]
 						if message.Role == "user" && (message.Message == request.Message || (request.FileID != "" && strings.HasPrefix(message.Message, request.Message+"\n\nRead the attached file "))) {
 							delivered = true
+							messageIndex = cursor + 1
 							break
 						}
 					}
 				}
-				if status == "completed" && request.Kind == "prompt" && !delivered && request.Status != "completed" {
+				if request.Kind == "prompt" && !delivered && ((status == "completed" && request.Status != "completed") || (status == "waiting" && request.Status == "running")) {
 					request.Status = "unprocessed"
 				} else if (status == "waiting" && (request.Status == "running" || delivered)) || status == "completed" {
 					if request.Status == "accepted" || request.Status == "running" {

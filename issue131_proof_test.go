@@ -83,15 +83,18 @@ func TestIssue131RunClosesOwnedSessionLogs(t *testing.T) {
 	}
 }
 
-func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
+func TestIssue131DiagnosticFailuresPreserveExecutionResults(t *testing.T) {
 	t.Run("project open", func(t *testing.T) {
 		project := t.TempDir()
 		if err := os.Mkdir(filepath.Join(project, "project.jsonl"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		r, err := issue131Run(t, project, "project-open", &issue131Adapter{}, func(context.Context, *run) error { return nil })
-		if err == nil || !strings.Contains(err.Error(), "open project log") {
-			t.Fatalf("Run error = %v, want project-log open failure", err)
+		if err != nil {
+			t.Fatalf("projection fault changed execution result: %v", err)
+		}
+		if got := r.observationError(); got == nil || !strings.Contains(got.Error(), "open project log") {
+			t.Fatalf("missing project diagnostic: %v", got)
 		}
 		var complete Complete
 		if readErr := runlog.Read[LifecycleRecord](t.Context(), r.dir, func(record LifecycleRecord) error {
@@ -109,21 +112,24 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 
 	t.Run("session open", func(t *testing.T) {
 		adapter := &issue131Adapter{}
-		_, err := issue131Run(t, t.TempDir(), "session-open", adapter, func(ctx context.Context, r *run) error {
+		r, err := issue131Run(t, t.TempDir(), "session-open", adapter, func(ctx context.Context, r *run) error {
 			if err := os.WriteFile(filepath.Join(r.dir, "sessions"), []byte("blocked"), 0o644); err != nil {
 				return err
 			}
 			_, generateErr := NewSession(ctx, "worker", t.TempDir()).Generate[Text](ctx, "turn")
 			return generateErr
 		})
-		if err == nil || !strings.Contains(err.Error(), "open session log") {
-			t.Fatalf("Run error = %v, want session-log open failure", err)
+		if err != nil {
+			t.Fatalf("projection fault changed execution result: %v", err)
+		}
+		if got := r.observationError(); got == nil || !strings.Contains(got.Error(), "open session log") {
+			t.Fatalf("missing session diagnostic: %v", got)
 		}
 	})
 
 	t.Run("session write", func(t *testing.T) {
 		adapter := &issue131Adapter{}
-		_, err := issue131Run(t, t.TempDir(), "session-write", adapter, func(ctx context.Context, r *run) error {
+		r, err := issue131Run(t, t.TempDir(), "session-write", adapter, func(ctx context.Context, r *run) error {
 			s := NewSession(ctx, "worker", t.TempDir())
 			if _, err := s.Generate[Text](ctx, "first"); err != nil {
 				return err
@@ -137,14 +143,17 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 			_, generateErr := s.Generate[Text](ctx, "second")
 			return generateErr
 		})
-		if err == nil || !strings.Contains(err.Error(), "write session log") {
-			t.Fatalf("Run error = %v, want session-log write failure", err)
+		if err != nil {
+			t.Fatalf("projection fault changed execution result: %v", err)
+		}
+		if got := r.observationError(); got == nil || !strings.Contains(got.Error(), "write session log") {
+			t.Fatalf("missing session diagnostic: %v", got)
 		}
 	})
 
 	t.Run("session close", func(t *testing.T) {
 		adapter := &issue131Adapter{}
-		_, err := issue131Run(t, t.TempDir(), "session-close-error", adapter, func(ctx context.Context, r *run) error {
+		r, err := issue131Run(t, t.TempDir(), "session-close-error", adapter, func(ctx context.Context, r *run) error {
 			s := NewSession(ctx, "worker", t.TempDir())
 			if _, err := s.Generate[Text](ctx, "turn"); err != nil {
 				return err
@@ -154,14 +163,17 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 			r.mu.Unlock()
 			return writer.file.Close()
 		})
-		if err == nil || !strings.Contains(err.Error(), "close session log") {
-			t.Fatalf("Run error = %v, want session-log close failure", err)
+		if err != nil {
+			t.Fatalf("projection fault changed execution result: %v", err)
+		}
+		if got := r.observationError(); got == nil || !strings.Contains(got.Error(), "close session log") {
+			t.Fatalf("missing session diagnostic: %v", got)
 		}
 	})
 
 	t.Run("run write and workflow error", func(t *testing.T) {
 		workflowErr := errors.New("workflow failed")
-		_, err := issue131Run(t, t.TempDir(), "combined", &issue131Adapter{}, func(_ context.Context, r *run) error {
+		r, err := issue131Run(t, t.TempDir(), "combined", &issue131Adapter{}, func(_ context.Context, r *run) error {
 			if err := r.writer.file.Close(); err != nil {
 				return err
 			}
@@ -170,8 +182,8 @@ func TestIssue131RunSurfacesRecordingFailures(t *testing.T) {
 		if !errors.Is(err, workflowErr) {
 			t.Fatalf("Run error = %v, want original workflow error", err)
 		}
-		if !strings.Contains(err.Error(), "write run log") {
-			t.Fatalf("Run error = %v, want recording failure too", err)
+		if got := r.observationError(); got == nil || !strings.Contains(got.Error(), "write run log") {
+			t.Fatalf("missing run diagnostic: %v", got)
 		}
 	})
 }

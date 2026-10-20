@@ -58,7 +58,7 @@ func catalogCommand(d gimbal.WorkflowDescription) *cobra.Command {
 	var follow bool
 	values := map[string]func() any{}
 	roles := map[gimbal.WorkflowRole]*string{}
-	cmd := &cobra.Command{Use: d.Name, Short: d.Summary, Long: d.Help + "\n\nEach accepted run executes in an independent process that survives after the client exits and through central restart. Native executables and provider configuration come from the instance startup environment, or the selected task backend. Each role flag chooses a model and optional effort.", Args: cobra.NoArgs}
+	cmd := &cobra.Command{Use: d.Name, Short: d.Summary, Long: d.Help + "\n\nAccepted workflows share their host's Go execution capacity. Exiting this client does not cancel the run. Restarting the host re-enters unfinished runs using their saved results and native session bindings. Native executables and provider configuration come from the instance startup environment, or the selected task backend. Each role flag chooses a model and optional effort.", Args: cobra.NoArgs}
 	for _, field := range d.Fields {
 		usage := field.Description
 		if !field.Optional {

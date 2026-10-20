@@ -741,3 +741,74 @@ func TestNormalizedInboxIDsKeepHumanPromptsAndSteerOwnership(t *testing.T) {
 		t.Fatalf("normalized input replay differs")
 	}
 }
+
+func TestReplayedAssistantKeepsLatestToolStateWithoutDuplicateNarration(t *testing.T) {
+	for _, provider := range []string{"codex", "claude"} {
+		t.Run(provider, func(t *testing.T) {
+			observe := observeWith("working", gimbal.InteractiveMessage{Role: "user", Message: "Start"})
+			manager, registry, project, item := conversationWithRun(t, observe)
+			submit(t, manager, item.ID, Request{ID: "req-1", Created: 500, Message: "Start"})
+			journal := newJournal()
+			journal.consumed("req-1")
+			journal.startTurn(1, "Start")
+			journal.native(1, "session.text.started", `{"sessionID":"ses_a","assistantMessageID":"msg_1","ordinal":0}`)
+			journal.native(1, "session.text.ended", `{"sessionID":"ses_a","assistantMessageID":"msg_1","ordinal":0,"text":"Waiting for the tool."}`)
+			journal.native(1, "session.tool.input.started", `{"sessionID":"ses_a","assistantMessageID":"msg_1","id":"call_1","name":"commandExecution"}`)
+			journal.native(1, "session.tool.called", `{"sessionID":"ses_a","assistantMessageID":"msg_1","id":"call_1","input":{"command":"sleep 1"},"executed":true}`)
+			// The reopened owner replays this same native message under a new
+			// normalized ID, then emits the tool's terminal state.
+			journal.native(1, "session.step.started", `{"sessionID":"ses_a","assistantMessageID":"msg_replayed","agent":"coder","model":{"id":"cheap","providerID":"provider"}}`)
+			journal.native(1, "session.text.started", `{"sessionID":"ses_a","assistantMessageID":"msg_replayed","ordinal":0}`)
+			journal.native(1, "session.text.ended", `{"sessionID":"ses_a","assistantMessageID":"msg_replayed","ordinal":0,"text":"Waiting for the tool."}`)
+			journal.native(1, "session.tool.input.started", `{"sessionID":"ses_a","assistantMessageID":"msg_replayed","id":"call_1","name":"commandExecution"}`)
+			journal.native(1, "session.tool.called", `{"sessionID":"ses_a","assistantMessageID":"msg_replayed","id":"call_1","input":{"command":"sleep 1"},"executed":true}`)
+			journal.native(1, "session.tool.success", `{"sessionID":"ses_a","assistantMessageID":"msg_replayed","id":"call_1","output":"done"}`)
+			// Identical prose from another native message is still a separate row.
+			journal.native(1, "session.step.started", `{"sessionID":"ses_a","assistantMessageID":"msg_distinct","agent":"coder","model":{"id":"cheap","providerID":"provider"}}`)
+			journal.native(1, "session.text.started", `{"sessionID":"ses_a","assistantMessageID":"msg_distinct","ordinal":0}`)
+			journal.native(1, "session.text.ended", `{"sessionID":"ses_a","assistantMessageID":"msg_distinct","ordinal":0,"text":"Waiting for the tool."}`)
+			for index, line := range journal.session {
+				var record map[string]any
+				if err := json.Unmarshal([]byte(line), &record); err != nil {
+					t.Fatal(err)
+				}
+				data := record["event"].(map[string]any)["data"].(map[string]any)
+				id, _ := data["assistantMessageID"].(string)
+				if id == "" {
+					continue
+				}
+				nativeID := "native-message"
+				if id == "msg_distinct" {
+					nativeID = "another-native-message"
+				}
+				ref := map[string]any{"provider": provider, "sessionID": "native-session", "messageID": nativeID, "normalizedMessageID": id}
+				if provider == "codex" {
+					ref["turnID"] = "native-turn"
+				}
+				record["native_ref"] = ref
+				raw, err := json.Marshal(record)
+				if err != nil {
+					t.Fatal(err)
+				}
+				journal.session[index] = string(raw)
+			}
+			journal.endTurn(1)
+			run, _ := manager.Get(item.ID)
+			journal.open(t, registry, project, run.WorkflowRun)
+			live, _ := manager.Get(item.ID)
+			rows := chatRows(t, live)
+			if got, want := fmt.Sprint(rowIDs(rows)), `[req-1/prompt req-1/msg_replayed req-1/msg_distinct]`; got != want {
+				t.Fatalf("rows got %s want %s", got, want)
+			}
+			content := parts(rows[1])
+			if len(content) != 2 || content[0]["text"] != "Waiting for the tool." || content[1]["state"].(map[string]any)["status"] != "completed" {
+				t.Fatalf("latest assistant content: %v", content)
+			}
+			journal.write(t, project, run.WorkflowRun)
+			replayed := reopen(t, project, live, observe)
+			if replayed.State != live.State {
+				t.Fatal("saved replay differs from live projection")
+			}
+		})
+	}
+}

@@ -95,8 +95,10 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 			item.Requests[request].Status = "completed"
 		}
 		state := run.Transcripts[turn.ID].Snapshot.State
+		seenAssistants := map[string]int{}
 		for _, key := range slices.Sorted(maps.Keys(state.Message)) {
 			for _, row := range state.Message[key] {
+				replayed := assistantIdentity(run.Transcripts[turn.ID], row)
 				if row = turnMessage(item, request, turn, row, run.Transcripts[turn.ID]); row != nil {
 					// A resumed native session can replay one admitted input under
 					// another normalized ID. Its provenance still names the same row.
@@ -106,6 +108,15 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 							continue
 						}
 						seenInputs[id] = true
+					}
+					// Catch-up may normalize a replayed native message again. Its
+					// latest projection supersedes the earlier partial tool state.
+					if replayed != "" {
+						if index, found := seenAssistants[replayed]; found {
+							messages[index] = row
+							continue
+						}
+						seenAssistants[replayed] = len(messages)
 					}
 					messages = append(messages, row)
 				}
@@ -163,6 +174,23 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 	item.State = gimbal.JSONText(raw)
 	after, _ := json.Marshal([]any{item.State, item.Requests})
 	return string(before) != string(after), nil
+}
+
+func assistantIdentity(transcript observation.Transcript, row *sessionstate.Obj) string {
+	if row.Get("type") != "assistant" {
+		return ""
+	}
+	id, _ := row.Get("id").(string)
+	var ref struct {
+		Provider string `json:"provider"`
+		Session  string `json:"sessionID"`
+		Turn     string `json:"turnID"`
+		Message  string `json:"messageID"`
+	}
+	if json.Unmarshal(transcript.Provenance[id], &ref) != nil || ref.Provider == "" || ref.Provider == "gimbal" || ref.Session == "" || ref.Message == "" {
+		return ""
+	}
+	return strings.Join([]string{ref.Provider, ref.Session, ref.Turn, ref.Message}, "\x00")
 }
 
 // showsTurns reports whether a saved projection holds more than the prompts

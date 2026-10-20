@@ -45,6 +45,9 @@ const requestTimeout = 30 * time.Second
 // controlTimeout bounds one stop confirmation step; tests shorten it.
 var controlTimeout = 5 * time.Second
 
+// busyPoll is how often a waiting prompt rereads the thread's native status.
+var busyPoll = time.Second
+
 // adapter runs Codex sessions against the machine's shared app-server
 // daemon over one shared connection, dialed lazily on first use.
 type adapter struct {
@@ -312,11 +315,29 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		return gimbal.TurnResult{}, err
 	}
 	// An earlier Stop may have gone unconfirmed. The thread has one owner, so a
-	// turn still in progress is that earlier work: ask it to stop again, and send
-	// nothing new while it runs.
-	for _, native := range before.Turns {
-		if native.Status == "inProgress" && !stopConfirmed(conn, sessionID, native.ID, newProjector(sessionID, native.ID, s.model, onEvent)) {
-			return gimbal.TurnResult{}, fmt.Errorf("codex: earlier turn %s is still running; the new prompt was not sent", native.ID)
+	// turn still in progress is that earlier work. Ask it to stop again and wait
+	// for its terminal status under this prompt's own context; nothing is sent
+	// until then, and cancelling this turn abandons a prompt Codex never saw.
+	for first := true; ; first = false {
+		busy := ""
+		for _, native := range before.Turns {
+			if native.Status == "inProgress" {
+				busy = native.ID
+			}
+		}
+		if busy == "" {
+			break
+		}
+		if first {
+			interrupt(conn, sessionID, busy)
+		}
+		select {
+		case <-ctx.Done():
+			return gimbal.TurnResult{}, ctx.Err()
+		case <-time.After(busyPoll):
+		}
+		if before, err = readThread(ctx, conn, sessionID, "notLoaded"); err != nil {
+			return gimbal.TurnResult{}, err
 		}
 	}
 	active := &activeTurn{noticeID: fmt.Sprintf("connection.%d", time.Now().UnixNano()), conn: conn, resume: make(chan struct{}, 1), emit: newProjector(sessionID, "", s.model, onEvent)}
@@ -338,13 +359,14 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if ctx.Err() == nil && (isTransportError(err) || errors.Is(err, context.DeadlineExceeded)) {
 		text, err = a.recoverTurn(ctx, s, sessionID, prompt, params, before, active, err)
 	}
-	if ctx.Err() != nil {
+	// A native turn that completed is authoritative even if cancellation raced it.
+	if ctx.Err() != nil && err != nil {
 		active.mu.Lock()
 		current, turn := active.conn, active.turnID
 		active.mu.Unlock()
 		// Cancellation is local intent. Only a terminal native outcome confirms
 		// cessation; Close retains ownership when delivery/reconciliation fails.
-		confirmed := err == nil || errors.Is(err, errTurnInterrupted)
+		confirmed := errors.Is(err, errTurnInterrupted)
 		if !confirmed && turn != "" {
 			confirmed = stopConfirmed(current, sessionID, turn, active.emit)
 		}

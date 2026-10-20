@@ -736,3 +736,30 @@ func TestInteractiveStopBeforeAcknowledgementStaysUnresolved(t *testing.T) {
 		t.Fatalf("prompt sent %d times", adapter.count())
 	}
 }
+
+// A prompt still waiting for the provider was never submitted. Stop abandons it
+// without ending the conversation, and the next prompt is sent alone.
+func TestInteractiveStopAbandonsPromptNotYetSubmitted(t *testing.T) {
+	adapter := &interactionAdapter{started: make(chan struct{}), release: make(chan struct{}), silent: true, replies: []string{"", `{"decision":{"type":"chat","message":"Fresh"}}`}}
+	r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+		_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+		return err
+	})
+	_ = r.acceptInteractive("dialogue", "opening", "Abandoned", false)
+	<-adapter.started
+	_ = r.acceptInput(interactionInput{Address: "dialogue", ID: "stop", Stop: true})
+	eventuallyInteractive(t, func() bool { return waitingInteractive(r, 0) })
+	assertPending(t, done)
+	_ = r.acceptInteractive("dialogue", "next", "Continue", false)
+	eventuallyInteractive(t, func() bool { return waitingInteractive(r, 2) })
+	adapter.mu.Lock()
+	prompts := strings.Join(adapter.prompts, "\n")
+	adapter.mu.Unlock()
+	if strings.Count(prompts, "Abandoned") != 1 || strings.Count(prompts, "Continue") != 1 {
+		t.Fatalf("prompts %q", prompts)
+	}
+	_ = r.acceptInteractive("dialogue", "finish", "", true)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}

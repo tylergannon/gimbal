@@ -343,3 +343,16 @@ cmd/gimbal/run_prompt.go (277 existing lines) to H before its migration,
 expanding the baseline to 7,409 under the unchanged 8,500 ceiling. Preserve
 the CLI deadline by constructing it outside the authored workflow callback;
 this is not another timeout-removal decision or a new timing API.
+
+finding: Independent Opus implementation review reproduced premature public
+Run success at dormancy, duplicate delivery during in-flight steering, and
+message acceptance after durable Finish. It also traced loss of successful
+chat/end during a Stop race and loss of the original live-hook release.
+These are contract failures; repair them without amending the accepted spec,
+then request a fresh whole-target review through consensus. Passing the earlier
+native demonstrations did not establish these race and direct-call contracts.
+
+friction: The authored-effects migration introduced maintained inline Python,
+which the existing release-automation gate rejects. Keep the gate; use supported
+recorded commands, including existing gimbal cancel, and validate that boundary
+before calling the migration complete.

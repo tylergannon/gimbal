@@ -11,16 +11,19 @@ execution, then become runnable when input arrives. Conversation tabs are
 ordinary workflows containing one interactive step, hosted alongside other
 workflows in shared Go execution capacity.
 
-Replace `gimbal.Interview` with `gimbal.Interactive`. The agent responds through
-a Polytype tagged union with these exact alternatives:
+Replace `gimbal.Interview` with `gimbal.Interactive`. The agent responds with
+an object whose `decision` is a Polytype tagged union:
 
 ```json
-{"type":"chat","message":"…"}
+{"decision":{"type":"chat","message":"…"}}
 ```
 
 ```json
-{"type":"end"}
+{"decision":{"type":"end"}}
 ```
+
+This is the documented agent response across harnesses. The object envelope
+supports native output schemas that reject a union at their root.
 
 `chat` finishes the agent turn, publishes its reply, and establishes a durable
 wait as one durable transition. The workflow's call to `Interactive` remains
@@ -211,7 +214,8 @@ Roles identify human and assistant messages as `user` and `assistant`.
 The transcript remains a generated Output usable with SetJSON, like the
 replaced transcript. It is the ordered interaction conversation; provider tool
 events remain in their existing observation surface. The agent's chat/end decision
-is a generated Polytype tagged union and needs no new exported decision type.
+inside the response object is a generated Polytype tagged union and needs no
+new exported decision type.
 Replacement removes Interview and its Q/A-only types rather than retaining a
 compatibility alias. On error, return the committed transcript accumulated so
 far with the error. A finish signal and an agent end both return normally;

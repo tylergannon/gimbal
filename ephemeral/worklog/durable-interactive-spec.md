@@ -297,3 +297,10 @@ List, which bypassed the workflow reduction in Get. Runtime now routes both
 inventory and detail through the same authoritative reduction and is adding a
 focused regression. Local native acceptance and remote implementation remain
 outstanding; successful focused checks have not been treated as live proof.
+
+decision: Human delegated the schema adjustment: "just whatever will work" and
+called it small potatoes. Use the existing generated response object with a
+decision chat/end union as the documented format across harnesses. Remove the
+private flat-schema shim rather than introducing hidden normalization or a
+provider-specific format. Public Go API and durable interaction semantics are
+unchanged. Resume local native acceptance, then remote work in that order.

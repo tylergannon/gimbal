@@ -2,6 +2,7 @@ import { expect, test } from "vite-plus/test";
 import type { Conversation } from "#lib/skgo/conversation/types";
 import type { ProjectionState } from "#lib/sessionstate";
 import { sessionTurns, runEvents, sessionTurnSeconds } from "./sessionTurns";
+import { groupSummary, turnPresentation } from "./activity";
 import steered from "./fixtures/steered-turns.json";
 import codex from "./fixtures/codex-turns.json";
 
@@ -100,4 +101,61 @@ test("two ended turns with the same words each keep their own reply", () => {
   expect(groups.turns.map((turn) => turn.request.id)).toEqual(["req-1", "req-2"]);
   expect(groups.turns.map((turn) => turn.messages.length)).toEqual([2, 2]);
   expect(groups.history).toEqual([]);
+});
+
+test("activity keeps all final paragraphs visible and hides completion-only reasoning", () => {
+  const messages = [
+    { id: "intro", type: "assistant", content: [{ type: "text", text: "Checking the files." }] },
+    {
+      id: "tool",
+      type: "assistant",
+      content: [{ type: "tool", name: "Bash", state: { status: "completed" } }],
+    },
+    {
+      id: "answer",
+      type: "assistant",
+      content: [
+        { type: "text", text: "The check passed." },
+        { type: "text", text: "Here are the details." },
+      ],
+    },
+    {
+      id: "protocol",
+      type: "assistant",
+      content: [
+        { type: "reasoning", text: "Return the structured result." },
+        { type: "tool", name: "StructuredOutput" },
+      ],
+    },
+  ];
+  const shown = turnPresentation(messages, false);
+  expect(shown.results.map((item) => item.message.content[0].text)).toEqual([
+    "The check passed.",
+    "Here are the details.",
+  ]);
+  expect(shown.activity.map((item) => item.type)).toEqual(["message", "tools"]);
+  expect(JSON.stringify(shown)).not.toContain("Return the structured result.");
+  expect(turnPresentation(messages, true).results).toEqual([]);
+});
+
+test("a batch summarizes distinct action types once without including commands", () => {
+  const part = (name: string, status = "completed") => ({
+    type: "tool",
+    name,
+    state: { status, input: { command: "private command details" } },
+  });
+  expect(
+    groupSummary([
+      part("ToolSearch"),
+      part("Read"),
+      part("Read"),
+      part("Bash"),
+      part("mcp__codex_app__list_artifacts"),
+      part("mcp__codex_app__create_worktree"),
+    ]),
+  ).toBe("Loaded tools, read files, ran commands, listed attached artifacts, created worktree");
+  expect(groupSummary([part("functions.exec_command", "running"), part("Read")])).toBe(
+    "Running commands, read files",
+  );
+  expect(groupSummary([part("UnknownTool")])).toBe("Used tools");
 });

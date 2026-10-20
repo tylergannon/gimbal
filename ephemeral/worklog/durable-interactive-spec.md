@@ -262,3 +262,24 @@ progress: Runtime checkpoint 0621b7f0 contains core local replay/Interactive/
 shared-host source. Focused root Interactive and migrated conversation tests
 pass; frontend fixture/projection migrations remain before the local app build.
 Remote implementation has not started; local native checkpoint comes first.
+
+friction: The first real Codex/luna conversation failed before its first native
+turn: configuration override resumed a newly created thread without a persisted
+rollout. The override must apply only to an existing checkpoint after a durable
+configuration request. The same run exposed status projection comparing failed
+against the wrong literal, leaving the chat falsely Ready. Runtime owns both
+fixes; the failed run remains failed and the next attempt uses a new admission.
+
+finding: An initiating input was appended to the transcript only on successful
+agent completion. Confirmed native delivery followed by safe Stop/Finish must
+retain the human message too. Runtime is recording delivery from native model
+activity and preserving the original turn request during reconstruction.
+
+scope: Read-only remote mapping found volatile task/session/artifact and
+messaging request indexes, missing messaging steering/landed response, and a
+volatile daemon project index without startup invocation discovery. Assign
+backend/messaging.go and cmd/gimbal/messaging.go (329 existing lines) to H,
+expanding its measured baseline to 7,132 under the same 8,500 ceiling. After
+the local checkpoint, the authoring worker owns taskdaemon plus those messaging
+files; runtime retains runner/host/invocation/daemon integration. No remote
+source has changed yet and SERVICE restoration stays excluded.

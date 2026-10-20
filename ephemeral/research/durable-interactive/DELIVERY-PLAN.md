@@ -126,7 +126,12 @@ agent-turn timeouts without a library equivalent. Do not add APIs for these.
 The human chose local durability first, then remote durability. Finish the
 local path and one real local proof checkpoint before expanding the remote
 daemon. Keep the same owners and delivery unit; H additionally owns
-internal/taskdaemon/** and cmd/gimbal/daemon.go (baseline 6,803/max 8,500).
+internal/taskdaemon/** and cmd/gimbal/daemon.go, plus existing
+backend/messaging.go and cmd/gimbal/messaging.go (329 lines; expanded H baseline
+7,132/max 8,500). After the local native checkpoint, the authoring worker owns
+taskdaemon and those two messaging files, and the runtime worker retains
+runner/host/invocation/daemon and backend/backend.go. Both remain the original
+two implementers; this is the remote follow-on inside the same delivery.
 Persist the remote run/session indexes, durable input ownership and missing
 steering through the real transport, then demonstrate L5. This does not add
 SERVICE restoration/recheck guarantees. P also owns handwritten Go/Svelte

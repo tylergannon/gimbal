@@ -127,7 +127,7 @@ the slice spec can settle file organization without changing these contracts.
 | J: durable records and inbox | Durable identity, committed batches, inbox acceptance and durable transition storage; no provider calls or scheduling policy | Storage consistency and recovery format | 953 | 1,400 |
 | E: execution and replay | Reconstruct library operations, scopes, session bindings and concurrent branches; distinguish suspension from terminal outcomes | Workflow execution semantics | 7,388 | 9,000 |
 | I: interaction protocol | Interpret chat/end, transcript, human message/finish input and turn delivery; use J for durable transitions and E for execution | Human/agent interaction contract | 102 | 900 |
-| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 6,803 | 8,500 |
+| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 7,132 | 8,500 |
 | P: presentation | Project durable lifecycle and interaction state into run/chat views and route user actions through durable acceptance | Product presentation and observation | 13,882 | 14,800 |
 | A: workflow admission | Accept only library-owned effects, migrate maintained workflows, expose Interactive in extraction/diagrams and replace Interview support | Accepted workflow language and static representation | 11,609 | 13,200 |
 
@@ -164,7 +164,9 @@ The measured ownership sets are:
   interaction protocol source including `internal/interaction/**` if useful.
 - H: Go source in `internal/{host,runner,invocation,conversation,live}/`,
   `backend/backend.go`, `registry.go`, `cmd/gimbal/main.go`,
-  `cmd/gimbal/daemon.go`, and Go source in `internal/taskdaemon/`.
+  `cmd/gimbal/daemon.go`, Go source in `internal/taskdaemon/`,
+  `backend/messaging.go` and `cmd/gimbal/messaging.go` (329 existing lines
+  assigned for the already required remote messaging/steering continuation).
 - P: Go source in `internal/observation/` and `web/runview/`;
   Go/TypeScript/Svelte in `web/src/lib/{conversation,run,observation}/`;
   `web/src/lib/workflow/types.ts`; workspace `ProjectWorkspace.svelte`,

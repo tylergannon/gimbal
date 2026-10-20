@@ -705,6 +705,23 @@ func TestNormalizedInboxIDsKeepHumanPromptsAndSteerOwnership(t *testing.T) {
 		}
 		journal.session[i] = string(raw)
 	}
+	// Reopening a native session may replay the same prompt with a new
+	// normalized ID. Both sidecars still identify one admitted user input.
+	for _, line := range append([]string(nil), journal.session[:2]...) {
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatal(err)
+		}
+		event := rec["event"].(map[string]any)
+		event["id"] = fmt.Sprint(event["id"]) + "-replayed"
+		event["data"].(map[string]any)["inboxID"] = "msg_normalized_replayed_prompt"
+		rec["native_ref"].(map[string]any)["normalizedMessageID"] = "msg_normalized_replayed_prompt"
+		raw, err := json.Marshal(rec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		journal.session = append(journal.session, string(raw))
+	}
 	run, _ := manager.Get(item.ID)
 	journal.open(t, registry, project, run.WorkflowRun)
 	live, _ := manager.Get(item.ID)

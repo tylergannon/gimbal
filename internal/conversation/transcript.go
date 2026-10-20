@@ -81,6 +81,7 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 
 	matched := map[string]bool{}
 	var messages []*sessionstate.Obj
+	seenInputs := map[string]bool{}
 	open, paired := false, -1
 	for _, turn := range turns {
 		request := requestForTurn(item, starters, matched, turn)
@@ -97,6 +98,15 @@ func projectTranscript(item *Conversation, run observation.RunSnapshot, availabl
 		for _, key := range slices.Sorted(maps.Keys(state.Message)) {
 			for _, row := range state.Message[key] {
 				if row = turnMessage(item, request, turn, row, run.Transcripts[turn.ID]); row != nil {
+					// A resumed native session can replay one admitted input under
+					// another normalized ID. Its provenance still names the same row.
+					if row.Get("type") == "user" {
+						id, _ := row.Get("id").(string)
+						if seenInputs[id] {
+							continue
+						}
+						seenInputs[id] = true
+					}
 					messages = append(messages, row)
 				}
 			}

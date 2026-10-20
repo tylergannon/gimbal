@@ -3,6 +3,7 @@ package runner
 import (
 	"encoding/json"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -56,6 +57,17 @@ func TestWorkflowDaemonRestoresIndexAndDeduplicatesAdmission(t *testing.T) {
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("finish=%+v", status)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for {
+		_, invocationErr := os.Stat(filepath.Join(project, ".gimbal", "invocations", id+".json"))
+		_, controllerErr := Connect(filepath.Join(project, ".gimbal"), id)
+		if os.IsNotExist(invocationErr) && controllerErr != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("completed workflow host did not finish teardown")
 		}
 		time.Sleep(10 * time.Millisecond)
 	}

@@ -45,12 +45,13 @@ vi.mock("#lib/environments.remote", () => ({
 }));
 
 vi.mock("../../../../interactive.remote", () => ({
+  finishInteractive: vi.fn(),
   answerInteractive: {
     for: () => ({
       pending: 0,
       fields: {
         ...Object.fromEntries(
-          ["run", "question_id", "answer"].map((name) => [
+          ["request_id", "run", "question_id", "answer"].map((name) => [
             name,
             {
               as: (type: string, value?: string) => ({ name, type, value }),
@@ -258,7 +259,8 @@ test("transcript opens the waiting session, shows actual invocation and answers 
   await screen.getByRole("button", { name: "Send answer", exact: true }).click();
   expect(auth.answer).toHaveBeenCalledWith({
     run: snapshot.run.id,
-    question_id: question.question_id,
+    question_id: question.address,
+    request_id: expect.stringMatching(/^[0-9a-f-]{36}$/),
     answer: "Choose the cabin.",
   });
   await expect.element(screen.getByText("Answer accepted.", { exact: true })).toBeVisible();

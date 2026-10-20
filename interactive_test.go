@@ -274,8 +274,7 @@ func TestInteractiveStopWaitsAndNextInputContinues(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- Run(ctx, id, "test", models, body) }()
 	<-adapter.started
-	raw := `{"id":"stop","stop":true}`
-	if err := controller.SubmitInteractive("dialogue", raw); err != nil {
+	if err := controller.CancelTurn("agentic-dialogues.1/turn.1", Killed{Reason: "Operator stopped the turn"}); err != nil {
 		t.Fatal(err)
 	}
 	if err := <-done; err != nil {

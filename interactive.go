@@ -434,7 +434,9 @@ func (r *run) commitInteraction(state interactionState) error {
 
 // SubmitInteractive accepts a retryable durable input before attempting native
 // delivery. A request ID reused with different contents is rejected.
-func (r *run) acceptInput(input interactionInput) error {
+func (r *run) acceptInput(input interactionInput) error { return r.acceptInputAtTurn(input, "") }
+
+func (r *run) acceptInputAtTurn(input interactionInput, expectedTurn string) error {
 	address, id, message, finish := input.Address, input.ID, input.Message, input.Finish
 	r.interactionMu.Lock()
 	defer r.interactionMu.Unlock()
@@ -450,6 +452,18 @@ func (r *run) acceptInput(input interactionInput) error {
 			return runstore.ErrConflict
 		}
 		return nil
+	}
+	if expectedTurn != "" {
+		active, ok := r.activeInteractions[address]
+		if !ok {
+			return errors.New("gimbal: interaction turn has ended")
+		}
+		active.session.mu.Lock()
+		matches := active.session.running && active.session.turnID == expectedTurn
+		active.session.mu.Unlock()
+		if !matches {
+			return errors.New("gimbal: interaction turn has ended")
+		}
 	}
 	if input.Configure {
 		if _, active := r.activeInteractions[address]; active {
@@ -497,7 +511,11 @@ func (r *run) acceptInput(input interactionInput) error {
 		return nil
 	}
 	if finish || input.Stop {
-		active.cancel(errors.New("human finished interaction"))
+		reason := "human finished interaction"
+		if input.Stop {
+			reason = "human stopped interaction turn"
+		}
+		active.cancel(errors.New(reason))
 		return nil
 	}
 	r.interactionMu.Unlock()

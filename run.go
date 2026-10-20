@@ -503,6 +503,22 @@ func (r *run) CancelTurn(id string, cause error) error {
 	if scope == "." {
 		scope = "" // a session of the root scope
 	}
+	r.interactionMu.Lock()
+	address := ""
+	for candidate, active := range r.activeInteractions {
+		if active.session.id == session {
+			address = candidate
+			break
+		}
+	}
+	r.interactionMu.Unlock()
+	if address != "" {
+		err := r.acceptInputAtTurn(interactionInput{ID: string(runstore.NewRecordID()), Address: address, Stop: true, Message: errString(cause)}, id)
+		if err == nil {
+			r.event(scope, session, id, killedEvent(id, cause))
+		}
+		return err
+	}
 	r.event(scope, session, id, killedEvent(id, cause))
 	cancel(cause)
 	return nil

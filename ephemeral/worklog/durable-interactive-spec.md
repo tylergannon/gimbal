@@ -283,3 +283,17 @@ expanding its measured baseline to 7,132 under the same 8,500 ceiling. After
 the local checkpoint, the authoring worker owns taskdaemon plus those messaging
 files; runtime retains runner/host/invocation/daemon integration. No remote
 source has changed yet and SERVICE restoration stays excluded.
+
+escalation: Real Codex/luna calls reject the private flat union schema, first
+for absent root object type and then for the root anyOf itself after adding
+that type. This is a provider construction constraint, not a passing native
+proof. Asked the human whether to permit an internal native decision envelope
+unwrapped and Polytype-validated by Interactive, versus retaining flat native
+JSON with another validation approach. No envelope change is authorized yet.
+
+finding: The next live browser attempt still remained Queued/Ready after the
+run failed. Polling included the new statuses, but projectConversations called
+List, which bypassed the workflow reduction in Get. Runtime now routes both
+inventory and detail through the same authoritative reduction and is adding a
+focused regression. Local native acceptance and remote implementation remain
+outstanding; successful focused checks have not been treated as live proof.

@@ -51,3 +51,31 @@ func answerInteractive(ctx context.Context, event app.RequestEvent[params.Params
 }
 
 var _ = skgo.Form(answerInteractive)
+
+// InteractiveFinish is a durable request for normal interaction completion.
+type InteractiveFinish struct {
+	Run     string `json:"run"`
+	Address string `json:"address"`
+	ID      string `json:"id"`
+}
+
+func finishInteractive(ctx context.Context, event app.RequestEvent[params.Params], arg InteractiveFinish) (InteractiveAnswered, error) {
+	runs := live.RunsFrom(ctx)
+	if runs == nil {
+		return InteractiveAnswered{}, skgo.Errorf(500, "Run controls unavailable")
+	}
+	run, err := runs.InProgress(arg.Run)
+	if err != nil {
+		return InteractiveAnswered{}, skgo.Errorf(404, "%s", err)
+	}
+	if arg.ID == "" {
+		return InteractiveAnswered{}, skgo.Errorf(400, "Input identity required")
+	}
+	raw, _ := json.Marshal(map[string]any{"id": arg.ID, "finish": true})
+	if err := run.SubmitInteractive(arg.Address, string(raw)); err != nil {
+		return InteractiveAnswered{}, skgo.Errorf(400, "%s", err)
+	}
+	return InteractiveAnswered{Accepted: true}, nil
+}
+
+var _ = skgo.Command(finishInteractive)

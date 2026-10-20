@@ -115,6 +115,8 @@ var (
 	Skgo_watchConversation = watchConversation
 	// Skgo_answerInteractive is answerInteractive, published as src/routes/interactive.remote.ts#answerInteractive.
 	Skgo_answerInteractive = answerInteractive
+	// Skgo_finishInteractive is finishInteractive, published as src/routes/interactive.remote.ts#finishInteractive.
+	Skgo_finishInteractive = finishInteractive
 	// Skgo_launchWorkflow is launchWorkflow, published as src/routes/launch.remote.ts#launchWorkflow.
 	Skgo_launchWorkflow = launchWorkflow
 	// Skgo_steer is steer, published as src/routes/steer.remote.ts#steer.

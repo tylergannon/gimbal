@@ -90,6 +90,15 @@ export type InteractiveAnswered = {
   accepted: boolean;
 };
 
+/**
+ * InteractiveFinish is a durable request for normal interaction completion.
+ */
+export type InteractiveFinish = {
+  run: string;
+  address: string;
+  id: string;
+};
+
 export type LaunchAccepted = {
   run_id: string;
   project_id: string;

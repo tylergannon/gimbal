@@ -35,6 +35,10 @@ session binding, scoped context, and completed results. Execution may be
 reconstructed by replay under the same code; serializing Go stacks is not
 required.
 
+When a message arrives during an active agent turn, delivery steers that turn.
+The message still enters the durable inbox before delivery; active execution
+does not bypass durable acceptance.
+
 Suspension is distinct from completion and cancellation and does not perform
 normal scope teardown. A waiting branch does not stop runnable siblings. A
 run may become dormant when none of its branches can progress. Suspension
@@ -57,6 +61,6 @@ seams first, then define routed behavioral claims and exclusions. Run
 spec-review before this draft governs work.
 
 Contract decisions requiring alignment include replay-safe ordinary Go work,
-active-turn message delivery, archive's workflow outcome, the return contract
+steering delivery races, archive's workflow outcome, the return contract
 of `Interactive`, and the unit of shared execution capacity. These are open
 authoring decisions, not implementation permission to choose silently.

@@ -17,3 +17,6 @@ decision: Existing runstore supplies stable node identities and atomic committed
 batches, but Open explicitly does not resume execution. Recorded results must
 not be mistaken for working replay, and current persistence tests do not prove
 resumed-work deduplication.
+
+decision: Human messages arriving during an active agent turn steer that turn
+(Tyler: "steer."). Durable inbox acceptance still precedes delivery.

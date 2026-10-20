@@ -337,3 +337,9 @@ successful authoritative observation cleared status/error but left contact
 stale, disabling the composer despite live local execution. Successful data
 arrival must restore connected too. Runtime owns that focused regression/fix;
 clean active-close browser proof remains before acceptance.
+
+scope: Final admission found a real run-prompt callback timing violation. Assign
+cmd/gimbal/run_prompt.go (277 existing lines) to H before its migration,
+expanding the baseline to 7,409 under the unchanged 8,500 ceiling. Preserve
+the CLI deadline by constructing it outside the authored workflow callback;
+this is not another timeout-removal decision or a new timing API.

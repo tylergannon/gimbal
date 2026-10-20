@@ -128,7 +128,8 @@ local path and one real local proof checkpoint before expanding the remote
 daemon. Keep the same owners and delivery unit; H additionally owns
 internal/taskdaemon/** and cmd/gimbal/daemon.go, plus existing
 backend/messaging.go and cmd/gimbal/messaging.go (329 lines; expanded H baseline
-7,132/max 8,500). After the local native checkpoint, the authoring worker owns
+7,409/max 8,500 including cmd/gimbal/run_prompt.go's 277 existing lines for
+moving CLI deadline setup outside its authored callback). After the local native checkpoint, the authoring worker owns
 taskdaemon and those two messaging files, and the runtime worker retains
 runner/host/invocation/daemon and backend/backend.go. Both remain the original
 two implementers; this is the remote follow-on inside the same delivery.

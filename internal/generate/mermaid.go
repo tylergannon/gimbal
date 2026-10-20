@@ -28,7 +28,7 @@ func Mermaid(graph workflow.Graph) []byte {
 
 	r.line("classDef workflow fill:#292524,stroke:#f59e0b,color:#fff7ed,stroke-width:2px")
 	r.line("classDef generate fill:#052e16,stroke:#4ade80,color:#f0fdf4,stroke-width:2px")
-	r.line("classDef interview fill:#3b0764,stroke:#c084fc,color:#faf5ff")
+	r.line("classDef interactive fill:#3b0764,stroke:#c084fc,color:#faf5ff")
 	r.line("classDef command fill:#451a03,stroke:#fbbf24,color:#fffbeb,stroke-width:2px")
 	r.line("classDef structure fill:#2e1065,stroke:#a78bfa,color:#f5f3ff,stroke-width:2px")
 	r.line("classDef arm fill:#172554,stroke:#60a5fa,color:#eff6ff")
@@ -123,8 +123,8 @@ func (r *mermaidRenderer) operation(operation workflow.Operation) mermaidSpan {
 			role = operation.Session
 		}
 		return r.single(r.node("generate", "Generate<br/>"+role, "generate"))
-	case workflow.Interview:
-		return r.single(r.node("rect", "Interview<br/>"+operation.Name, "interview"))
+	case workflow.Interactive:
+		return r.single(r.node("rect", "Interactive<br/>"+operation.Name, "interactive"))
 	case workflow.Command:
 		return r.single(r.node("rect", "Command<br/>"+operation.Name, "command"))
 	case workflow.Set:
@@ -300,8 +300,8 @@ func armSummaries(operations []workflow.Operation) []string {
 				label = "Generate · " + role
 			case workflow.Command:
 				label = "Command · " + operation.Name
-			case workflow.Interview:
-				label = "Interview · " + operation.Name
+			case workflow.Interactive:
+				label = "Interactive · " + operation.Name
 			case workflow.PromiseLoop:
 				label = "Loop · " + operation.Name
 			case workflow.Iterate:

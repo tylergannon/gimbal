@@ -1,6 +1,6 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
-  import { implementInterviewFixture, issue325Fixture } from "#lib/run/fixtures/index.js";
+  import { implementInteractiveFixture, issue325Fixture } from "#lib/run/fixtures/index.js";
   import { resetRemotes, setRemote } from "#lib/storybook/remotes.js";
   import { installStoryStream } from "#lib/storybook/stream.js";
   import Page from "./+page.svelte";
@@ -14,9 +14,9 @@
     graph: JSON.stringify(issue325Fixture.graph),
   });
 
-  const interviewData = () => ({
-    snapshot: structuredClone(implementInterviewFixture.snapshot),
-    graph: JSON.stringify(implementInterviewFixture.graph),
+  const interactiveData = () => ({
+    snapshot: structuredClone(implementInteractiveFixture.snapshot),
+    graph: JSON.stringify(implementInteractiveFixture.graph),
   });
 
   const { Story } = defineMeta({
@@ -33,7 +33,7 @@
      the page cannot structuredClone. -->
 <Story name="Live run" asChild><Page data={data()} /></Story>
 
-<Story name="Live run · interview workflow" asChild><Page data={interviewData()} /></Story>
+<Story name="Live run · interactive workflow" asChild><Page data={interactiveData()} /></Story>
 
 <Story
   name="Steer is dropped"

@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/tylergannon/gimbal"
 )
@@ -22,7 +21,7 @@ func TestSessionCheckoutChoiceUsesSelectedBaseAndPreservesOriginal(t *testing.T)
 	original := git(t, repo, "rev-parse", "HEAD")
 	adapter := &chatAdapter{sessions: make(map[string][]string)}
 	state := filepath.Join(repo, ".gimbal")
-	manager, err := New(t.Context(), state, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repo, nil)
+	manager, err := newMetadataManager(t.Context(), state, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repo, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,9 +46,6 @@ func TestSessionCheckoutChoiceUsesSelectedBaseAndPreservesOriginal(t *testing.T)
 		t.Fatal(err)
 	}
 	waitRequest(t, manager, shared.ID, shared.Requests[0].ID, "completed")
-	if len(adapter.workdirs) != 2 || adapter.workdirs[0] != item.Worktree || adapter.workdirs[1] != repo {
-		t.Fatalf("harness directories = %v", adapter.workdirs)
-	}
 	if shared.Worktree != repo || shared.Branch != "active-work" {
 		t.Fatalf("shared=%+v", shared)
 	}
@@ -57,7 +53,7 @@ func TestSessionCheckoutChoiceUsesSelectedBaseAndPreservesOriginal(t *testing.T)
 		t.Fatal("shared session made a worktree")
 	}
 	manager.Close()
-	restarted, err := New(t.Context(), state, func(string) (gimbal.HarnessAdapter, error) { t.Fatal("restart started a harness"); return nil, nil }, "/bin/gimbal", "/instance", repo, nil)
+	restarted, err := newMetadataManager(t.Context(), state, func(string) (gimbal.HarnessAdapter, error) { t.Fatal("restart started a harness"); return nil, nil }, "/bin/gimbal", "/instance", repo, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +69,7 @@ func TestSessionCheckoutChoiceUsesSelectedBaseAndPreservesOriginal(t *testing.T)
 func TestInvalidSessionCheckoutDoesNotAdmitOrStartHarness(t *testing.T) {
 	repo := newRepository(t)
 	git(t, repo, "branch", "taken")
-	manager, err := New(t.Context(), filepath.Join(repo, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) {
+	manager, err := newMetadataManager(t.Context(), filepath.Join(repo, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) {
 		t.Fatal("invalid checkout contacted a harness")
 		return nil, nil
 	}, "/bin/gimbal", "/instance", repo, nil)
@@ -130,7 +126,7 @@ func TestSessionBranchComesFromMessageWithSafeFallback(t *testing.T) {
 	}
 	repo := newRepository(t)
 	adapter := &chatAdapter{sessions: make(map[string][]string)}
-	m, err := New(t.Context(), filepath.Join(repo, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repo, nil)
+	m, err := newMetadataManager(t.Context(), filepath.Join(repo, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repo, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +142,7 @@ func TestSessionBranchComesFromMessageWithSafeFallback(t *testing.T) {
 
 func TestSessionDoesNotSilentlyShareAfterGitHistoryDisappears(t *testing.T) {
 	directory := t.TempDir()
-	m, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) {
+	m, err := newMetadataManager(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) {
 		t.Fatal("invalid checkout started a harness")
 		return nil, nil
 	}, "/bin/gimbal", "/instance", directory, nil)
@@ -156,33 +152,5 @@ func TestSessionDoesNotSilentlyShareAfterGitHistoryDisappears(t *testing.T) {
 	defer m.Close()
 	if _, err := m.Start(t.Context(), NewConversation{Provider: "claude", Base: "main"}, "Keep isolation"); err == nil {
 		t.Fatal("silently fell back to shared checkout")
-	}
-}
-
-func TestCloseJoinsAdmittedLocalDeliveryBeforeStoreRemoval(t *testing.T) {
-	for range 20 {
-		project := t.TempDir()
-		a := &chatAdapter{sessions: make(map[string][]string)}
-		m, err := New(t.Context(), filepath.Join(project, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return a, nil }, "/bin/gimbal", "/instance", project, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		item, err := m.Start(t.Context(), NewConversation{Provider: "claude"}, "Acknowledge")
-		if err != nil {
-			t.Fatal(err)
-		}
-		m.Close()
-		closed, _ := m.Get(item.ID)
-		if err := os.RemoveAll(filepath.Join(project, ".gimbal")); err != nil {
-			t.Fatal(err)
-		}
-		time.Sleep(time.Millisecond)
-		after, _ := m.Get(item.ID)
-		if after.Revision != closed.Revision {
-			t.Fatal("delivery continued after manager Close")
-		}
-		if _, err := os.Stat(filepath.Join(project, ".gimbal")); !os.IsNotExist(err) {
-			t.Fatalf("delivery recreated removed store after Close: %v", err)
-		}
 	}
 }

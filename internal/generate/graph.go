@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/tylergannon/gimbal/internal/gimballint"
 	"github.com/tylergannon/gimbal/workflow"
 	"golang.org/x/tools/go/packages"
 )
@@ -55,6 +56,9 @@ func extractLoaded(pkg *packages.Package, imports map[string]bool, entry, name s
 	decl := findFunc(pkg, entry)
 	if decl == nil || decl.Body == nil {
 		return workflow.Graph{}, entryInfo{}, fmt.Errorf("generate: %s has no function %s with a body", pkg.PkgPath, entry)
+	}
+	if err := gimballint.Admit(pkg, entry); err != nil {
+		return workflow.Graph{}, entryInfo{}, err
 	}
 	var info entryInfo
 	var err error

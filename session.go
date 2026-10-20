@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"text/template"
@@ -20,15 +21,17 @@ import (
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
-	source  runstore.NodeID
-	node    runstore.NodeID
-	owner   *scope
-	adapter HarnessAdapter
-	name    string
-	model   string
-	effort  string
-	workdir string
-	id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
+	generationDelivered bool
+	deliveryMu          sync.Mutex
+	source              runstore.NodeID
+	node                runstore.NodeID
+	owner               *scope
+	adapter             HarnessAdapter
+	name                string
+	model               string
+	effort              string
+	workdir             string
+	id                  string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
 	mu          sync.Mutex
 	native      string // the harness's session id, made on the first turn
@@ -68,6 +71,30 @@ func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session
 	}
 	s.adapter, s.model, s.effort = binding.Adapter, binding.Model, binding.Effort
 	scope.adopt(s)
+	for _, records := range scope.run.replay {
+		for _, record := range records {
+			if record.Session == s.node && record.Kind == "agent" {
+				var event AgentRecord
+				if json.Unmarshal(record.Payload, &event) == nil {
+					_, suffix, _ := strings.Cut(event.Event.ID, "_"+base64.RawURLEncoding.EncodeToString([]byte(s.id)))
+					sequence, _ := strconv.ParseUint(strings.TrimPrefix(suffix, "_"), 10, 64)
+					s.eventSeq = max(s.eventSeq, sequence)
+				}
+			}
+			if record.Session == s.node && record.Kind == "session-configuration" {
+				var configuration map[string]string
+				if json.Unmarshal(record.Payload, &configuration) == nil {
+					s.model, s.effort = configuration["model"], configuration["effort"]
+				}
+			}
+			if record.Session == s.node && record.Kind == "native-binding" {
+				var binding map[string]string
+				if json.Unmarshal(record.Payload, &binding) == nil {
+					s.native = binding["native"]
+				}
+			}
+		}
+	}
 	scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", s.adapter), Model: s.model, Effort: s.effort, Workdir: workdir})
 	return s
 }
@@ -227,11 +254,18 @@ type generationKey struct{}
 func generateResponse(ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, started *TurnStarted, output Output) ([]byte, error) {
 	s.mu.Lock()
 	s.generations++
+	s.generationDelivered = false
 	ordinal := s.generations
+	turnsBefore := s.turns
 	s.mu.Unlock()
 	node := s.owner.run.ensureNode(s.node, runstore.Action, "generate", ordinal, fmt.Sprintf("%s/generate.%d", s.id, ordinal), nil)
 	if err := s.owner.run.recordingError(); err != nil {
 		return nil, err
+	}
+	if owner, ok := ctx.Value(interactionGenerationKey{}).(interactionGeneration); ok && !s.owner.run.hasFact(node, "generation-position") {
+		if err := s.owner.run.recordFact(node, s.owner.node, s.node, "generation-position", generationPosition{Interaction: owner.Node, Input: owner.Input, Generation: ordinal, TurnsBefore: turnsBefore}, runstore.Committed); err != nil {
+			return nil, err
+		}
 	}
 	ctx = context.WithValue(ctx, generationKey{}, node)
 	outputType := fmt.Sprintf("%T", output)
@@ -294,6 +328,13 @@ func (s *Session) create(ctx context.Context) error {
 	ordinal := s.creates
 	s.mu.Unlock()
 	node := s.owner.run.ensureNode(s.node, runstore.Action, "create", ordinal, fmt.Sprintf("%s/create.%d", s.id, ordinal), nil)
+	var saved map[string]string
+	if found, err := s.owner.run.outcome(node, &saved); found {
+		if err != nil {
+			return err
+		}
+		return s.adoptNative(saved["native"])
+	}
 	identity := actionIdentity(s.owner.node, s.node, node, "session")
 	createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
 	if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
@@ -339,6 +380,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		parent = s.node
 	}
 	turnNode := s.owner.run.ensureNode(parent, runstore.Action, "turn", ordinal, turnID, nil)
+	ctx = effects.WithReconstruction(ctx, s.owner.run.hasFact(turnNode, "intent"))
+	ctx, cancelAccepted := s.owner.run.acceptedContext(ctx, turnNode)
+	defer cancelAccepted()
 	if err := s.owner.run.recordingError(); err != nil {
 		s.mu.Lock()
 		s.running = false
@@ -347,6 +391,8 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		return nil, err
 	}
 	defer func() {
+		s.deliveryMu.Lock()
+		defer s.deliveryMu.Unlock()
 		s.mu.Lock()
 		s.running = false
 		s.turnID = ""
@@ -354,6 +400,21 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		s.mu.Unlock()
 	}()
 
+	var saved struct {
+		Output []byte           `json:"output"`
+		Usage  map[string]Usage `json:"usage"`
+	}
+	if found, err := s.owner.run.outcome(turnNode, &saved); found {
+		if err == nil || s.owner.run.hasFact(turnNode, "prompt-delivered") {
+			if deliveryErr := s.notePromptDelivery(turnNode); deliveryErr != nil {
+				return nil, deliveryErr
+			}
+		}
+		if err == nil && validate != nil {
+			err = validate(saved.Output)
+		}
+		return saved.Output, err
+	}
 	if native == "" {
 		if err := s.create(ctx); err != nil {
 			return nil, err
@@ -443,7 +504,8 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			Schema   json.RawMessage
 			Files    []backend.TaskFile
 			Requires backend.Requirements
-		}{prompt, schema, files, effects.Requirements(ctx)}, identity)
+			Deadline time.Time
+		}{prompt, schema, files, effects.Requirements(ctx), operationDeadline(ctx)}, identity)
 		nativePrompt := prompt
 		finishCallback := func() {}
 		if err == nil && effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {
@@ -460,8 +522,23 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			err = s.admissionError(turnCtx)
 		}
 		if err == nil {
-			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, wrapped)
+			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, func(event AgentEvent) error {
+				switch event.Type {
+				case "session.step.started", "session.text.started", "session.tool.called":
+					if err := s.notePromptDelivery(turnNode); err != nil {
+						return err
+					}
+				}
+				return wrapped(event)
+			})
 		}
+		// Delivery and native completion have one session owner. A steer either
+		// settles before completion or observes an idle session and stays queued.
+		s.deliveryMu.Lock()
+		s.mu.Lock()
+		s.running = false
+		s.mu.Unlock()
+		s.deliveryMu.Unlock()
 		finishCallback()
 	}
 	if scope != nil {
@@ -483,7 +560,8 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	if stopped == nil && !deliveryUncertain && errors.Is(err, context.Canceled) {
 		stopped = err
 	}
-	if stopped != nil && !deliveryUncertain {
+	_, interactiveTurn := ctx.Value(interactionGenerationKey{}).(interactionGeneration)
+	if stopped != nil && !deliveryUncertain && (err != nil || !interactiveTurn) {
 		err = stopped
 	} else if len(result.Usage) > 0 {
 		// The steps already accounted for the turn's tokens. The harness's
@@ -512,7 +590,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		}
 		return nil, fmt.Errorf("gimbal: %s: %w", s.id, err)
 	}
-	if stopped != nil {
+	if stopped != nil && (err != nil || !interactiveTurn) {
 		reason := "shutdown"
 		var killed Killed
 		if steerSource(ctx) != "" || errors.As(stopped, &killed) {
@@ -743,6 +821,19 @@ func (s *Session) adoptNative(id string) error {
 }
 
 func (s *Session) stopNative() error {
+	for _, record := range s.owner.run.replay[s.node] {
+		if record.Kind != "lifecycle" {
+			continue
+		}
+		var lifecycle LifecycleRecord
+		if json.Unmarshal(record.Payload, &lifecycle) == nil {
+			if closed, ok := lifecycle.Event.(SessionClosed); ok {
+				err := stringError(closed.Error)
+				s.owner.run.recordCloseFailure(s.id, err)
+				return err
+			}
+		}
+	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(s.owner.ctx), 10*time.Second)
 	defer cancel()
 	identity := backend.NewExecutionIdentity("close")
@@ -765,10 +856,20 @@ func (s *Session) stopNative() error {
 // lifecycle record carries the same outcome. The error is for a harness
 // that could not be reached.
 func (s *Session) Steer(ctx context.Context, message string) (landed bool, err error) {
+	s.deliveryMu.Lock()
+	defer s.deliveryMu.Unlock()
 	s.mu.Lock()
 	native, running, turn, emit := s.native, s.running, s.turnID, s.activeEmit
 	s.mu.Unlock()
 	scope, _ := current(ctx)
+	owner := scope
+	if owner == nil {
+		owner = s.owner
+	}
+	ctx = effects.WithExecutionIdentity(effectContext(ctx, owner, turn), actionIdentity(owner.node, s.node, owner.run.nodeID(turn), "turn"))
+	if effects.InputID(ctx) == "" {
+		ctx = effects.WithInputID(ctx, string(runstore.NewRecordID()))
+	}
 	record := func(landed bool) {
 		if scope != nil {
 			scope.run.event(scope.key, s.id, turn, Steer{Target: s.id, Source: steerSource(ctx), Message: message, Landed: landed})
@@ -779,7 +880,7 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 		record(false)
 		return false, nil
 	}
-	inboxKey := turn + fmt.Sprintf("/steer.%d", time.Now().UnixNano())
+	inboxKey := turn + "/steer/" + effects.InputID(ctx)
 	if emit != nil {
 		if err := emit(nativeEvent("session.inbox.enqueued", map[string]any{
 			"sessionID": native, "inboxID": inboxKey,
@@ -899,4 +1000,94 @@ func (s *Session) reachable(ctx context.Context) error {
 		}
 	}
 	return fmt.Errorf("gimbal: session %q is not reachable from scope %q", s.name, active.key)
+}
+
+func (s *Session) notePromptDelivery(node runstore.NodeID) error {
+	s.mu.Lock()
+	if s.generationDelivered {
+		s.mu.Unlock()
+		return nil
+	}
+	s.generationDelivered = true
+	s.mu.Unlock()
+	if !s.owner.run.hasFact(node, "prompt-delivered") {
+		if err := s.owner.run.recordFact(node, s.owner.node, s.node, "prompt-delivered", struct{}{}, runstore.Committed); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// The session owns replay positions. Interactive supplies only the stable
+// occurrence/input identity; it never copies or mutates session counters.
+type interactionGenerationKey struct{}
+type interactionGeneration struct {
+	Node  runstore.NodeID
+	Input string
+}
+type generationPosition struct {
+	Interaction runstore.NodeID `json:"interaction"`
+	Input       string          `json:"input"`
+	Generation  int             `json:"generation"`
+	TurnsBefore int             `json:"turns_before"`
+}
+
+func (s *Session) restoreInteraction(node runstore.NodeID, activeInput string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	owned := map[runstore.NodeID]bool{}
+	var active *generationPosition
+	for id, records := range s.owner.run.replay {
+		for _, record := range records {
+			if record.Session != s.node || record.Kind != "generation-position" {
+				continue
+			}
+			var position generationPosition
+			if json.Unmarshal(record.Payload, &position) != nil || position.Interaction != node {
+				continue
+			}
+			owned[id] = true
+			s.generations = max(s.generations, position.Generation)
+			s.turns = max(s.turns, position.TurnsBefore)
+			if activeInput != "" && position.Input == activeInput {
+				copy := position
+				active = &copy
+			}
+		}
+	}
+	for _, records := range s.owner.run.replay {
+		for _, record := range records {
+			if record.Kind != "node-created" {
+				continue
+			}
+			var child runstore.Node
+			if json.Unmarshal(record.Payload, &child) == nil && owned[child.Parent] && child.Name == "turn" {
+				s.turns = max(s.turns, child.Ordinal)
+			}
+		}
+	}
+	if active != nil {
+		s.generations, s.turns = active.Generation-1, active.TurnsBefore
+	}
+}
+
+func (s *Session) configure(ctx context.Context, model, effort string) error {
+	s.mu.Lock()
+	native := s.native
+	s.mu.Unlock()
+	if native != "" {
+		adapter, ok := s.adapter.(interface {
+			ConfigureSession(context.Context, string, string, string) error
+		})
+		if !ok {
+			return errors.New("gimbal: executor cannot configure this session")
+		}
+		if err := adapter.ConfigureSession(ctx, native, model, effort); err != nil {
+			return err
+		}
+	}
+	s.mu.Lock()
+	s.model, s.effort = model, effort
+	s.mu.Unlock()
+	return s.owner.run.recordFact(s.node, s.owner.node, s.node, "session-configuration", map[string]string{"model": model, "effort": effort}, runstore.Committed)
 }

@@ -28,11 +28,11 @@ func __polytype_marshal(value any) ([]byte, error) {
 
 // Compiled JSON schemas for validation, initialized once at startup.
 var (
-	__gen_jsonschema_compiled_review              *jsonschema.Schema
-	__gen_jsonschema_compiled_Plan                *jsonschema.Schema
-	__gen_jsonschema_compiled_InterviewTranscript *jsonschema.Schema
-	__gen_jsonschema_compiled_interviewDecision   *jsonschema.Schema
-	__gen_jsonschema_compiled_LifecycleRecord     *jsonschema.Schema
+	__gen_jsonschema_compiled_review                *jsonschema.Schema
+	__gen_jsonschema_compiled_Plan                  *jsonschema.Schema
+	__gen_jsonschema_compiled_InteractiveTranscript *jsonschema.Schema
+	__gen_jsonschema_compiled_interactiveOutput     *jsonschema.Schema
+	__gen_jsonschema_compiled_LifecycleRecord       *jsonschema.Schema
 )
 
 func init() {
@@ -64,13 +64,13 @@ func init() {
 	}
 
 	{
-		var __zero InterviewTranscript
-		__gen_jsonschema_compiled_InterviewTranscript = compile("InterviewTranscript", __zero.Schema())
+		var __zero InteractiveTranscript
+		__gen_jsonschema_compiled_InteractiveTranscript = compile("InteractiveTranscript", __zero.Schema())
 	}
 
 	{
-		var __zero interviewDecision
-		__gen_jsonschema_compiled_interviewDecision = compile("interviewDecision", __zero.Schema())
+		var __zero interactiveOutput
+		__gen_jsonschema_compiled_interactiveOutput = compile("interactiveOutput", __zero.Schema())
 	}
 
 	{
@@ -97,8 +97,8 @@ func (Plan) Schema() json.RawMessage {
 	return data
 }
 
-func (InterviewTranscript) Schema() json.RawMessage {
-	const fileName = "jsonschema/InterviewTranscript.json"
+func (InteractiveTranscript) Schema() json.RawMessage {
+	const fileName = "jsonschema/InteractiveTranscript.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -106,8 +106,8 @@ func (InterviewTranscript) Schema() json.RawMessage {
 	return data
 }
 
-func (interviewDecision) Schema() json.RawMessage {
-	const fileName = "jsonschema/interviewDecision.json"
+func (interactiveOutput) Schema() json.RawMessage {
+	const fileName = "jsonschema/interactiveOutput.json"
 	data, err := __gen_jsonschema_fs.ReadFile(fileName)
 	if err != nil {
 		__gen_jsonschema_panic(fileName, err)
@@ -142,22 +142,22 @@ func (Plan) ValidateJSON(data []byte) error {
 	return __gen_jsonschema_compiled_Plan.Validate(inst)
 }
 
-// ValidateJSON validates the given JSON bytes against the schema for InterviewTranscript.
-func (InterviewTranscript) ValidateJSON(data []byte) error {
+// ValidateJSON validates the given JSON bytes against the schema for InteractiveTranscript.
+func (InteractiveTranscript) ValidateJSON(data []byte) error {
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	return __gen_jsonschema_compiled_InterviewTranscript.Validate(inst)
+	return __gen_jsonschema_compiled_InteractiveTranscript.Validate(inst)
 }
 
-// ValidateJSON validates the given JSON bytes against the schema for interviewDecision.
-func (interviewDecision) ValidateJSON(data []byte) error {
+// ValidateJSON validates the given JSON bytes against the schema for interactiveOutput.
+func (interactiveOutput) ValidateJSON(data []byte) error {
 	inst, err := jsonschema.UnmarshalJSON(bytes.NewReader(data))
 	if err != nil {
 		return err
 	}
-	return __gen_jsonschema_compiled_interviewDecision.Validate(inst)
+	return __gen_jsonschema_compiled_interactiveOutput.Validate(inst)
 }
 
 // ValidateJSON validates the given JSON bytes against the schema for LifecycleRecord.
@@ -180,7 +180,7 @@ func (l LifecycleRecord) MarshalJSON() ([]byte, error) {
 	wrapper := Wrapper{Alias: Alias(l)}
 	var err error
 
-	if wrapper.Event, err = __jsonMarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d0185a4861c215738a2c6fb8c8e6fc8(l.Event); err != nil {
+	if wrapper.Event, err = __jsonMarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(l.Event); err != nil {
 		return nil, fmt.Errorf("field event: %w", err)
 	}
 
@@ -202,7 +202,7 @@ func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	__next := LifecycleRecord(wrapper.Alias)
 
 	var __decoded0 LifecycleEvent
-	if __decoded0, err = __jsonUnmarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d0185a4861c215738a2c6fb8c8e6fc8(wrapper.Event); err != nil {
+	if __decoded0, err = __jsonUnmarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(wrapper.Event); err != nil {
 		return err
 	}
 	__next.Event = __decoded0
@@ -211,7 +211,49 @@ func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	return nil
 }
 
-func __jsonMarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d0185a4861c215738a2c6fb8c8e6fc8(value LifecycleEvent) (json.RawMessage, error) {
+// MarshalJSON is a generated custom json.Marshaler implementation for
+// interactiveOutput.
+func (i interactiveOutput) MarshalJSON() ([]byte, error) {
+	type Alias interactiveOutput
+	type Wrapper struct {
+		Alias
+		Decision json.RawMessage `json:"decision"`
+	}
+	wrapper := Wrapper{Alias: Alias(i)}
+	var err error
+
+	if wrapper.Decision, err = __jsonMarshal__gimbal__interactiveDecision__8f4ad81c1acb36d282ae07e7d285c77802cf800da3b1ee1aa214368ba56f598c(i.Decision); err != nil {
+		return nil, fmt.Errorf("field decision: %w", err)
+	}
+
+	return __polytype_marshal(&wrapper)
+}
+
+// UnmarshalJSON is a generated custom json.Unmarshaler implementation for
+// interactiveOutput.
+func (i *interactiveOutput) UnmarshalJSON(data []byte) (err error) {
+	type Alias interactiveOutput
+	type Wrapper struct {
+		Alias
+		Decision json.RawMessage `json:"decision"`
+	}
+	var wrapper Wrapper
+	if err = json.Unmarshal(data, &wrapper); err != nil {
+		return err
+	}
+	__next := interactiveOutput(wrapper.Alias)
+
+	var __decoded0 interactiveDecision
+	if __decoded0, err = __jsonUnmarshal__gimbal__interactiveDecision__8f4ad81c1acb36d282ae07e7d285c77802cf800da3b1ee1aa214368ba56f598c(wrapper.Decision); err != nil {
+		return err
+	}
+	__next.Decision = __decoded0
+
+	*i = __next
+	return nil
+}
+
+func __jsonMarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(value LifecycleEvent) (json.RawMessage, error) {
 	if value == nil {
 		return nil, fmt.Errorf("cannot marshal nil registered interface LifecycleEvent")
 	}
@@ -230,11 +272,8 @@ func __jsonMarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d01
 	case Complete:
 		discriminator = "complete"
 		data, err = __polytype_marshal(&object)
-	case InterviewQuestionAnswered:
-		discriminator = "interview_question_answered"
-		data, err = __polytype_marshal(&object)
-	case InterviewQuestionAsked:
-		discriminator = "interview_question_asked"
+	case InteractiveChanged:
+		discriminator = "interactive_changed"
 		data, err = __polytype_marshal(&object)
 	case Killed:
 		discriminator = "killed"
@@ -293,7 +332,7 @@ func __jsonMarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d01
 	)
 }
 
-func __jsonUnmarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d0185a4861c215738a2c6fb8c8e6fc8(data []byte) (LifecycleEvent, error) {
+func __jsonUnmarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(data []byte) (LifecycleEvent, error) {
 	var (
 		temp          map[string]json.RawMessage
 		discriminator string
@@ -327,14 +366,8 @@ func __jsonUnmarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d
 			return nil, err
 		}
 		return obj, nil
-	case "interview_question_answered":
-		var obj InterviewQuestionAnswered
-		if err = json.Unmarshal(data, &obj); err != nil {
-			return nil, err
-		}
-		return obj, nil
-	case "interview_question_asked":
-		var obj InterviewQuestionAsked
+	case "interactive_changed":
+		var obj InteractiveChanged
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}
@@ -425,6 +458,66 @@ func __jsonUnmarshal__gimbal__LifecycleEvent__beeba2ab11baefc69646d2075ad7e1f85d
 		return obj, nil
 	case "value_set":
 		var obj ValueSet
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	default:
+		return nil, fmt.Errorf("unknown discriminator: %s", discriminator)
+	}
+}
+func __jsonMarshal__gimbal__interactiveDecision__8f4ad81c1acb36d282ae07e7d285c77802cf800da3b1ee1aa214368ba56f598c(value interactiveDecision) (json.RawMessage, error) {
+	if value == nil {
+		return nil, fmt.Errorf("cannot marshal nil registered interface interactiveDecision")
+	}
+	var (
+		data          []byte
+		err           error
+		discriminator string
+	)
+	switch object := value.(type) {
+	case chat:
+		discriminator = "chat"
+		data, err = __polytype_marshal(&object)
+	case end:
+		discriminator = "end"
+		data, err = __polytype_marshal(&object)
+	default:
+		return nil, fmt.Errorf("unregistered dynamic implementation %T for interactiveDecision", value)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("marshal registered implementation %T for interactiveDecision: %w", value, err)
+	}
+	return __jsonschema__marshalUnionObject(data,
+		"type",
+		discriminator,
+	)
+}
+
+func __jsonUnmarshal__gimbal__interactiveDecision__8f4ad81c1acb36d282ae07e7d285c77802cf800da3b1ee1aa214368ba56f598c(data []byte) (interactiveDecision, error) {
+	var (
+		temp          map[string]json.RawMessage
+		discriminator string
+		err           = json.Unmarshal(data, &temp)
+	)
+
+	if err != nil {
+		return nil, err
+	} else if _tempDiscriminator, ok := temp["type"]; !ok {
+		// per-field discriminator property
+		return nil, fmt.Errorf("no discriminator property '%s' found", "type")
+	} else if discriminator, err = __jsonschema__decodeDiscriminator(_tempDiscriminator); err != nil {
+		return nil, __jsonschema__unmarshalDiscriminatorError(_tempDiscriminator, err)
+	}
+	switch discriminator {
+	case "chat":
+		var obj chat
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "end":
+		var obj end
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}

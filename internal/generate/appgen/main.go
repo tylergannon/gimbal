@@ -75,7 +75,7 @@ func observationOutput(sourceDir, outputDir string, session *goload.Session) err
 
 func observationConfiguration() polytype.Configuration {
 	return polytype.Compose(
-		polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/internal/observation", Name: "InterviewRow"}),
+		polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/internal/observation", Name: "InteractiveRow"}),
 		polytype.DeclareType(polytype.TypeSpec{PackagePath: "github.com/tylergannon/gimbal/internal/observation", Name: "TurnRow"}),
 	)
 }

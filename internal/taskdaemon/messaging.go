@@ -8,34 +8,62 @@ import (
 	"log"
 	"maps"
 	"os"
-	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/executor"
 )
 
 // Messages uses this daemon's existing native owner. Duplicate admission IDs
-// remain known for its entire lifetime; restarting native sessions is unsupported.
+// and returned outcomes survive worker restart in its executor state directory.
 func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
-	var mu sync.Mutex
-	seen := map[string]bool{}
+	d.ensureRecovery()
 	return func(ctx context.Context, r backend.MessageRequest) error {
 		if err := r.Validate(); err != nil {
 			return err
 		}
-		mu.Lock()
-		if seen[r.ID] {
-			mu.Unlock()
-			return nil
+		d.messageMu.Lock()
+		if d.restoreErr != nil {
+			d.messageMu.Unlock()
+			return d.restoreErr
 		}
-		seen[r.ID] = true
-		mu.Unlock()
+		saved := d.messages[r.ID]
+		restored := saved != nil
+		if saved != nil {
+			original := saved.Request
+			original.Created = r.Created
+			if !sameJSON(original, r) {
+				d.messageMu.Unlock()
+				return errors.New("request identity conflicts with accepted inputs")
+			}
+			if saved.Result != nil {
+				event := backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: saved.Result}
+				d.messageMu.Unlock()
+				return bus.PublishEvent(ctx, event)
+			}
+			if d.activeMessages[r.ID] {
+				d.messageMu.Unlock()
+				return nil
+			}
+		} else {
+			saved = &disposition{Request: r}
+			if err := d.writeState("messages", r.ID, saved); err != nil {
+				d.messageMu.Unlock()
+				return err
+			}
+			d.messages[r.ID] = saved
+		}
+		d.activeMessages[r.ID] = true
+		d.messageMu.Unlock()
 		publish := func(kind string, result *backend.MessageResult, activity json.RawMessage) error {
 			return bus.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result, Activity: activity})
 		}
 		if err := publish("accepted", nil, nil); err != nil {
+			d.messageMu.Lock()
+			delete(d.activeMessages, r.ID)
+			d.messageMu.Unlock()
 			return err
 		}
 		complete := func(result backend.MessageResult, err error) error {
@@ -59,13 +87,47 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if err != nil {
 				result.Error = err.Error()
 				result.Interrupted = r.Kind == "identified-turn" && errors.Is(err, context.Canceled)
-				result.Unresolved = r.Kind == "cleanup" || r.Kind == "interrupt" || r.Kind == "identified-close"
+				var uncertain *backend.DeliveryUncertain
+				result.Unresolved = errors.As(err, &uncertain) || r.Kind == "cleanup" || r.Kind == "interrupt" || r.Kind == "identified-close" || r.Kind == "steer"
 				result.InvalidOutput = errors.Is(err, gimbal.ErrInvalidOutput)
 			}
-			return publish("completed", &result, nil)
+			d.messageMu.Lock()
+			completed := *saved
+			completed.Result = &result
+			completed.EventID = ulid.Make().String()
+			saveErr := d.writeState("messages", r.ID, completed)
+			if saveErr == nil {
+				*saved = completed
+			}
+			delete(d.activeMessages, r.ID)
+			d.messageMu.Unlock()
+			if saveErr != nil {
+				return saveErr
+			}
+			return bus.PublishEvent(ctx, backend.MessageEvent{ID: completed.EventID, RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: &result})
+		}
+		if restored {
+			if r.Process != nil && r.Process.Service {
+				return complete(backend.MessageResult{}, &backend.DeliveryUncertain{RequestID: r.ID, Err: errors.New("service restoration is unavailable")})
+			}
+			if r.Kind == "steer" && !executor.Exists(d.statePath("controls", r.ID)) {
+				return complete(backend.MessageResult{}, &backend.DeliveryUncertain{RequestID: r.ID, Err: errors.New("accepted steering outcome unavailable")})
+			}
+			d.mu.Lock()
+			knownTask := d.tasks[key(r.Run, r.Task)] != nil
+			knownSession := d.sessions[key(r.Run, r.Task)] != nil
+			d.mu.Unlock()
+			if (r.Kind == "identified-turn" || r.Kind == "identified-process") && !knownTask || r.Kind == "identified-session" && !knownSession || r.Kind == "cleanup" || r.Kind == "interrupt" || r.Kind == "identified-close" {
+				return complete(backend.MessageResult{}, &backend.DeliveryUncertain{RequestID: r.ID, Err: errors.New("accepted request has no authoritative recovered outcome")})
+			}
 		}
 		var err error
 		switch r.Kind {
+		case "steer":
+			target := *r.Target
+			target.InputID = r.ID
+			value, err := d.steer(ctx, target)
+			return complete(backend.MessageResult{Value: value}, err)
 		case "identified-session":
 			if r.Session == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("session payload required"))
@@ -76,16 +138,20 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if r.Turn == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("turn payload required"))
 			}
-			err = d.turnEvents(*r.Turn, func(raw json.RawMessage) {
-				if e := publish("activity", nil, raw); e != nil {
-					log.Printf("request %s activity delivery: %v", r.ID, e)
-				}
-			})
+			if !restored {
+				err = d.turnEvents(*r.Turn, func(raw json.RawMessage) {
+					if e := publish("activity", nil, raw); e != nil {
+						log.Printf("request %s activity delivery: %v", r.ID, e)
+					}
+				})
+			}
 		case "identified-process":
 			if r.Process == nil {
 				return complete(backend.MessageResult{}, fmt.Errorf("process payload required"))
 			}
-			err = d.process(*r.Process)
+			if !restored {
+				err = d.process(*r.Process)
+			}
 			if err == nil && r.Process.Service {
 				err = publish("established", nil, nil)
 			}
@@ -144,12 +210,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			return complete(backend.MessageResult{}, fmt.Errorf("native admission produced no task"))
 		}
 		go func() {
-			select {
-			case <-ctx.Done():
-				log.Printf("request %s completion delivery stopped; native ownership unresolved", r.ID)
-				return
-			case <-t.done:
-			}
+			<-t.done
 			t.mu.Lock()
 			raw := append([]byte(nil), t.result...)
 			nativeErr := t.err

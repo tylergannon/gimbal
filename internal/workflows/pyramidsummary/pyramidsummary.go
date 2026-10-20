@@ -34,7 +34,6 @@ package pyramidsummary
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -112,19 +111,17 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 	if err != nil {
 		return fmt.Errorf("output-dir: %w", err)
 	}
-	if err := requireNonemptyFile(semanticIndex); err != nil {
+	if err := requireNonemptyFile(ctx, env.WorkDir, semanticIndex); err != nil {
 		return fmt.Errorf("semantic index: %w", err)
 	}
-	if err := requireNonemptyFile(largestDocument); err != nil {
+	if err := requireNonemptyFile(ctx, env.WorkDir, largestDocument); err != nil {
 		return fmt.Errorf("largest document: %w", err)
 	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return fmt.Errorf("create output directory: %w", err)
+	code, tokenCounter, stderr, err := gimbal.RunCommand(ctx, "prepare-output", env.WorkDir, "sh", "-c", `mkdir -p -- "$1" && command -v gimbal`, "prepare-output", outputDir)
+	if err != nil || code != 0 {
+		return fmt.Errorf("prepare output: exit %d: %s: %w", code, stderr, err)
 	}
-	tokenCounter, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("resolve token counter: %w", err)
-	}
+	tokenCounter = strings.TrimSpace(tokenCounter)
 
 	budgets := tokenBudgets(largestBudget)
 	levels := make([]levelSpec, len(budgets))
@@ -175,7 +172,7 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
-		return requireNonemptyFile(slots[0].Path)
+		return requireNonemptyFile(ctx, env.WorkDir, slots[0].Path)
 	})
 	compressions.Go("summary2", func(ctx context.Context) error {
 		if slots[1].Level == 0 {
@@ -190,7 +187,7 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
-		return requireNonemptyFile(slots[1].Path)
+		return requireNonemptyFile(ctx, env.WorkDir, slots[1].Path)
 	})
 	compressions.Go("summary3", func(ctx context.Context) error {
 		if slots[2].Level == 0 {
@@ -205,7 +202,7 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
-		return requireNonemptyFile(slots[2].Path)
+		return requireNonemptyFile(ctx, env.WorkDir, slots[2].Path)
 	})
 	compressions.Go("summary4", func(ctx context.Context) error {
 		if slots[3].Level == 0 {
@@ -220,7 +217,7 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
-		return requireNonemptyFile(slots[3].Path)
+		return requireNonemptyFile(ctx, env.WorkDir, slots[3].Path)
 	})
 	compressions.Go("summary5", func(ctx context.Context) error {
 		if slots[4].Level == 0 {
@@ -235,7 +232,7 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
-		return requireNonemptyFile(slots[4].Path)
+		return requireNonemptyFile(ctx, env.WorkDir, slots[4].Path)
 	})
 	compressions.Go("summary6", func(ctx context.Context) error {
 		if slots[5].Level == 0 {
@@ -250,7 +247,7 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 			gimbal.WithSupervisor(coach, compressionCoachPrompt)); err != nil {
 			return err
 		}
-		return requireNonemptyFile(slots[5].Path)
+		return requireNonemptyFile(ctx, env.WorkDir, slots[5].Path)
 	})
 	if err := compressions.Wait(); err != nil {
 		return err
@@ -279,7 +276,7 @@ func PyramidSummary(ctx context.Context, env gimbal.Env, params Params) error {
 			return err
 		}
 		for _, level := range extraTopLevels {
-			if err := requireNonemptyFile(level.Path); err != nil {
+			if err := requireNonemptyFile(ctx, env.WorkDir, level.Path); err != nil {
 				return fmt.Errorf("extra top level %d: %w", level.Level, err)
 			}
 		}
@@ -534,16 +531,13 @@ func absoluteFrom(workDir, name string) (string, error) {
 	if !filepath.IsAbs(name) {
 		name = filepath.Join(workDir, name)
 	}
-	return filepath.Abs(name)
+	return filepath.Clean(name), nil
 }
 
-func requireNonemptyFile(name string) error {
-	info, err := os.Stat(name)
-	if err != nil {
-		return err
-	}
-	if !info.Mode().IsRegular() || info.Size() == 0 {
-		return fmt.Errorf("%s is not a nonempty regular file", name)
+func requireNonemptyFile(ctx context.Context, workdir, name string) error {
+	code, _, stderr, err := gimbal.RunCommand(ctx, "check-file", workdir, "sh", "-c", `test -f "$1" && test -s "$1"`, "check-file", name)
+	if err != nil || code != 0 {
+		return fmt.Errorf("%s is not a nonempty regular file: exit %d: %s: %w", name, code, stderr, err)
 	}
 	return nil
 }

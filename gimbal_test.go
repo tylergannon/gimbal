@@ -151,10 +151,8 @@ func lifecycleKind(event LifecycleEvent) string {
 		return "turn_started"
 	case TurnEnded:
 		return "turn_ended"
-	case InterviewQuestionAsked:
-		return "interview_question_asked"
-	case InterviewQuestionAnswered:
-		return "interview_question_answered"
+	case InteractiveChanged:
+		return "interactive_changed"
 	case CommandStarted:
 		return "command_started"
 	case CommandEnded:

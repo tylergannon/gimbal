@@ -167,7 +167,7 @@ test("a value shadowed twice over (root, mid, leaf all set the same key) still f
       "a/b": rowFor("a/b", { note: { value: "b note" } }),
     },
     sessions: {},
-    interviews: {},
+    interactions: {},
     turns: {},
     turn_usage: {},
     model_calls: {},

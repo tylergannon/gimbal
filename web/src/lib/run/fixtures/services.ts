@@ -111,7 +111,7 @@ export const serviceOwnershipSnapshot: RunSnapshot = {
     "iteration.2": scope("iteration.2", "iteration", started + 3_000),
   },
   sessions: {},
-  interviews: {},
+  interactions: {},
   turns: {},
   turn_usage: {},
   model_calls: {},

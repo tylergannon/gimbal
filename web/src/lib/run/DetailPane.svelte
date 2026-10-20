@@ -1,5 +1,4 @@
 <script module lang="ts">
-  import type { InterviewAnswer } from "../../routes/interview.remote.js";
   import type { LoopMessage } from "../../routes/steer.remote.js";
 
   export type ActionFeedback = {
@@ -9,11 +8,12 @@
 </script>
 
 <script lang="ts">
+ import RunQuestions from "./RunQuestions.svelte";
 	import { page } from "$app/state";
   import BotIcon from "@lucide/svelte/icons/bot";
   import BracesIcon from "@lucide/svelte/icons/braces";
   import EyeIcon from "@lucide/svelte/icons/eye";
-  import InterviewIcon from "@lucide/svelte/icons/message-circle-question-mark";
+  import InteractiveIcon from "@lucide/svelte/icons/message-circle-question-mark";
   import MaximizeIcon from "@lucide/svelte/icons/maximize-2";
   import MinimizeIcon from "@lucide/svelte/icons/minimize-2";
   import RepeatIcon from "@lucide/svelte/icons/repeat-2";
@@ -24,7 +24,7 @@
   import { Textarea } from "#lib/components/ui/textarea/index.js";
   import {
     type CommandRow,
-    type InterviewRow,
+    type InteractiveRow,
     type RunObservation,
     type RunSnapshot,
     type ScopeRow,
@@ -47,7 +47,6 @@
     width = 480,
     maximized = false,
     onloop,
-    onanswer,
     onmaximize,
     onselectscope,
     onopen,
@@ -59,7 +58,6 @@
     width?: number;
     maximized?: boolean;
     onloop?: (request: LoopMessage) => Promise<ActionFeedback>;
-    onanswer?: (request: InterviewAnswer) => Promise<ActionFeedback>;
     onmaximize?: () => void;
     onselectscope?: (scopeKey: string) => void;
     /** Shows the session view for this selection's session. The button
@@ -68,7 +66,6 @@
   } = $props();
 
   let loopMessage = $state("");
-  let answer = $state("");
   let pending = $state(false);
   let feedback = $state<ActionFeedback>();
 
@@ -116,40 +113,40 @@
     selectedCommandID ? snapshot.commands[selectedCommandID] : latestCommand(scope, nodeOperation),
   );
 
-  const interviewSession = $derived(
+  const interactiveSession = $derived(
     selection?.kind === "node" &&
       selection.runtime &&
       "question_id" in selection.runtime
       ? selection.runtime.session
       : undefined,
   );
-  const interview = $derived<InterviewRow | undefined>(
-    latestInterview(scope, nodeOperation, interviewSession),
+  const interactive = $derived<InteractiveRow | undefined>(
+    latestInteractive(scope, nodeOperation, interactiveSession),
   );
-  const interviewQuestions = $derived.by(() => {
-    if (!interview) return [];
-    return Object.values(snapshot.interviews)
+  const interactiveQuestions = $derived.by(() => {
+    if (!interactive) return [];
+    return Object.values(snapshot.interactions)
       .filter(
         (row) =>
-          row.scope === interview.scope &&
-          row.session === interview.session &&
-          row.name === interview.name,
+          row.scope === interactive.scope &&
+          row.session === interactive.session &&
+          row.name === interactive.name,
       )
       .sort((left, right) => left.asked - right.asked);
   });
-  const session = $derived(turn ? snapshot.sessions[turn.session] : interview ? snapshot.sessions[interview.session] : undefined);
+  const session = $derived(turn ? snapshot.sessions[turn.session] : interactive ? snapshot.sessions[interactive.session] : undefined);
   const notObserved = $derived(
     selection?.kind === "node" &&
       (selection.operation.kind === "agent_call" ||
         selection.operation.kind === "command" ||
-        selection.operation.kind === "interview") &&
+        selection.operation.kind === "interactive") &&
       !turn &&
       !command &&
-      !interview,
+      !interactive,
   );
   const liveLoop = $derived(snapshot.run.status === "running" && !!scope?.loop && scope.status === "running");
-  const pendingInterview = $derived(
-    snapshot.run.status === "running" && interview?.status === "pending",
+  const pendingInteractive = $derived(
+    snapshot.run.status === "running" && interactive?.status === "pending",
   );
 
   const title = $derived.by(() => {
@@ -172,7 +169,7 @@
         : selection.operation.kind;
     }
     if (command) return "command";
-    if (interview) return "interview";
+    if (interactive) return "interactive";
     if (turn) return "agent call";
     if (scope?.loop) return "loop";
     return "scope";
@@ -188,8 +185,8 @@
         : command.ended
           ? "ended"
         : "running"
-      : interview
-        ? interview.status === "pending"
+      : interactive
+        ? interactive.status === "pending"
           ? "needs-you"
           : "ended"
         : turn
@@ -259,13 +256,13 @@
       .at(-1);
   }
 
-  function latestInterview(
+  function latestInteractive(
     selectedScope: ScopeRow | undefined,
     operation: NodeOperation | undefined,
     selectedSession?: string,
   ) {
-    if (!selectedScope || operation?.kind !== "interview") return undefined;
-    return Object.values(snapshot.interviews)
+    if (!selectedScope || operation?.kind !== "interactive") return undefined;
+    return Object.values(snapshot.interactions)
       .filter(
         (row) =>
           row.scope === selectedScope.key &&
@@ -309,7 +306,7 @@
       {#if kind === "agent call"}<BotIcon size={16} />
       {:else if kind === "command"}<TerminalIcon size={16} />
       {:else if kind === "service"}<ServerIcon size={16} />
-      {:else if kind === "interview"}<InterviewIcon size={16} />
+      {:else if kind === "interactive"}<InteractiveIcon size={16} />
       {:else if kind === "watcher"}<EyeIcon size={16} />
       {:else if kind === "loop"}<RepeatIcon size={16} />
       {:else}<BracesIcon size={16} />{/if}
@@ -380,7 +377,7 @@
         {#if snapshot.run.error}
           <p>{snapshot.run.error}</p>
         {:else}
-          <p class="empty-selection">Select a sheet, call, command, interview, or watcher to inspect it.</p>
+          <p class="empty-selection">Select a sheet, call, command, interactive, or watcher to inspect it.</p>
         {/if}
         <dl>
           <dt>Scopes</dt><dd>{Object.keys(snapshot.scopes).length}</dd>
@@ -417,43 +414,17 @@
           belong to a later path; the containing scope’s outcome is not the outcome of this step.
         </p>
       </section>
-    {:else if interview}
+    {:else if interactive}
       <section class="exchanges">
         <div class="section-title">Exchanges</div>
-        {#each interviewQuestions as question, index (question.question_id)}
-          <article class:waiting={question.status === "pending"}>
-            <strong>Question {index + 1}</strong>
-            <p>{question.question}</p>
-          </article>
-          {#if question.status === "answered"}
-            <article class="answer"><strong>You</strong><p>{question.answer || "Interview ended."}</p></article>
-          {/if}
+        {#each interactiveQuestions as interaction (interaction.question_id)}
+          {#each interaction.messages as message, index (`${interaction.question_id}-${index}`)}
+            <article><strong>{message.role === 'user' ? 'You' : 'Assistant'}</strong><p>{message.message}</p></article>
+          {/each}
         {/each}
       </section>
-      {#if pendingInterview}
-        <section>
-          <label for="answer">Your answer</label>
-          <Textarea id="answer" rows={4} bind:value={answer} placeholder="Answer here. Send with ⌘⏎" />
-          <div class="action-row">
-            <Button
-              size="sm"
-              disabled={pending}
-              onclick={() =>
-                act(
-                  () => onanswer?.({ run: snapshot.run.id, question_id: interview.question_id, answer }) ?? Promise.resolve({ ok: false, message: "Answer delivery is unavailable." }),
-                  () => (answer = ""),
-                )}
-            >Answer</Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={pending}
-              onclick={() =>
-                act(() => onanswer?.({ run: snapshot.run.id, question_id: interview.question_id, answer: "" }) ?? Promise.resolve({ ok: false, message: "Answer delivery is unavailable." }))}
-            >End interview</Button>
-          </div>
-          <p class="help">End interview sends no answer. The workflow continues with the exchanges so far.</p>
-        </section>
+      {#if pendingInteractive || interactive.status === 'unresolved' || interactive.status === 'active'}
+        <RunQuestions run={snapshot.run.id} question={interactive} composer turn={Object.values(snapshot.turns).find(row => row.session === interactive.session && !row.ended)?.id} />
       {/if}
     {:else if command}
       {@const failed = !command.interrupted && command.ended > 0 && command.exit_code !== 0}
@@ -579,11 +550,8 @@
   .not-observed { padding: 10px 12px; border: 1px dashed var(--map-line); border-radius: 7px; }
   .failure p { margin: 3px 0 0; color: var(--status-muted); }
   .exchanges article { padding: 8px 10px; font-size: 13px; border-left: 2px solid var(--map-line-strong); }
-  .exchanges article.waiting { background: var(--map-live-soft); border-left-color: var(--status-live); border-radius: 0 6px 6px 0; }
-  .exchanges article.answer { background: var(--muted); border: 1px solid var(--border); border-radius: 6px; }
   .exchanges article strong { font-size: 13px; }
-  label { font-size: 13px; font-weight: 600; }
-  .action-row, .footer-row { display: flex; align-items: center; gap: 8px; }
+  .footer-row { display: flex; align-items: center; gap: 8px; }
   .output-reference { margin: 0; color: var(--status-muted); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
   .decision-row { gap: 6px; }
   .feedback { margin: 0; padding: 7px 9px; color: var(--foreground); font-size: 13px; background: var(--map-live-soft); border-radius: 6px; }

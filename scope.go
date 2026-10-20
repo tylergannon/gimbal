@@ -226,6 +226,7 @@ func (s *scope) finish(bodyErr error) error {
 		bodyErr = errors.Join(bodyErr, serviceErr)
 	}
 	err := errors.Join(bodyErr, serviceCleanupErr)
+	s.run.closeInteractionInputs(s.key)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
 	return err
 }
@@ -294,7 +295,7 @@ func (s *scope) stopOwnedWork() error {
 			serviceErrs = append(serviceErrs, err)
 		}
 	}
-	if effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {
+	if !s.run.scopeCompleted(s.node) && effects.Endpoint(s.ctx) == "" && effects.Connection(s.ctx).Secrets != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(s.ctx), 10*time.Second)
 		if err := effects.Connection(s.ctx).Secrets.Release(cleanupCtx, backend.Scope{Run: effectOwner(s, "").Run, Scope: s.key}); err != nil {
 			serviceErrs = append(serviceErrs, err)

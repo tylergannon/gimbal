@@ -154,7 +154,7 @@ func SprintShape(ctx context.Context, _ gimbal.Env) error {
 				if _, err := coder.Generate[gimbal.Text](ctx, workPrompt); err != nil {
 					return err
 				}
-				if ctx.Err() == nil {
+				if continueWork() {
 					_, _, _, err = gimbal.RunCommand(ctx, "git", ".", "git", "status")
 					if err != nil {
 						return err
@@ -234,7 +234,7 @@ func guarded(ctx context.Context) error {
 	})
 }
 
-func skipped(ctx context.Context) bool { return ctx.Err() != nil }
+func skipped(context.Context) bool { return false }
 
 func workdirOf(*gimbal.Session) string { return "." }
 
@@ -243,7 +243,7 @@ func review(ctx context.Context, session *gimbal.Session) error {
 	if _, err := session.Generate[gimbal.Text](ctx, helperPrompt); err != nil {
 		return err
 	}
-	passed := ctx.Err() == nil
+	passed := continueWork()
 	if !passed {
 		return nil
 	}
@@ -252,3 +252,5 @@ func review(ctx context.Context, session *gimbal.Session) error {
 }
 
 func roleName() string { return "reader" }
+
+func continueWork() bool { return true }

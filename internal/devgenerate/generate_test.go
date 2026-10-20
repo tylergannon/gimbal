@@ -89,7 +89,7 @@ func TestSelectionUsesDependenciesRemovedInputsAndOutputOwnership(t *testing.T) 
 		{"deleted imported Go", "shared/gone.go", []string{"observation-types", "graph:review"}},
 		{"deleted dependency directory", "shared", []string{"observation-types", "graph:review"}},
 		{"missing observation output", "web/src/lib/observation/types.ts", []string{"observation-types"}},
-		{"missing graph", "internal/workflows/interview/workflow_gen.go", []string{"graph:interview"}},
+		{"missing graph", "internal/workflows/conversation/workflow_gen.go", []string{"graph:conversation"}},
 		{"missing non-Go input", "opencode/types.json", []string{"opencode"}},
 		{"new Go member", "internal/workflows/review/new.go", []string{"graph:review", "schema:internal/workflows/review"}},
 	} {

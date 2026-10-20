@@ -86,7 +86,7 @@ parameter flags. The shared browser Run form presents those same fields; check
 Include to submit an optional empty, zero or false value. Input errors name the
 visible field before a run is admitted.
 
-By default central launches a local independent runner. For remote placement,
+By default central hosts workflows in shared Go execution capacity. For remote placement,
 select `--workflow-endpoint URL --workflow-project /abs/project-at-A` and
 `--work-dir /abs/workdir-at-A`, independently of central's `--project` directory.
 Select `--task-endpoint URL` for tasks at B. `--workflow-route` and `--task-route`
@@ -142,12 +142,13 @@ assignment. The plan is not proof, so keep independent validation appropriate
 to the risk. Do not assume the workflow retries provider, harness, or execution
 errors; only an explicit retry path does that.
 
-The command returns the run ID after the independent run process starts. Use
+The command returns the run ID after the host admits the workflow. Use
 `--follow` to wait for its outcome. If central disconnects, follow rediscovers
 the selected instance for up to 30 seconds and resumes the same run without
-resubmitting it; an unrecovered disconnect returns an explicit error. The run continues when the command exits or
-the daemon stops. Restart the daemon with the same instance directory to resume
-observation and control of its admitted projects. The daemon's `--port 0`
+resubmitting it; an unrecovered disconnect returns an explicit error. Exiting the
+command does not cancel the run. Restart the host with the same instance directory
+to reconstruct unfinished workflows and resume observation and control of its
+admitted projects. The daemon's `--port 0`
 selects an available browser port; `--uds` serves through a Unix socket.
 
 Use `--task-endpoint` to execute agents, commands, and scope-owned services in a
@@ -237,9 +238,10 @@ connection values, queries the database through parallel consumers, and has an
 agent fetch the web response using a Gimbal secrets callback. Use a fresh work
 directory and an explicit inexpensive model such as `gpt-5.6-luna`.
 
-Workers and callers share local paths in this implementation. Restarting a
-worker does not restore native actions or sessions. Steering and fork remain
-unsupported on messaging routes. Delivery uncertainty never establishes native
+Workers and callers share local paths in this implementation. Retained daemon
+indexes and executor records preserve session and operation identity after
+restart. Interactive messages steer active turns or wait for the next turn;
+fork remains unsupported on messaging routes. Delivery uncertainty never establishes native
 failure or cessation. `message-watch` reads retained history independently;
 stopping it never cancels work. Its JSONL can contain private agent content.
 Event files or PostgreSQL rows remain until explicitly removed.
@@ -311,10 +313,12 @@ again before reattaching or starting a same-thread continuation. It never replay
 accepted outcomes. Cancel instead with `gimbal cancel RUN_ID --work-dir /abs/project`.
 That command also retries pending remote cleanup of a terminal run. Failed cleanup
 retains stop control in the owning instance; it does not prove the worker stopped.
-An instance restart reconnects controls to surviving independent workflow
-processes. It cannot restore a workflow process that died. For `--task-endpoint`
-runs, central uses the retained owner route to clean up that process's remote
-scope; failed cleanup remains retryable.
+An instance restart re-enters saved unfinished workflows under their existing
+run IDs. Completed library calls reuse recorded results, and pending Interactive
+calls continue with their saved input and native session. A direct Run caller
+re-enters the same body with the same run ID and bindings. Input may need retrying
+while its owner starts; retain the same input ID. An unknown native outcome is
+reported rather than blindly redispatched. SERVICE restoration remains deferred.
 
 Gimbal has no generic resume command. Repository promise helpers may define
 their own resumable state, schedules, and badges; those are separate
@@ -359,10 +363,12 @@ Run `gimbal --port 0` from a Git checkout and open **Conversations**. Choose
 Codex, Claude, or agy/Gemini when creating a conversation; Gimbal creates its
 worktree and branch. Ask the agent to start a review or implementation, then
 open the linked run to monitor it in the same server. Implementation needs a
-local definition-of-done file in the conversation's worktree. Keep the server
-running while a conversation turn is active. Launched workflows run independently. After a restart, saved Codex
-conversations resume their native thread on the next message. Saved Claude and
-agy/Gemini conversations remain readable history and cannot continue yet.
+local definition-of-done file in the conversation's worktree. Conversations run
+as ordinary workflows: waiting parks their goroutine, Stop interrupts the active
+turn and keeps the conversation open, and archive finishes the workflow normally.
+Restarting the host reconstructs unfinished workflows through saved results and
+the existing native executor. Confirm actual continuation for the selected
+harness; an unavailable native outcome is reported without starting replacement work.
 
 ## Report what happened
 

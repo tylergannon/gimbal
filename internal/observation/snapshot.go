@@ -22,11 +22,11 @@ const (
 	StatusEnded = "ended"
 )
 
-// Interview statuses describe whether its question is still waiting for a
+// Interactive statuses describe whether its question is still waiting for a
 // person or has accepted its one answer.
 const (
-	InterviewStatusPending  = "pending"
-	InterviewStatusAnswered = "answered"
+	InteractiveStatusPending  = "pending"
+	InteractiveStatusAnswered = "answered"
 )
 
 // Placement is where a native event happened in the workflow. It lives
@@ -51,16 +51,16 @@ type Transcript struct {
 // GET /api/runs/:runID, the first SSE frame, and the SSR load's `snapshot`
 // property.
 type RunSnapshot struct {
-	Stream      string                      `json:"stream"`
-	Position    uint64                      `json:"position"`
-	Run         RunRow                      `json:"run"`
-	Scopes      map[string]ScopeRow         `json:"scopes"`
-	Sessions    map[string]SessionRow       `json:"sessions"`
-	Interviews  map[string]InterviewRow     `json:"interviews"`
-	Turns       map[string]TurnRow          `json:"turns"`
-	TurnUsage   map[string]map[string]Usage `json:"turn_usage"`
-	ModelCalls  map[string][]ModelCallRow   `json:"model_calls"`
-	Commands    map[string]CommandRow       `json:"commands"`
-	Totals      Totals                      `json:"totals"`
-	Transcripts map[string]Transcript       `json:"transcripts"`
+	Stream       string                      `json:"stream"`
+	Position     uint64                      `json:"position"`
+	Run          RunRow                      `json:"run"`
+	Scopes       map[string]ScopeRow         `json:"scopes"`
+	Sessions     map[string]SessionRow       `json:"sessions"`
+	Interactions map[string]InteractiveRow   `json:"interactions"`
+	Turns        map[string]TurnRow          `json:"turns"`
+	TurnUsage    map[string]map[string]Usage `json:"turn_usage"`
+	ModelCalls   map[string][]ModelCallRow   `json:"model_calls"`
+	Commands     map[string]CommandRow       `json:"commands"`
+	Totals       Totals                      `json:"totals"`
+	Transcripts  map[string]Transcript       `json:"transcripts"`
 }

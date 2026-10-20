@@ -95,15 +95,8 @@ func TestCheckKeepsCompleteLargeOutputReachable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const marker = "Complete output: "
-	start := strings.Index(stdout, marker)
-	if start < 0 || !strings.HasSuffix(stdout, "word end") {
-		t.Fatalf("recorded stdout lacks its bounded preview and complete-output reference: %q", stdout[max(0, len(stdout)-300):])
-	}
-	path := strings.TrimSpace(strings.SplitN(stdout[start+len(marker):], "\n", 2)[0])
-	whole, err := os.ReadFile(path)
-	if err != nil || string(whole) != strings.Repeat("word ", 14_000)+"end" {
-		t.Fatalf("complete output %s has %d bytes (%v), want the exact 70003-byte stream", path, len(whole), err)
+	if stdout != strings.Repeat("word ", 14_000)+"end" {
+		t.Fatalf("recorded stdout has %d bytes, want exact complete 70003-byte stream", len(stdout))
 	}
 }
 

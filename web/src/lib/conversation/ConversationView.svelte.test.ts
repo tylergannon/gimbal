@@ -70,6 +70,7 @@ const record = (id: string): Conversation => ({
   base: "",
   branch: "",
   worktree: "/project",
+  workflow_run: "workflow-run",
   native_session: "",
   live: true,
   status: "idle",

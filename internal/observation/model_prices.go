@@ -1,6 +1,10 @@
 package observation
 
-import "strings"
+import (
+	"maps"
+	"slices"
+	"strings"
+)
 
 // modelPrice is one model's base USD rate per million tokens. The generator
 // owns its rows; this file owns the lookup and the pricing rule.
@@ -56,7 +60,8 @@ func pricedCost(model string, tokens Tokens) (float64, bool) {
 // is unknown rather than a misleading partial sum.
 func TotalCost(total Total) (float64, bool) {
 	var cost float64
-	for model, usage := range total.ByModel {
+	for _, model := range slices.Sorted(maps.Keys(total.ByModel)) {
+		usage := total.ByModel[model]
 		priced, ok := pricedCost(model, usage.Tokens)
 		if ok {
 			cost += priced

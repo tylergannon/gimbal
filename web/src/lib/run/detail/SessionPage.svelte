@@ -11,6 +11,7 @@
  import PromptAndContext from './PromptAndContext.svelte';
  import Payload from './Payload.svelte';
  import SteerBox from './SteerBox.svelte';
+ import RunQuestions from '../RunQuestions.svelte';
  import UsageTable from './UsageTable.svelte';
  import Pip from '../Pip.svelte';
  import type { WatcherRow } from './SessionDetail.svelte';
@@ -23,6 +24,7 @@
  const live = $derived(snapshot.run.status === 'running');
  const turns = $derived(Object.values(snapshot.turns).filter(row => row.session === sessionID).sort((a,b) => a.started-b.started));
  const running = $derived(turns.find(row => !row.ended));
+ const interaction = $derived(live ? Object.values(snapshot.interactions).filter(row => row.session === sessionID && ['pending','active','unresolved'].includes(row.status)).sort((a,b) => b.ordinal-a.ordinal)[0] : undefined);
  let picked = $state('');
  const chosen = $derived(turns.find(row => row.id === picked) ?? running ?? turns.at(-1));
  const history = $derived(!!chosen && !!running && chosen.id !== running.id);
@@ -74,7 +76,8 @@
      </svelte:boundary>
     {:else}<p class="empty">This session has no recorded turns.</p>{/if}
    </div>
-   <SteerBox run={snapshot.run.id} session={sessionID} ended={!running || !live} disabled={!canSteer} reason={steerReason} />
+   {#if interaction}<RunQuestions run={snapshot.run.id} question={interaction} composer target={session.name} turn={running?.id} />
+   {:else}<SteerBox run={snapshot.run.id} session={sessionID} ended={!running || !live} disabled={!canSteer} reason={steerReason} />{/if}
    {#if environmentQuery?.error}<p class="empty steering-error" role="alert"><button onclick={() => environmentQuery?.refresh().catch(navigateOnUnauthorized)}>Retry steering availability</button></p>{/if}
   </section>
   <aside aria-label="Agent details">

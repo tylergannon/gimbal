@@ -4,6 +4,7 @@
  * Conversation is the durable metadata and visible transcript for one chat.
  */
 export type Conversation = {
+  workflow_run: string;
   id: string;
   title: string;
   provider: string;

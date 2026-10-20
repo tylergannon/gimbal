@@ -1,4 +1,4 @@
-// Package runner hosts one ordinary workflow in an independent local process.
+// Package runner hosts independent ordinary workflows in a shared Go host.
 package runner
 
 import (
@@ -13,6 +13,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/runstore"
 	"golang.org/x/sys/unix"
 	"io"
 	"net"
@@ -23,6 +24,7 @@ import (
 )
 
 type Response struct {
+	Retry bool   `json:"retry,omitempty"`
 	RunID string `json:"run_id,omitempty"`
 	Error string `json:"error,omitempty"`
 }
@@ -65,7 +67,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 			err = fmt.Errorf("workflow panic: %v", value)
 		}
 		if !started {
-			_ = encoder.Encode(Response{Error: fmt.Sprint(err)})
+			_ = encoder.Encode(Response{Error: fmt.Sprint(err), Retry: errors.Is(err, runstore.ErrBusy)})
 		}
 	}()
 	state := filepath.Join(request.Project, ".gimbal")
@@ -110,6 +112,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 			panic(err)
 		}
 		socket = filepath.Join(os.TempDir(), "gimbal-run-"+id[:26]+".sock")
+		_ = os.Remove(socket)
 		listener, e := net.Listen("unix", socket)
 		if e != nil {
 			panic(e)
@@ -144,6 +147,21 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		}
 		return release
 	})
+	dir := filepath.Join(state, "invocations")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	raw, _ := json.Marshal(request)
+	file, err := os.OpenFile(filepath.Join(dir, request.RunID+".json"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, writeErr := file.Write(raw)
+	syncErr := file.Sync()
+	closeErr := file.Close()
+	if err = errors.Join(writeErr, syncErr, closeErr); err != nil {
+		return err
+	}
 	err = func() (err error) {
 		defer func() {
 			if value := recover(); value != nil {
@@ -152,6 +170,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		}()
 		return gimbal.Run(gimbal.Project(ctx, state), request.RunID, request.Workflow, models, body)
 	}()
+	_ = os.Remove(filepath.Join(dir, request.RunID+".json"))
 	return err
 }
 
@@ -177,8 +196,8 @@ func handler(c live.Controller) http.Handler {
 		var err error
 		cause := gimbal.Killed{Target: op.Target, By: op.By, Reason: op.Message}
 		switch op.Action {
-		case "answer":
-			err = c.AnswerInterview(op.Target, op.Message)
+		case "interactive":
+			err = c.SubmitInteractive(op.Target, op.Message)
 		case "steer":
 			value, err = c.Steer(r.Context(), op.Target, op.Message)
 		case "loop":
@@ -246,8 +265,8 @@ func (c remote) call(ctx context.Context, op operation) (bool, error) {
 	}
 	return reply.Value, nil
 }
-func (c remote) AnswerInterview(id, answer string) error {
-	_, err := c.call(context.Background(), operation{Action: "answer", Target: id, Message: answer})
+func (c remote) SubmitInteractive(id, answer string) error {
+	_, err := c.call(context.Background(), operation{Action: "interactive", Target: id, Message: answer})
 	return err
 }
 func (c remote) Steer(ctx context.Context, id, message string) (bool, error) {

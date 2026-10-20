@@ -102,18 +102,20 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 
 	var output []byte
 	run := func() error {
-		return runtime.Run(ctx, "run-prompt", models, func(ctx context.Context) error {
-			turnCtx, cancel := context.WithTimeout(ctx, options.timeout)
-			defer cancel()
+		turnCtx, cancel := context.WithTimeout(ctx, options.timeout)
+		defer cancel()
+		if options.outputSchema != "" {
+			runPromptSchema = json.RawMessage(options.outputSchema)
+			runPromptValidator = compiled
+		}
+		return runtime.Run(turnCtx, "run-prompt", models, func(ctx context.Context) error {
 			session := gimbal.NewSession(ctx, "run-prompt", workdir)
 			if options.outputSchema == "" {
-				result, err := session.Generate[gimbal.Text](turnCtx, flags.Arg(0))
+				result, err := session.Generate[gimbal.Text](ctx, flags.Arg(0))
 				output = []byte(result)
 				return err
 			}
-			runPromptSchema = json.RawMessage(options.outputSchema)
-			runPromptValidator = compiled
-			result, err := session.Generate[runPromptJSON](turnCtx, flags.Arg(0))
+			result, err := session.Generate[runPromptJSON](ctx, flags.Arg(0))
 			output = append([]byte(nil), result...)
 			return err
 		})

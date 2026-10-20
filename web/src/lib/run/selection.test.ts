@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vite-plus/test";
 import {
-  implementInterviewFixture,
+  implementInteractiveFixture,
   mismatchedHistoryFixture,
   planTripFixture,
   serviceOwnershipFixture,
@@ -16,7 +16,7 @@ import {
 
 test("accepts runtime rows that fit the registered graph", () => {
   assert.equal(
-    graphMatchesSnapshot(implementInterviewFixture.graph, implementInterviewFixture.snapshot),
+    graphMatchesSnapshot(implementInteractiveFixture.graph, implementInteractiveFixture.snapshot),
     true,
   );
   assert.equal(graphMatchesSnapshot(planTripFixture.graph, planTripFixture.snapshot), true);
@@ -34,19 +34,19 @@ test("rejects a missing runtime path instead of inventing a map placement", () =
     key: "implementation.1/unknown.1",
     name: "unknown",
   };
-  assert.equal(graphMatchesSnapshot(implementInterviewFixture.graph, snapshot), false);
+  assert.equal(graphMatchesSnapshot(implementInteractiveFixture.graph, snapshot), false);
 });
 
-test("current activity resolves pending interviews and supervisor turns to their map nodes", () => {
+test("current activity resolves pending interactions and supervisor turns to their map nodes", () => {
   const waiting = currentActivitySelection(planTripFixture.graph, planTripFixture.snapshot);
   assert.equal(waiting?.kind, "node");
   if (waiting?.kind !== "node") return;
   assert.equal(waiting.scope.key, "research.1/transport.1");
-  assert.equal(waiting.operation.kind, "interview");
+  assert.equal(waiting.operation.kind, "interactive");
 
   const active = currentActivitySelection(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
   );
   assert.equal(active?.kind, "watcher");
   if (active?.kind !== "watcher") return;
@@ -56,8 +56,8 @@ test("current activity resolves pending interviews and supervisor turns to their
 
 test("navigation finds old scope instances and turns with coordinated map selections", () => {
   const items = runNavigationItems(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
   );
   const scope = items.find((item) => item.id === "scope:implementation.1/task.2");
   assert.equal(scope?.selection.kind, "sheet");
@@ -76,12 +76,12 @@ test("navigation finds old scope instances and turns with coordinated map select
 
 test("selection rebinds to refreshed rows and resets for missing items or another run", () => {
   const selected = runNavigationItems(
-    implementInterviewFixture.graph,
-    implementInterviewFixture.snapshot,
+    implementInteractiveFixture.graph,
+    implementInteractiveFixture.snapshot,
   ).find((item) => item.id === "turn:coding.1/turn.2")?.selection;
   assert.ok(selected);
 
-  const refreshed = structuredClone(implementInterviewFixture.snapshot);
+  const refreshed = structuredClone(implementInteractiveFixture.snapshot);
   const rebound = rebindSelection(selected, refreshed);
   assert.equal(rebound?.scope, refreshed.scopes["implementation.1/task.2"]);
   assert.equal(rebound?.kind, "node");
@@ -92,7 +92,7 @@ test("selection rebinds to refreshed rows and resets for missing items or anothe
   delete refreshed.turns["coding.1/turn.2"];
   assert.equal(rebindSelection(selected, refreshed), undefined);
 
-  const anotherRun = structuredClone(implementInterviewFixture.snapshot);
+  const anotherRun = structuredClone(implementInteractiveFixture.snapshot);
   anotherRun.run.id = "another-run";
   assert.equal(rebindSelection(selected, anotherRun), undefined);
 });
@@ -128,14 +128,14 @@ test("navigation keeps service process commands searchable as graph-backed servi
 });
 
 test("a selection names its session only when it has a turn behind it", () => {
-  const { snapshot } = implementInterviewFixture;
+  const { snapshot } = implementInteractiveFixture;
   const turn = Object.values(snapshot.turns)[0];
   assert.ok(turn);
   const scope = snapshot.scopes[turn.scope];
   assert.ok(scope);
   assert.equal(selectionSessionID({ kind: "sheet", scope }), undefined);
   assert.equal(selectionSessionID(undefined), undefined);
-  const current = currentActivitySelection(implementInterviewFixture.graph, snapshot);
+  const current = currentActivitySelection(implementInteractiveFixture.graph, snapshot);
   if (current?.kind === "node" && current.runtime && "session" in current.runtime) {
     assert.equal(selectionSessionID(current), current.runtime.session);
   }

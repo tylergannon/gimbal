@@ -19,7 +19,7 @@ func TestMermaidGolden(t *testing.T) {
 			workflow.AgentCall{Session: "copy", Supervisors: []workflow.Supervisor{{
 				Session: "watcher", Role: "reviewer", Supervisors: []workflow.Supervisor{{Session: "chief", Role: "chief"}},
 			}}},
-			workflow.Interview{Name: "requirements", Session: "lead"},
+			workflow.Interactive{Name: "requirements", Session: "lead"},
 			workflow.Command{Name: "tests"},
 			workflow.Set{Key: "evidence"},
 			workflow.Scope{Name: "delivery", Services: []workflow.Service{{Name: "preview"}}, Body: []workflow.Operation{

@@ -1,11 +1,10 @@
 import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
-import type { InterviewAnswer } from "../../routes/interview.remote.js";
 import type { LoopMessage } from "../../routes/steer.remote.js";
 import { RunObservation } from "../observation/index.js";
 import DetailPane from "./DetailPane.svelte";
 import {
-  implementInterviewFixture,
+  implementInteractiveFixture,
   issue325Finished,
   issue325Fixture,
   planTripFixture,
@@ -45,74 +44,84 @@ vi.mock("../../routes/steer.remote", () => ({
   },
 }));
 
-test("a selected interview follows the next pending question and submits its identity", async () => {
+const interactiveRemote = vi.hoisted(() => ({
+  sent: vi.fn(),
+  finish: vi.fn(async () => ({ accepted: true })),
+}));
+vi.mock("../../routes/interactive.remote", () => ({
+  finishInteractive: interactiveRemote.finish,
+  answerInteractive: {
+    for: () => ({
+      pending: 0,
+      fields: {
+        ...Object.fromEntries(
+          ["request_id", "run", "question_id", "answer"].map((name) => [
+            name,
+            { as: (type: string, value?: string) => ({ name, type, value }) },
+          ]),
+        ),
+        allIssues: () => [],
+      },
+      enhance: (handler: (value: unknown) => Promise<void>) => ({
+        onsubmit: async (event: SubmitEvent) => {
+          event.preventDefault();
+          interactiveRemote.sent(
+            Object.fromEntries(new FormData(event.currentTarget as HTMLFormElement)),
+          );
+          await handler({ submit: async () => true, result: { accepted: true } });
+        },
+      }),
+    }),
+  },
+}));
+test("a selected interaction owns its durable message and finish controls", async () => {
   const operation = planTripFixture.graph.body[0];
-  if (operation.kind !== "group") throw new Error("plan-trip interview group is missing");
-  const interview = operation.children[0].body.find((item) => item.kind === "interview");
-  if (!interview || interview.kind !== "interview") throw new Error("interview node is missing");
-
-  const first = planTripFixture.snapshot.interviews["01M2RWXNFFYQA4HHQWMQ252CYA"];
-  const submitted: InterviewAnswer[] = [];
+  if (operation.kind !== "group") throw new Error("missing group");
+  const interactive = operation.children[0].body.find((item) => item.kind === "interactive");
+  if (!interactive) throw new Error("missing interaction");
   const selection = {
     kind: "node" as const,
     scope: planTripFixture.snapshot.scopes["research.1/lodging.1"],
-    operation: interview,
-    runtime: first,
+    operation: interactive,
+    runtime: planTripFixture.snapshot.interactions["01M2RWXNFFYQA4HHQWMQ252CYA"],
   };
   const screen = await render(DetailPane, {
     snapshot: planTripFixture.snapshot,
     observation: new RunObservation(planTripFixture.snapshot),
     selection,
-    onanswer: async (answer: InterviewAnswer) => {
-      submitted.push(answer);
-      return { ok: true, message: "accepted" };
-    },
   });
-
   await expect
     .element(screen.getByText("Would you trade reliable Wi-Fi for a more secluded cabin?"))
     .toBeVisible();
-  await screen.getByLabelText("Your answer").fill("Yes, for a weekend.");
-  await screen.getByRole("button", { name: "Answer" }).click();
-  expect(submitted[0]?.question_id).toBe("01M2RWXNFFYQA4HHQWMQ252CYF");
-
-  const refreshed = structuredClone(planTripFixture.snapshot);
-  refreshed.interviews["01M2RWXNFFYQA4HHQWMQ252CYF"].status = "answered";
-  refreshed.interviews["01M2RWXNFFYQA4HHQWMQ252CYF"].answer = "Yes, for a weekend.";
-  refreshed.interviews["01M2RWXNFFYQA4HHQWMQ252CYF"].answered += 10_000;
-  refreshed.interviews["question-3"] = {
-    ...refreshed.interviews["01M2RWXNFFYQA4HHQWMQ252CYF"],
-    question_id: "question-3",
-    question: "How remote is too remote?",
-    status: "pending",
-    answer: "",
-    asked: refreshed.interviews["01M2RWXNFFYQA4HHQWMQ252CYF"].asked + 20_000,
-    answered: 0,
-  };
-  await screen.rerender({
-    snapshot: refreshed,
-    observation: new RunObservation(refreshed),
-    selection,
-    onanswer: async (answer: InterviewAnswer) => {
-      submitted.push(answer);
-      return { ok: true, message: "accepted" };
-    },
-  });
-  await expect.element(screen.getByText("How remote is too remote?")).toBeVisible();
-  await screen.getByLabelText("Your answer").fill("An hour from groceries.");
-  await screen.getByRole("button", { name: "Answer" }).click();
-  expect(submitted.at(-1)?.question_id).toBe("question-3");
+  await screen
+    .getByRole("textbox", { name: "Answer the waiting question" })
+    .fill("Yes, for a weekend.");
+  await screen.getByRole("button", { name: "Send answer", exact: true }).click();
+  expect(interactiveRemote.sent).toHaveBeenCalledWith(
+    expect.objectContaining({
+      run: planTripFixture.snapshot.run.id,
+      question_id: "research.1/lodging.1/preferences",
+      answer: "Yes, for a weekend.",
+    }),
+  );
+  await screen.getByRole("button", { name: "Finish interaction", exact: true }).click();
+  expect(interactiveRemote.finish).toHaveBeenCalledWith(
+    expect.objectContaining({
+      run: planTripFixture.snapshot.run.id,
+      address: "research.1/lodging.1/preferences",
+    }),
+  );
 });
 
 test("the selected loop emits the existing wrap-up control payload", async () => {
   const sent: LoopMessage[] = [];
   const selection = {
     kind: "sheet" as const,
-    scope: implementInterviewFixture.snapshot.scopes["implementation.1"],
+    scope: implementInteractiveFixture.snapshot.scopes["implementation.1"],
   };
   const screen = await render(DetailPane, {
-    snapshot: implementInterviewFixture.snapshot,
-    observation: new RunObservation(implementInterviewFixture.snapshot),
+    snapshot: implementInteractiveFixture.snapshot,
+    observation: new RunObservation(implementInteractiveFixture.snapshot),
     selection,
     onloop: async (message: LoopMessage) => {
       sent.push(message);
@@ -122,7 +131,7 @@ test("the selected loop emits the existing wrap-up control payload", async () =>
 
   await screen.getByRole("tab", { name: "Context" }).click();
 
-  const refreshed = structuredClone(implementInterviewFixture.snapshot);
+  const refreshed = structuredClone(implementInteractiveFixture.snapshot);
   refreshed.scopes["implementation.1"].values.backlog = { value: "one task remains" };
   await screen.rerender({
     snapshot: refreshed,
@@ -139,7 +148,7 @@ test("the selected loop emits the existing wrap-up control payload", async () =>
   await screen.getByRole("button", { name: "Wrap up" }).click();
   expect(sent).toEqual([
     {
-      run: implementInterviewFixture.snapshot.run.id,
+      run: implementInteractiveFixture.snapshot.run.id,
       scope: "implementation.1",
       message: "",
       wrap_up: true,
@@ -148,19 +157,19 @@ test("the selected loop emits the existing wrap-up control payload", async () =>
 });
 
 test("steering emits the selected runtime session and entered message", async () => {
-  const loop = implementInterviewFixture.graph.body.find(
+  const loop = implementInteractiveFixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",
   );
   const coding = loop?.body.find((operation) => operation.kind === "agent_call");
   if (!coding || coding.kind !== "agent_call") throw new Error("coding node is missing");
-  const turn = implementInterviewFixture.snapshot.turns["coding.1/turn.3"];
+  const turn = implementInteractiveFixture.snapshot.turns["coding.1/turn.3"];
   steerRemote.sent.mockClear();
   const screen = await render(DetailPane, {
-    snapshot: implementInterviewFixture.snapshot,
-    observation: new RunObservation(implementInterviewFixture.snapshot),
+    snapshot: implementInteractiveFixture.snapshot,
+    observation: new RunObservation(implementInteractiveFixture.snapshot),
     selection: {
       kind: "node" as const,
-      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.3"],
+      scope: implementInteractiveFixture.snapshot.scopes["implementation.1/task.3"],
       operation: coding,
       runtime: turn,
     },
@@ -169,24 +178,24 @@ test("steering emits the selected runtime session and entered message", async ()
   await screen.getByPlaceholder("Steer this turn…").fill("Check the failing assertion first.");
   await screen.getByRole("button", { name: "Send steer" }).click();
   expect(steerRemote.sent).toHaveBeenCalledWith({
-    run: implementInterviewFixture.snapshot.run.id,
+    run: implementInteractiveFixture.snapshot.run.id,
     session: turn.session,
     message: "Check the failing assertion first.",
   });
 });
 
 test("an unobserved guarded command does not inherit its ended scope state", async () => {
-  const loop = implementInterviewFixture.graph.body.find(
+  const loop = implementInteractiveFixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",
   );
   const command = loop?.body.find((operation) => operation.kind === "command");
   if (!command || command.kind !== "command") throw new Error("command node is missing");
 
   const screen = await render(DetailPane, {
-    snapshot: implementInterviewFixture.snapshot,
+    snapshot: implementInteractiveFixture.snapshot,
     selection: {
       kind: "node",
-      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.3"],
+      scope: implementInteractiveFixture.snapshot.scopes["implementation.1/task.3"],
       operation: command,
     },
   });
@@ -242,7 +251,7 @@ test("a service process command selected from search retains command detail", as
 });
 
 test("command detail exposes both streams and their complete-output references", async () => {
-  const loop = implementInterviewFixture.graph.body.find(
+  const loop = implementInteractiveFixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",
   );
   const command = loop?.body.find(
@@ -250,7 +259,7 @@ test("command detail exposes both streams and their complete-output references",
   );
   if (!command || command.kind !== "command") throw new Error("build command is missing");
 
-  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const snapshot = structuredClone(implementInteractiveFixture.snapshot);
   const runtime = snapshot.commands["implementation.1/task.1/build.1"];
   runtime.stdout = "build completed\n";
   runtime.stderr = "development warning\n";
@@ -274,20 +283,20 @@ test("command detail exposes both streams and their complete-output references",
 });
 
 test("watchers and definition disclosures show graph facts and honest empty states", async () => {
-  const loop = implementInterviewFixture.graph.body.find(
+  const loop = implementInteractiveFixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",
   );
   const coding = loop?.body.find((operation) => operation.kind === "agent_call");
   if (!coding || coding.kind !== "agent_call") throw new Error("coding node is missing");
 
   const screen = await render(DetailPane, {
-    snapshot: implementInterviewFixture.snapshot,
-    observation: new RunObservation(implementInterviewFixture.snapshot),
+    snapshot: implementInteractiveFixture.snapshot,
+    observation: new RunObservation(implementInteractiveFixture.snapshot),
     selection: {
       kind: "node",
-      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.3"],
+      scope: implementInteractiveFixture.snapshot.scopes["implementation.1/task.3"],
       operation: coding,
-      runtime: implementInterviewFixture.snapshot.turns["coding.1/turn.3"],
+      runtime: implementInteractiveFixture.snapshot.turns["coding.1/turn.3"],
     },
   });
 
@@ -312,7 +321,7 @@ test("watchers and definition disclosures show graph facts and honest empty stat
 });
 
 test("a selected watcher distinguishes objections, no objections, and no recorded turn", async () => {
-  const loop = implementInterviewFixture.graph.body.find(
+  const loop = implementInteractiveFixture.graph.body.find(
     (operation) => operation.kind === "promise_loop",
   );
   const coding = loop?.body.find((operation) => operation.kind === "agent_call");
@@ -322,7 +331,7 @@ test("a selected watcher distinguishes objections, no objections, and no recorde
   );
   if (!supervisor) throw new Error("watcher definition is missing");
 
-  const noObjections = structuredClone(implementInterviewFixture.snapshot);
+  const noObjections = structuredClone(implementInteractiveFixture.snapshot);
   const scope = noObjections.scopes["implementation.1/task.3"];
   const turn = noObjections.turns["implementation-scope-review.1/turn.3"];
   turn.result = '{"objections":[]}';
@@ -354,11 +363,11 @@ test("a selected watcher distinguishes objections, no objections, and no recorde
   await expect.element(screen.getByText(/remove the wrapper/)).toBeVisible();
 
   await screen.rerender({
-    snapshot: implementInterviewFixture.snapshot,
-    observation: new RunObservation(implementInterviewFixture.snapshot),
+    snapshot: implementInteractiveFixture.snapshot,
+    observation: new RunObservation(implementInteractiveFixture.snapshot),
     selection: {
       kind: "watcher",
-      scope: implementInterviewFixture.snapshot.scopes["implementation.1/task.1"],
+      scope: implementInteractiveFixture.snapshot.scopes["implementation.1/task.1"],
       supervisor,
     },
   });

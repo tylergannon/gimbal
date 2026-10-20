@@ -19,6 +19,10 @@ import (
 )
 
 func (d *Daemon) process(req effects.Process) error {
+	if found, err := d.existingTask(req.Owner, req); found || err != nil {
+		return err
+	}
+	input, _ := json.Marshal(req)
 	if err := req.ExecutionIdentity.Validate("process"); err != nil {
 		return err
 	}
@@ -61,8 +65,11 @@ func (d *Daemon) process(req effects.Process) error {
 	if pending := d.admitting[id]; pending != nil && pending.admissionCtx.Err() != nil {
 		return pending.admissionCtx.Err()
 	}
-	if d.tasks[id] != nil {
-		return errors.New("command already started; read its result")
+	if existing := d.tasks[id]; existing != nil {
+		if string(existing.input) != string(input) {
+			return errors.New("task identity conflicts with accepted inputs")
+		}
+		return nil
 	}
 	executable := req.Command
 	if strings.ContainsRune(executable, os.PathSeparator) && !filepath.IsAbs(executable) {
@@ -99,7 +106,7 @@ func (d *Daemon) process(req effects.Process) error {
 		return err
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	t := &task{owner: req.Owner, service: req.Service, started: time.Now(), cancel: cancel, done: make(chan struct{}), captures: map[string]string{"stdout": descriptor.Stdout, "stderr": descriptor.Stderr}}
+	t := &task{process: &req, envPath: envPath, input: input, command: &descriptor, owner: req.Owner, service: req.Service, started: time.Now(), cancel: cancel, done: make(chan struct{}), captures: map[string]string{"stdout": descriptor.Stdout, "stderr": descriptor.Stderr}}
 	started = true
 	t.stop = func(ctx context.Context) error {
 		err := commandexecutor.Cancel(ctx, descriptor)
@@ -110,6 +117,10 @@ func (d *Daemon) process(req effects.Process) error {
 		return errors.Join(err, waitErr)
 	}
 
+	if err := d.saveTaskLocked(t); err != nil {
+		cancel()
+		return err
+	}
 	d.tasks[id] = t
 	go func() {
 		saved, waitErr := commandexecutor.Wait(context.Background(), descriptor)
@@ -130,13 +141,8 @@ func (d *Daemon) process(req effects.Process) error {
 			}
 		}
 		cleanEnv()
-		t.mu.Lock()
-		t.result, _ = json.Marshal(result)
-		t.mu.Unlock()
-		t.mu.Lock()
-		t.completed = time.Now()
-		t.mu.Unlock()
-		close(t.done)
+		raw, _ := json.Marshal(result)
+		d.completeTask(t, raw, nil)
 	}()
 	go func() {
 		select {

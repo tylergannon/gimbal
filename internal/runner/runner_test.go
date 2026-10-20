@@ -82,8 +82,8 @@ type controlled struct {
 	last atomic.Value
 }
 
-func (c *controlled) AnswerInterview(id, message string) error {
-	c.last.Store(operation{Action: "answer", Target: id, Message: message})
+func (c *controlled) SubmitInteractive(id, message string) error {
+	c.last.Store(operation{Action: "interactive", Target: id, Message: message})
 	return nil
 }
 func (c *controlled) Steer(_ context.Context, id, message string) (bool, error) {
@@ -112,7 +112,7 @@ func TestControlTransport(t *testing.T) {
 	go func() { _ = server.Serve(listener) }()
 	defer func() { _ = server.Close() }()
 	client := remote{socket: listener.Addr().String()}
-	if err := client.AnswerInterview("question", "answer"); err != nil || controller.last.Load().(operation).Target != "question" {
+	if err := client.SubmitInteractive("question", "answer"); err != nil || controller.last.Load().(operation).Target != "question" {
 		t.Fatalf("answer: %+v %v", controller.last, err)
 	}
 	if landed, err := client.Steer(t.Context(), "session", "message"); err != nil || !landed || controller.last.Load().(operation).Target != "session" {

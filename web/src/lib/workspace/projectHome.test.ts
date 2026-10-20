@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 import type { Conversation } from "#lib/skgo/conversation/types";
 import type { RunCardItem } from "#lib/run/RunsList.svelte";
-import type { InterviewRow } from "#lib/observation";
+import type { InteractiveRow } from "#lib/observation";
 import { projectActivity, runStatus } from "./projectHome";
 const run = {
   run: { id: "run", name: "review", status: "running", error: "", started: 100, ended: 0 },
@@ -13,7 +13,7 @@ const question = {
   run: "run",
   status: "pending",
   question: "Which payment provider?",
-} as InterviewRow;
+} as InteractiveRow;
 test("project activity uses one honest status and sorts mixed records by actual change", () => {
   const session = {
     id: "session",

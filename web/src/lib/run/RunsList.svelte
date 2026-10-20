@@ -1,8 +1,8 @@
 <script module lang="ts">
-  import type { InterviewRow, RunRow } from '../observation/index.js';
+  import type { InteractiveRow, RunRow } from '../observation/index.js';
   export type RunsFilter = 'live' | 'needs-you' | 'ended' | 'all';
   export type RunCardItem = { run: RunRow; summary: string; elapsed: string; activity_at: number; cost: string; session_count: number; turn_count: number; instruction: string };
-  export type RunsListProps = { items: RunCardItem[]; attention: InterviewRow[]; now?: number; active?: boolean; onopenrun?: (run: RunRow) => void };
+  export type RunsListProps = { items: RunCardItem[]; attention: InteractiveRow[]; now?: number; active?: boolean; onopenrun?: (run: RunRow) => void };
 </script>
 <script lang="ts">
   import { afterNavigate } from '$app/navigation';

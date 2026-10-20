@@ -43,7 +43,7 @@ func TestObservationProjectionUsesFreshSource(t *testing.T) {
 	outputDir := t.TempDir()
 	project := func(source string) (string, error) {
 		t.Helper()
-		if err := os.WriteFile(filepath.Join(dir, "rows.go"), []byte("package observation\ntype InterviewRow struct { Question string `json:\"question\"` }\n"+source), 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "rows.go"), []byte("package observation\ntype InteractiveRow struct { Question string `json:\"question\"` }\n"+source), 0644); err != nil {
 			t.Fatal(err)
 		}
 		if err := observationOutput(dir, outputDir, nil); err != nil {
@@ -105,7 +105,7 @@ func TestObservationProjectionPersistentHitSkipsSharedSession(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module github.com/tylergannon/gimbal/internal/observation\n\ngo 1.27\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	source := "package observation\ntype InterviewRow struct { Question string }\ntype TurnRow struct { Original string }\n"
+	source := "package observation\ntype InteractiveRow struct { Question string }\ntype TurnRow struct { Original string }\n"
 	path := filepath.Join(dir, "rows.go")
 	if err := os.WriteFile(path, []byte(source), 0600); err != nil {
 		t.Fatal(err)

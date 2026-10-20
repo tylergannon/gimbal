@@ -106,6 +106,7 @@
     {#if record.error}<p class="notice" role="alert">{record.error}</p>{/if}
     {#each record.requests ?? [] as request (request.id)}
       {#if request.kind === 'prompt' && request.status === 'accepted'}<p class="activity">Queued · {request.message}</p>
+      {:else if request.status === 'unprocessed'}<p class="activity">Unprocessed · {request.message}</p>
       {:else if request.error && request.id !== record.active_request}<p class="notice" role="alert">{request.error}</p>{/if}
     {/each}
     {#if !record.live}<p class="notice">Saved history. Start a new conversation to continue.</p>{/if}
@@ -114,7 +115,6 @@
 
   <form class="composer" {...form.enhance(async (submitted) => {
     actionError = '';
-    submitted.fields.created.set(Date.now());
     try {
       if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); requestID = crypto.randomUUID(); created = Date.now(); onchanged?.(); }
     } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }

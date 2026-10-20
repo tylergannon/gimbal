@@ -241,3 +241,24 @@ func configureConversationModel(ctx context.Context, event app.RequestEvent[para
 }
 
 var _ = skgo.Command(configureConversationModel)
+
+// ArchiveConversation durably requests normal completion of the conversation workflow.
+type ArchiveConversation struct {
+	Project      string `json:"project"`
+	Conversation string `json:"conversation"`
+	ID           string `json:"id"`
+}
+
+func archiveConversation(ctx context.Context, event app.RequestEvent[params.Params], arg ArchiveConversation) (conversation.RequestState, error) {
+	manager, err := projectManager(ctx, arg.Project)
+	if err != nil {
+		return conversation.RequestState{}, err
+	}
+	result, err := manager.Submit(arg.Conversation, conversation.Request{ID: arg.ID, Kind: "finish"})
+	if err != nil {
+		return conversation.RequestState{}, skgo.Errorf(400, "%s", err)
+	}
+	return result, skgo.RefreshRequested(ctx, projectConversations, 1)
+}
+
+var _ = skgo.Command(archiveConversation)

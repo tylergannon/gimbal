@@ -4,7 +4,6 @@ package implementinterview
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -49,13 +48,10 @@ func ImplementInterview(ctx context.Context, env gimbal.Env, params InterviewBui
 	if params.MaxTasks < 1 {
 		return fmt.Errorf("max-tasks must be at least 1")
 	}
-	if _, err := os.Stat(params.RequirementsFile); err != nil {
-		return fmt.Errorf("requirements file: %w", err)
+	code, _, stderr, err := gimbal.RunCommand(ctx, "check-inputs", env.WorkDir, "sh", "-c", `test -f "$1" && test -d "$2"`, "check-inputs", params.RequirementsFile, params.ReferenceDir)
+	if err != nil || code != 0 {
+		return fmt.Errorf("input files: exit %d: %s: %w", code, stderr, err)
 	}
-	if info, err := os.Stat(params.ReferenceDir); err != nil || !info.IsDir() {
-		return fmt.Errorf("reference directory is not a directory: %s", params.ReferenceDir)
-	}
-
 	gimbal.Set(ctx, "requirements-file", params.RequirementsFile)
 	gimbal.Set(ctx, "reference-directory", params.ReferenceDir)
 	gimbal.Set(ctx, "repository", env.WorkDir)
@@ -176,4 +172,4 @@ const backendScopePrompt = "Watch only for concrete backend or public-API work b
 
 const architectureScopePrompt = "Watch only for concrete frontend or general implementation work beyond the saved issue 249. Steer against unnecessary abstractions, frameworks, speculative features, and unrelated polish. Do not edit source, object on style, or demand improvements outside the requirements."
 
-const validationPrompt = "Independently read the saved issue, reference directory, implementation, tests, and recorded command results. Make no source changes and do not treat the worker report as evidence. Start the generated interview example on a separate port with its interviewer bound to Terra or Sonnet, never Gemini. Use the installed Playwright through the shell to conduct successive human answers in a real browser; do not write proof programs or commit run artifacts, and cleanly stop the example process afterward. Complete is true only if you personally demonstrate every requirement in that running interface; tests and reports alone are insufficient."
+const validationPrompt = "Independently read the saved issue, reference directory, implementation, tests, and recorded command results. Make no source changes and do not treat the worker report as evidence. Start the generated interactive example on a separate port with its model bound to luna, haiku or flash. Send a human opening message before expecting the first agent turn. Use the installed Playwright through the shell to conduct successive human messages in a real browser; do not write proof programs or commit run artifacts, and cleanly stop the example process afterward. Complete is true only if you personally demonstrate every requirement in that running interface; tests and reports alone are insufficient."

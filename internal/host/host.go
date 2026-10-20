@@ -2,6 +2,7 @@
 package host
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,9 +12,11 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/tylergannon/gimbal"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/environments"
@@ -21,6 +24,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/promises"
+	"github.com/tylergannon/gimbal/internal/runner"
 	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/internal/transcript"
 	"github.com/tylergannon/gimbal/runstore"
@@ -153,6 +157,63 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
+	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation, route backend.Route) error {
+		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item)})
+		spec := item.Model
+		if item.Effort != "" {
+			spec += ":" + item.Effort
+		}
+		_, err := p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, TaskRoute: route, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
+		return err
+	}
+	conversations.WorkflowInput = func(id, address, request string) error {
+		controller, err := p.resolve(id)
+		if err != nil {
+			return fmt.Errorf("gimbal: interaction owner is starting or unavailable; retry input with the same ID: %w", err)
+		}
+		return controller.SubmitInteractive(address, request)
+	}
+	conversations.WorkflowObserve = func(id string) (gimbal.InteractiveTranscript, string, []string, error) {
+		snapshot, err := p.registry.Snapshot(id)
+		if err != nil {
+			return gimbal.InteractiveTranscript{}, "unavailable", nil, err
+		}
+		transcript := gimbal.InteractiveTranscript{Messages: []gimbal.InteractiveMessage{}}
+		status := "waiting"
+		var verdict error
+		var consumed []string
+		rows := make([]observation.InteractiveRow, 0, len(snapshot.Interactions))
+		for _, row := range snapshot.Interactions {
+			rows = append(rows, row)
+		}
+		slices.SortFunc(rows, func(a, b observation.InteractiveRow) int { return cmp.Compare(a.Ordinal, b.Ordinal) })
+		for _, row := range rows {
+			consumed = append(consumed, row.Consumed...)
+			for _, message := range row.Messages {
+				transcript.Messages = append(transcript.Messages, gimbal.InteractiveMessage{Role: message.Role, Message: message.Message})
+			}
+			transcript.EndedBy = row.EndedBy
+			if row.Status == "unresolved" {
+				status = "unresolved"
+				verdict = errors.New(row.Unresolved)
+			}
+			if row.Status == "runnable" {
+				status = "runnable"
+			}
+			if row.Status == "active" {
+				status = "working"
+			}
+		}
+		switch snapshot.Run.Status {
+		case observation.StatusCompleted:
+			status = "completed"
+		case observation.StatusFailed, observation.StatusCancelled:
+			status = "error"
+			verdict = errors.New(snapshot.Run.Error)
+		}
+		return transcript, status, consumed, verdict
+	}
+
 	p.promises, err = promises.Open(state)
 	if err != nil {
 		conversations.Close()
@@ -179,6 +240,32 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	ctx, stop := context.WithCancel(p.ctx)
 	p.stopPromises, p.promisesDone = stop, make(chan struct{})
 	go func() { defer close(p.promisesDone); p.promises.Run(ctx, p.recordings, model) }()
+	paths, _ := filepath.Glob(filepath.Join(state, "invocations", "*.json"))
+	for _, file := range paths {
+		raw, e := os.ReadFile(file)
+		if e != nil {
+			continue
+		}
+		var request invocation.Request
+		if json.Unmarshal(raw, &request) != nil {
+			continue
+		}
+		if snapshot, e := p.registry.Snapshot(request.RunID); e == nil && snapshot.Run.Status != observation.StatusRunning {
+			_ = os.Remove(file)
+			continue
+		}
+		go func() {
+			if p.ctx.Err() != nil {
+				return
+			}
+			if _, err := runner.Connect(state, request.RunID); err == nil {
+				return
+			}
+			if _, err := runner.Spawn(request); err != nil {
+				log.Printf("gimbal: startup run %s unavailable: %v", request.RunID, err)
+			}
+		}()
+	}
 	return p, nil
 }
 
@@ -322,7 +409,9 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	runCtx = observation.WithRegistry(runCtx, p.registry)
 	runCtx = live.WithRuns(runCtx, p.runs)
 	runCtx = live.WithHook(runCtx, p.runs.Hook)
-	err = gimbal.Run(gimbal.Project(runCtx, p.dir), string(runstore.NewRunID()), name, models, body)
+	id := string(runstore.NewRunID())
+	err = gimbal.Run(gimbal.Project(runCtx, p.dir), id, name, models, body)
+
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}
@@ -344,7 +433,7 @@ func (p *Project) Start(request invocation.Request) (string, error) {
 	if !filepath.IsAbs(request.WorkDir) {
 		return "", errors.New("work_dir must be absolute")
 	}
-	if request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local" {
+	if (request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local") && (request.TaskRoute.Name == "" || request.TaskRoute.Name == "local") && request.TaskEndpoint == "" {
 		if info, err := os.Stat(request.WorkDir); err != nil || !info.IsDir() {
 			return "", errors.New("work_dir must be an existing directory")
 		}

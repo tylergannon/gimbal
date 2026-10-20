@@ -7,7 +7,7 @@
  import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
  let { project, record, onchanged }: { project:string; record:Conversation; onchanged?:()=>void } = $props();
  const local = $derived(!record.placement || record.placement.machine.id === 'local');
- const editable = $derived(record.provider === 'codex' && local && record.live && !record.active_request && ['idle','canceled'].includes(record.status) && !record.cleanup_pending && record.contact !== 'unreachable' && !record.requests.some(request => request.status === 'accepted'));
+ const editable = $derived(record.provider === 'codex' && local && record.live && !record.active_request && ['idle','canceled','waiting'].includes(record.status) && !record.cleanup_pending && record.contact !== 'unreachable' && !record.requests.some(request => request.status === 'accepted'));
  const setup = $derived(editable ? conversationSetup({project,environment:record.environment || 'local'}) : undefined);
  let pending = $state(false); let failure = $state('');
  async function pick(choice:{model:string;effort?:string}) {

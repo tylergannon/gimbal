@@ -46,3 +46,21 @@ func Route(ctx context.Context) backend.Route {
 	}
 	return backend.Route{Name: "local"}
 }
+
+type reconstructionKey struct{}
+
+func WithReconstruction(ctx context.Context, reconstructing bool) context.Context {
+	return context.WithValue(ctx, reconstructionKey{}, reconstructing)
+}
+func Reconstructing(ctx context.Context) bool {
+	value, _ := ctx.Value(reconstructionKey{}).(bool)
+	return value
+}
+
+// InputID names a durable human input independently of native operation IDs.
+type inputIDKey struct{}
+
+func WithInputID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, inputIDKey{}, id)
+}
+func InputID(ctx context.Context) string { id, _ := ctx.Value(inputIDKey{}).(string); return id }

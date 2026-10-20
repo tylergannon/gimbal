@@ -3,6 +3,7 @@ package generate
 import (
 	"go/ast"
 	"go/token"
+	"golang.org/x/tools/go/types/typeutil"
 
 	"github.com/tylergannon/gimbal/workflow"
 )
@@ -220,10 +221,11 @@ func (e *extractor) switchStmt(stmt *ast.SwitchStmt, out *[]workflow.Operation, 
 // branch is one alternative and the expression that guards it, which the
 // error-handling rule reads.
 type branch struct {
-	node     workflow.Branch
-	cond     ast.Expr
-	pos      token.Pos
-	exitCode string
+	node      workflow.Branch
+	cond      ast.Expr
+	pos       token.Pos
+	exitCode  string
+	errorExit bool
 }
 
 func (e *extractor) branch(label string, pos token.Pos, stmts []ast.Stmt, cond ast.Expr, en scopeEnv) branch {
@@ -236,10 +238,11 @@ func (e *extractor) branch(label string, pos token.Pos, stmts []ast.Stmt, cond a
 		exitCode = text(e.pkg.Fset, stmts[len(stmts)-1])
 	}
 	return branch{
-		node:     workflow.Branch{Source: e.at(pos), Case: label, Exits: exits(stmts), Body: body},
-		cond:     cond,
-		pos:      pos,
-		exitCode: exitCode,
+		node:      workflow.Branch{Source: e.at(pos), Case: label, Exits: exits(stmts), Body: body},
+		cond:      cond,
+		pos:       pos,
+		exitCode:  exitCode,
+		errorExit: e.errorReturn(stmts),
 	}
 }
 
@@ -267,7 +270,7 @@ func (e *extractor) condition(pos token.Pos, branches []branch, out *[]workflow.
 			holdsOperation = true
 		}
 	}
-	if !holdsOperation && e.allErrorTests(branches) {
+	if !holdsOperation && (e.allErrorTests(branches) || allErrorReturns(branches)) {
 		return false
 	}
 	emitted := e.emitted()
@@ -398,4 +401,32 @@ func (e *extractor) iterateRangeBody(stmt *ast.RangeStmt, call *ast.CallExpr, ou
 	e.bindRangeDeclarations(stmt, e.callDeclarations(call))
 	body, services := e.ownedBody(stmt.Body.List, en)
 	e.emit(out, workflow.Iterate{Source: e.at(call.Pos()), Name: name, Services: services, Body: body})
+}
+
+func (e *extractor) errorReturn(stmts []ast.Stmt) bool {
+	if len(stmts) == 0 {
+		return false
+	}
+	ret, ok := stmts[len(stmts)-1].(*ast.ReturnStmt)
+	if !ok || len(ret.Results) == 0 {
+		return false
+	}
+	value := ret.Results[len(ret.Results)-1]
+	if id, ok := value.(*ast.Ident); ok && id.Name == "nil" {
+		return false
+	}
+	call, ok := value.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	fn := typeutil.StaticCallee(e.pkg.TypesInfo, call)
+	return fn != nil && fn.Pkg() != nil && ((fn.Pkg().Path() == "fmt" && fn.Name() == "Errorf") || (fn.Pkg().Path() == "errors" && fn.Name() == "New"))
+}
+func allErrorReturns(branches []branch) bool {
+	for _, b := range branches {
+		if !b.errorExit {
+			return false
+		}
+	}
+	return len(branches) > 0
 }

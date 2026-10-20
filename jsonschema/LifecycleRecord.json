@@ -33,18 +33,26 @@
 "recording_error":{"type":"string"}
 },"required":["kind","recording_error"],"additionalProperties":false},
 {"type":"object",
-"description":"InterviewQuestionAnswered records the answer accepted for one interview question. An empty answer records that the person ended the interview.","properties":{
-"kind":{"type":"string","const":"interview_question_answered"},
-"question_id":{"type":"string"},
-"answer":{"type":"string"}
-},"required":["kind","question_id","answer"],"additionalProperties":false},
-{"type":"object",
-"description":"InterviewQuestionAsked records a question waiting for a person's answer. LifecycleRecord supplies its scope and session placement.","properties":{
-"kind":{"type":"string","const":"interview_question_asked"},
+"description":"InteractiveChanged projects one committed interaction transition.","properties":{
+"kind":{"type":"string","const":"interactive_changed"},
+"consumed":{"type":"array","items":{"type":"string"}},
+"status":{"type":"string"},
+"ordinal":{"type":"integer"},
+"error":{"type":"string"},
+"id":{"type":"string"},
 "name":{"type":"string"},
-"question_id":{"type":"string"},
-"question":{"type":"string"}
-},"required":["kind","name","question_id","question"],"additionalProperties":false},
+"address":{"type":"string"},
+"transcript":{"type":"object",
+"description":"InteractiveTranscript is the ordered history of one interaction occurrence. EndedBy is agent or human on normal completion, and empty on error.","properties":{
+"messages":{"type":"array","items":{"type":"object",
+"description":"InteractiveMessage is one confirmed message, in conversation order.","properties":{
+"role":{"type":"string"},
+"message":{"type":"string"}
+},"required":["role","message"],"additionalProperties":false}},
+"ended_by":{"type":"string"}
+},"required":["messages","ended_by"],"additionalProperties":false},
+"waiting":{"type":"boolean"}
+},"required":["kind","consumed","status","ordinal","error","id","name","address","transcript","waiting"],"additionalProperties":false},
 {"type":"object",
 "description":"Killed is the cause of a ctx that an operator cancelled on purpose, and the lifecycle record of that kill. Target is the scope key or turn id that was killed; By is who did it, \"\" when unknown. context.Cause(ctx) returns it in every scope and turn under the target, so workflow code that cares checks errors.As(context.Cause(ctx), \u0026killed); code that does not care sees ctx.Err() as before.","properties":{
 "kind":{"type":"string","const":"killed"},

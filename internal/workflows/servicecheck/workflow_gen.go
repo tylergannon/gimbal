@@ -22,15 +22,9 @@ var Graph = workflow.Graph{
 			workflow.Group{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 48}, Name: "consumers", Children: []workflow.GroupChild{
 				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 49}, Name: "database", Services: []workflow.Service{}, Body: []workflow.Operation{
 					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 50}, Name: "query", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 54}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 54}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
-					}},
 				}},
 				{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 59}, Name: "web", Services: []workflow.Service{}, Body: []workflow.Operation{
 					workflow.Command{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 60}, Name: "fetch", Requirements: []workflow.StoreDeclaration{{Store: "", Names: []string{"DATABASE_URL"}}, {Store: "", Names: []string{"WEB_URL"}}}},
-					workflow.Condition{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 64}, Branches: []workflow.Branch{
-						{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 64}, Case: "code != 0", Exits: true, Body: []workflow.Operation{}},
-					}},
 				}},
 			}},
 			workflow.Set{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 72}, Key: "task"},

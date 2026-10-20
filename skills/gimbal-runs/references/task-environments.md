@@ -1,6 +1,6 @@
 # Standalone workflow and task daemons
 
-A workflow remains an independent Gimbal process. `--task-endpoint` sends its
+A workflow runs as ordinary Go in its host. `--task-endpoint` sends its
 agent sessions, commands, and foreground services to a selected task daemon.
 The workflow retains its observations and controls. Results remain authoritative
 when event delivery is unavailable.
@@ -30,8 +30,10 @@ producers publish after successful exit.
 Scope cleanup closes owned sessions and stops owned commands and services,
 preserving enclosing scopes and other runs. Failed cleanup remains visible and
 retryable with `gimbal cancel RUN_ID` or the console's **Retry cleanup** control.
-Release active scopes before stopping a standalone daemon; restarting it does
-not resume native work.
+The daemon retains session/task indexes and reuses the executor's recorded
+operations after restart. Unavailable native outcomes are reported without
+blind redispatch. This does not establish SERVICE restoration or restore the
+in-memory secrets described above.
 
 Named task environments use `OrchestratorBackend` and a messaging route instead
 of direct task endpoints. See the automatic named-environment example in the

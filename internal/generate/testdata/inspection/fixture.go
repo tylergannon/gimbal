@@ -26,8 +26,6 @@ func (Context) ValidateJSON([]byte) error { return nil }
 const initialPrompt = "Read the product context.\nDescribe its nested shape."
 
 func Inspect(ctx context.Context, prompt string, conditional bool, key string) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	gimbal.Set(ctx, "shared", "parent")
 	gimbal.SetJSON(ctx, "brief", Context{})
 	s := gimbal.NewSession(ctx, "reviewer", ".")

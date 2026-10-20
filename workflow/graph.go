@@ -75,9 +75,9 @@ type AgentCall struct {
 	Supervisors []Supervisor `json:"supervisors"`
 }
 
-// Interview is one gimbal.Interview. Session is the conversation conducting
+// Interactive is one gimbal.Interactive. Session is the conversation conducting
 // it; its questions, answers, and internal turns are runtime facts.
-type Interview struct {
+type Interactive struct {
 	Source
 	Requirements []StoreDeclaration `json:"requirements"`
 	Name         string             `json:"name"`
@@ -219,7 +219,7 @@ type Diagnostic struct {
 
 func (Session) operation()     {}
 func (AgentCall) operation()   {}
-func (Interview) operation()   {}
+func (Interactive) operation() {}
 func (Command) operation()     {}
 func (Set) operation()         {}
 func (Scope) operation()       {}

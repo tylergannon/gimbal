@@ -17,6 +17,8 @@ func (d *Daemon) result(v backend.Target) backend.Result {
 	d.mu.Unlock()
 	if task != nil {
 		task.mu.Lock()
+		var uncertain *backend.DeliveryUncertain
+		result.Unresolved = errors.As(task.err, &uncertain)
 		result.InvalidOutput = errors.Is(task.err, gimbal.ErrInvalidOutput)
 		result.Interrupted = errors.Is(task.err, context.Canceled)
 		task.mu.Unlock()

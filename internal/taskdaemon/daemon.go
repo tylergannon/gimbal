@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -19,10 +20,16 @@ import (
 	"github.com/tylergannon/gimbal/internal/agentexecutor"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/internal/executor"
 	"github.com/tylergannon/gimbal/internal/secretcallback"
 )
 
 type task struct {
+	process      *effects.Process
+	envPath      string
+	input        json.RawMessage
+	turn         *effects.Turn
+	command      *executor.Descriptor
 	owner        effects.Owner
 	service      bool
 	started      time.Time
@@ -40,6 +47,9 @@ type task struct {
 	expired      bool
 }
 type session struct {
+	err     error
+	harness string
+	request effects.Session
 	owner   effects.Owner
 	adapter gimbal.HarnessAdapter
 	native  string
@@ -48,14 +58,22 @@ type session struct {
 	closeMu sync.Mutex
 }
 type Daemon struct {
-	executorRoot string
-	Secrets      backend.SecretsBackend
-	files        map[backend.Artifact]string
-	Workdir      string
-	mu           sync.Mutex
-	closed       map[effects.Scope]time.Time
-	sessions     map[string]*session
-	tasks        map[string]*task
+	executorRoot   string
+	stateRoot      string
+	restoreErr     error
+	messageMu      sync.Mutex
+	controlMu      sync.Mutex
+	recoverTasks   []func()
+	recoveryOnce   sync.Once
+	messages       map[string]*disposition
+	activeMessages map[string]bool
+	Secrets        backend.SecretsBackend
+	files          map[backend.Artifact]string
+	Workdir        string
+	mu             sync.Mutex
+	closed         map[effects.Scope]time.Time
+	sessions       map[string]*session
+	tasks          map[string]*task
 	// admitting owns service preflight until native admission finishes. Cleanup
 	// cancels and joins it using the same task boundary, without holding mu in
 	// an externally supplied dependency. It stores no infrastructure leases.
@@ -64,7 +82,7 @@ type Daemon struct {
 }
 
 func New(executorRoot string) *Daemon {
-	d := &Daemon{executorRoot: executorRoot, files: map[backend.Artifact]string{}, closed: map[effects.Scope]time.Time{}, sessions: map[string]*session{}, tasks: map[string]*task{}}
+	d := &Daemon{messages: map[string]*disposition{}, activeMessages: map[string]bool{}, executorRoot: executorRoot, files: map[backend.Artifact]string{}, closed: map[effects.Scope]time.Time{}, sessions: map[string]*session{}, tasks: map[string]*task{}}
 	d.adapter = func(harness string) (gimbal.HarnessAdapter, error) {
 		adapter, err := binding.Adapter(harness)
 		if independent, ok := adapter.(*agentexecutor.Adapter); ok {
@@ -72,6 +90,8 @@ func New(executorRoot string) *Daemon {
 		}
 		return adapter, err
 	}
+	d.restoreErr = d.restore()
+
 	return d
 }
 func key(run, id string) string { return run + "\x00" + id }
@@ -79,6 +99,9 @@ func within(child, parent string) bool {
 	return parent == "" || child == parent || strings.HasPrefix(child, parent+"/")
 }
 func (d *Daemon) admit(o effects.Owner) error {
+	if d.restoreErr != nil {
+		return d.restoreErr
+	}
 	d.expireLocked(time.Now())
 	if o.Run == "" || o.Task == "" {
 		return errors.New("run and task identities are required")
@@ -91,6 +114,7 @@ func (d *Daemon) admit(o effects.Owner) error {
 	return nil
 }
 func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) {
+	d.ensureRecovery()
 	if err := req.ExecutionIdentity.Validate("session"); err != nil {
 		return "", err
 	}
@@ -100,9 +124,19 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 		return "", err
 	}
 	id := key(req.Run, req.Task)
-	if d.sessions[id] != nil {
+	if existing := d.sessions[id]; existing != nil {
 		d.mu.Unlock()
-		return "", errors.New("session already exists")
+		if !sameJSON(existing.request, req) {
+			return "", errors.New("session identity conflicts with accepted input")
+		}
+		<-existing.ready
+		if existing.err != nil {
+			return "", existing.err
+		}
+		if existing.native == "" {
+			return "", errors.New("session creation failed")
+		}
+		return req.Task, nil
 	}
 	var parent *session
 	if req.Parent != "" {
@@ -113,7 +147,11 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 		}
 	}
 	ctx, cancel := context.WithTimeout(effects.WithExecutionIdentity(effects.WithOwner(context.Background(), req.Owner), req.ExecutionIdentity), 30*time.Second)
-	s := &session{owner: req.Owner, ready: make(chan struct{}), cancel: cancel}
+	harness := req.Harness
+	if parent != nil {
+		harness = parent.harness
+	}
+	s := &session{harness: harness, request: req, owner: req.Owner, ready: make(chan struct{}), cancel: cancel}
 	d.sessions[id] = s
 	d.mu.Unlock()
 	defer cancel()
@@ -140,9 +178,13 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 	}
 	d.mu.Lock()
 	s.adapter, s.native = a, native
+	if err == nil {
+		err = d.writeState("sessions", id, savedSession{Request: req, Native: native, Harness: harness})
+	}
 	if err != nil && native == "" {
 		delete(d.sessions, id)
 	}
+	s.err = err
 	admissionErr := d.admit(req.Owner)
 	close(s.ready)
 	d.mu.Unlock()
@@ -156,6 +198,10 @@ func (d *Daemon) create(_ context.Context, req effects.Session) (string, error) 
 }
 func (d *Daemon) turn(req effects.Turn) error { return d.turnEvents(req, nil) }
 func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error {
+	if found, err := d.existingTask(req.Owner, req); found || err != nil {
+		return err
+	}
+	input, _ := json.Marshal(req)
 	if err := req.ExecutionIdentity.Validate("turn"); err != nil {
 		return err
 	}
@@ -211,8 +257,11 @@ func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error 
 	if pending := d.admitting[id]; pending != nil && pending.admissionCtx.Err() != nil {
 		return pending.admissionCtx.Err()
 	}
-	if d.tasks[id] != nil {
-		return errors.New("turn already started; read its result")
+	if existing := d.tasks[id]; existing != nil {
+		if string(existing.input) != string(input) {
+			return errors.New("task identity conflicts with accepted inputs")
+		}
+		return nil
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	if !req.Deadline.IsZero() {
@@ -220,7 +269,7 @@ func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error 
 		ctx, cancel = context.WithDeadline(context.Background(), req.Deadline)
 	}
 	ctx = effects.WithExecutionIdentity(effects.WithOwner(ctx, req.Owner), req.ExecutionIdentity)
-	t := &task{owner: req.Owner, cancel: cancel, done: make(chan struct{})}
+	t := &task{input: input, turn: &req, owner: req.Owner, cancel: cancel, done: make(chan struct{})}
 	d.tasks[id] = t
 	closeCallback := func() {}
 	if len(req.Requires) > 0 {
@@ -233,36 +282,17 @@ func (d *Daemon) turnEvents(req effects.Turn, emit func(json.RawMessage)) error 
 		closeCallback = close
 		req.Prompt += "\nRequired stores are available for this operation as JSON via GET " + address + ". Call this endpoint when you need the values."
 	}
-	go func() {
-		defer closeCallback()
-		result, err := s.adapter.RunTurn(ctx, s.native, req.Prompt, req.Schema, func(event gimbal.AgentEvent) error {
-			raw, e := json.Marshal(struct {
-				gimbal.AgentEvent
-				Native json.RawMessage
-			}{event, event.NativeRef})
-			if e == nil {
-				t.mu.Lock()
-				t.events = append(t.events, raw)
-				t.mu.Unlock()
-				if emit != nil {
-					emit(raw)
-				}
-			}
-			return nil
-		})
-		t.mu.Lock()
-		usage, _ := json.Marshal(result.Usage)
-		t.result, _ = json.Marshal(backend.TurnResult{Output: result.Output, Usage: usage})
-		t.err = err
-		t.mu.Unlock()
-		t.mu.Lock()
-		t.completed = time.Now()
-		t.mu.Unlock()
-		close(t.done)
-	}()
+	if err := d.saveTaskLocked(t); err != nil {
+		delete(d.tasks, id)
+		cancel()
+		closeCallback()
+		return err
+	}
+	go d.runTurn(ctx, s, req, t, emit, closeCallback)
 	return nil
 }
 func (d *Daemon) poll(req effects.Poll) effects.Progress {
+	d.ensureRecovery()
 	d.mu.Lock()
 	d.expireLocked(time.Now())
 	t := d.tasks[key(req.Run, req.ID)]
@@ -300,7 +330,7 @@ func (d *Daemon) interrupt(req effects.Target) error {
 	t.cancel()
 	return nil
 }
-func (d *Daemon) steer(ctx context.Context, req effects.Target) (bool, error) {
+func (d *Daemon) steerNative(ctx context.Context, req effects.Target) (bool, error) {
 	d.mu.Lock()
 	s := d.sessions[key(req.Run, req.ID)]
 	d.mu.Unlock()
@@ -344,6 +374,7 @@ func (d *Daemon) closeSession(ctx context.Context, req effects.Target) error {
 	}
 	d.mu.Lock()
 	delete(d.sessions, key(req.Run, req.ID))
+	_ = os.Remove(d.statePath("sessions", key(req.Run, req.ID)))
 	d.mu.Unlock()
 	return nil
 }
@@ -361,6 +392,13 @@ func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 func (d *Daemon) cleanupNative(ctx context.Context, req effects.Scope) error {
 	d.mu.Lock()
 	d.closed[req] = time.Now()
+	if err := d.writeState("closed", key(req.Run, req.Scope), struct {
+		Scope  effects.Scope
+		Closed time.Time
+	}{req, d.closed[req]}); err != nil {
+		d.mu.Unlock()
+		return err
+	}
 	var tasks []*task
 	for _, pending := range d.admitting {
 		if pending.owner.Run == req.Run && within(pending.owner.Scope, req.Scope) {
@@ -382,6 +420,7 @@ func (d *Daemon) cleanupNative(ctx context.Context, req effects.Scope) error {
 		if artifact.Run == req.Run && within(artifact.Scope, req.Scope) {
 			_ = os.Remove(path)
 			delete(d.files, artifact)
+			_ = os.Remove(d.statePath("files", key(artifact.Run, artifact.Task)+"\x00"+artifact.Name))
 		}
 	}
 	d.mu.Unlock()
@@ -417,6 +456,12 @@ func (d *Daemon) cleanupNative(ctx context.Context, req effects.Scope) error {
 		case <-t.done:
 			d.mu.Lock()
 			t.released = true
+			t.mu.Lock()
+			saveErr := d.saveTaskLocked(t)
+			t.mu.Unlock()
+			if saveErr != nil {
+				errs = append(errs, saveErr)
+			}
 			d.retireLocked(t)
 			d.mu.Unlock()
 		case <-ctx.Done():
@@ -440,4 +485,72 @@ func (d *Daemon) state(req effects.Scope) effects.State {
 		}
 	}
 	return effects.State{Pending: n}
+}
+
+func (d *Daemon) runTurn(ctx context.Context, s *session, req effects.Turn, t *task, emit func(json.RawMessage), closeCallback func()) {
+	defer closeCallback()
+	replayed := 0
+	retained := 0
+	if effects.Reconstructing(ctx) {
+		retained = len(t.events)
+	}
+	emitEvent := func(event gimbal.AgentEvent) error {
+		replayed++
+		if replayed <= retained {
+			return nil
+		}
+		raw, e := json.Marshal(struct {
+			gimbal.AgentEvent
+			Native json.RawMessage
+		}{event, event.NativeRef})
+		if e == nil {
+			t.mu.Lock()
+			t.events = append(t.events, raw)
+			if err := d.saveTaskLocked(t); err != nil {
+				t.mu.Unlock()
+				return err
+			}
+			t.mu.Unlock()
+			if emit != nil {
+				emit(raw)
+			}
+		}
+		return nil
+	}
+	var result gimbal.TurnResult
+	var err error
+	if effects.Reconstructing(ctx) {
+		root, e := executor.Root(d.executorRoot)
+		dir := filepath.Join(root, req.ExecutionIdentity.ExecutorOperation)
+		if e != nil {
+			err = e
+		} else if !executor.Exists(filepath.Join(dir, "request.json")) {
+			err = &backend.DeliveryUncertain{RequestID: req.ExecutionIdentity.RequestID, Err: errors.New("accepted native turn evidence unavailable")}
+		} else {
+			descriptor := executor.Describe(dir, true)
+			stopDone := make(chan struct{})
+			controlDone := make(chan error, 1)
+			go func() {
+				select {
+				case <-ctx.Done():
+					stop, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+					defer cancel()
+					_, e := executor.Call(stop, dir, executor.Control{Op: "cancel"})
+					controlDone <- e
+				case <-stopDone:
+					controlDone <- nil
+				}
+			}()
+			result, err = agentexecutor.Wait(context.Background(), descriptor, emitEvent)
+			close(stopDone)
+			if controlErr := <-controlDone; controlErr != nil {
+				err = &backend.DeliveryUncertain{RequestID: req.ExecutionIdentity.RequestID, Err: errors.Join(err, controlErr)}
+			}
+		}
+	} else {
+		result, err = s.adapter.RunTurn(ctx, s.native, req.Prompt, req.Schema, emitEvent)
+	}
+	usage, _ := json.Marshal(result.Usage)
+	raw, _ := json.Marshal(backend.TurnResult{Output: result.Output, Usage: usage})
+	d.completeTask(t, raw, err)
 }

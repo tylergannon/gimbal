@@ -28,7 +28,17 @@ func (h *Harness) call(ctx context.Context, op string, in any) (effects.Reply, e
 	var out effects.Reply
 	if effects.Messages(ctx) != nil {
 		identity := effects.ExecutionIdentityFromContext(ctx)
-		r := effects.Request(identity.RequestID, op, effects.Identity(ctx))
+		requestID := identity.RequestID
+		if op == "steer" {
+			requestID = effects.InputID(ctx)
+			if requestID == "" {
+				requestID = identity.RequestID
+			}
+			if requestID == "" {
+				requestID = backend.NewExecutionIdentity("turn").RequestID
+			}
+		}
+		r := effects.Request(requestID, op, effects.Identity(ctx))
 		r.ExecutionIdentity = identity
 		switch v := in.(type) {
 		case effects.Session:
@@ -41,12 +51,13 @@ func (h *Harness) call(ctx context.Context, op string, in any) (effects.Reply, e
 		default:
 			return out, fmt.Errorf("unsupported messaging operation %s", op)
 		}
-		if op == "steer" || (r.Session != nil && r.Session.Parent != "") {
+		if r.Session != nil && r.Session.Parent != "" {
 			return out, fmt.Errorf("%s is unsupported on messaging routes", op)
 		}
 		e, err := effects.MessageCall(ctx, r)
 		if e.Result != nil {
 			out.ID = e.Result.ID
+			out.Value = e.Result.Value
 		}
 		return out, err
 	}
@@ -128,6 +139,8 @@ func (h *Harness) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 func (h *Harness) Steer(ctx context.Context, id, message string) (bool, error) {
 	t := target(id)
 	t.Message = message
+	t.InputID = effects.InputID(ctx)
+	t.ExecutionIdentity = effects.ExecutionIdentityFromContext(ctx)
 	r, err := h.call(ctx, "steer", t)
 	return r.Value, err
 }

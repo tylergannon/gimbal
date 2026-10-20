@@ -6297,44 +6297,51 @@ func ParseCancellationState(s string) (pkg_observation.CancellationState, error)
 
 func encInteractiveRow(v pkg_observation.InteractiveRow, at string) (any, error) {
 	enc1 := devalue.NewObject()
-	var enc2 any = float64(v.Ordinal)
-	enc1.Set("ordinal", enc2)
-	var enc3 any = string(v.Unresolved)
-	enc1.Set("unresolved", enc3)
-	var enc4 any = string(v.Address)
-	enc1.Set("address", enc4)
-	enc5 := make([]any, 0, len(v.Messages))
-	for i6, item7 := range v.Messages {
-		enc8, err := encInteractiveMessage(item7, at+"/messages"+"/"+strconv.Itoa(i6))
+	enc2 := make([]any, 0, len(v.Consumed))
+	for _, item4 := range v.Consumed {
+		var enc5 any = string(item4)
+		enc2 = append(enc2, enc5)
+	}
+	var enc6 any = enc2
+	enc1.Set("consumed", enc6)
+	var enc7 any = float64(v.Ordinal)
+	enc1.Set("ordinal", enc7)
+	var enc8 any = string(v.Unresolved)
+	enc1.Set("unresolved", enc8)
+	var enc9 any = string(v.Address)
+	enc1.Set("address", enc9)
+	enc10 := make([]any, 0, len(v.Messages))
+	for i11, item12 := range v.Messages {
+		enc13, err := encInteractiveMessage(item12, at+"/messages"+"/"+strconv.Itoa(i11))
 		if err != nil {
 			return nil, err
 		}
-		enc5 = append(enc5, enc8)
+		enc10 = append(enc10, enc13)
 	}
-	var enc9 any = enc5
-	enc1.Set("messages", enc9)
-	var enc10 any = string(v.EndedBy)
-	enc1.Set("ended_by", enc10)
-	var enc11 any = string(v.Run)
-	enc1.Set("run", enc11)
-	var enc12 any = string(v.QuestionID)
-	enc1.Set("question_id", enc12)
-	var enc13 any = string(v.Name)
-	enc1.Set("name", enc13)
-	var enc14 any = string(v.Scope)
-	enc1.Set("scope", enc14)
-	var enc15 any = string(v.Session)
-	enc1.Set("session", enc15)
-	var enc16 any = string(v.Question)
-	enc1.Set("question", enc16)
-	var enc17 any = string(v.Status)
-	enc1.Set("status", enc17)
-	var enc18 any = string(v.Answer)
-	enc1.Set("answer", enc18)
-	var enc19 any = float64(v.Asked)
-	enc1.Set("asked", enc19)
-	var enc20 any = float64(v.Answered)
-	enc1.Set("answered", enc20)
+	var enc14 any = enc10
+	enc1.Set("messages", enc14)
+	var enc15 any = string(v.EndedBy)
+	enc1.Set("ended_by", enc15)
+	var enc16 any = string(v.Run)
+	enc1.Set("run", enc16)
+	var enc17 any = string(v.QuestionID)
+	enc1.Set("question_id", enc17)
+	var enc18 any = string(v.Name)
+	enc1.Set("name", enc18)
+	var enc19 any = string(v.Scope)
+	enc1.Set("scope", enc19)
+	var enc20 any = string(v.Session)
+	enc1.Set("session", enc20)
+	var enc21 any = string(v.Question)
+	enc1.Set("question", enc21)
+	var enc22 any = string(v.Status)
+	enc1.Set("status", enc22)
+	var enc23 any = string(v.Answer)
+	enc1.Set("answer", enc23)
+	var enc24 any = float64(v.Asked)
+	enc1.Set("asked", enc24)
+	var enc25 any = float64(v.Answered)
+	enc1.Set("answered", enc25)
 	return enc1, nil
 }
 
@@ -6345,155 +6352,172 @@ func decInteractiveRow(raw any, at string) (pkg_observation.InteractiveRow, erro
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "ordinal", "unresolved", "address", "messages", "ended_by", "run", "question_id", "name", "scope", "session", "question", "status", "answer", "asked", "answered"); err != nil {
+	if err := dvKnown(obj2, at, "consumed", "ordinal", "unresolved", "address", "messages", "ended_by", "run", "question_id", "name", "scope", "session", "question", "status", "answer", "asked", "answered"); err != nil {
 		return dvZero, err
 	}
-	raw3, err := dvRequired(obj2, "ordinal", at+"/ordinal")
+	raw3, err := dvRequired(obj2, "consumed", at+"/consumed")
 	if err != nil {
 		return dvZero, err
 	}
-	num5, err := dvInteger(raw3, at+"/ordinal", math.MinInt, math.MaxInt)
+	items5, err := dvArray(raw3, at+"/consumed")
 	if err != nil {
 		return dvZero, err
 	}
-	dec4 := int(num5)
-	dec1.Ordinal = dec4
-	raw6, err := dvRequired(obj2, "unresolved", at+"/unresolved")
-	if err != nil {
-		return dvZero, err
-	}
-	dec7, err := dvString(raw6, at+"/unresolved")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.Unresolved = dec7
-	raw8, err := dvRequired(obj2, "address", at+"/address")
-	if err != nil {
-		return dvZero, err
-	}
-	dec9, err := dvString(raw8, at+"/address")
-	if err != nil {
-		return dvZero, err
-	}
-	dec1.Address = dec9
-	raw10, err := dvRequired(obj2, "messages", at+"/messages")
-	if err != nil {
-		return dvZero, err
-	}
-	items12, err := dvArray(raw10, at+"/messages")
-	if err != nil {
-		return dvZero, err
-	}
-	dec11 := make([]pkg_observation.InteractiveMessage, 0, len(items12))
-	for i13, item14 := range items12 {
-		dec15, err := decInteractiveMessage(item14, at+"/messages"+"/"+strconv.Itoa(i13))
+	dec4 := make([]string, 0, len(items5))
+	for i6, item7 := range items5 {
+		dec8, err := dvString(item7, at+"/consumed"+"/"+strconv.Itoa(i6))
 		if err != nil {
 			return dvZero, err
 		}
-		dec11 = append(dec11, dec15)
+		dec4 = append(dec4, dec8)
 	}
-	dec1.Messages = dec11
-	raw16, err := dvRequired(obj2, "ended_by", at+"/ended_by")
+	dec1.Consumed = dec4
+	raw9, err := dvRequired(obj2, "ordinal", at+"/ordinal")
 	if err != nil {
 		return dvZero, err
 	}
-	dec17, err := dvString(raw16, at+"/ended_by")
+	num11, err := dvInteger(raw9, at+"/ordinal", math.MinInt, math.MaxInt)
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.EndedBy = dec17
-	raw18, err := dvRequired(obj2, "run", at+"/run")
+	dec10 := int(num11)
+	dec1.Ordinal = dec10
+	raw12, err := dvRequired(obj2, "unresolved", at+"/unresolved")
 	if err != nil {
 		return dvZero, err
 	}
-	dec19, err := dvString(raw18, at+"/run")
+	dec13, err := dvString(raw12, at+"/unresolved")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Run = dec19
-	raw20, err := dvRequired(obj2, "question_id", at+"/question_id")
+	dec1.Unresolved = dec13
+	raw14, err := dvRequired(obj2, "address", at+"/address")
 	if err != nil {
 		return dvZero, err
 	}
-	dec21, err := dvString(raw20, at+"/question_id")
+	dec15, err := dvString(raw14, at+"/address")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.QuestionID = dec21
-	raw22, err := dvRequired(obj2, "name", at+"/name")
+	dec1.Address = dec15
+	raw16, err := dvRequired(obj2, "messages", at+"/messages")
 	if err != nil {
 		return dvZero, err
 	}
-	dec23, err := dvString(raw22, at+"/name")
+	items18, err := dvArray(raw16, at+"/messages")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Name = dec23
-	raw24, err := dvRequired(obj2, "scope", at+"/scope")
+	dec17 := make([]pkg_observation.InteractiveMessage, 0, len(items18))
+	for i19, item20 := range items18 {
+		dec21, err := decInteractiveMessage(item20, at+"/messages"+"/"+strconv.Itoa(i19))
+		if err != nil {
+			return dvZero, err
+		}
+		dec17 = append(dec17, dec21)
+	}
+	dec1.Messages = dec17
+	raw22, err := dvRequired(obj2, "ended_by", at+"/ended_by")
 	if err != nil {
 		return dvZero, err
 	}
-	dec25, err := dvString(raw24, at+"/scope")
+	dec23, err := dvString(raw22, at+"/ended_by")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Scope = dec25
-	raw26, err := dvRequired(obj2, "session", at+"/session")
+	dec1.EndedBy = dec23
+	raw24, err := dvRequired(obj2, "run", at+"/run")
 	if err != nil {
 		return dvZero, err
 	}
-	dec27, err := dvString(raw26, at+"/session")
+	dec25, err := dvString(raw24, at+"/run")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Session = dec27
-	raw28, err := dvRequired(obj2, "question", at+"/question")
+	dec1.Run = dec25
+	raw26, err := dvRequired(obj2, "question_id", at+"/question_id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec29, err := dvString(raw28, at+"/question")
+	dec27, err := dvString(raw26, at+"/question_id")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Question = dec29
-	raw30, err := dvRequired(obj2, "status", at+"/status")
+	dec1.QuestionID = dec27
+	raw28, err := dvRequired(obj2, "name", at+"/name")
 	if err != nil {
 		return dvZero, err
 	}
-	dec31, err := dvString(raw30, at+"/status")
+	dec29, err := dvString(raw28, at+"/name")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Status = dec31
-	raw32, err := dvRequired(obj2, "answer", at+"/answer")
+	dec1.Name = dec29
+	raw30, err := dvRequired(obj2, "scope", at+"/scope")
 	if err != nil {
 		return dvZero, err
 	}
-	dec33, err := dvString(raw32, at+"/answer")
+	dec31, err := dvString(raw30, at+"/scope")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Answer = dec33
-	raw34, err := dvRequired(obj2, "asked", at+"/asked")
+	dec1.Scope = dec31
+	raw32, err := dvRequired(obj2, "session", at+"/session")
 	if err != nil {
 		return dvZero, err
 	}
-	num36, err := dvInteger(raw34, at+"/asked", math.MinInt64, math.MaxInt64)
+	dec33, err := dvString(raw32, at+"/session")
 	if err != nil {
 		return dvZero, err
 	}
-	dec35 := int64(num36)
-	dec1.Asked = dec35
-	raw37, err := dvRequired(obj2, "answered", at+"/answered")
+	dec1.Session = dec33
+	raw34, err := dvRequired(obj2, "question", at+"/question")
 	if err != nil {
 		return dvZero, err
 	}
-	num39, err := dvInteger(raw37, at+"/answered", math.MinInt64, math.MaxInt64)
+	dec35, err := dvString(raw34, at+"/question")
 	if err != nil {
 		return dvZero, err
 	}
-	dec38 := int64(num39)
-	dec1.Answered = dec38
+	dec1.Question = dec35
+	raw36, err := dvRequired(obj2, "status", at+"/status")
+	if err != nil {
+		return dvZero, err
+	}
+	dec37, err := dvString(raw36, at+"/status")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Status = dec37
+	raw38, err := dvRequired(obj2, "answer", at+"/answer")
+	if err != nil {
+		return dvZero, err
+	}
+	dec39, err := dvString(raw38, at+"/answer")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Answer = dec39
+	raw40, err := dvRequired(obj2, "asked", at+"/asked")
+	if err != nil {
+		return dvZero, err
+	}
+	num42, err := dvInteger(raw40, at+"/asked", math.MinInt64, math.MaxInt64)
+	if err != nil {
+		return dvZero, err
+	}
+	dec41 := int64(num42)
+	dec1.Asked = dec41
+	raw43, err := dvRequired(obj2, "answered", at+"/answered")
+	if err != nil {
+		return dvZero, err
+	}
+	num45, err := dvInteger(raw43, at+"/answered", math.MinInt64, math.MaxInt64)
+	if err != nil {
+		return dvZero, err
+	}
+	dec44 := int64(num45)
+	dec1.Answered = dec44
 	return dec1, nil
 }
 

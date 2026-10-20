@@ -1,6 +1,7 @@
 package taskdaemon
 
 import (
+	"os"
 	"time"
 )
 
@@ -28,6 +29,7 @@ func (d *Daemon) expireLocked(now time.Time) {
 		t.mu.Unlock()
 		if remove {
 			delete(d.tasks, id)
+			_ = os.Remove(d.statePath("tasks", id))
 		}
 	}
 	for scope, closed := range d.closed {
@@ -47,6 +49,7 @@ func (d *Daemon) expireLocked(now time.Time) {
 		}
 		if !pending {
 			delete(d.closed, scope)
+			_ = os.Remove(d.statePath("closed", key(scope.Run, scope.Scope)))
 		}
 	}
 }

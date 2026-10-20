@@ -35,6 +35,7 @@
 {"type":"object",
 "description":"InteractiveChanged projects one committed interaction transition.","properties":{
 "kind":{"type":"string","const":"interactive_changed"},
+"consumed":{"type":"array","items":{"type":"string"}},
 "status":{"type":"string"},
 "ordinal":{"type":"integer"},
 "error":{"type":"string"},
@@ -51,7 +52,7 @@
 "ended_by":{"type":"string"}
 },"required":["messages","ended_by"],"additionalProperties":false},
 "waiting":{"type":"boolean"}
-},"required":["kind","status","ordinal","error","id","name","address","transcript","waiting"],"additionalProperties":false},
+},"required":["kind","consumed","status","ordinal","error","id","name","address","transcript","waiting"],"additionalProperties":false},
 {"type":"object",
 "description":"Killed is the cause of a ctx that an operator cancelled on purpose, and the lifecycle record of that kill. Target is the scope key or turn id that was killed; By is who did it, \"\" when unknown. context.Cause(ctx) returns it in every scope and turn under the target, so workflow code that cares checks errors.As(context.Cause(ctx), \u0026killed); code that does not care sees ctx.Err() as before.","properties":{
 "kind":{"type":"string","const":"killed"},

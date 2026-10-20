@@ -4,6 +4,7 @@
  * InteractiveRow is one question an interactive asked. An accepted answer updates the same row from pending to answered; an empty answer means the person ended the interactive.
  */
 export type InteractiveRow = {
+  consumed: Array<string>;
   ordinal: number;
   unresolved: string;
   address: string;

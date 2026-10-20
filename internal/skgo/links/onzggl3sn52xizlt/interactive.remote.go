@@ -26,8 +26,7 @@ type InteractiveAnswered struct {
 	Accepted bool `json:"accepted"`
 }
 
-// answerInteractive carries one person's answer from the run page to the live
-// interactive. An empty answer is valid: it tells the interactive to end normally.
+// answerInteractive durably accepts a human message at the stable interaction address.
 func answerInteractive(ctx context.Context, event app.RequestEvent[params.Params], arg InteractiveAnswer) (InteractiveAnswered, error) {
 	runs := live.RunsFrom(ctx)
 	if runs == nil {
@@ -42,7 +41,10 @@ func answerInteractive(ctx context.Context, event app.RequestEvent[params.Params
 	if arg.RequestID == "" {
 		return InteractiveAnswered{}, skgo.Invalidf("request_id", "Input identity required")
 	}
-	raw, _ := json.Marshal(map[string]any{"id": arg.RequestID, "message": arg.Answer, "finish": arg.Answer == ""})
+	if arg.Answer == "" {
+		return InteractiveAnswered{}, skgo.Invalidf("answer", "Message required")
+	}
+	raw, _ := json.Marshal(map[string]any{"id": arg.RequestID, "message": arg.Answer})
 	if err := run.SubmitInteractive(arg.QuestionID, string(raw)); err != nil {
 		return InteractiveAnswered{}, skgo.Errorf(http.StatusNotFound,
 			"This interactive question is no longer waiting for an answer.")

@@ -25,3 +25,25 @@ diff --git a/src/runtime/client/remote-functions/form.svelte.js b/src/runtime/cl
 @@ -591 +592 @@
 -				form.removeEventListener('focusout', handle_focusout);
 +				remove_focusout();
+diff --git a/src/runtime/client/remote-functions/query-live/proxy.js b/src/runtime/client/remote-functions/query-live/proxy.js
+--- a/src/runtime/client/remote-functions/query-live/proxy.js
++++ b/src/runtime/client/remote-functions/query-live/proxy.js
+@@ -0,0 +1 @@
++import { getAbortSignal } from 'svelte';
+@@ -31,0 +33,3 @@
++		// Capture the caller's owner before entering the resource's own root.
++		let signal;
++		try { signal = getAbortSignal(); } catch {}
+@@ -34 +38,11 @@
+-		cache.ref(this, entry, this.#id, payload);
++		// Release component-owned streams on destruction, not delayed GC:
++		// abandoned streams otherwise exhaust HTTP/1 navigation connections.
++		if (signal) {
++			const release = cache.manual_ref(entry, id, payload);
++			if (signal.aborted) release();
++			else signal.addEventListener('abort', release, { once: true });
++		} else {
++			// Event-handler queries keep the normal proxy lifetime. Existing
++			// await/iterator pins still protect their outstanding consumers.
++			cache.ref(this, entry, id, payload);
++		}

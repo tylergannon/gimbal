@@ -1,5 +1,9 @@
 # Author's spec review
 
+Historical record of the abandoned design and implementation. The rewritten
+delivery plan and current specs/durable-interactive.md supersede its proposed
+mechanisms and dispositions. Do not use this review as a coding checklist.
+
 Historical authoring review at 13ee0140. Independent Opus round 02 subsequently
 identified material defects, adjudicated below; its report supersedes the
 no-findings disposition of this original pass.

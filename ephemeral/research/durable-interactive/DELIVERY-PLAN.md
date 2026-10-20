@@ -1,174 +1,148 @@
-# Durable Interactive: one delivery unit
+# Working Interactive conversations
 
-Status: manager-approved implementation handoff reflecting human decisions
-and independent Opus review adjudication. This document is a per-slice technical plan; `specs/durable-interactive.md` holds the durable contract.
+Status: replacement plan, 2026-10-19. This is a coding handoff, not a claim that
+the implementation works. The human's latest instruction is decisive:
+**“NO … RECOVERY MACHINERY … DO NOT SOLVE PROBLEMS THAT WE DO NOT HAVE.”**
 
-## Ownership and shape
+## Deliver this
 
-Use two Sol 6.1 implementers in this shared worktree, one delivery unit:
+Replace Interview with Interactive. A conversation is an ordinary workflow
+running in shared Go capacity. Interactive waits for input, runs an agent
+turn, publishes chat, and waits again. Agent end returns from the call.
+Human archive returns normally with EndedBy human so the workflow completes.
 
-- Runtime owner: J/E/I/H/P, including runtime tests, shared host, native adapter
-  continuity where required, message/archive ingress and application views.
-- Authoring owner: A, all built-ins/examples, generation/admission tests and
-  generated source. Own the ordinary built-in conversation workflow and its
-  inventory entry; coordinate its host-facing invocation with the runtime owner.
-- Manager: authoritative nlspec, source map, reviews, this plan and worklog;
-  adjudicate construction blockers and perform one final acceptance pass.
+**Waiting blocks the goroutine.** Run remains pending, scopes remain open,
+and Group siblings continue. Retaining idle Go stacks is fine.
 
-Do not spawn more agents. Other work exists in the checkout: do not revert
-others' edits. Keep each owner's focused checks local; runtime owner builds
-and runs final broad checks after the authoring owner has finished generation.
-The manager reuses that evidence and observes the real app, rather than running
-parallel duplicate full suites. Coordinate changed generation inputs before the
-single final generation pass.
+Use the existing journal to persist accepted inputs and commit reply plus
+wait together. That storage does not require an execution recovery system.
+Do not add replay, startup reconstruction, recovery scans, activation loops,
+reconciliation, restore routines, or restart guarantees. Leave the executor
+behavior that predates this feature alone except for the delivery change below.
 
-Deliver one vertical feature across the existing runtime, shared host and
-conversation UI. There is one shared validation/acceptance pass for the final
-implementation, not a suite and separate review for every internal task.
-Keep actual implementation choices in ordinary Go and existing modules. No
-new root public names beyond the approved Interactive, InteractiveTranscript,
-InteractiveMessage and EndedBy contract.
+## What went wrong, and what replaces it
 
-## Control flow to change
+I read the source chat from the original request through its final
+simplification discussion: 01a156a2-13b2-7511-ad6f-171ab6e30038.
 
-```diff
- project admission / workflow daemon
--  independent workflow subprocess per invocation
--  separate conversation adapter manager
-+  shared host admits saved ordinary workflow invocation
-+    Run creates or reconstructs the same recorded run
-+      library operations reuse recorded completed outcomes
-+      Interactive
-+        typed agent result -> committed reply plus durable wait
-+        durable input -> steer active turn or schedule continuation
-+        human finish -> safe interruption -> normal return
-+      Group preserves waiting branches and runnable siblings
-+    no runnable branch -> dormant logical run without scope completion
- observation and chat controls
--  answer depends on a live in-memory Interview waiter
-+  submit durable input by run/interaction identity
-+  project committed state and normal archive completion
-```
+The prior implementation made a wait unwind the workflow and then rebuild
+it. Run and two hosts each owned part of the lifecycle. Tests even expected
+Run to return success while unfinished. Another path could deliver one
+message both as a steer and as a new turn. Finish did not close input; Stop
+could discard a successful reply; waited runs could lose deregistration.
 
-## Countable source scope
+Replace those mechanisms, rather than adding more checks around them:
 
-| Cell | Existing source to change or replace |
+| Concern | Simple owner |
 | --- | --- |
-| J | runstore contract/directory journal and internal/runstate/store.go; use its existing identity/batch seam and writer-fenced restart inbox acceptance |
-| E | run/scope/group/session/command and recording/context reconstruction; lifecycle schema |
-| I | replace interview.go and its transcript/decision generation with Interactive and durable input handling |
-| H | host, runner, invocation and conversation ownership; preserve project/environment routing |
-| P | observation reduction and conversation/interaction routes and components |
-| A | workflow extraction/linting, schemas/graphs and the built-in workflows affected by the library-only rule |
+| Workflow lifetime | Run, ordinary scopes and Group |
+| Interaction decisions and transcript | Interactive's loop |
+| Native history, operation IDs and message delivery | Session/executor |
+| Durable records | Existing journal |
+| Display | Existing observation layer |
 
-Before adding or changing production files outside the spec's measured ownership sets,
-report the exact paths and their cell to the manager for budget assignment.
-A also owns cmd/gimbal/audit_index.go (83 existing lines): expose the existing
-ReadCompletion/VerifyCurrent checks through minimal audit-index --completion
-and --verify-current modes so research-document can preserve its gate via recorded RunCommand, with
-no new paid audit or duplicated revision algorithm. A baseline is 11,609; its
-maximum remains 13,200.
+No actor framework, general reducer/effect framework or new public wrapper.
 
-The existing built-in workflow source contains direct I/O and clock calls;
-they cannot be hidden in helpers or exempted from the new authoring rule.
-Use existing library operations for those effects. Initial preparation is
-not an excuse to reread mutable inputs during replay. RunCommand returns full
-captured stdout/stderr to its caller and on replay; display excerpts remain
-bounded. The user explicitly approved this contract change. No file/clock API
-or Activity is added. First entry is human-first for every occurrence.
+## Use the useful existing work
 
-Version changes across runs have NO POLICY and NO explicit enforcement.
-Do not build digest gates, version-mismatch blocking, build retention,
-per-version hosts, migration or tests claiming support/non-support. Recovery
-proof uses unchanged code. This is not a deferred policy to go design.
-The stable interaction address omits occurrence ordinal, while operation
-results retain it. Native resource handling also has no policy.
+The failed branch is codex/durable-interactive-spec at cc976137. Its original
+worktree also contains unfinished repairs. Preserve that work while reading
+it; it is material to reuse, not an accepted implementation.
 
-Dormancy unwinds Go execution, with library suspension handling bypassing
-normal cleanup and generic panic/error handling. Admission rejects authored
-defer/recover and unrecorded context/timing/cancellation observations. Migrate
-cleanup to explicit completion paths and waits to library commands; remove
-agent-turn timeouts without a library equivalent. Do not add APIs for these.
+Keep useful chat/end types, generated schemas, journal batching, ordinary
+conversation workflow, UI routes and completed workflow migrations. Keep
+the approved complete RunCommand return values and library-only effect rule.
+Do not redo the corpus migration or broaden the linter.
 
-## Work items and acceptance denominator
+Compare Run/Scope/Group with ed50f6bd for their ordinary lifetime behavior.
+Remove suspension panics, suspension-specific Group handling, cleanup bypasses,
+dormant tables and host polling/re-entry loops. Remove the absent-owner inbox
+writer and the new replay/reconstruction paths added by this feature,
+including replay.go and their hooks in Run, sessions, commands and hosts.
+Delete interaction copies of session counters and callbacks that
+mutate interaction state from inside Session. Do not rebuild the full
+transcript into every prompt; use the native session's history.
 
-1. Implement recorded activation/reconstruction and the necessary durable
-   inbox/transition storage, reusing existing IDs, ownership and atomic
-   batches. Preserve completed outcomes, bindings and scoped context before
-   dispatch; unresolved native work is never blind-replayed.
-2. Replace Interview end to end with the approved Interactive call and
-   generated chat/end union, ordered transcript, durable EndedBy, steering,
-   durable waits and finish signal. Keep input identity through races and
-   conversation re-entry; agent end cannot cause an autonomous spin loop.
-3. Wire shared hosting and the ordinary conversation workflow through the
-   real application's existing project and placement paths. Persist enough
-   invocation information for reconstruction and startup discovery. Keep Run
-   logically pending during dormancy; same-ID re-entry reconstructs it. Reuse
-   recorded accepted deadlines rather than recomputing them. Catch ordinary
-   workflow panics at the shared host per-run boundary, preserving other runs.
-   Keep dormant cancellation and reconciliation controls meaningful. Preserve services/claims on suspension without defining their
-   restoration behavior.
-4. Replace the app's live-waiter admission path with durable message/archive
-   ingress and project the real unfinished/terminal/recovery states. Read
-   web idioms and Svelte factoring instructions before UI changes. Keep the
-   frontend small; do not redesign unrelated chat/workspace surfaces.
-5. Enforce library-only effects and observations for accepted workflow
-   bodies/helpers, update affected built-ins through existing library calls,
-   and regenerate maintained output. Remove replaced Interview code and
-   parallel conversation execution instead of adding compatibility paths.
-6. Demonstrate routed C1-C12 and L1-L5 claims. Add meaningful package-adjacent
-   tests for the changed contracts, finish one consolidated build/check
-   cycle, then observe the real hosted application with an inexpensive
-   unversioned native model alias and disposable catalog. Report the actual
-   model and observations, including any unmet claim. Commit and push
-   interesting milestones with Conventional Commit titles.
+## Implement sequentially
 
-The human chose local durability first, then remote durability. Finish the
-local path and one real local proof checkpoint before expanding the remote
-daemon. Keep the same owners and delivery unit; H additionally owns
-internal/taskdaemon/** and cmd/gimbal/daemon.go, plus existing
-backend/messaging.go and cmd/gimbal/messaging.go (329 lines; expanded H baseline
-7,409/max 8,500 including cmd/gimbal/run_prompt.go's 277 existing lines for
-moving CLI deadline setup outside its authored callback). After the local native checkpoint, the authoring worker owns
-taskdaemon and those two messaging files, and the runtime worker retains
-runner/host/invocation/daemon and backend/backend.go. Both remain the original
-two implementers; this is the remote follow-on inside the same delivery.
-Persist the remote run/session indexes, durable input ownership and missing
-steering through the real transport, then demonstrate L5. This does not add
-SERVICE restoration/recheck guarantees. P also owns handwritten Go/Svelte
-conversation routes (95 existing lines; baseline 13,882/max 14,800).
-A owns generated internal/skgo/links copies by provenance, with no manual edits.
+1. **Make one local conversation work.** Interactive commits waiting state
+   and blocks on input or cancellation in the same call. Native work reports
+   results back to that loop so Send, Stop and Finish remain responsive.
+   No native callback takes interaction locks or commits interaction state.
+   Run owns one registration until actual completion and then releases it.
+   A wait does not return, throw, cancel or run cleanup.
 
-These are internal work items of one slice, not separate delivery gates. An
-error behavior named in the nlspec belongs in this slice. Fix actual failures;
-do not broaden the task for hypothetical improvements.
+2. **Serialize message delivery once.** The interaction owner commits an
+   input before acknowledging it. Use its stable ID for duplicate transport
+   requests. All input comes through this one owner. If it is unavailable,
+   return an error and retain the sender's text/ID for retry; do not create
+   an alternate storage owner.
 
-## Checks and proof
+   The session owner orders message delivery against turn completion.
+   Active turn: steer. Turn already finished: retain for the next turn and
+   notify Interactive. This implements the human's “deliver anyways if it
+   arrives after the turn ends” behavior through a small private control
+   change if needed. The session reports delivered or queued; Interactive
+   never independently resends a message that is still being delivered.
+   Queued input starts its next turn through ordinary Interactive execution.
 
-During implementation, run focused checks that answer concrete questions.
-At the final coherent head, generate/build once and run the affected backend,
-frontend, analysis and formatting checks required by the repository. Record
-the tested head and exact outcomes in the report to the manager. The manager
-will reuse valid evidence rather than rerun unchanged broad suites. A changed
-input or a new failure justifies rerunning the affected check.
+   A native error is an error. Report it; do not guess that delivery failed
+   and resend, inspect old executors to repair it, or build a recovery state
+   machine. Use the same owner's queue and buffered notification so draining
+   committed input and going to sleep cannot lose a signal. No host poller.
 
-Use the actual maintained app/workflow paths for the live demonstrations.
-Native continuity uses the existing workflow executor checkpoint/reattach path
-for Claude, Codex, Pi and Agy; a harness without it stays honestly unresolved
-when continuation cannot be established.
-Remote placement carries input through existing ControlWorkflow transport.
-Unit stand-ins do not prove native continuity or browser behavior. Do not
-commit proof programs, transcripts, screenshots, run logs or results dumps;
-report observed proof in chat/PR, with repeatable checks beside their code.
+3. **Complete controls and display.** Commit chat plus waiting in one journal
+   batch. Feed new messages and purpose/scoped context to the existing native
+   session. Agent end returns EndedBy agent; the conversation's ordinary loop
+   calls Interactive again and waits for the next human message.
 
-Native agent resource handling has NO POLICY. Do not add detach/retain,
-eviction, adapter-close-count or native-process-count tests asserting one.
-Prove continuity and correctness without prescribing those tactics. SERVICE
-restoration/rechecks remain deferred. Supporting both entry modes and a new
-Activity concept are not required work.
+   Stop interrupts the active turn and leaves the interaction open. Preserve
+   a successful native result when Stop arrived too late to stop it.
+   Finish closes ingress before acknowledgement, prevents another turn,
+   requests safe interruption, then returns EndedBy human normally.
+   Reject subsequent new messages. Mark earlier undelivered messages
+   unprocessed. Do not let a late result reopen the interaction.
+   If interruption fails or its outcome is unknown, report that failure;
+   do not label the workflow successful or launch repair machinery.
+   Confirmed requested interruption is normal Stop/Finish handling, not an
+   unexpected native failure that terminates Interactive.
 
-If a budget is exceeded, a deferred decision is encountered or the work
-requires an underivable seam/public contract, report it to the manager with
-the concrete construction blocker. Do not amend the nlspec yourself. Continue
-independent authorized work where possible. Do not remove, skip or weaken a
-failing acceptance check.
+   Preserve the existing file context, placement/worktree, association,
+   rename, idle model/effort controls and explicit cleanup. Ordinary run-view
+   controls use the same input path. Keep the frontend changes small and
+   show the actual waiting, working, failed and completed states.
+
+4. **Use the real local app, then the existing remote path.** With luna and
+   disposable project/catalog data, send and receive, steer, Stop and
+   continue, agent-end and send again, then archive an active turn. Observe
+   actual successful workflow completion. Run a waiting branch alongside a
+   useful sibling and another project. Only then route the same behavior
+   through the existing separate daemon/messaging path and exercise it.
+   Remote transport adds no recovery or second lifecycle implementation.
+   Use the documented decision envelope across harnesses; schema syntax is
+   a small implementation detail.
+
+## Check the actual defects early, then finish
+
+Keep package-adjacent regressions for these observed failures:
+
+- Run stays pending at a wait; a sibling progresses; cancellation joins.
+- A delayed steer acknowledgement racing turn completion delivers once.
+- Finish rejects later input and a late result cannot reopen it.
+- Stop racing a successful turn preserves its reply/end.
+- An actually finished run deregisters after having waited.
+
+These tests support the live app observations above. No restart/crash matrix,
+new verification framework or committed proof programs.
+
+One implementer is sufficient. No more subdivision or repeated setup.
+Run focused checks while editing and one set of required affected build,
+Go, frontend and analysis checks at the coherent implementation. Reuse valid
+unchanged results. The earlier requested Opus review should check concrete
+behavior and defects, not introduce new requirements or another spec loop.
+Report what worked, the model used and any real remaining defect, then stop.
+
+SERVICE lifecycle and claims remain untouched by waiting. Restoration is
+outside the work. Version handling and native-process resource handling get
+no policy, machinery or policy tests. No Activity API, Python detours,
+broad UI redesign or unrelated feature work.

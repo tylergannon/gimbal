@@ -80,3 +80,15 @@ func aliasMapOrder(ctx context.Context, values map[string]int) { // want "GIMBAL
 		_ = key
 	}
 }
+
+func hostRuntimeHelper() { defer func() {}(); _, _ = os.ReadFile("host-config") }
+
+func nativeRuntime(ctx context.Context, adapter gimbal.HarnessAdapter) {
+	defer func() {}()
+	_, _ = adapter.Fork(ctx, "native")
+}
+
+func authoredNative(ctx context.Context, adapter gimbal.HarnessAdapter) { // want "GIMBAL111-LIBRARY-EFFECTS"
+	gimbal.Set(ctx, "native", "input")
+	_, _ = adapter.Fork(ctx, "native")
+}

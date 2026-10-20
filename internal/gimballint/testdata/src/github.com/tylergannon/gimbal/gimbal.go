@@ -74,3 +74,8 @@ func Service(context.Context, string, string, string, ...string) error          
 func RunCommand(context.Context, string, string, string, ...string) (int, string, string, error) {
 	return 0, "", "", nil
 }
+
+// HarnessAdapter is the runtime interface, not a workflow Session.
+type HarnessAdapter interface {
+	Fork(context.Context, string) (string, error)
+}

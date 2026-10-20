@@ -109,7 +109,7 @@ func (d *Daemon) Handler() http.Handler {
 	})
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if d.restoreErr != nil {
-			http.Error(w, d.restoreErr.Error(), 503)
+			http.Error(w, d.restoreErr.Error(), http.StatusServiceUnavailable)
 			return
 		}
 		if r.Header.Get("Origin") != "" || r.Header.Get("Content-Type") != "application/json" {

@@ -192,7 +192,7 @@ func indexSyntax(pass *analysis.Pass, in *inspector.Inspector) *syntaxInfo {
 			case *ast.FuncDecl:
 				if n.Body != nil {
 					u := &unit{node: n, body: n.Body, directCalls: make(map[*types.Func]bool)}
-					if pass.Pkg.Path() != gimbalPath && workflowSignature(pass, n) {
+					if pass.Pkg.Path() != gimbalPath && !strings.HasSuffix(pass.Fset.Position(n.Pos()).Filename, "_test.go") && workflowSignature(pass, n) {
 						u.workflow = true
 					}
 					si.units = append(si.units, u)
@@ -208,6 +208,11 @@ func indexSyntax(pass *analysis.Pass, in *inspector.Inspector) *syntaxInfo {
 	}
 
 	for _, file := range pass.Files {
+		// Test harnesses may call runtime helpers while exercising an authored
+		// callback. They are not admission roots for production helper traversal.
+		if strings.HasSuffix(pass.Fset.Position(file.Pos()).Filename, "_test.go") {
+			continue
+		}
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.CallExpr:
@@ -763,6 +768,15 @@ func gimbalCall(pass *analysis.Pass, call *ast.CallExpr) (string, bool) {
 	callee := typeutil.Callee(pass.TypesInfo, call)
 	if callee == nil || callee.Pkg() == nil || callee.Pkg().Path() != gimbalPath {
 		return "", false
+	}
+	// HarnessAdapter is a runtime boundary, not authored Session operations.
+	// Interface method names such as Fork can coincide with workflow methods.
+	if fn, ok := callee.(*types.Func); ok {
+		if sig, ok := fn.Type().(*types.Signature); ok && sig.Recv() != nil {
+			if _, opaque := sig.Recv().Type().Underlying().(*types.Interface); opaque {
+				return "", false
+			}
+		}
 	}
 	return callee.Name(), true
 }

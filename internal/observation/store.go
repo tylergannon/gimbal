@@ -222,34 +222,35 @@ type record struct {
 	Session string    `json:"session"`
 	Turn    string    `json:"turn"`
 	Event   struct {
-		Kind       string          `json:"kind"`
-		Effort     string          `json:"effort"`
-		Message    string          `json:"message"`
-		Source     string          `json:"source"`
-		Landed     bool            `json:"landed"`
-		Status     string          `json:"status"`
-		By         string          `json:"by"`
-		Reason     string          `json:"reason"`
-		Target     string          `json:"target"`
-		Name       string          `json:"name"`
-		Adapter    string          `json:"adapter"`
-		Model      string          `json:"model"`
-		Parent     string          `json:"parent"`
-		Error      string          `json:"error"`
-		Task       json.RawMessage `json:"task"`
-		Loop       bool            `json:"loop"`
-		Key        string          `json:"key"`
-		Value      string          `json:"value"`
-		Artifact   *ValueArtifact  `json:"artifact"`
-		Prompt     string          `json:"prompt"`
-		Context    []ContextEntry  `json:"context"`
-		OutputType string          `json:"output_type"`
-		Result     string          `json:"result"`
-		Ordinal    int             `json:"ordinal"`
-		Consumed   []string        `json:"consumed"`
-		Address    string          `json:"address"`
-		Waiting    bool            `json:"waiting"`
-		Transcript struct {
+		Kind           string          `json:"kind"`
+		Effort         string          `json:"effort"`
+		Message        string          `json:"message"`
+		Source         string          `json:"source"`
+		Landed         bool            `json:"landed"`
+		Status         string          `json:"status"`
+		By             string          `json:"by"`
+		Reason         string          `json:"reason"`
+		Target         string          `json:"target"`
+		Name           string          `json:"name"`
+		Adapter        string          `json:"adapter"`
+		Model          string          `json:"model"`
+		Parent         string          `json:"parent"`
+		Error          string          `json:"error"`
+		RecordingError string          `json:"recording_error"`
+		Task           json.RawMessage `json:"task"`
+		Loop           bool            `json:"loop"`
+		Key            string          `json:"key"`
+		Value          string          `json:"value"`
+		Artifact       *ValueArtifact  `json:"artifact"`
+		Prompt         string          `json:"prompt"`
+		Context        []ContextEntry  `json:"context"`
+		OutputType     string          `json:"output_type"`
+		Result         string          `json:"result"`
+		Ordinal        int             `json:"ordinal"`
+		Consumed       []string        `json:"consumed"`
+		Address        string          `json:"address"`
+		Waiting        bool            `json:"waiting"`
+		Transcript     struct {
 			Messages []InteractiveMessage `json:"messages"`
 			EndedBy  string               `json:"ended_by"`
 		} `json:"transcript"`
@@ -331,6 +332,13 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 		}
 		s.run.Ended = at
 		changed = append(changed, change{tableRun, ""})
+	case "complete":
+		// Recording health is not the execution verdict: it rides beside
+		// Status and Error and never changes them.
+		if rec.Event.RecordingError != "" {
+			s.run.RecordingError = rec.Event.RecordingError
+			changed = append(changed, change{tableRun, ""})
+		}
 	case "run_cancelled":
 		s.run.Status, s.run.Error, s.run.Ended = StatusCancelled, rec.Event.Error, at
 		changed = append(changed, change{tableRun, ""})

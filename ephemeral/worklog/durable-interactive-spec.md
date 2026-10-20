@@ -40,3 +40,13 @@ is future work, not part of this change.
 correction: Batch independent spec questions where plausible; Tyler explicitly
 overrides the grilling skill's one-question-at-a-time interview format to
 avoid unnecessarily prolonged authoring.
+
+decision: Tyler confirms Interactive returns the ordered transcript plus an
+error and that runs from different projects may share a host within the same
+execution environment, with independent run state and bindings.
+
+decision: Proposed cells separate durable records/inbox, execution/replay,
+interaction protocol, shared hosting, presentation, and workflow admission.
+Physical handwritten-source baselines were measured before proposing budget
+tripwires. The existing linter follows source-visible helpers but does not yet
+enforce the new library-only effects rule.

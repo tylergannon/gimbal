@@ -88,11 +88,18 @@ Important limits:
 - Fencing durable writes does not make external effects execute once:
   `workflows_test.go:4152-4196` deliberately executes a body twice.
 
-## Decisions not settled by source
+## Decisions established after mapping
 
-Replay safety of ordinary Go observations/effects; safe recovery versus an
-unresolved in-flight action; active-turn input routing and batching; admission
-identity/order and terminal races; human archive versus agent end; Interactive
-return/history contract; and the placement boundary of shared Go capacity.
-SERVICE restoration is deliberately deferred and must not be reopened as an
-implicit replay prerequisite.
+The human has settled library-only workflow observations/effects, steering
+active turns, successful completion through an archive finish signal,
+interrupting an archived active turn when safe, an ordered transcript/error
+return, and cross-project sharing within an execution environment. See SPEC.md.
+
+The authoring gate already has source-visible helper traversal
+(`internal/gimballint/analyzer.go:53-56`, `internal/gimballint/rules.md:26-29`).
+This is a location for extending admission rules, not proof of existing
+nondeterminism enforcement.
+
+Unsettled seam details include initial entry into Interactive, dormant
+resource release, transcript representation, and delivery/termination races.
+SERVICE restoration remains explicitly deferred.

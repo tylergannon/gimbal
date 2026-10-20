@@ -15,6 +15,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/app"
 	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/host"
+	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 
 	routes "github.com/tylergannon/gimbal/internal/skgo/links/onzggl3sn52xizlt"
@@ -189,7 +190,11 @@ func TestNewSessionFormNeedsAFirstMessageAndOffersResolvedDefaults(t *testing.T)
 			t.Errorf("%s offers no resolved default model: %+v", harness.ID, harness)
 		}
 	}
-	if len(setup.Harnesses) == 0 || setup.Harnesses[0].ID != "claude" || setup.Harnesses[0].Default != "claude-haiku-4-5" {
+	claudeDefault, err := modelalias.Resolve(modelalias.Selection{Name: "haiku"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(setup.Harnesses) == 0 || setup.Harnesses[0].ID != "claude" || setup.Harnesses[0].Default != claudeDefault.Model {
 		t.Fatalf("first harness = %+v", setup.Harnesses)
 	}
 }

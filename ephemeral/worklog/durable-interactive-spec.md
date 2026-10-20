@@ -25,3 +25,8 @@ decision: Human archive is successful completion. Tyler prefers a signal that
 makes the workflow exit Interactive and actually finish normally, and permits
 deferring that signal if it is hard. Proposed finish input shares the required
 durable inbox; handling archive during an active turn remains open.
+
+decision: Archive interrupts an active turn unless doing so would leave
+unrecoverable or corrupt state. Interruption is turn-scoped; the workflow
+continues normally after safe cessation. An unconfirmed stop remains
+recoverable/unresolved rather than being reported as successful completion.

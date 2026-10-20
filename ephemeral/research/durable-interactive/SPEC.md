@@ -37,7 +37,14 @@ path. Archive does not merely mark an unfinished workflow successful.
 The finish signal is proposed within this change because it can share the
 durable interaction inbox. If implementing it requires a materially separate
 mechanism, return that scope decision to the human, who permits deferring it.
-Its handling during an active turn still requires alignment.
+
+If archive arrives during an active turn, request interruption of that turn.
+This stops the turn, not the enclosing workflow or runnable sibling branches.
+Once the turn has safely stopped, the finish signal makes `Interactive` return
+normally. If interruption would leave unrecoverable or corrupt state, defer
+it until safe. If cessation or the operation outcome is unconfirmed, preserve
+the finish request and a recoverable unresolved state while reconciling;
+uncertainty is not successful completion and does not justify blind replay.
 
 Human messages enter a durable inbox addressed to the interaction regardless
 of whether execution is active, suspended, or restarting. An incoming message
@@ -72,6 +79,6 @@ seams first, then define routed behavioral claims and exclusions. Run
 spec-review before this draft governs work.
 
 Contract decisions requiring alignment include replay-safe ordinary Go work,
-steering delivery races, active-turn archive handling, the return contract
+steering delivery races, the return contract
 of `Interactive`, and the unit of shared execution capacity. These are open
 authoring decisions, not implementation permission to choose silently.

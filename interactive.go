@@ -39,27 +39,6 @@ func (end) interactiveDecision()  {}
 type interactiveOutput struct {
 	Decision interactiveDecision `json:"decision"`
 }
-type interactiveFlat struct{ value interactiveOutput }
-
-func (*interactiveFlat) Schema() json.RawMessage {
-	var schema map[string]json.RawMessage
-	_ = json.Unmarshal((interactiveOutput{}).Schema(), &schema)
-	var props map[string]json.RawMessage
-	_ = json.Unmarshal(schema["properties"], &props)
-	var decision map[string]json.RawMessage
-	_ = json.Unmarshal(props["decision"], &decision)
-	decision["type"] = json.RawMessage(`"object"`)
-	flat, _ := json.Marshal(decision)
-	return flat
-}
-func (o *interactiveFlat) acceptJSON(raw []byte) error {
-	wrapped := append(append([]byte(`{"decision":`), raw...), '}')
-	if err := o.value.ValidateJSON(wrapped); err != nil {
-		return err
-	}
-	return json.Unmarshal(wrapped, &o.value)
-}
-
 type interactionInput = runstate.InteractionInput
 
 type interactionState struct {
@@ -196,7 +175,9 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 			promptTranscript := state.Transcript
 			promptTranscript.Messages = append(append([]InteractiveMessage(nil), state.Transcript.Messages...), InteractiveMessage{Role: "user", Message: input.Message})
 			raw, _ := json.Marshal(promptTranscript)
-			state.Prompt = purpose + "\n\nConversation:\n" + string(raw) + "\n\nRespond with chat and message, or end when finished."
+			state.Prompt = purpose + "\n\nConversation:\n" + string(raw) + `
+
+Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision":{"type":"end"}} when finished.`
 			if text := scopeText(ctx); text != "" {
 				state.Prompt += "\n\n" + text
 			}
@@ -221,8 +202,7 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 			cancel(nil)
 			return state.Transcript, err
 		}
-		output := &interactiveFlat{}
-		_, turnErr := dispatchResponse(turnCtx, session, state.Prompt, nil, nil, output)
+		output, turnErr := dispatch[interactiveOutput](turnCtx, session, state.Prompt, nil)
 		cancel(nil)
 		session.mu.Lock()
 		delivered := session.generationDelivered
@@ -297,7 +277,7 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 		state.Turns = session.turns
 		state.Generations = session.generations
 		session.mu.Unlock()
-		switch decision := output.value.Decision.(type) {
+		switch decision := output.Decision.(type) {
 		case chat:
 			state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "assistant", Message: decision.Message})
 			state.Waiting = true

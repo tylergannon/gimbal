@@ -37,11 +37,11 @@ func (i *interactiveing) RunTurn(context.Context, string, string, json.RawMessag
 	var answer string
 	switch i.turns {
 	case 1:
-		answer = `{"type":"chat","message":"Which color?"}`
+		answer = `{"decision":{"type":"chat","message":"Which color?"}}`
 	case 2:
-		answer = `{"type":"chat","message":"Anything else?"}`
+		answer = `{"decision":{"type":"chat","message":"Anything else?"}}`
 	default:
-		answer = `{"type":"end"}`
+		answer = `{"decision":{"type":"end"}}`
 	}
 	return gimbal.TurnResult{Output: json.RawMessage(answer)}, nil
 }

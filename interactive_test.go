@@ -76,7 +76,7 @@ func TestInteractiveChatReconstructsWithoutRedispatch(t *testing.T) {
 	directory := t.TempDir()
 	ctx := Project(context.Background(), directory)
 	id := string(runstore.NewRunID())
-	adapter := &interactionAdapter{replies: []string{`{"type":"chat","message":"Hello"}`, `{"type":"end"}`}}
+	adapter := &interactionAdapter{replies: []string{`{"decision":{"type":"chat","message":"Hello"}}`, `{"decision":{"type":"end"}}`}}
 	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}
 	var controller *run
 	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
@@ -209,7 +209,7 @@ func (a *activeInteractionAdapter) RunTurn(ctx context.Context, _ string, _ stri
 		case <-a.release:
 		}
 	}
-	return TurnResult{Output: json.RawMessage(`{"type":"chat","message":"Acknowledged"}`)}, nil
+	return TurnResult{Output: json.RawMessage(`{"decision":{"type":"chat","message":"Acknowledged"}}`)}, nil
 }
 func (a *activeInteractionAdapter) Steer(context.Context, string, string) (bool, error) {
 	a.steers++

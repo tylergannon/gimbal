@@ -156,7 +156,7 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 					} else {
 						finish = true
 					}
-				} else if thread.model != "stalled" || d.completeStalled {
+				} else if (thread.model != "stalled" && thread.model != "chat") || d.completeStalled {
 					finish = true
 				}
 			case "thread/archive":
@@ -246,6 +246,8 @@ func (d *recoveryDaemon) finish(ws *websocket.Conn, id string) {
 	case "planning":
 		d.planning++
 		answer = `{"tasks":[{"name":"implement","description":"complete this outcome","definition_of_done":"working","validation":{"command":"","query":"observe"}}],"next":0}`
+	case "chat":
+		answer = mustEncode(map[string]any{"decision": map[string]string{"type": "chat", "message": "reply from " + turn.ID}})
 	case "qa":
 		d.validations++
 		answer = `{"validation_passed":true,"observed":"inspected existing effect","substantial_gaps":[],"small_gaps":[]}`

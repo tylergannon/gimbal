@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -132,8 +133,24 @@ func TestNativeRemoteInteractiveDaemonRestart(t *testing.T) {
 	send := func(inputID, message string, finish bool) {
 		t.Helper()
 		raw, _ := json.Marshal(map[string]any{"id": inputID, "message": message, "finish": finish})
-		if _, err := transport.ControlWorkflow(ctx, backend.Control{Run: id, Action: "interactive", Target: "conversation", Message: string(raw)}); err != nil {
-			t.Fatal(err)
+		// Health and saved status precede asynchronous owner registration. Retry
+		// only that startup window, preserving the exact input identity/content.
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			_, err := transport.ControlWorkflow(ctx, backend.Control{Run: id, Action: "interactive", Target: "conversation", Message: string(raw)})
+			if err == nil {
+				return
+			}
+			unavailable := strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "has no controller") || strings.Contains(err.Error(), "interaction owner is starting or unavailable")
+			if !unavailable || time.Now().After(deadline) {
+				log, _ := os.ReadFile(logFile.Name())
+				t.Fatalf("input %s: %v\n%s", inputID, err, log)
+			}
+			select {
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			case <-time.After(20 * time.Millisecond):
+			}
 		}
 	}
 	wait(0)
@@ -171,12 +188,14 @@ func TestNativeRemoteInteractiveDaemonRestart(t *testing.T) {
 	if err != nil || string(after) != string(before) {
 		t.Fatalf("native checkpoint identity changed: before=%s after=%s err=%v", before, after, err)
 	}
-	send("remote-active", "Run a shell sleep 60 before replying. Keep this native turn active while you wait.", false)
+	marker := filepath.Join(project, "native-active")
+	send("remote-active", fmt.Sprintf("Run a shell command that writes active to %q and then sleeps 60 before replying. Keep this native turn active while you wait.", marker), false)
 	active := false
 	for !active {
 		snap := snapshot()
-		for _, row := range snap.Interactions {
-			active = active || (row.Status == "active" && len(row.Messages) == 5)
+		_, markerErr := os.Stat(marker)
+		for _, turn := range snap.Turns {
+			active = active || (turn.Ended == 0 && strings.Contains(turn.Prompt, marker) && markerErr == nil)
 		}
 		if !active {
 			select {
@@ -188,6 +207,23 @@ func TestNativeRemoteInteractiveDaemonRestart(t *testing.T) {
 	}
 	send("remote-steer", "Remember the extra token silver-leaf-208 while staying in this turn.", false)
 	send("remote-steer", "Remember the extra token silver-leaf-208 while staying in this turn.", false)
+	// Native delivery is established by the landed steer fact, independently
+	// of when the interaction publishes its settled transcript.
+	landed := false
+	for !landed {
+		for _, session := range snapshot().Sessions {
+			for _, steer := range session.Steers {
+				landed = landed || (steer.Landed && strings.Contains(steer.Message, "silver-leaf-208"))
+			}
+		}
+		if !landed {
+			select {
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			case <-time.After(20 * time.Millisecond):
+			}
+		}
+	}
 	send("remote-finish", "", true)
 	for {
 		status, err = transport.WorkflowStatus(ctx, backend.Target{Run: id})

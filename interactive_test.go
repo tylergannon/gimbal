@@ -316,7 +316,7 @@ func TestInteractiveRestartChild(t *testing.T) {
 			_ = http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				raw, _ := ioReadAll(r)
 				if err := c.SubmitInteractive("dialogue", string(raw)); err != nil {
-					http.Error(w, err.Error(), 503)
+					http.Error(w, err.Error(), http.StatusServiceUnavailable)
 					return
 				}
 				w.WriteHeader(204)

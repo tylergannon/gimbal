@@ -306,7 +306,7 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 					r.interactionMu.Unlock()
 					return state.Transcript, errors.New("gimbal: invalid interaction decision")
 				}
-			} else if !(finish || stop) || !errors.Is(completed.err, context.Canceled) {
+			} else if (!finish && !stop) || !errors.Is(completed.err, context.Canceled) {
 				r.interactionMu.Unlock()
 				return state.Transcript, completed.err
 			}

@@ -1,5 +1,12 @@
 # Author's spec review
 
+Historical record only. The 2026-10-19 replacement in
+[the contract](../../../specs/durable-interactive.md) and
+[delivery plan](DELIVERY-PLAN.md) supersedes the designs discussed below.
+Neither the old unwind-on-wait implementation nor a6adf69d's removal of
+restartability is accepted. This file is not a coding checklist or a
+completion claim for the replacement.
+
 Historical record of the abandoned design and implementation. The rewritten
 delivery plan and current specs/durable-interactive.md supersede its proposed
 mechanisms and dispositions. Do not use this review as a coding checklist.

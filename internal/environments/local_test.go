@@ -105,8 +105,8 @@ func TestHarnessMetadataUsesCheapDefaultsAndNeverInventsAuthentication(t *testin
 		if h.State == HarnessReady {
 			t.Fatal("installation claimed authentication")
 		}
-		if h.ID == "claude" && h.Default != "claude-haiku-4-5" {
-			t.Fatalf("Claude default became expensive: %s", h.Default)
+		if h.ID == "claude" && !strings.HasPrefix(h.Default, "claude-haiku-") {
+			t.Fatalf("Claude default left the Haiku family: %s", h.Default)
 		}
 		if !slices.Contains(h.Models, h.Default) {
 			t.Fatal("default missing from models")

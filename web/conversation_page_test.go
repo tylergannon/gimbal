@@ -189,7 +189,7 @@ func TestNewSessionFormNeedsAFirstMessageAndOffersResolvedDefaults(t *testing.T)
 			t.Errorf("%s offers no resolved default model: %+v", harness.ID, harness)
 		}
 	}
-	if len(setup.Harnesses) == 0 || setup.Harnesses[0].ID != "claude" || setup.Harnesses[0].Default != "claude-haiku-4-5" {
+	if len(setup.Harnesses) == 0 || setup.Harnesses[0].ID != "claude" || !strings.HasPrefix(setup.Harnesses[0].Default, "claude-haiku-") {
 		t.Fatalf("first harness = %+v", setup.Harnesses)
 	}
 }

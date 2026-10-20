@@ -83,3 +83,42 @@ decision: Rechecked the EndedBy amendment against all six spec-review passes.
 The author's review has no unresolved material finding. The completed draft
 is ready for final review of cells/budgets/derived contracts; independent
 review and implementation acceptance have not been claimed.
+
+decision: Tyler authorizes an independent Claude Opus nlspec review followed
+by implementation in a Sol 6.1 subagent (possibly two), explicitly asking to
+avoid excessive splitting and repeated proof. Plan one end-to-end implementer
+and one shared final acceptance pass; the manager owns specification/review
+adjudication and does not duplicate unchanged broad checks.
+
+friction: Opus review run 01M5BDHYRPKYNJGQBKZK263ZF7.run-prompt failed on
+ENOSPC before producing a review artifact. Its logs were only about 2 MB; the
+data volume had roughly 117 MB free. Reclaimed 8 GiB of rebuildable Go cache
+entries older than 48 hours, leaving recent cache and source/session/app data
+alone; measured free space then reached about 9 GiB. No failed run is counted
+as an independent review.
+
+decision: Fresh Opus review run 01M5BDTDK25XKQEFXHHWCNGXCQ.run-prompt targets
+ephemeral/reviews/durable-interactive-opus-spec-round-02.md, through Gimbal
+run-prompt with the unversioned opus alias (resolved Claude Opus 5.5). It reads
+the spec-writing, spec-review and adversarial-review skills. Its run logs are
+outside the repository at /tmp/gimbal-durable-interactive-opus-spec-r02.
+
+decision: Existing built-in workflows contain direct I/O and clock calls.
+The implementation plan must account for their migration through library
+operations rather than granting exceptions or hiding effects in helpers.
+
+
+decision: Opus round 02 found five legitimate spec gaps (stable ingress versus
+occurrence identity, unconstrained first-entry choice, missing built-in effect
+migration, executable identity and incomplete source ownership/counting).
+Adjudication is in the author's review. Promoted the maintained nlspec to
+specs/durable-interactive.md and kept the old ephemeral SPEC as a pointer.
+The human approved full RunCommand caller output with bounded observation.
+First entry uses the delegated easiest correct human-first default.
+
+decision: Final proposal uses two Sol 6.1 workers in one shared checkout and
+one delivery unit: runtime/hosting/presentation and authoring/generation/built-in
+migration. One final validation pass follows combined source and generation,
+not repeated broad proof per subtask. Manager owns spec and integration.
+Fresh Opus run 01M5BEMKTNQKNMWWBQ1F9C8J1A.run-prompt reviews the complete
+contract and plan at ephemeral/reviews/durable-interactive-opus-spec-round-03.md.

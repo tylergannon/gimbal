@@ -1,5 +1,9 @@
 # Author's spec review
 
+Historical authoring review at 13ee0140. Independent Opus round 02 subsequently
+identified material defects, adjudicated below; its report supersedes the
+no-findings disposition of this original pass.
+
 Scope: complete SPEC.md and its SOURCE-MAP.md reference. This is the author's
 six-pass review, not an independent review or implementation acceptance.
 No software changes or live demonstrations were performed.
@@ -36,3 +40,30 @@ draft is ready for final review of the proposed decomposition, budgets and
 derived contracts before implementation. This is not an independent review,
 implementation sign-off or live acceptance report. An independent pass via
 request-adversarial-review is available.
+
+
+## Independent review adjudication
+
+The round-02 Opus report is retained at
+`ephemeral/reviews/durable-interactive-opus-spec-round-02.md`.
+
+- F1 accepted: stable ingress is run/scope/name, separate from per-call
+  operation ordinal; pending input spans calls and is unprocessed at actual
+  owner termination. Removed the undefined superseded disposition.
+- F2 accepted within the human's delegated easiest-default choice: every
+  occurrence is human-first. The example's opening message changes accordingly.
+- F3 accepted: admission applies to all workflows/helpers. Existing effects
+  move through RunCommand/Check/Service, no new API. The human approved complete
+  RunCommand output while observation stays bounded. Maintained workflows and
+  examples are owned and must pass admission. Unrecorded concurrency/map
+  iteration are rejected in authored execution.
+- F4 accepted with the stated same-code boundary: executable plus loaded
+  plugin digests gate reconstruction; mismatched old runs stay visibly blocked
+  with retained state/input. No multiversion runtime or upgrade migration.
+- F5 accepted: corrected generated-header detection, counted omitted existing
+  production paths and assigned them to the existing six cells. Larger measured
+  baselines reflect those paths; the repeated illustrative file tree is removed.
+
+The authoritative contract is now `specs/durable-interactive.md`; the old
+SPEC.md is a pointer. A fresh independent review reads that full contract and
+the single delivery plan, without a defect checklist or expected verdict.

@@ -6,6 +6,9 @@ package invocation
 import "github.com/tylergannon/gimbal"
 
 func Register(r *gimbal.Registry) error {
+	if err := registerConversation(r); err != nil {
+		return err
+	}
 	if err := registerServiceCheck(r); err != nil {
 		return err
 	}

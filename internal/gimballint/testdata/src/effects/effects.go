@@ -72,3 +72,11 @@ func dependencyEffect(ctx context.Context) { // want "GIMBAL111-LIBRARY-EFFECTS"
 func dependencyPure(ctx context.Context) {
 	gimbal.Set(ctx, "dependency-pure", effecthelper.Pure(" input "))
 }
+
+func aliasMapOrder(ctx context.Context, values map[string]int) { // want "GIMBAL111-LIBRARY-EFFECTS"
+	gimbal.Set(ctx, "alias-map", "input")
+	keys := maps.Keys[map[string]int]
+	for key := range keys(values) {
+		_ = key
+	}
+}

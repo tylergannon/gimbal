@@ -230,15 +230,11 @@ func inspectEffects(pass *analysis.Pass, body *ast.BlockStmt) *effectBody {
 			}
 			fn := typeutil.StaticCallee(pass.TypesInfo, n)
 			if fn == nil {
-				if id, ok := n.Fun.(*ast.Ident); ok {
-					if target := aliases[pass.TypesInfo.Uses[id]]; target != nil && assignments[pass.TypesInfo.Uses[id]] == 1 {
-						if target.Pkg() != nil && (target.Pkg().Path() == gimbalPath || pureOpaque(target)) {
-							break
-						}
-						result.calls = append(result.calls, target)
-						break
-					}
+				if id, ok := n.Fun.(*ast.Ident); ok && assignments[pass.TypesInfo.Uses[id]] == 1 {
+					fn = aliases[pass.TypesInfo.Uses[id]]
 				}
+			}
+			if fn == nil {
 				if id, ok := n.Fun.(*ast.Ident); ok && literals[pass.TypesInfo.Uses[id]] && assignments[pass.TypesInfo.Uses[id]] == 1 {
 					break
 				}

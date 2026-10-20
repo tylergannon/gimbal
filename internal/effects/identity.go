@@ -46,3 +46,13 @@ func Route(ctx context.Context) backend.Route {
 	}
 	return backend.Route{Name: "local"}
 }
+
+type reconstructionKey struct{}
+
+func WithReconstruction(ctx context.Context, reconstructing bool) context.Context {
+	return context.WithValue(ctx, reconstructionKey{}, reconstructing)
+}
+func Reconstructing(ctx context.Context) bool {
+	value, _ := ctx.Value(reconstructionKey{}).(bool)
+	return value
+}

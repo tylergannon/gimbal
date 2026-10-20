@@ -2,6 +2,7 @@
 package host
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,7 +12,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
+	"time"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
@@ -21,6 +24,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/promises"
+	"github.com/tylergannon/gimbal/internal/runner"
 	"github.com/tylergannon/gimbal/internal/runstate"
 	"github.com/tylergannon/gimbal/internal/transcript"
 	"github.com/tylergannon/gimbal/runstore"
@@ -153,6 +157,57 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
+	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation) error {
+		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item)})
+		spec := item.Model
+		if item.Effort != "" {
+			spec += ":" + item.Effort
+		}
+		_, err := p.Start(invocation.Request{RunID: item.WorkflowRun, Workflow: "conversation", WorkDir: item.Worktree, Input: input, Roles: map[gimbal.WorkflowRole]string{gimbal.RoleAgenticDialogues: spec}})
+		return err
+	}
+	conversations.WorkflowInput = func(id, address, request string) error {
+		controller, err := p.resolve(id)
+		if err != nil {
+			return runstate.SubmitInteractive(context.Background(), p.dir, id, address, request)
+		}
+		return controller.SubmitInteractive(address, request)
+	}
+	conversations.WorkflowObserve = func(id string) (gimbal.InteractiveTranscript, string, error) {
+		snapshot, err := p.registry.Snapshot(id)
+		if err != nil {
+			return gimbal.InteractiveTranscript{}, "unresolved", err
+		}
+		transcript := gimbal.InteractiveTranscript{Messages: []gimbal.InteractiveMessage{}}
+		status := "waiting"
+		rows := make([]observation.InteractiveRow, 0, len(snapshot.Interactions))
+		for _, row := range snapshot.Interactions {
+			rows = append(rows, row)
+		}
+		slices.SortFunc(rows, func(a, b observation.InteractiveRow) int { return cmp.Compare(a.Ordinal, b.Ordinal) })
+		for _, row := range rows {
+			for _, message := range row.Messages {
+				transcript.Messages = append(transcript.Messages, gimbal.InteractiveMessage{Role: message.Role, Message: message.Message})
+			}
+			transcript.EndedBy = row.EndedBy
+			if row.Status == "unresolved" {
+				status = "unresolved"
+			}
+			if row.Status == "runnable" {
+				status = "runnable"
+			}
+			if row.Status == "active" {
+				status = "working"
+			}
+		}
+		if snapshot.Run.Status == "completed" {
+			status = "completed"
+		} else if snapshot.Run.Status == "error" {
+			status = "unresolved"
+		}
+		return transcript, status, nil
+	}
+
 	p.promises, err = promises.Open(state)
 	if err != nil {
 		conversations.Close()
@@ -179,6 +234,22 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	ctx, stop := context.WithCancel(p.ctx)
 	p.stopPromises, p.promisesDone = stop, make(chan struct{})
 	go func() { defer close(p.promisesDone); p.promises.Run(ctx, p.recordings, model) }()
+	paths, _ := filepath.Glob(filepath.Join(state, "invocations", "*.json"))
+	for _, file := range paths {
+		raw, e := os.ReadFile(file)
+		if e != nil {
+			continue
+		}
+		var request invocation.Request
+		if json.Unmarshal(raw, &request) != nil {
+			continue
+		}
+		go func() {
+			if _, e := runner.Spawn(request); e != nil {
+				log.Printf("gimbal: recover %s: %v", request.RunID, e)
+			}
+		}()
+	}
 	return p, nil
 }
 
@@ -322,7 +393,35 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	runCtx = observation.WithRegistry(runCtx, p.registry)
 	runCtx = live.WithRuns(runCtx, p.runs)
 	runCtx = live.WithHook(runCtx, p.runs.Hook)
-	err = gimbal.Run(gimbal.Project(runCtx, p.dir), string(runstore.NewRunID()), name, models, body)
+	id := string(runstore.NewRunID())
+	for {
+		err = gimbal.Run(gimbal.Project(runCtx, p.dir), id, name, models, body)
+		if err != nil {
+			break
+		}
+		controller, e := p.runs.InProgress(id)
+		if e != nil {
+			break
+		}
+		durable, ok := controller.(interface {
+			Runnable() bool
+			State() string
+		})
+		if !ok || durable.State() != "waiting" {
+			break
+		}
+		for !durable.Runnable() {
+			select {
+			case <-runCtx.Done():
+				_ = controller.CancelScope("", context.Cause(runCtx))
+			case <-time.After(100 * time.Millisecond):
+			}
+			if runCtx.Err() != nil {
+				break
+			}
+		}
+	}
+
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)
 	}

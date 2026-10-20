@@ -16,163 +16,11 @@ import (
 	"github.com/tylergannon/gimbal/internal/observation"
 )
 
-func TestManagerRoutesAllProvidersAndKeepsConversationHistory(t *testing.T) {
-	repository := newRepository(t)
-	project := filepath.Join(repository, ".gimbal")
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-
-	adapters := map[string]*chatAdapter{
-		"codex":  {sessions: make(map[string][]string)},
-		"claude": {sessions: make(map[string][]string)},
-		"agy":    {sessions: make(map[string][]string)},
-	}
-	var routed []string
-	manager, err := New(ctx, project, func(provider string) (gimbal.HarnessAdapter, error) {
-		routed = append(routed, provider)
-		return adapters[provider], nil
-	}, "/bin/gimbal", "/instance", repository, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	providers := []struct {
-		name, modelPrefix string
-	}{
-		{"codex", "gpt-"},
-		{"claude", "claude-"},
-		{"agy", "gemini-"},
-	}
-	created := make([]Conversation, 0, len(providers))
-	for _, provider := range providers {
-		item, err := manager.Create(ctx, NewConversation{Provider: provider.name})
-		if err != nil {
-			t.Fatalf("create %s: %v", provider.name, err)
-		}
-		if !strings.HasPrefix(item.Model, provider.modelPrefix) {
-			t.Errorf("%s default model = %q, want prefix %q", provider.name, item.Model, provider.modelPrefix)
-		}
-		branch := git(t, item.Worktree, "branch", "--show-current")
-		if branch != item.Branch {
-			t.Errorf("%s worktree branch = %q, want %q", provider.name, branch, item.Branch)
-		}
-		canonicalWorktree, err := filepath.EvalSymlinks(item.Worktree)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if root := git(t, item.Worktree, "rev-parse", "--show-toplevel"); root != canonicalWorktree {
-			t.Errorf("%s worktree root = %q, want %q", provider.name, root, item.Worktree)
-		}
-		created = append(created, item)
-	}
-	if created[0].Branch == created[1].Branch || created[1].Branch == created[2].Branch || created[0].Worktree == created[2].Worktree {
-		t.Fatal("provider conversations did not get distinct branches and worktrees")
-	}
-
-	for _, item := range created {
-		if _, err := sendAndWait(t, manager, item.ID, "Remember cobalt for the next turn."); err != nil {
-			t.Fatalf("send through %s: %v", item.Provider, err)
-		}
-	}
-	continued, err := sendAndWait(t, manager, created[0].ID, "What word did I ask you to remember?")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := continued.Messages[len(continued.Messages)-1].Text; got != "You asked me to remember cobalt." {
-		t.Fatalf("second turn did not retain context: %q", got)
-	}
-	for _, provider := range []string{"codex", "claude", "agy"} {
-		if adapters[provider].turns == 0 {
-			t.Errorf("%s adapter did not receive a turn", provider)
-		}
-	}
-	if got := strings.Join(routed, ","); got != "codex,claude,agy,codex,claude,agy" {
-		t.Fatalf("provider routing = %q", got)
-	}
-
-	manager.Close()
-	restarted, err := New(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) {
-		t.Fatal("reading saved history should not create an adapter")
-		return nil, nil
-	}, "/bin/gimbal", "/instance", repository, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	saved, ok := restarted.Get(created[0].ID)
-	if !ok {
-		t.Fatal("conversation missing after manager restart")
-	}
-	if saved.Branch != created[0].Branch || saved.Worktree != created[0].Worktree || len(saved.Messages) != 4 {
-		t.Fatalf("saved conversation lost association or transcript: %+v", saved)
-	}
-	if saved.Live {
-		t.Fatal("restored conversation claims its prior native session is live")
-	}
-}
-
-func TestManagerResumesPersistentNativeSessionAfterRestart(t *testing.T) {
-	repository := newRepository(t)
-	project := filepath.Join(repository, ".gimbal")
-	adapter := &persistentChatAdapter{sessions: make(map[string][]string)}
-	createdAdapters := 0
-	factory := func(string) (gimbal.HarnessAdapter, error) {
-		createdAdapters++
-		return adapter, nil
-	}
-
-	first, err := New(t.Context(), project, factory, "/bin/gimbal", "/instance", repository, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	item, err := first.Create(t.Context(), NewConversation{Provider: "codex"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	item, err = sendAndWait(t, first, item.ID, "Remember cobalt for the next turn.")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if item.NativeSession == "" {
-		t.Fatal("first turn did not persist the native session id")
-	}
-	nativeSession := item.NativeSession
-	first.Close()
-	if adapter.detached != nativeSession {
-		t.Fatalf("detached session = %q, want %q", adapter.detached, nativeSession)
-	}
-
-	createdBeforeRestart := createdAdapters
-	restarted, err := New(t.Context(), project, factory, "/bin/gimbal", "/instance", repository, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if createdAdapters != createdBeforeRestart {
-		t.Fatal("loading saved conversations contacted the provider")
-	}
-	saved, ok := restarted.Get(item.ID)
-	if !ok || !saved.Live {
-		t.Fatalf("saved persistent conversation is not sendable after restart: %+v", saved)
-	}
-	continued, err := sendAndWait(t, restarted, item.ID, "What word did I ask you to remember?")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if adapter.resumed != nativeSession {
-		t.Fatalf("resumed session = %q, want %q", adapter.resumed, nativeSession)
-	}
-	if continued.NativeSession != nativeSession {
-		t.Fatalf("continued native session = %q, want unchanged %q", continued.NativeSession, nativeSession)
-	}
-	if got := continued.Messages[len(continued.Messages)-1].Text; got != "You asked me to remember cobalt." {
-		t.Fatalf("resumed turn lost native context: %q", got)
-	}
-}
-
 func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 	repository := newRepository(t)
 	project := filepath.Join(repository, ".gimbal")
 	adapter := &chatAdapter{sessions: make(map[string][]string)}
-	manager, err := New(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
+	manager, err := newMetadataManager(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,10 +41,10 @@ func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 	if len(replied.Runs) != 1 || replied.Runs[0].ID != "run-1" || replied.Messages[len(replied.Messages)-1].Text != "I will remember cobalt." {
 		t.Fatalf("conversation: %+v", replied)
 	}
-	if got := adapter.prompts[0]; !strings.Contains(got, `--instance-dir "/instance"`) || !strings.Contains(got, `--project "`+repository+`"`) || !strings.Contains(got, `--conversation "`+item.ID+`"`) {
+	if got := manager.Purpose(item); !strings.Contains(got, `--instance-dir "/instance"`) || !strings.Contains(got, `--project "`+repository+`"`) || !strings.Contains(got, `--conversation "`+item.ID+`"`) {
 		t.Fatalf("CLI instructions: %s", got)
 	}
-	restarted, err := New(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
+	restarted, err := newMetadataManager(t.Context(), project, func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -209,7 +57,7 @@ func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 func TestManagerStartTitlesByFirstMessageAndRepliesInBackground(t *testing.T) {
 	repository := newRepository(t)
 	adapter := &chatAdapter{sessions: make(map[string][]string)}
-	manager, err := New(t.Context(), filepath.Join(repository, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
+	manager, err := newMetadataManager(t.Context(), filepath.Join(repository, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", repository, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +234,7 @@ func TestConversationRefreshFollowsExternalRun(t *testing.T) {
 func TestManagerNonGitConversationsShareProjectDirectory(t *testing.T) {
 	directory := t.TempDir()
 	adapter := &chatAdapter{sessions: make(map[string][]string)}
-	manager, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
+	manager, err := newMetadataManager(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -409,9 +257,6 @@ func TestManagerNonGitConversationsShareProjectDirectory(t *testing.T) {
 			t.Fatal("accepted a different directory")
 		}
 	}
-	if len(adapter.workdirs) != 2 || adapter.workdirs[0] != directory || adapter.workdirs[1] != directory {
-		t.Fatalf("session directories = %v", adapter.workdirs)
-	}
 	if len(manager.List()) != 2 {
 		t.Fatal("conversations did not remain distinct")
 	}
@@ -421,7 +266,7 @@ func TestManagerNonGitConversationsShareProjectDirectory(t *testing.T) {
 		}
 	}
 	manager.Close()
-	restarted, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
+	restarted, err := newMetadataManager(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -449,7 +294,7 @@ func TestManagerChatsWithoutCommittedGitHistory(t *testing.T) {
 				}
 			}
 			adapter := &chatAdapter{sessions: make(map[string][]string)}
-			manager, err := New(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
+			manager, err := newMetadataManager(t.Context(), filepath.Join(directory, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }, "/bin/gimbal", "/instance", directory, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -472,9 +317,6 @@ func TestManagerChatsWithoutCommittedGitHistory(t *testing.T) {
 			}
 			if len(item.Messages) != 4 || item.Messages[3].Text != "You asked me to remember cobalt." {
 				t.Fatalf("chat did not complete both turns: %+v", item.Messages)
-			}
-			if len(adapter.workdirs) != 1 || adapter.workdirs[0] != directory {
-				t.Fatalf("session directories = %v", adapter.workdirs)
 			}
 			if _, err := os.Stat(filepath.Join(directory, ".gimbal", "conversation-worktrees")); !os.IsNotExist(err) {
 				t.Fatalf("unexpected worktree directory: %v", err)

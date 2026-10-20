@@ -157,10 +157,30 @@ func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) err
 		node = r.nodeID(e.ID)
 	case CommandEnded:
 		node = r.nodeID(e.ID)
-	case InterviewQuestionAsked:
-		node = runstore.NodeID(e.QuestionID)
-	case InterviewQuestionAnswered:
-		node = runstore.NodeID(e.QuestionID)
+
+	}
+	// Reconstructing a library operation must not republish its lifecycle.
+	for _, old := range r.replay[node] {
+		if old.Kind != "lifecycle" {
+			continue
+		}
+		var previous LifecycleRecord
+		if json.Unmarshal(old.Payload, &previous) == nil {
+			before, _ := json.Marshal(previous.Event)
+			after, _ := json.Marshal(event)
+			if string(before) == string(after) {
+				return nil
+			}
+		}
+	}
+	if ended, ok := event.(CommandEnded); ok {
+		if len(ended.Stdout) > commandOutputLimit {
+			ended.Stdout = ended.Stdout[:commandOutputLimit] + "\n[observation excerpt]"
+		}
+		if len(ended.Stderr) > commandOutputLimit {
+			ended.Stderr = ended.Stderr[:commandOutputLimit] + "\n[observation excerpt]"
+		}
+		record.Event = ended
 	}
 	if err := r.recordFact(node, r.nodeID(scope), r.optionalNodeID(session), "lifecycle", record, runstore.Committed); err != nil {
 		return err

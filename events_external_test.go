@@ -11,6 +11,7 @@ import (
 func TestPublishedEventTypesAreUsableOutsideGimbal(t *testing.T) {
 	lifecycle := []gimbal.LifecycleEvent{
 		gimbal.RunStarted{},
+		gimbal.InteractiveChanged{},
 		gimbal.RunEnded{},
 		gimbal.RunCancelled{},
 		gimbal.ScopeBegan{},
@@ -21,8 +22,6 @@ func TestPublishedEventTypesAreUsableOutsideGimbal(t *testing.T) {
 		gimbal.SessionClosed{},
 		gimbal.TurnStarted{},
 		gimbal.TurnEnded{Usage: []gimbal.ModelUsage{}},
-		gimbal.InterviewQuestionAsked{},
-		gimbal.InterviewQuestionAnswered{},
 		gimbal.SuperviseAttached{},
 		gimbal.Steer{},
 		gimbal.Killed{},

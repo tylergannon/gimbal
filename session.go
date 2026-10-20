@@ -68,6 +68,22 @@ func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session
 	}
 	s.adapter, s.model, s.effort = binding.Adapter, binding.Model, binding.Effort
 	scope.adopt(s)
+	for _, records := range scope.run.replay {
+		for _, record := range records {
+			if record.Session == s.node && record.Kind == "session-configuration" {
+				var configuration map[string]string
+				if json.Unmarshal(record.Payload, &configuration) == nil {
+					s.model, s.effort = configuration["model"], configuration["effort"]
+				}
+			}
+			if record.Session == s.node && record.Kind == "native-binding" {
+				var binding map[string]string
+				if json.Unmarshal(record.Payload, &binding) == nil {
+					s.native = binding["native"]
+				}
+			}
+		}
+	}
 	scope.run.event(scope.key, s.id, "", SessionCreated{Name: name, Adapter: fmt.Sprintf("%T", s.adapter), Model: s.model, Effort: s.effort, Workdir: workdir})
 	return s
 }
@@ -294,6 +310,13 @@ func (s *Session) create(ctx context.Context) error {
 	ordinal := s.creates
 	s.mu.Unlock()
 	node := s.owner.run.ensureNode(s.node, runstore.Action, "create", ordinal, fmt.Sprintf("%s/create.%d", s.id, ordinal), nil)
+	var saved map[string]string
+	if found, err := s.owner.run.outcome(node, &saved); found {
+		if err != nil {
+			return err
+		}
+		return s.adoptNative(saved["native"])
+	}
 	identity := actionIdentity(s.owner.node, s.node, node, "session")
 	createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
 	if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
@@ -339,6 +362,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		parent = s.node
 	}
 	turnNode := s.owner.run.ensureNode(parent, runstore.Action, "turn", ordinal, turnID, nil)
+	ctx = effects.WithReconstruction(ctx, s.owner.run.hasFact(turnNode, "intent"))
+	ctx, cancelAccepted := s.owner.run.acceptedContext(ctx, turnNode)
+	defer cancelAccepted()
 	if err := s.owner.run.recordingError(); err != nil {
 		s.mu.Lock()
 		s.running = false
@@ -354,6 +380,16 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		s.mu.Unlock()
 	}()
 
+	var saved struct {
+		Output []byte           `json:"output"`
+		Usage  map[string]Usage `json:"usage"`
+	}
+	if found, err := s.owner.run.outcome(turnNode, &saved); found {
+		if err == nil && validate != nil {
+			err = validate(saved.Output)
+		}
+		return saved.Output, err
+	}
 	if native == "" {
 		if err := s.create(ctx); err != nil {
 			return nil, err
@@ -443,7 +479,8 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			Schema   json.RawMessage
 			Files    []backend.TaskFile
 			Requires backend.Requirements
-		}{prompt, schema, files, effects.Requirements(ctx)}, identity)
+			Deadline time.Time
+		}{prompt, schema, files, effects.Requirements(ctx), operationDeadline(ctx)}, identity)
 		nativePrompt := prompt
 		finishCallback := func() {}
 		if err == nil && effects.Endpoint(ctx) == "" && len(effects.Requirements(ctx)) > 0 {

@@ -169,7 +169,7 @@ func (d *WorkflowDaemon) Handler() http.Handler {
 }
 
 type interfaceController interface {
-	AnswerInterview(string, string) error
+	SubmitInteractive(string, string) error
 	Steer(context.Context, string, string) (bool, error)
 	SteerLoop(string, string) error
 	CancelScope(string, error) error
@@ -179,8 +179,8 @@ type interfaceController interface {
 func control(ctx context.Context, c interfaceController, v backend.Control) (bool, error) {
 	cause := gimbal.Killed{Target: v.Target, By: v.By, Reason: v.Message}
 	switch v.Action {
-	case "answer":
-		return false, c.AnswerInterview(v.Target, v.Message)
+	case "interactive":
+		return false, c.SubmitInteractive(v.Target, v.Message)
 	case "steer":
 		return c.Steer(ctx, v.Target, v.Message)
 	case "loop":

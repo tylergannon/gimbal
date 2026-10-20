@@ -56,34 +56,13 @@ func (c *commandCapture) close() error {
 
 func (c *commandCapture) result(runDir, relative string) (string, error) {
 	c.mu.Lock()
-	size, writeErr := c.size, c.err
+	writeErr := c.err
 	c.mu.Unlock()
 	if writeErr != nil {
 		return "", writeErr
 	}
-	name := filepath.Join(runDir, filepath.FromSlash(relative))
-	if size <= commandOutputLimit {
-		raw, err := os.ReadFile(name)
-		return string(raw), err
-	}
-	keep := int64(commandOutputLimit)
-	headSize := keep / 2
-	tailSize := keep - headSize
-	head := make([]byte, headSize)
-	tail := make([]byte, tailSize)
-	file, err := os.Open(name)
-	if err != nil {
-		return "", err
-	}
-	defer func() { _ = file.Close() }()
-	if _, err := io.ReadFull(file, head); err != nil {
-		return "", err
-	}
-	if _, err := file.ReadAt(tail, size-tailSize); err != nil && !errors.Is(err, io.EOF) {
-		return "", err
-	}
-	marker := fmt.Sprintf("\n\n[... %d bytes omitted ...]\n\nComplete output: %s\n\n", size-keep, name)
-	return string(head) + marker + string(tail), nil
+	raw, err := os.ReadFile(filepath.Join(runDir, filepath.FromSlash(relative)))
+	return string(raw), err
 }
 
 func openCommandCapture(r *run, id, stream string) (*commandCapture, string, error) {
@@ -101,9 +80,8 @@ func openCommandCapture(r *run, id, stream string) (*commandCapture, string, err
 // lap.3/check.2, so every run of one call site is its own record. An empty
 // workdir is the process's working directory.
 //
-// It returns the command's exit code and stdout and stderr as scalars. Small
-// streams are returned exactly. A stream over 64 KiB is a bounded head/tail
-// excerpt with an absolute path to the complete run-owned file. A nonzero exit
+// It returns the command's exit code and stdout and stderr as scalars. Complete
+// captured streams are returned exactly; observation excerpts remain bounded. A nonzero exit
 // is not an error. err is for a command that could not start, its ctx
 // cancelled, or output could not be captured or recorded; then the exit code is -1 except
 // when the process's own exit status is known.
@@ -207,9 +185,49 @@ func recordCheckResult(s *scope, key string, raw []byte) error {
 func runCommand(ctx context.Context, s *scope, name, workdir, command string, args []string) (CommandStarted, CommandEnded, error, error) {
 	id, node := s.nextNode(runstore.Action, name)
 	identity := actionIdentity(s.node, "", node, "process")
+	ctx = effects.WithReconstruction(ctx, s.run.hasFact(node, "intent"))
+	ctx, cancelAccepted := s.run.acceptedContext(ctx, node)
+	defer cancelAccepted()
 	ctx = effects.WithExecutionIdentity(effectContext(ctx, s, id), identity)
 	dir, _ := filepath.Abs(workdir)
 	started := CommandStarted{ID: id, Name: name, Command: command, Args: args, Workdir: dir}
+	var accepted struct {
+		Input struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+			Workdir string   `json:"workdir"`
+		} `json:"input"`
+	}
+	if found, e := s.run.saved(node, "intent", &accepted); found && e == nil {
+		command, args, workdir = accepted.Input.Command, accepted.Input.Args, accepted.Input.Workdir
+		started.Command, started.Args, started.Workdir = command, args, workdir
+	}
+
+	var saved struct {
+		ExitCode    int                         `json:"exit_code"`
+		Interrupted bool                        `json:"interrupted"`
+		Output      map[string]runstore.BlobRef `json:"output"`
+	}
+	if found, err := s.run.outcome(node, &saved); found {
+		ended := CommandEnded{ID: id, ExitCode: saved.ExitCode, Interrupted: saved.Interrupted}
+		for stream, ref := range saved.Output {
+			reader, e := s.run.records.OpenBlob(context.Background(), ref)
+			if e != nil {
+				return started, ended, e, e
+			}
+			raw, e := io.ReadAll(reader)
+			_ = reader.Close()
+			if e != nil {
+				return started, ended, e, e
+			}
+			if stream == "stdout" {
+				ended.Stdout = string(raw)
+			} else {
+				ended.Stderr = string(raw)
+			}
+		}
+		return started, ended, err, nil
+	}
 	intentErr := s.run.prepareAction(ctx, s.node, "", node, "process", map[string]any{"command": command, "args": args, "workdir": dir, "deadline": operationDeadline(ctx), "requires": effects.Requirements(ctx)}, identity)
 	if intentErr != nil {
 		return started, CommandEnded{ID: id, ExitCode: -1}, intentErr, intentErr
@@ -284,7 +302,7 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		_ = errOut.close()
 		return "", "", err
 	}
-	request := commandexecutor.Request{ID: executor.CommandID(effects.ExecutionIdentityFromContext(ctx).ExecutorOperation), Command: command, Args: args, Workdir: workdir, Environment: environment}
+	request := commandexecutor.Request{Reconstructing: effects.Reconstructing(ctx), ID: executor.CommandID(effects.ExecutionIdentityFromContext(ctx).ExecutorOperation), Command: command, Args: args, Workdir: workdir, Environment: environment}
 	if deadline, ok := ctx.Deadline(); ok {
 		request.Deadline = deadline
 	}

@@ -112,20 +112,25 @@ type SessionRow struct {
 	Created int64         `json:"created"`
 }
 
-// InterviewRow is one question an interview asked. An accepted answer updates
+// InteractiveRow is one question an interactive asked. An accepted answer updates
 // the same row from pending to answered; an empty answer means the person
-// ended the interview.
-type InterviewRow struct {
-	Run        string `json:"run"`
-	QuestionID string `json:"question_id"`
-	Name       string `json:"name"`
-	Scope      string `json:"scope"`
-	Session    string `json:"session"`
-	Question   string `json:"question"`
-	Status     string `json:"status"`
-	Answer     string `json:"answer"`
-	Asked      int64  `json:"asked"`
-	Answered   int64  `json:"answered"`
+// ended the interactive.
+type InteractiveRow struct {
+	Ordinal    int                  `json:"ordinal"`
+	Unresolved string               `json:"unresolved"`
+	Address    string               `json:"address"`
+	Messages   []InteractiveMessage `json:"messages"`
+	EndedBy    string               `json:"ended_by"`
+	Run        string               `json:"run"`
+	QuestionID string               `json:"question_id"`
+	Name       string               `json:"name"`
+	Scope      string               `json:"scope"`
+	Session    string               `json:"session"`
+	Question   string               `json:"question"`
+	Status     string               `json:"status"`
+	Answer     string               `json:"answer"`
+	Asked      int64                `json:"asked"`
+	Answered   int64                `json:"answered"`
 }
 
 // ContextEntry identifies one scope value visible to a turn. Scope is the
@@ -212,4 +217,9 @@ type ModelCallRow struct {
 type CancellationState struct {
 	By     string `json:"by"`
 	Reason string `json:"reason"`
+}
+
+type InteractiveMessage struct {
+	Role    string `json:"role"`
+	Message string `json:"message"`
 }

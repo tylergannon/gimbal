@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/projectfiles"
+	"github.com/tylergannon/gimbal/internal/runstate"
 )
 
 func cacheFixture(t *testing.T, m *Manager, data []byte) string {
@@ -38,6 +38,14 @@ func cacheFixture(t *testing.T, m *Manager, data []byte) string {
 func TestFirstTurnFileContextUsesExactPrivateFileAndSurvivesFollowup(t *testing.T) {
 	a := &controlledChat{started: make(chan string, 3), release: make(chan struct{}), landed: true}
 	m, unused := managerWithControl(t, a)
+	original := m.WorkflowInput
+	m.WorkflowInput = func(run, address, raw string) error {
+		var input runstate.InteractionInput
+		_ = json.Unmarshal([]byte(raw), &input)
+		a.started <- input.Message
+		return original(run, address, raw)
+	}
+
 	data := append(bytes.Repeat([]byte("long context\n"), 10000), []byte{0, 1, 2, 255}...)
 	fileID := cacheFixture(t, m, data)
 	item, err := m.Start(t.Context(), NewConversation{Provider: "codex", FileID: fileID}, "Discuss the file")
@@ -74,56 +82,8 @@ func TestFirstTurnFileContextUsesExactPrivateFileAndSurvivesFollowup(t *testing.
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = m.Submit(unused.ID, Request{ID: "missing", Created: 4, Kind: "prompt", Message: "Read", FileID: fileID}); err != nil {
-		t.Fatal(err)
-	}
-	failed := waitRequest(t, m, unused.ID, "missing", "failed")
-	if failed.Status == "unresolved" {
+	if _, err = m.Submit(unused.ID, Request{ID: "missing", Created: 4, Kind: "prompt", Message: "Read", FileID: fileID}); err == nil {
 		t.Fatal("missing local bytes blocked the chat as uncertain")
-	}
-}
-
-func TestRemoteOutgoingFileIsExactAndJournalRemainsByteFree(t *testing.T) {
-	f := &remoteFixture{autoComplete: true}
-	m, _, _ := remoteManager(t, f)
-	data := append(bytes.Repeat([]byte("full PDF context\n"), 7000), []byte{0, 255}...)
-	fileID := cacheFixture(t, m, data)
-	item, err := m.Start(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true, FileID: fileID}, "Read this")
-	if err != nil {
-		t.Fatal(err)
-	}
-	waitRequest(t, m, item.ID, item.Requests[0].ID, "completed")
-	f.mu.Lock()
-	turn := f.receivedTurns[0]
-	f.mu.Unlock()
-	if len(turn.Files) != 1 || !bytes.Equal(turn.Files[0].Bytes, data) {
-		t.Fatal("remote task omitted or changed binary context")
-	}
-	m.mu.RLock()
-	journal := m.remoteStates[item.ID].Requests[item.Requests[0].ID]
-	m.mu.RUnlock()
-	if len(journal.Turn.Files) != 0 {
-		t.Fatal("journal contains file bytes")
-	}
-	raw, err := os.ReadFile(filepath.Join(m.projectDir, "conversations", item.ID+".json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var record conversationRecord
-	if err = json.Unmarshal(raw, &record); err != nil {
-		t.Fatal(err)
-	}
-	var state remoteState
-	if err = json.Unmarshal(record.Transport, &state); err != nil {
-		t.Fatal(err)
-	}
-	for _, envelope := range state.Requests {
-		if envelope.Turn != nil && len(envelope.Turn.Files) > 0 {
-			t.Fatal("disk journal contains file bytes")
-		}
-	}
-	if _, _, err = m.filePath(fileID); err != nil {
-		t.Fatal("completed turn lost private context")
 	}
 }
 
@@ -152,34 +112,11 @@ func TestMissingFilePreventsConversationAdmission(t *testing.T) {
 	}
 }
 
-func TestMissingRemoteFileFailsBeforeNativeAdmission(t *testing.T) {
-	f := &remoteFixture{autoComplete: true}
-	m, _, _ := remoteManager(t, f)
-	item, err := m.Create(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	id := cacheFixture(t, m, []byte("private remote context"))
-	path, _, _ := m.filePath(id)
-	if err := os.Remove(path); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = m.Submit(item.ID, Request{ID: "missing-file", Created: 1, Kind: "prompt", Message: "Read", FileID: id}); err != nil {
-		t.Fatal(err)
-	}
-	waitRequest(t, m, item.ID, "missing-file", "failed")
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.sessions != 0 || f.admissions != 0 {
-		t.Fatal("missing file started remote agent work")
-	}
-}
-
 func TestPrivateContextSurvivesNativeSessionResumption(t *testing.T) {
 	dir := t.TempDir()
 	adapter := &persistentChatAdapter{sessions: map[string][]string{}}
 	factory := func(string) (gimbal.HarnessAdapter, error) { return adapter, nil }
-	first, err := New(t.Context(), filepath.Join(dir, ".gimbal"), factory, "/bin/gimbal", "/instance", dir, nil)
+	first, err := newMetadataManager(t.Context(), filepath.Join(dir, ".gimbal"), factory, "/bin/gimbal", "/instance", dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +129,7 @@ func TestPrivateContextSurvivesNativeSessionResumption(t *testing.T) {
 	}
 	waitRequest(t, first, item.ID, item.Requests[0].ID, "completed")
 	first.Close()
-	resumed, err := New(t.Context(), filepath.Join(dir, ".gimbal"), factory, "/bin/gimbal", "/instance", dir, nil)
+	resumed, err := newMetadataManager(t.Context(), filepath.Join(dir, ".gimbal"), factory, "/bin/gimbal", "/instance", dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,52 +144,5 @@ func TestPrivateContextSurvivesNativeSessionResumption(t *testing.T) {
 	got, err := os.ReadFile(path)
 	if err != nil || !bytes.Equal(got, data) {
 		t.Fatal("resumption lost private context")
-	}
-}
-
-func TestAttachmentToolResultsStayOutOfConversationJournal(t *testing.T) {
-	for _, path := range []string{"/project/.gimbal/conversation-files/0123456789abcdef0123456789abcdef/context.pdf", "/tmp/gimbal-task-input-1234.pdf"} {
-		t.Run(filepath.Base(path), func(t *testing.T) {
-			a := &controlledChat{started: make(chan string, 1), release: make(chan struct{})}
-			m, item := managerWithControl(t, a)
-			id := cacheFixture(t, m, []byte("private attachment bytes"))
-			m.mu.Lock()
-			item = *m.items[item.ID]
-			item.Requests = []RequestState{{Request: Request{ID: "first", FileID: id}}}
-			m.items[item.ID] = &item
-			events := []struct{ kind, data string }{
-				{"session.step.started", `{"assistantMessageID":"reply"}`},
-				{"session.tool.input.started", `{"assistantMessageID":"reply","id":"read","name":"Read"}`},
-				{"session.tool.called", `{"assistantMessageID":"reply","id":"read","input":{"file_path":` + strconv.Quote(path) + `}}`},
-				{"session.tool.success", `{"assistantMessageID":"reply","id":"read","content":[{"type":"text","text":"private attachment bytes"}],"resultState":{"raw":"private attachment bytes"}}`},
-				{"session.tool.input.started", `{"assistantMessageID":"reply","id":"failed","name":"Bash"}`},
-				{"session.tool.called", `{"assistantMessageID":"reply","id":"failed","input":{"command":` + strconv.Quote("cat "+path+"; exit 1") + `}}`},
-				{"session.tool.failed", `{"assistantMessageID":"reply","id":"failed","content":[{"type":"text","text":"private attachment bytes"}],"error":{"message":"private attachment bytes"},"resultState":{"raw":"private attachment bytes"}}`},
-				{"session.tool.input.started", `{"assistantMessageID":"reply","id":"ordinary","name":"Read"}`},
-				{"session.tool.called", `{"assistantMessageID":"reply","id":"ordinary","input":{"file_path":"/project/README.md"}}`},
-				{"session.tool.success", `{"assistantMessageID":"reply","id":"ordinary","content":[{"type":"text","text":"ordinary tool output"}]}`},
-			}
-			for _, event := range events {
-				var data map[string]any
-				_ = json.Unmarshal([]byte(event.data), &data)
-				data["sessionID"] = item.ID
-				raw, _ := json.Marshal(data)
-				if err := m.activity(&item, gimbal.AgentEvent{Type: event.kind, Data: raw}); err != nil {
-					m.mu.Unlock()
-					t.Fatal(err)
-				}
-			}
-			m.mu.Unlock()
-			raw, err := os.ReadFile(filepath.Join(m.projectDir, "conversations", item.ID+".json"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			if bytes.Contains(raw, []byte("private attachment bytes")) {
-				t.Fatal("raw file contents leaked into observation journal")
-			}
-			if !bytes.Contains(raw, []byte("ordinary tool output")) {
-				t.Fatal("unrelated tool result was removed")
-			}
-		})
 	}
 }

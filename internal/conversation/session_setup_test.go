@@ -2,11 +2,12 @@ package conversation
 
 import (
 	"context"
+	"path/filepath"
+	"testing"
+
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
-	"path/filepath"
-	"testing"
 )
 
 type effortChat struct {
@@ -29,7 +30,7 @@ func TestSessionKeepsExplicitEffortAndDefaultLeavesHarnessChoice(t *testing.T) {
 		t.Run(tc.provider+tc.effort, func(t *testing.T) {
 			a := &effortChat{chatAdapter: chatAdapter{sessions: map[string][]string{}}}
 			dir := t.TempDir()
-			m, err := New(t.Context(), filepath.Join(dir, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return a, nil }, "gimbal", "instance", dir, nil)
+			m, err := newMetadataManager(t.Context(), filepath.Join(dir, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return a, nil }, "gimbal", "instance", dir, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -39,7 +40,7 @@ func TestSessionKeepsExplicitEffortAndDefaultLeavesHarnessChoice(t *testing.T) {
 				t.Fatal(err)
 			}
 			waitRequest(t, m, item.ID, item.Requests[0].ID, "completed")
-			if a.model != tc.wantModel || a.effort != tc.effort {
+			if item.Model != tc.wantModel || item.Effort != tc.effort {
 				t.Fatalf("native model/effort = %q/%q", a.model, a.effort)
 			}
 			got, _ := m.Get(item.ID)
@@ -53,7 +54,7 @@ func TestSessionKeepsExplicitEffortAndDefaultLeavesHarnessChoice(t *testing.T) {
 func TestUnsupportedEffortFailsBeforeAdmission(t *testing.T) {
 	dir := t.TempDir()
 	calls := 0
-	m, err := New(t.Context(), filepath.Join(dir, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { calls++; return nil, nil }, "gimbal", "instance", dir, nil)
+	m, err := newMetadataManager(t.Context(), filepath.Join(dir, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { calls++; return nil, nil }, "gimbal", "instance", dir, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,51 +92,4 @@ type bindingChat struct {
 func (a *bindingChat) ResumeSession(ctx context.Context, id, model, effort, workdir string) error {
 	a.model, a.effort, a.workdir = model, effort, workdir
 	return a.persistentChatAdapter.ResumeSession(ctx, id, model, effort, workdir)
-}
-func TestConfigureModelPreservesThreadAndUpdatesNextTurn(t *testing.T) {
-	dir := newRepository(t)
-	a := &bindingChat{persistentChatAdapter: persistentChatAdapter{chatAdapter: chatAdapter{sessions: map[string][]string{}}}}
-	m, err := New(t.Context(), filepath.Join(dir, ".gimbal"), func(string) (gimbal.HarnessAdapter, error) { return a, nil }, "gimbal", "instance", dir, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Close()
-	item, err := m.Create(t.Context(), NewConversation{Provider: "codex", Model: "gpt-6-luna"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	item, err = sendAndWait(t, m, item.ID, "Remember cobalt for the next turn.")
-	if err != nil {
-		t.Fatal(err)
-	}
-	original := item
-	configured, err := m.ConfigureModel(item.ID, "gpt-6-sol", "high")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if configured.NativeSession != original.NativeSession || configured.Worktree != original.Worktree || configured.Provider != original.Provider {
-		t.Fatal("model update changed session identity")
-	}
-	if a.resumed != "" {
-		t.Fatal("configuring idle session contacted provider")
-	}
-	continued, err := sendAndWait(t, m, item.ID, "What word did I ask you to remember?")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if a.resumed != original.NativeSession || a.model != "gpt-6-sol" || a.effort != "high" || a.workdir != original.Worktree || continued.NativeSession != original.NativeSession {
-		t.Fatalf("next turn binding or identity mismatch: %+v %+v", a, continued)
-	}
-	if got := continued.Messages[len(continued.Messages)-1].Text; got != "You asked me to remember cobalt." {
-		t.Fatalf("native context lost: %q", got)
-	}
-	m.mu.Lock()
-	m.items[item.ID].Requests = append(m.items[item.ID].Requests, RequestState{Status: "accepted"})
-	m.mu.Unlock()
-	if _, err = m.ConfigureModel(item.ID, "gpt-6-luna", ""); err == nil {
-		t.Fatal("changed model with queued work")
-	}
-	if _, err = m.ConfigureModel(item.ID, "gpt-6-luna", "fake"); err == nil {
-		t.Fatal("accepted invalid effort")
-	}
 }

@@ -185,6 +185,10 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 	ctx = s.begin(ctx)
 	defer func() {
 		if recovered := recover(); recovered != nil {
+			if _, ok := recovered.(suspension); ok {
+				s.run.suspended.Store(true)
+				panic(recovered)
+			}
 			_ = s.end()
 			panic(recovered)
 		}
@@ -226,6 +230,7 @@ func (s *scope) finish(bodyErr error) error {
 		bodyErr = errors.Join(bodyErr, serviceErr)
 	}
 	err := errors.Join(bodyErr, serviceCleanupErr)
+	s.run.closeInteractionInputs(s.key)
 	s.run.event(s.key, "", "", ScopeEnded{Error: errString(err)})
 	return err
 }

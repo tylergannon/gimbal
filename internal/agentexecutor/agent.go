@@ -310,6 +310,13 @@ func Run(root string, req Request) error {
 		}
 		return a.CreateSession(ctx, config.Model, config.Effort, config.Workdir)
 	}()
+	if setupErr == nil && id != "" && config.Harness == "codex" && !req.Close {
+		if configurable, ok := a.(interface {
+			ResumeSession(context.Context, string, string, string, string) error
+		}); ok {
+			setupErr = configurable.ResumeSession(ctx, id, config.Model, config.Effort, config.Workdir)
+		}
+	}
 	activeMu.Lock()
 	nativeID = id
 	activeMu.Unlock()
@@ -517,6 +524,9 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 	if err := identity.Validate("turn"); err != nil {
 		return gimbal.TurnResult{}, err
 	}
+	if effects.Reconstructing(ctx) && !executor.Exists(filepath.Join(root, identity.ExecutorOperation, "request.json")) {
+		return gimbal.TurnResult{}, &backend.DeliveryUncertain{RequestID: identity.RequestID, Err: errors.New("accepted native turn evidence is unavailable; refusing fresh execution")}
+	}
 	req := Request{ID: executor.TurnID(identity.ExecutorOperation), Session: executor.SessionID(id), Prompt: prompt, Schema: schema}
 	if deadline, ok := ctx.Deadline(); ok {
 		req.Deadline = deadline
@@ -543,7 +553,7 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 		}
 		_, waitErr := Wait(stopCtx, d, nil)
 		if waitErr != nil && !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded) {
-			return result, errors.Join(ctx.Err(), waitErr)
+			return result, &backend.DeliveryUncertain{RequestID: identity.RequestID, Err: errors.Join(ctx.Err(), waitErr)}
 		}
 		return result, ctx.Err()
 	}
@@ -686,4 +696,30 @@ func finishInterruption(ctx context.Context, a nativeAdapter, id, dir string) er
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+// ConfigureSession changes only later turns on an idle executor-owned thread.
+func (a *Adapter) ConfigureSession(ctx context.Context, id, model, effort string) error {
+	if a.harness != "codex" {
+		return errors.New("model changes require a local Codex session")
+	}
+	root, err := a.state()
+	if err != nil {
+		return err
+	}
+	dir := sessionDir(root, executor.SessionID(id))
+	lease, err := executor.Lock(dir)
+	if err != nil {
+		return err
+	}
+	if lease == nil {
+		return errors.New("session is active")
+	}
+	defer lease.Close()
+	var session Session
+	if err = executor.Read(filepath.Join(dir, "session.json"), &session); err != nil {
+		return err
+	}
+	session.Model, session.Effort = model, effort
+	return executor.Write(filepath.Join(dir, "session.json"), session)
 }

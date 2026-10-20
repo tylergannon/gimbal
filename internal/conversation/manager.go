@@ -52,6 +52,7 @@ type Run struct {
 
 // Conversation is the durable metadata and visible transcript for one chat.
 type Conversation struct {
+	WorkflowRun    string                       `json:"workflow_run"`
 	ID             string                       `json:"id"`
 	Title          string                       `json:"title"`
 	Provider       string                       `json:"provider"`
@@ -123,24 +124,21 @@ type activeConversation struct {
 	observing bool
 }
 
-// persistentSessionAdapter is the extra lifecycle used only by durable,
-// human-facing conversations. Workflow sessions continue to use Close.
-type persistentSessionAdapter interface {
-	ResumeSession(context.Context, string, string, string, string) error
-	DetachSession(context.Context, string) error
-}
-
 // Manager is owned by one host project. Durable state is under projectDir;
 // adapters exist only for that runtime's life. Providers that support durable
 // conversation sessions may persist their native identity with the transcript.
 type Manager struct {
-	ctx         context.Context
-	projectDir  string
-	factory     AdapterFactory
-	cli         string
-	instanceDir string
-	project     string
-	registry    *observation.Registry
+	workflowMu      sync.Mutex
+	WorkflowStart   func(context.Context, Conversation) error
+	WorkflowInput   func(string, string, string) error
+	WorkflowObserve func(string) (gimbal.InteractiveTranscript, string, error)
+	ctx             context.Context
+	projectDir      string
+	factory         AdapterFactory
+	cli             string
+	instanceDir     string
+	project         string
+	registry        *observation.Registry
 
 	mu            sync.RWMutex
 	items         map[string]*Conversation
@@ -213,27 +211,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 		if item.Runs == nil {
 			item.Runs = []Run{}
 		}
-		// The conversation turn is no longer active after a restart. Run state
-		// is read separately from the project's authoritative run record.
-		if item.ActiveRequest != "" {
-			item.Status, item.Error = "unresolved", "The server restarted before this request's outcome was confirmed."
-			if !remotePlacement(&item) {
-				item.ActiveRequest = ""
-			}
-			for i := range item.Requests {
-				if item.Requests[i].Status == "running" || (item.Requests[i].Status == "accepted" && !remotePlacement(&item)) {
-					item.Requests[i].Status = "unresolved"
-				}
-			}
-		}
-		manager.refresh(&item)
-		// A persisted native identity can be resumed lazily on the next send.
-		// Loading the page itself still does not start or contact a harness.
-		if !remotePlacement(&item) {
-			item.Live = item.NativeSession != ""
-		} else {
-			item.Live = item.Live || item.ActiveRequest != "" || item.CleanupPending
-		}
+		item.Live = item.WorkflowRun != ""
 		if !item.Placement.Present {
 			item.Environment = environments.Local
 			item.Contact = "connected"
@@ -439,6 +417,39 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 		return Conversation{}, false
 	}
 	m.refresh(item)
+	if m.WorkflowObserve != nil && item.WorkflowRun != "" {
+		before, _ := json.Marshal(item)
+		transcript, status, err := m.WorkflowObserve(item.WorkflowRun)
+		if err == nil {
+			item.Messages = nil
+			for _, message := range transcript.Messages {
+				item.Messages = append(item.Messages, Message{Role: message.Role, Text: message.Message})
+			}
+			item.Status = status
+			item.ActiveRequest = ""
+			for index := range item.Requests {
+				request := &item.Requests[index]
+				if status == "waiting" || status == "completed" {
+					if request.Status == "accepted" || request.Status == "running" {
+						request.Status = "completed"
+					}
+				}
+				if status == "working" && item.ActiveRequest == "" && request.Kind == "prompt" && (request.Status == "accepted" || request.Status == "running") {
+					item.ActiveRequest = request.ID
+					request.Status = "running"
+				}
+			}
+
+			if transcript.EndedBy == "human" {
+				item.Live = false
+			}
+			after, _ := json.Marshal(item)
+			if string(before) != string(after) {
+				item.Revision++
+				_ = m.save(item)
+			}
+		}
+	}
 	snapshot := clone(item)
 	m.mu.Unlock()
 	return snapshot, true
@@ -541,8 +552,7 @@ func (m *Manager) Start(ctx context.Context, in NewConversation, text string) (C
 	return item, nil
 }
 
-// Close releases each live native session. Worktrees and saved conversations
-// deliberately remain: they are the durable association the UI promises.
+// Close stops this project's metadata observers; execution belongs to its host.
 func (m *Manager) Close() {
 	m.mu.Lock()
 	if m.closing {
@@ -551,30 +561,9 @@ func (m *Manager) Close() {
 		return
 	}
 	m.closing = true
-	defer close(m.closed)
-	active := make([]*activeConversation, 0, len(m.active))
-	for _, conversation := range m.active {
-		if conversation.cancel != nil {
-			conversation.cancel()
-		}
-		active = append(active, conversation)
-	}
 	m.mu.Unlock()
-	// Join even admitted operations that have not acquired turnMu yet.
 	m.remoteReaders.Wait()
-	for _, conversation := range active {
-		conversation.turnMu.Lock()
-		if conversation.remote != nil {
-			// Shared transport handles belong to the instance environment service.
-		} else if conversation.adapter != nil && conversation.session != "" {
-			if persistent, ok := conversation.adapter.(persistentSessionAdapter); ok {
-				_ = persistent.DetachSession(context.WithoutCancel(m.ctx), conversation.session)
-			} else {
-				_ = conversation.adapter.Close(context.WithoutCancel(m.ctx), conversation.session)
-			}
-		}
-		conversation.turnMu.Unlock()
-	}
+	close(m.closed)
 }
 
 // background registers before spawning so Close cannot miss a not-yet-started
@@ -752,9 +741,7 @@ const conversationPrompt = `You are the agent in a Gimbal conversation. Work in 
 
 For an ordinary chat request, answer without launching a workflow. When the person asks you to run a built-in workflow, invoke the ordinary Gimbal CLI yourself. The executable is %q. Use its "run" help to choose the workflow and flags. Always pass --instance-dir %q, --project %q, --work-dir %q, and --conversation %q. The project owns observation and saved history; the working directory is where you execute. For a review use "run review --goal ...". For an implementation use "run implement --outcomes-file ..." with a local outcomes file. The CLI prints the accepted run ID. Do not infer acceptance from your own prose; report what the CLI actually said. You may omit --follow; the server records the run's terminal status independently.
 
-Reply in ordinary prose.
-
-Person: `
+Use the interaction protocol for your response.`
 
 // Rename changes only the durable presentation of an existing chat.
 func (m *Manager) Rename(id, title string) (Conversation, error) {
@@ -776,4 +763,8 @@ func (m *Manager) Rename(id, title string) (Conversation, error) {
 		return Conversation{}, err
 	}
 	return clone(item), nil
+}
+
+func (m *Manager) Purpose(item Conversation) string {
+	return fmt.Sprintf(conversationPrompt, m.cli, m.instanceDir, m.project, item.Worktree, item.ID)
 }

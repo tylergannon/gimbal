@@ -54,7 +54,7 @@ func (s *Store) refreshSource() error {
 		fresh := newStore(nil, s.id, s.run.Name, "")
 		s.scopes = fresh.scopes
 		s.sessions = fresh.sessions
-		s.interviews = fresh.interviews
+		s.interactions = fresh.interactions
 		s.turns = fresh.turns
 		s.turnUsage = fresh.turnUsage
 		s.modelCalls = fresh.modelCalls

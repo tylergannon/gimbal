@@ -240,3 +240,15 @@ func TestRepeatedCLICloseUsesSessionReceiptAfterOperationVacuum(t *testing.T) {
 		}
 	}
 }
+
+func TestReconstructionWithoutAcceptedTurnEvidenceDoesNotDispatch(t *testing.T) {
+	adapter := New("codex")
+	adapter.Root = t.TempDir()
+	identity := backend.NewExecutionIdentity("turn")
+	ctx := effects.WithReconstruction(effects.WithExecutionIdentity(t.Context(), identity), true)
+	_, err := adapter.RunTurn(ctx, identity.ExecutorSession, "Never dispatch without evidence", nil, nil)
+	var uncertain *backend.DeliveryUncertain
+	if !errors.As(err, &uncertain) {
+		t.Fatalf("missing accepted turn evidence: %v", err)
+	}
+}

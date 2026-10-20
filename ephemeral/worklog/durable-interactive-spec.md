@@ -50,3 +50,24 @@ interaction protocol, shared hosting, presentation, and workflow admission.
 Physical handwritten-source baselines were measured before proposing budget
 tripwires. The existing linter follows source-visible helpers but does not yet
 enforce the new library-only effects rule.
+
+decision: Tyler approves InteractiveTranscript/InteractiveMessage and the
+ordered role/message shape. Support both initial entry modes eventually;
+choose the easiest correct starting default and do not over-engineer it.
+
+correction: Native agent resource handling explicitly has NO POLICY and NO
+tests purporting to enforce one. Choose the easiest default that behaves
+correctly. Do not turn detach/retain/eviction/process counts into requirements
+or frame this as a policy-design task deferred to implementation.
+
+decision: Full review draft adds durable ingress/transition, replay, hosting,
+presentation and admission contracts and routed behavioral claims. One open
+public-contract defect remains: generic end and human finish both return nil,
+but conversation workflow code must distinguish them to remain interactive
+until archive. Proposed termination provenance needs human alignment; it has
+not been silently added to the approved public types.
+
+decision: Author's six-pass spec review is recorded in
+ephemeral/research/durable-interactive/REVIEW.md. It leaves termination
+provenance as an explicit public-contract finding. Cell budgets and derived
+contracts remain proposed; no implementation or live proof is claimed.

@@ -100,6 +100,12 @@ The authoring gate already has source-visible helper traversal
 This is a location for extending admission rules, not proof of existing
 nondeterminism enforcement.
 
-Unsettled seam details include initial entry into Interactive, dormant
-resource release, transcript representation, and delivery/termination races.
-SERVICE restoration remains explicitly deferred.
+The human approved InteractiveTranscript/InteractiveMessage with ordered
+role/message entries. Initial entry is delegated to the easiest correct
+default; both modes can come later. Native agent resource handling explicitly
+has no policy and no tests asserting a resource policy. Correct behavior is
+the requirement, not detach, retention or process counts.
+
+The remaining public-contract defect is how ordinary conversation workflow
+code distinguishes agent end from human finish while staying interactive until
+archive. SERVICE restoration remains explicitly deferred.

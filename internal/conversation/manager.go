@@ -23,6 +23,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
+	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/polytype"
 )
 
@@ -481,6 +482,18 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 			item.Error = err.Error()
 			after, _ := json.Marshal(item)
 			if string(before) != string(after) {
+				item.Revision++
+				item.Updated = time.Now().UnixMilli()
+				_ = m.save(item)
+			}
+		}
+	}
+	if item.WorkflowRun != "" {
+		// The run's journal is the transcript. A run not yet opened shows only the
+		// admitted prompt; an unreadable one keeps the last projection.
+		run, err := m.registry.Snapshot(item.WorkflowRun)
+		if err == nil || errors.Is(err, observation.ErrNoRun) || errors.Is(err, runstore.ErrIncomplete) {
+			if changed, err := projectTranscript(item, run); err == nil && changed {
 				item.Revision++
 				item.Updated = time.Now().UnixMilli()
 				_ = m.save(item)

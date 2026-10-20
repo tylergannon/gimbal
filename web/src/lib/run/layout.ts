@@ -2,7 +2,7 @@ import type { PipState } from "./Pip.svelte";
 import type { NodeOperation } from "./types.js";
 import type {
   CommandRow,
-  InterviewRow,
+  InteractiveRow,
   RunSnapshot,
   ScopeRow,
   TurnRow,
@@ -91,7 +91,7 @@ export type MapNodeLayout = {
   state: PipState;
   meta: string;
   selectionKey: string;
-  runtime?: TurnRow | CommandRow | InterviewRow;
+  runtime?: TurnRow | CommandRow | InteractiveRow;
   selected: boolean;
 };
 
@@ -233,7 +233,7 @@ function isNode(operation: Operation): operation is NodeOperation {
   return (
     operation.kind === "agent_call" ||
     operation.kind === "command" ||
-    operation.kind === "interview"
+    operation.kind === "interactive"
   );
 }
 
@@ -284,7 +284,7 @@ function measureOperation(operation: Operation, context: MeasureContext): Measur
       const serviceHeight = servicePanelHeight(child.services);
       const contentTop = serviceHeight
         ? serviceTop + serviceHeight + servicePanelGap
-        : first?.kind === "interview"
+        : first?.kind === "interactive"
           ? 32
           : 24;
       const body = measureSequence(child.body as Sequence, { nodeWidth: 272, gap: context.gap });
@@ -426,8 +426,8 @@ export function commandFor(snapshot: RunSnapshot, scopeKey: string, name: string
     .at(-1);
 }
 
-function interviewFor(snapshot: RunSnapshot, scopeKey: string, name: string) {
-  return Object.values(snapshot.interviews)
+function interactiveFor(snapshot: RunSnapshot, scopeKey: string, name: string) {
+  return Object.values(snapshot.interactions)
     .filter((row) => row.scope === scopeKey && row.name === name)
     .sort((left, right) => left.asked - right.asked)
     .at(-1);
@@ -435,7 +435,7 @@ function interviewFor(snapshot: RunSnapshot, scopeKey: string, name: string) {
 
 export function runtimeFor(snapshot: RunSnapshot, scopeKey: string, operation: NodeOperation) {
   if (operation.kind === "command") return commandFor(snapshot, scopeKey, operation.name);
-  if (operation.kind === "interview") return interviewFor(snapshot, scopeKey, operation.name);
+  if (operation.kind === "interactive") return interactiveFor(snapshot, scopeKey, operation.name);
   return turnFor(snapshot, scopeKey, operation.session);
 }
 
@@ -456,10 +456,10 @@ export function operationState(snapshot: RunSnapshot, scopeKey: string, operatio
     return command.ended === 0 ? ("running" as const) : ("ended" as const);
   }
 
-  if (operation.kind === "interview") {
-    const interview = interviewFor(snapshot, scopeKey, operation.name);
-    if (!interview) return "queued" as const;
-    return interview.status === "pending" ? ("needs-you" as const) : ("ended" as const);
+  if (operation.kind === "interactive") {
+    const interactive = interactiveFor(snapshot, scopeKey, operation.name);
+    if (!interactive) return "queued" as const;
+    return interactive.status === "pending" ? ("needs-you" as const) : ("ended" as const);
   }
 
   return turnState(turnFor(snapshot, scopeKey, operation.session));
@@ -471,13 +471,13 @@ export function operationMeta(snapshot: RunSnapshot, scopeKey: string, operation
     return command ? `exit ${command.exit_code}` : "not started";
   }
 
-  if (operation.kind === "interview") {
-    const interviews = Object.values(snapshot.interviews)
+  if (operation.kind === "interactive") {
+    const interactions = Object.values(snapshot.interactions)
       .filter((row) => row.scope === scopeKey && row.name === operation.name)
       .sort((left, right) => left.asked - right.asked);
-    const current = interviews.at(-1);
+    const current = interactions.at(-1);
     if (!current) return "not started";
-    return `question ${interviews.length}`;
+    return `question ${interactions.length}`;
   }
 
   const turn = turnFor(snapshot, scopeKey, operation.session);

@@ -390,12 +390,17 @@ func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 // List returns newest-first durable snapshots.
 func (m *Manager) List() []Conversation {
 	m.mu.Lock()
-	items := make([]Conversation, 0, len(m.items))
-	for _, item := range m.items {
-		m.refresh(item)
-		items = append(items, clone(item))
+	ids := make([]string, 0, len(m.items))
+	for id := range m.items {
+		ids = append(ids, id)
 	}
 	m.mu.Unlock()
+	items := make([]Conversation, 0, len(ids))
+	for _, id := range ids {
+		if item, ok := m.Get(id); ok {
+			items = append(items, item)
+		}
+	}
 	slices.SortFunc(items, func(left, right Conversation) int {
 		if left.Updated == right.Updated {
 			return strings.Compare(right.ID, left.ID)
@@ -420,16 +425,38 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 	if m.WorkflowObserve != nil && item.WorkflowRun != "" {
 		before, _ := json.Marshal(item)
 		transcript, status, err := m.WorkflowObserve(item.WorkflowRun)
-		if err == nil {
+		if err == nil || status == "unresolved" || status == "error" {
 			item.Messages = nil
 			for _, message := range transcript.Messages {
 				item.Messages = append(item.Messages, Message{Role: message.Role, Text: message.Message})
 			}
 			item.Status = status
+			item.Error = ""
+			if err != nil {
+				item.Error = err.Error()
+			}
+			if status == "error" {
+				item.Live = false
+			}
 			item.ActiveRequest = ""
+			messageIndex := 0
 			for index := range item.Requests {
 				request := &item.Requests[index]
-				if status == "waiting" || status == "completed" {
+				if status == "error" && (request.Status == "accepted" || request.Status == "running") {
+					request.Status, request.Error = "failed", item.Error
+				}
+				delivered := false
+				if request.Kind == "prompt" {
+					for messageIndex < len(transcript.Messages) {
+						message := transcript.Messages[messageIndex]
+						messageIndex++
+						if message.Role == "user" && (message.Message == request.Message || (request.FileID != "" && strings.HasPrefix(message.Message, request.Message+"\n\nRead the attached file "))) {
+							delivered = true
+							break
+						}
+					}
+				}
+				if (status == "waiting" && (request.Status == "running" || delivered)) || status == "completed" {
 					if request.Status == "accepted" || request.Status == "running" {
 						request.Status = "completed"
 					}
@@ -446,6 +473,17 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 			after, _ := json.Marshal(item)
 			if string(before) != string(after) {
 				item.Revision++
+				item.Updated = time.Now().UnixMilli()
+				_ = m.save(item)
+			}
+		} else if err != nil {
+			item.Status = "unresolved"
+			item.Contact = "unreachable"
+			item.Error = err.Error()
+			after, _ := json.Marshal(item)
+			if string(before) != string(after) {
+				item.Revision++
+				item.Updated = time.Now().UnixMilli()
 				_ = m.save(item)
 			}
 		}

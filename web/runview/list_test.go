@@ -15,11 +15,11 @@ func TestSmallNonzeroCostNeverLooksFree(t *testing.T) {
 }
 
 func TestEndedRunDoesNotAskForAnUnanswerableQuestion(t *testing.T) {
-	snapshot := observation.RunSnapshot{Run: observation.RunRow{Status: observation.StatusCancelled}, Interviews: map[string]observation.InterviewRow{"question": {Status: observation.InterviewStatusPending, Question: "Which color?"}}}
-	if got := pendingInterviews(snapshot); len(got) != 0 {
+	snapshot := observation.RunSnapshot{Run: observation.RunRow{Status: observation.StatusCancelled}, Interactions: map[string]observation.InteractiveRow{"question": {Status: observation.InteractiveStatusPending, Question: "Which color?"}}}
+	if got := pendingInteractions(snapshot); len(got) != 0 {
 		t.Fatalf("ended run has waiting questions: %+v", got)
 	}
-	if got := summarizeRun(snapshot, pendingInterviews(snapshot)); got != "Cancelled" {
+	if got := summarizeRun(snapshot, pendingInteractions(snapshot)); got != "Cancelled" {
 		t.Fatalf("ended summary = %q", got)
 	}
 }

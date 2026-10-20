@@ -46,7 +46,11 @@ func (*interactiveFlat) Schema() json.RawMessage {
 	_ = json.Unmarshal((interactiveOutput{}).Schema(), &schema)
 	var props map[string]json.RawMessage
 	_ = json.Unmarshal(schema["properties"], &props)
-	return props["decision"]
+	var decision map[string]json.RawMessage
+	_ = json.Unmarshal(props["decision"], &decision)
+	decision["type"] = json.RawMessage(`"object"`)
+	flat, _ := json.Marshal(decision)
+	return flat
 }
 func (o *interactiveFlat) acceptJSON(raw []byte) error {
 	wrapped := append(append([]byte(`{"decision":`), raw...), '}')
@@ -59,18 +63,20 @@ func (o *interactiveFlat) acceptJSON(raw []byte) error {
 type interactionInput = runstate.InteractionInput
 
 type interactionState struct {
-	Ordinal     int                   `json:"ordinal"`
-	Unresolved  string                `json:"unresolved"`
-	Scope       string                `json:"scope"`
-	Session     string                `json:"session"`
-	ActiveInput string                `json:"active_input"`
-	Address     string                `json:"address"`
-	Node        runstore.NodeID       `json:"node"`
-	Transcript  InteractiveTranscript `json:"transcript"`
-	Consumed    []string              `json:"consumed"`
-	Turns       int                   `json:"turns"`
-	Generations int                   `json:"generations"`
-	Waiting     bool                  `json:"waiting"`
+	Prompt         string                `json:"prompt"`
+	InputPublished bool                  `json:"input_published"`
+	Ordinal        int                   `json:"ordinal"`
+	Unresolved     string                `json:"unresolved"`
+	Scope          string                `json:"scope"`
+	Session        string                `json:"session"`
+	ActiveInput    string                `json:"active_input"`
+	Address        string                `json:"address"`
+	Node           runstore.NodeID       `json:"node"`
+	Transcript     InteractiveTranscript `json:"transcript"`
+	Consumed       []string              `json:"consumed"`
+	Turns          int                   `json:"turns"`
+	Generations    int                   `json:"generations"`
+	Waiting        bool                  `json:"waiting"`
 }
 type interactionRuntime struct {
 	session *Session
@@ -182,23 +188,46 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 		if !continuing {
 			state.Consumed = append(state.Consumed, input.ID)
 			state.ActiveInput = input.ID
+			state.InputPublished = false
+			state.Prompt = ""
 		}
 		state.Waiting = false
+		if state.Prompt == "" {
+			promptTranscript := state.Transcript
+			promptTranscript.Messages = append(append([]InteractiveMessage(nil), state.Transcript.Messages...), InteractiveMessage{Role: "user", Message: input.Message})
+			raw, _ := json.Marshal(promptTranscript)
+			state.Prompt = purpose + "\n\nConversation:\n" + string(raw) + "\n\nRespond with chat and message, or end when finished."
+			if text := scopeText(ctx); text != "" {
+				state.Prompt += "\n\n" + text
+			}
+		}
 		err = r.commitInteraction(state)
 		turnCtx, cancel := context.WithCancelCause(ctx)
 		r.activeInteractions[address] = interactionRuntime{session: session, cancel: cancel}
+		session.mu.Lock()
+		session.interactiveDelivery = func() error {
+			r.interactionMu.Lock()
+			defer r.interactionMu.Unlock()
+			if !state.InputPublished {
+				state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: input.Message})
+				state.InputPublished = true
+				return r.commitInteraction(state)
+			}
+			return nil
+		}
+		session.mu.Unlock()
 		r.interactionMu.Unlock()
 		if err != nil {
 			cancel(nil)
 			return state.Transcript, err
 		}
-		promptTranscript := state.Transcript
-		promptTranscript.Messages = append(append([]InteractiveMessage(nil), state.Transcript.Messages...), InteractiveMessage{Role: "user", Message: input.Message})
-		raw, _ := json.Marshal(promptTranscript)
-		prompt := purpose + "\n\nConversation:\n" + string(raw) + "\n\nRespond with chat and message, or end when finished."
 		output := &interactiveFlat{}
-		_, turnErr := dispatchResponse(turnCtx, session, prompt, nil, nil, output)
+		_, turnErr := dispatchResponse(turnCtx, session, state.Prompt, nil, nil, output)
 		cancel(nil)
+		session.mu.Lock()
+		delivered := session.generationDelivered
+		session.interactiveDelivery = nil
+		session.mu.Unlock()
 		r.interactionMu.Lock()
 		delete(r.activeInteractions, address)
 		r.refreshInteractions()
@@ -210,9 +239,13 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 			session.mu.Unlock()
 		}
 
-		if turnErr == nil {
+		if !state.InputPublished && (turnErr == nil || delivered) {
 			state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: input.Message})
+			state.InputPublished = true
+		}
+		if turnErr == nil {
 			state.ActiveInput = ""
+			state.Prompt = ""
 		}
 		finish := false
 		stop := false
@@ -242,6 +275,7 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 		if stop && !isUnresolved(turnErr) {
 			state.Waiting = true
 			state.ActiveInput = ""
+			state.Prompt = ""
 			err = r.commitInteraction(state)
 			r.interactionMu.Unlock()
 			if err != nil {
@@ -400,7 +434,7 @@ func (r *run) acceptInput(input interactionInput) error {
 	address, id, message, finish := input.Address, input.ID, input.Message, input.Finish
 	r.interactionMu.Lock()
 	defer r.interactionMu.Unlock()
-	if r.closed {
+	if r.State() == "terminal" {
 		return errors.New("gimbal: interaction owner has ended")
 	}
 	r.refreshInteractions()
@@ -462,7 +496,9 @@ func (r *run) acceptInput(input interactionInput) error {
 		active.cancel(errors.New("human finished interaction"))
 		return nil
 	}
+	r.interactionMu.Unlock()
 	landed, err := active.session.Steer(context.Background(), message)
+	r.interactionMu.Lock()
 	if err != nil {
 		input.Disposition = "uncertain"
 	} else if landed {

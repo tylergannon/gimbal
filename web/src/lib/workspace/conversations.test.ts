@@ -18,6 +18,7 @@ const chat = (id: string, updated: number): Conversation => ({
   base: "",
   branch: "",
   worktree: "/project",
+  workflow_run: "workflow-run",
   native_session: "",
   live: true,
   status: "idle",

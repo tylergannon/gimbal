@@ -196,9 +196,12 @@ type activeInteractionAdapter struct {
 func (*activeInteractionAdapter) CreateSession(context.Context, string, string, string) (string, error) {
 	return "active-native", nil
 }
-func (a *activeInteractionAdapter) RunTurn(ctx context.Context, _ string, _ string, _ json.RawMessage, _ func(AgentEvent) error) (TurnResult, error) {
+func (a *activeInteractionAdapter) RunTurn(ctx context.Context, _ string, _ string, _ json.RawMessage, emit func(AgentEvent) error) (TurnResult, error) {
 	a.calls++
 	if a.calls == 1 {
+		if err := emit(nativeEvent("session.step.started", map[string]any{"sessionID": "active-native", "assistantMessageID": "reply"}, map[string]any{"provider": "test", "sessionID": "active-native", "turnID": "turn", "messageID": "reply"})); err != nil {
+			return TurnResult{}, err
+		}
 		close(a.started)
 		select {
 		case <-ctx.Done():
@@ -226,7 +229,7 @@ func TestInteractiveActiveFinishReturnsNormally(t *testing.T) {
 	body := func(ctx context.Context) error {
 		result, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Converse.")
 		if err == nil {
-			continued = result.EndedBy == "human"
+			continued = result.EndedBy == "human" && len(result.Messages) == 1 && result.Messages[0].Message == "Hello"
 		}
 		return err
 	}

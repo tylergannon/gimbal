@@ -3,7 +3,7 @@
   import { conversationSetup } from '../../routes/conversation.remote';
   import type { Conversation } from '#lib/skgo/conversation/types';
   import type { Header } from '#lib/skgo/transcript/types';
-  import type { InterviewRow } from '#lib/observation';
+  import type { InteractiveRow } from '#lib/observation';
   import type { RunCardItem } from '#lib/run/RunsList.svelte';
   import * as Card from '#lib/components/ui/card';
   import * as Table from '#lib/components/ui/table';
@@ -12,7 +12,7 @@
   import Pip from '#lib/run/Pip.svelte';
   let { project, name, path, sessions, recordings, runs, error, onretry, active = true, onopen, onopenguide }: {
     project:string; name:string; path:string; sessions:Conversation[]; recordings:Header[];
-    runs?:{items:RunCardItem[];attention:InterviewRow[];now:number}; error?:unknown; onretry?:()=>void; active?:boolean;
+    runs?:{items:RunCardItem[];attention:InteractiveRow[];now:number}; error?:unknown; onretry?:()=>void; active?:boolean;
     onopen:(path:string)=>void; onopenguide:(name:string)=>void;
   } = $props();
   const setup = $derived(conversationSetup({project,environment:'local'}));

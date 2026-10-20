@@ -1,9 +1,9 @@
 <script lang="ts">
   import RunsList, { type RunCardItem } from '#lib/run/RunsList.svelte';
   import WorkflowLauncher from './WorkflowLauncher.svelte';
-  import type { InterviewRow, RunRow } from '#lib/observation';
+  import type { InteractiveRow, RunRow } from '#lib/observation';
   let { project, active = true, data, error, onretry, onopen, onopenguide }: {
-    project: string; active?: boolean; data?: { items: RunCardItem[]; attention: InterviewRow[]; now: number };
+    project: string; active?: boolean; data?: { items: RunCardItem[]; attention: InteractiveRow[]; now: number };
     error?: unknown; onretry: () => void; onopen: (path: string) => void; onopenguide: (name: string) => void;
   } = $props();
   function open(run: RunRow) { onopen(`/projects/${project}/runs/${encodeURIComponent(run.id)}`); }

@@ -20,15 +20,17 @@ import (
 // Session is one agent conversation on one harness, in one workdir. It
 // belongs to the scope that created it and is closed when that scope ends.
 type Session struct {
-	source  runstore.NodeID
-	node    runstore.NodeID
-	owner   *scope
-	adapter HarnessAdapter
-	name    string
-	model   string
-	effort  string
-	workdir string
-	id      string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
+	generationDelivered bool
+	interactiveDelivery func() error
+	source              runstore.NodeID
+	node                runstore.NodeID
+	owner               *scope
+	adapter             HarnessAdapter
+	name                string
+	model               string
+	effort              string
+	workdir             string
+	id                  string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
 	mu          sync.Mutex
 	native      string // the harness's session id, made on the first turn
@@ -243,6 +245,7 @@ type generationKey struct{}
 func generateResponse(ctx context.Context, s *Session, prompt string, onEvent func(AgentEvent) error, started *TurnStarted, output Output) ([]byte, error) {
 	s.mu.Lock()
 	s.generations++
+	s.generationDelivered = false
 	ordinal := s.generations
 	s.mu.Unlock()
 	node := s.owner.run.ensureNode(s.node, runstore.Action, "generate", ordinal, fmt.Sprintf("%s/generate.%d", s.id, ordinal), nil)
@@ -385,6 +388,11 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 		Usage  map[string]Usage `json:"usage"`
 	}
 	if found, err := s.owner.run.outcome(turnNode, &saved); found {
+		if err == nil || s.owner.run.hasFact(turnNode, "prompt-delivered") {
+			if deliveryErr := s.notePromptDelivery(turnNode); deliveryErr != nil {
+				return nil, deliveryErr
+			}
+		}
 		if err == nil && validate != nil {
 			err = validate(saved.Output)
 		}
@@ -497,7 +505,15 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			err = s.admissionError(turnCtx)
 		}
 		if err == nil {
-			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, wrapped)
+			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, func(event AgentEvent) error {
+				switch event.Type {
+				case "session.step.started", "session.text.started", "session.tool.called":
+					if err := s.notePromptDelivery(turnNode); err != nil {
+						return err
+					}
+				}
+				return wrapped(event)
+			})
 		}
 		finishCallback()
 	}
@@ -936,4 +952,24 @@ func (s *Session) reachable(ctx context.Context) error {
 		}
 	}
 	return fmt.Errorf("gimbal: session %q is not reachable from scope %q", s.name, active.key)
+}
+
+func (s *Session) notePromptDelivery(node runstore.NodeID) error {
+	s.mu.Lock()
+	if s.generationDelivered {
+		s.mu.Unlock()
+		return nil
+	}
+	s.generationDelivered = true
+	callback := s.interactiveDelivery
+	s.mu.Unlock()
+	if !s.owner.run.hasFact(node, "prompt-delivered") {
+		if err := s.owner.run.recordFact(node, s.owner.node, s.node, "prompt-delivered", struct{}{}, runstore.Committed); err != nil {
+			return err
+		}
+	}
+	if callback != nil {
+		return callback()
+	}
+	return nil
 }

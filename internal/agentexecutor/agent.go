@@ -42,12 +42,13 @@ func init() {
 }
 
 type Session struct {
-	ID      executor.SessionID `json:"id"`
-	Harness string             `json:"harness"`
-	Model   string             `json:"model"`
-	Effort  string             `json:"effort"`
-	Workdir string             `json:"workdir"`
-	Parent  executor.SessionID `json:"parent,omitempty"`
+	ConfigurationUpdated bool               `json:"configuration_updated,omitempty"`
+	ID                   executor.SessionID `json:"id"`
+	Harness              string             `json:"harness"`
+	Model                string             `json:"model"`
+	Effort               string             `json:"effort"`
+	Workdir              string             `json:"workdir"`
+	Parent               executor.SessionID `json:"parent,omitempty"`
 }
 type Request struct {
 	Deadline time.Time          `json:"deadline,omitzero"`
@@ -284,6 +285,7 @@ func Run(root string, req Request) error {
 
 	_ = executor.Startup(executor.Describe(dir, true))
 	checkpoint := filepath.Join(sdir, "native.json")
+	hadCheckpoint := executor.Exists(checkpoint)
 	id, setupErr := func() (string, error) {
 		if executor.Exists(checkpoint) {
 			return a.LoadSession(ctx, checkpoint, req.Close)
@@ -310,7 +312,7 @@ func Run(root string, req Request) error {
 		}
 		return a.CreateSession(ctx, config.Model, config.Effort, config.Workdir)
 	}()
-	if setupErr == nil && id != "" && config.Harness == "codex" && !req.Close {
+	if setupErr == nil && id != "" && config.ConfigurationUpdated && hadCheckpoint && config.Harness == "codex" && !req.Close {
 		if configurable, ok := a.(interface {
 			ResumeSession(context.Context, string, string, string, string) error
 		}); ok {
@@ -322,6 +324,10 @@ func Run(root string, req Request) error {
 	activeMu.Unlock()
 	if setupErr == nil && id != "" && !req.Close {
 		setupErr = a.SaveSession(ctx, id, checkpoint)
+		if setupErr == nil && config.ConfigurationUpdated {
+			config.ConfigurationUpdated = false
+			setupErr = executor.Write(filepath.Join(sdir, "session.json"), config)
+		}
 	}
 	var result gimbal.TurnResult
 	turnErr := setupErr
@@ -721,5 +727,6 @@ func (a *Adapter) ConfigureSession(ctx context.Context, id, model, effort string
 		return err
 	}
 	session.Model, session.Effort = model, effort
+	session.ConfigurationUpdated = true
 	return executor.Write(filepath.Join(dir, "session.json"), session)
 }

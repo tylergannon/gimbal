@@ -4,55 +4,55 @@
  * InteractiveRow is one question an interactive asked. An accepted answer updates the same row from pending to answered; an empty answer means the person ended the interactive.
  */
 export type InteractiveRow = {
-  "ordinal": number;
-  "unresolved": string;
-  "address": string;
-  "messages": Array<InteractiveMessage>;
-  "ended_by": string;
-  "run": string;
-  "question_id": string;
-  "name": string;
-  "scope": string;
-  "session": string;
-  "question": string;
-  "status": string;
-  "answer": string;
-  "asked": number;
-  "answered": number;
+  ordinal: number;
+  unresolved: string;
+  address: string;
+  messages: Array<InteractiveMessage>;
+  ended_by: string;
+  run: string;
+  question_id: string;
+  name: string;
+  scope: string;
+  session: string;
+  question: string;
+  status: string;
+  answer: string;
+  asked: number;
+  answered: number;
 };
 
 export type InteractiveMessage = {
-  "role": string;
-  "message": string;
+  role: string;
+  message: string;
 };
 
 /**
  * TurnRow is one agent turn. Scope is where the turn ran, which is what a turn's tokens are charged to. Context identifies the scope values sent with Prompt, without copying their bodies. Result is the recorded JSON text.
  */
 export type TurnRow = {
-  "unresolved": boolean;
-  "events_unavailable": boolean;
-  "observation_error": string;
-  "run": string;
-  "id": string;
-  "session": string;
-  "scope": string;
-  "prompt": string;
-  "context"?: Array<ContextEntry>;
-  "output_type": string;
-  "result": string;
-  "error": string;
-  "interrupted": boolean;
-  "started": number;
-  "ended": number;
-  "duration": number;
+  unresolved: boolean;
+  events_unavailable: boolean;
+  observation_error: string;
+  run: string;
+  id: string;
+  session: string;
+  scope: string;
+  prompt: string;
+  context?: Array<ContextEntry>;
+  output_type: string;
+  result: string;
+  error: string;
+  interrupted: boolean;
+  started: number;
+  ended: number;
+  duration: number;
 };
 
 /**
  * ContextEntry identifies one scope value visible to a turn. Scope is the nearest scope that set Key. Complete says the complete value was sent inline; it is false when the value was omitted or shortened.
  */
 export type ContextEntry = {
-  "key": string;
-  "scope": string;
-  "complete": boolean;
+  key: string;
+  scope: string;
+  complete: boolean;
 };

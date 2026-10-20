@@ -1,13 +1,16 @@
 <script lang="ts">
-  import type { InterviewRow } from '#lib/observation';
-  import { answerInterview } from '../../routes/interview.remote';
+  import type { InteractiveRow } from '#lib/observation';
+  import { answerInteractive, finishInteractive } from '../../routes/interactive.remote';
   import { navigateOnUnauthorized } from '#lib/auth/unauthorized';
   import { errorMessage } from '#lib/errors';
   import StopTurnButton from './StopTurnButton.svelte';
-  let { run, question, composer = false, target, turn }: { run: string; question: InterviewRow; composer?: boolean; target?: string; turn?: string } = $props();
+  let { run, question, composer = false, target, turn }: { run: string; question: InteractiveRow; composer?: boolean; target?: string; turn?: string } = $props();
   const instance = $props.id();
-  const form = $derived(answerInterview.for(`run-question-${run}-${question.question_id}-${instance}`));
+  const form = $derived(answerInteractive.for(`run-question-${run}-${question.question_id}-${instance}`));
   let feedback = $state('');
+ let requestId=$state(crypto.randomUUID());
+ let finishing=$state(false);
+ async function finish(){finishing=true;feedback='';try{await finishInteractive({run,address:question.address,id:crypto.randomUUID()});feedback='Finish accepted.';}catch(error){if(!navigateOnUnauthorized(error))feedback=errorMessage(error);}finally{finishing=false;}}
 </script>
 <section aria-label="Waiting question" class="question">
   <p class="label">{composer ? `Answer ${target || question.name}` : `Needs you · ${question.scope || 'root'}`}</p>
@@ -16,16 +19,19 @@
     feedback = '';
     try {
       await submitted.submit();
+ if(submitted.result?.accepted)requestId=crypto.randomUUID();
       if (submitted.result) feedback = submitted.result.accepted ? 'Answer accepted.' : 'This question is no longer waiting.';
     } catch (error) { if (!navigateOnUnauthorized(error)) feedback = errorMessage(error); }
   })}>
+    <input {...form.fields.request_id.as('hidden',requestId)} />
     <input {...form.fields.run.as('hidden', run)} />
-    <input {...form.fields.question_id.as('hidden', question.question_id)} />
+    <input {...form.fields.question_id.as('hidden', question.address)} />
     <textarea {...form.fields.answer.as('text')} aria-label="Answer the waiting question" placeholder="Answer the question above…" rows={2} required disabled={!!form.pending}></textarea>
     {#if turn}<StopTurnButton {run} {turn} onfeedback={message => feedback = message} />{/if}<button type="submit" disabled={!!form.pending}>{form.pending ? 'Sending…' : 'Send answer'}</button>
     {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p role="alert">{issue.message}</p>{/each}
     {#if feedback}<p role="status">{feedback}</p>{/if}
   </form>
+ <button type="button" disabled={finishing} onclick={finish}>{finishing?'Finishing…':'Finish interaction'}</button>
 </section>
 <style>
   .question { padding: 12px 20px; border-bottom: 1px solid var(--border); }

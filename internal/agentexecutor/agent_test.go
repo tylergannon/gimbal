@@ -245,6 +245,7 @@ func TestReconstructionWithoutAcceptedTurnEvidenceDoesNotDispatch(t *testing.T) 
 	adapter := New("codex")
 	adapter.Root = t.TempDir()
 	identity := backend.NewExecutionIdentity("turn")
+	identity.ExecutorSession = string(executor.NewSessionID())
 	ctx := effects.WithReconstruction(effects.WithExecutionIdentity(t.Context(), identity), true)
 	_, err := adapter.RunTurn(ctx, identity.ExecutorSession, "Never dispatch without evidence", nil, nil)
 	var uncertain *backend.DeliveryUncertain

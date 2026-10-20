@@ -21,49 +21,49 @@ import (
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 )
 
-type interviewing struct {
+type interactiveing struct {
 	mu    sync.Mutex
 	turns int
 }
 
-func (*interviewing) CreateSession(context.Context, string, string, string) (string, error) {
-	return "native-interviewer", nil
+func (*interactiveing) CreateSession(context.Context, string, string, string) (string, error) {
+	return "native-interactiveer", nil
 }
 
-func (i *interviewing) RunTurn(context.Context, string, string, json.RawMessage, func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
+func (i *interactiveing) RunTurn(context.Context, string, string, json.RawMessage, func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.turns++
 	var answer string
 	switch i.turns {
 	case 1:
-		answer = `{"question":"Which color?"}`
+		answer = `{"type":"chat","message":"Which color?"}`
 	case 2:
-		answer = `{"question":"Anything else?"}`
+		answer = `{"type":"chat","message":"Anything else?"}`
 	default:
-		answer = `{"question":null}`
+		answer = `{"type":"end"}`
 	}
 	return gimbal.TurnResult{Output: json.RawMessage(answer)}, nil
 }
 
-func (*interviewing) Steer(context.Context, string, string) (bool, error) { return false, nil }
-func (*interviewing) Fork(context.Context, string) (string, error)        { return "fork", nil }
-func (*interviewing) Close(context.Context, string) error                 { return nil }
+func (*interactiveing) Steer(context.Context, string, string) (bool, error) { return false, nil }
+func (*interactiveing) Fork(context.Context, string) (string, error)        { return "fork", nil }
+func (*interactiveing) Close(context.Context, string) error                 { return nil }
 
-func pendingQuestion(t *testing.T, runtime *host.Project, runID, except string) observation.InterviewRow {
+func pendingQuestion(t *testing.T, runtime *host.Project, runID, except string) observation.InteractiveRow {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
 		snapshot, err := runtime.Registry().Snapshot(runID)
 		if err == nil {
-			for id, question := range snapshot.Interviews {
-				if id != except && question.Status == observation.InterviewStatusPending {
+			for id, question := range snapshot.Interactions {
+				if id != except && question.Status == observation.InteractiveStatusPending {
 					return question
 				}
 			}
 		}
 		if time.Now().After(deadline) {
-			t.Fatalf("no pending interview question after %q: %v", except, err)
+			t.Fatalf("no pending interactive question after %q: %v", except, err)
 		}
 		time.Sleep(time.Millisecond)
 	}
@@ -84,7 +84,7 @@ func startedRunID(t *testing.T, project string) string {
 	}
 }
 
-func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
+func TestInteractiveAnswerFormReachesTheWaitingInteractive(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	project := t.TempDir()
@@ -92,15 +92,15 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	adapter := &interviewing{}
-	transcript := make(chan gimbal.InterviewTranscript, 1)
+	adapter := &interactiveing{}
+	transcript := make(chan gimbal.InteractiveTranscript, 1)
 	var runErr error
 	var runWG sync.WaitGroup
 	runWG.Go(func() {
-		runErr = runtime.Run(ctx, "interview", map[gimbal.WorkflowRole]gimbal.ModelBinding{
-			"interviewer": {Adapter: adapter, Model: "m"},
+		runErr = runtime.Run(ctx, "interactive", map[gimbal.WorkflowRole]gimbal.ModelBinding{
+			"interactiveer": {Adapter: adapter, Model: "m"},
 		}, func(ctx context.Context) error {
-			got, err := gimbal.Interview(ctx, "preferences", gimbal.NewSession(ctx, "interviewer", "/w"), "Learn the person's preferences.")
+			got, err := gimbal.Interactive(ctx, "preferences", gimbal.NewSession(ctx, "interactiveer", "/w"), "Learn the person's preferences.")
 			transcript <- got
 			return err
 		})
@@ -108,33 +108,49 @@ func TestInterviewAnswerFormReachesTheWaitingInterview(t *testing.T) {
 
 	id := startedRunID(t, project)
 	first := pendingQuestion(t, runtime, id, "")
-	answered, err := routes.Skgo_answerInterview(runtime.Context(), app.RequestEvent[params.Params]{}, routes.InterviewAnswer{
-		Run: id, QuestionID: first.QuestionID, Answer: "Blue",
+	answered, err := routes.Skgo_answerInteractive(runtime.Context(), app.RequestEvent[params.Params]{}, routes.InteractiveAnswer{
+		RequestID: "message-one", Run: id, QuestionID: first.Address, Answer: "Blue",
 	})
 	if err != nil || !answered.Accepted {
 		t.Fatalf("first answer = %+v, %v; want accepted", answered, err)
 	}
 
 	var status *skgo.HTTPError
-	if _, err := routes.Skgo_answerInterview(runtime.Context(), app.RequestEvent[params.Params]{}, routes.InterviewAnswer{
-		Run: id, QuestionID: first.QuestionID, Answer: "duplicate",
+	if _, err := routes.Skgo_answerInteractive(runtime.Context(), app.RequestEvent[params.Params]{}, routes.InteractiveAnswer{
+		RequestID: "message-one", Run: id, QuestionID: first.Address, Answer: "duplicate",
 	}); !errors.As(err, &status) || status.Status != 404 {
 		t.Fatalf("stale answer = %v, want 404", err)
 	}
 
-	second := pendingQuestion(t, runtime, id, first.QuestionID)
-	answered, err = routes.Skgo_answerInterview(runtime.Context(), app.RequestEvent[params.Params]{}, routes.InterviewAnswer{
-		Run: id, QuestionID: second.QuestionID, Answer: "",
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		snapshot, e := runtime.Registry().Snapshot(id)
+		if e == nil {
+			ready := false
+			for _, row := range snapshot.Interactions {
+				ready = ready || len(row.Messages) == 2 && row.Status == "pending"
+			}
+			if ready {
+				break
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("chat did not establish wait")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	answered, err = routes.Skgo_finishInteractive(runtime.Context(), app.RequestEvent[params.Params]{}, routes.InteractiveFinish{
+		ID: "finish", Run: id, Address: first.Address,
 	})
 	if err != nil || !answered.Accepted {
-		t.Fatalf("empty answer = %+v, %v; want accepted", answered, err)
+		t.Fatalf("finish = %+v, %v; want accepted", answered, err)
 	}
 	runWG.Wait()
 	if runErr != nil {
 		t.Fatal(runErr)
 	}
 	got := <-transcript
-	if len(got.Exchanges) != 1 || got.Exchanges[0].Answer != "Blue" {
-		t.Fatalf("transcript = %#v, want the first answer and normal empty-answer end", got)
+	if len(got.Messages) != 2 || got.Messages[0].Message != "Blue" || got.EndedBy != "human" {
+		t.Fatalf("transcript = %#v, want the first answer and normal human finish", got)
 	}
 }

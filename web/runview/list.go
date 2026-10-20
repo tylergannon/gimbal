@@ -29,9 +29,9 @@ type RunItem struct {
 
 // RunsData is the complete server snapshot needed by RunsList.
 type RunsData struct {
-	Items     []RunItem                  `json:"items"`
-	Attention []observation.InterviewRow `json:"attention"`
-	Now       int64                      `json:"now"`
+	Items     []RunItem                    `json:"items"`
+	Attention []observation.InteractiveRow `json:"attention"`
+	Now       int64                        `json:"now"`
 }
 
 // ReadRuns reads the project registry for both routing and retained workspace views.
@@ -53,7 +53,7 @@ func List(ctx context.Context) (RunsData, error) {
 	if err != nil {
 		return RunsData{}, err
 	}
-	data := RunsData{Items: []RunItem{}, Attention: []observation.InterviewRow{}, Now: now}
+	data := RunsData{Items: []RunItem{}, Attention: []observation.InteractiveRow{}, Now: now}
 	for _, id := range ids {
 		reader := fresh
 		if _, live := registry.Live(id); live {
@@ -63,7 +63,7 @@ func List(ctx context.Context) (RunsData, error) {
 		if err != nil {
 			return RunsData{}, fmt.Errorf("read run %s: %w", id, err)
 		}
-		pending := pendingInterviews(snapshot)
+		pending := pendingInteractions(snapshot)
 		data.Attention = append(data.Attention, pending...)
 		data.Items = append(data.Items, RunItem{
 			Run:          snapshot.Run,
@@ -88,7 +88,7 @@ func List(ctx context.Context) (RunsData, error) {
 		}
 		return -compareInt64(left.Run.Started, right.Run.Started)
 	})
-	slices.SortStableFunc(data.Attention, func(left, right observation.InterviewRow) int {
+	slices.SortStableFunc(data.Attention, func(left, right observation.InteractiveRow) int {
 		return -compareInt64(left.Asked, right.Asked)
 	})
 	return data, nil
@@ -102,8 +102,8 @@ func latestActivity(snapshot observation.RunSnapshot) int64 {
 	for _, session := range snapshot.Sessions {
 		latest = max(latest, session.Created)
 	}
-	for _, interview := range snapshot.Interviews {
-		latest = max(latest, interview.Asked, interview.Answered)
+	for _, interactive := range snapshot.Interactions {
+		latest = max(latest, interactive.Asked, interactive.Answered)
 	}
 	for _, turn := range snapshot.Turns {
 		latest = max(latest, turn.Started, turn.Ended)
@@ -144,28 +144,28 @@ func formatCost(snapshot observation.RunSnapshot) string {
 	return fmt.Sprintf("$%.2f", cost)
 }
 
-func pendingInterviews(snapshot observation.RunSnapshot) []observation.InterviewRow {
+func pendingInteractions(snapshot observation.RunSnapshot) []observation.InteractiveRow {
 	if snapshot.Run.Status != observation.StatusRunning {
 		return nil
 	}
-	pending := make([]observation.InterviewRow, 0, len(snapshot.Interviews))
-	for _, interview := range snapshot.Interviews {
-		if interview.Status == observation.InterviewStatusPending {
-			pending = append(pending, interview)
+	pending := make([]observation.InteractiveRow, 0, len(snapshot.Interactions))
+	for _, interactive := range snapshot.Interactions {
+		if interactive.Status == observation.InteractiveStatusPending {
+			pending = append(pending, interactive)
 		}
 	}
-	slices.SortFunc(pending, func(left, right observation.InterviewRow) int {
+	slices.SortFunc(pending, func(left, right observation.InteractiveRow) int {
 		return compareInt64(left.Asked, right.Asked)
 	})
 	return pending
 }
 
-func summarizeRun(snapshot observation.RunSnapshot, pending []observation.InterviewRow) string {
+func summarizeRun(snapshot observation.RunSnapshot, pending []observation.InteractiveRow) string {
 	if len(pending) > 0 {
 		scopes := make([]string, 0, len(pending))
-		for _, interview := range pending {
-			if !slices.Contains(scopes, interview.Scope) {
-				scopes = append(scopes, interview.Scope)
+		for _, interactive := range pending {
+			if !slices.Contains(scopes, interactive.Scope) {
+				scopes = append(scopes, interactive.Scope)
 			}
 		}
 		return fmt.Sprintf("%d %s waiting · %s", len(pending), plural(len(pending), "question", "questions"), strings.Join(scopes, " · "))

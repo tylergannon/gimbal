@@ -25,6 +25,18 @@ func newMetadataManager(ctx context.Context, dir string, factory AdapterFactory,
 	var mu sync.Mutex
 	histories := map[string]gimbal.InteractiveTranscript{}
 	states := map[string]string{}
+	m.mu.Lock()
+	for _, item := range m.items {
+		if item.WorkflowRun == "" {
+			continue
+		}
+		history := gimbal.InteractiveTranscript{}
+		for _, message := range item.Messages {
+			history.Messages = append(history.Messages, gimbal.InteractiveMessage{Role: message.Role, Message: message.Text})
+		}
+		histories[item.WorkflowRun], states[item.WorkflowRun] = history, item.Status
+	}
+	m.mu.Unlock()
 	m.WorkflowStart = func(_ context.Context, item Conversation) error {
 		mu.Lock()
 		defer mu.Unlock()

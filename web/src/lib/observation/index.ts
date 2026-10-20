@@ -5,9 +5,9 @@ import {
   type ProjectionState,
   type Snapshot,
 } from "../sessionstate/index.js";
-import type { ContextEntry } from "./types.js";
+import type { ContextEntry, InteractiveRow } from "./types.js";
 
-export type { ContextEntry } from "./types.js";
+export type { ContextEntry, InteractiveRow } from "./types.js";
 
 /** The five token counts every harness reports, flat. A count the provider
  * did not report is 0: zero is a number, and nothing here says whether it was
@@ -80,19 +80,8 @@ export type SessionRow = {
   parent: string;
   created: number;
 };
-/** One interview question. An accepted answer updates the same row. */
-export type InterviewRow = {
-  run: string;
-  question_id: string;
-  name: string;
-  scope: string;
-  session: string;
-  question: string;
-  status: "pending" | "answered";
-  answer: string;
-  asked: number;
-  answered: number;
-};
+/** One interactive question. An accepted answer updates the same row. */
+
 /** One agent turn. `scope` is where the turn ran, which is what its tokens
  * are charged to. */
 export type TurnRow = {
@@ -157,7 +146,7 @@ export type RunSnapshot = {
   run: RunRow;
   scopes: Record<string, ScopeRow>;
   sessions: Record<string, SessionRow>;
-  interviews: Record<string, InterviewRow>;
+  interactions: Record<string, InteractiveRow>;
   turns: Record<string, TurnRow>;
   turn_usage: Record<string, Record<string, Usage>>;
   model_calls: Record<string, ModelCallRow[]>;
@@ -173,7 +162,7 @@ export type RowFrame =
   | { table: "run"; key: string; row: RunRow }
   | { table: "scopes"; key: string; row: ScopeRow }
   | { table: "sessions"; key: string; row: SessionRow }
-  | { table: "interviews"; key: string; row: InterviewRow }
+  | { table: "interactions"; key: string; row: InteractiveRow }
   | { table: "turns"; key: string; row: TurnRow }
   | { table: "turn_usage"; key: string; row: Record<string, Usage> }
   | { table: "model_calls"; key: string; row: ModelCallRow[] }
@@ -210,7 +199,7 @@ export class RunObservation {
   connection: ConnectionState;
   scopes: Record<string, ScopeRow> = {};
   sessions: Record<string, SessionRow> = {};
-  interviews: Record<string, InterviewRow> = {};
+  interactions: Record<string, InteractiveRow> = {};
   turns: Record<string, TurnRow> = {};
   turnUsage: Record<string, Record<string, Usage>> = {};
   modelCalls: Record<string, ModelCallRow[]> = {};
@@ -268,7 +257,7 @@ export class RunObservation {
     this.position = snapshot.position;
     this.scopes = clone(snapshot.scopes ?? {});
     this.sessions = clone(snapshot.sessions ?? {});
-    this.interviews = clone(snapshot.interviews ?? {});
+    this.interactions = clone(snapshot.interactions ?? {});
     this.turns = clone(snapshot.turns ?? {});
     this.turnUsage = clone(snapshot.turn_usage ?? {});
     this.modelCalls = clone(snapshot.model_calls ?? {});
@@ -354,8 +343,8 @@ export class RunObservation {
       case "sessions":
         this.sessions[frame.key] = clone(frame.row);
         break;
-      case "interviews":
-        this.interviews[frame.key] = clone(frame.row);
+      case "interactions":
+        this.interactions[frame.key] = clone(frame.row);
         break;
       case "turns":
         this.turns[frame.key] = clone(frame.row);
@@ -385,7 +374,7 @@ export class RunObservation {
       run: clone(this.run),
       scopes: clone(this.scopes),
       sessions: clone(this.sessions),
-      interviews: clone(this.interviews),
+      interactions: clone(this.interactions),
       turns: clone(this.turns),
       turn_usage: clone(this.turnUsage),
       model_calls: clone(this.modelCalls),

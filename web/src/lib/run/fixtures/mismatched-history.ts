@@ -1,6 +1,6 @@
 import type {
   CommandRow,
-  InterviewRow,
+  InteractiveRow,
   ModelCallRow,
   RunRow,
   RunSnapshot,
@@ -17,7 +17,7 @@ const failure = "test exited with code 1";
 
 const run: RunRow = {
   id: runID,
-  name: "implement-interview",
+  name: "implement-interactive",
   status: "failed",
   error: failure,
   started,
@@ -28,7 +28,7 @@ const scopes = {
   "": {
     run: runID,
     key: "",
-    name: "implement-interview",
+    name: "implement-interactive",
     loop: false,
     status: "ended",
     error: failure,
@@ -73,7 +73,7 @@ const scopes = {
     loop: false,
     status: "ended",
     error: "",
-    task: { name: "Observation row", description: "Add the first interview observation row." },
+    task: { name: "Observation row", description: "Add the first interactive observation row." },
     began: started + 360_000,
     ended: started + 1_100_000,
     values: {},
@@ -86,7 +86,7 @@ const scopes = {
     loop: false,
     status: "ended",
     error: "",
-    task: { name: "Answer path", description: "Connect the interview answer path." },
+    task: { name: "Answer path", description: "Connect the interactive answer path." },
     began: started + 1_110_000,
     ended: started + 2_050_000,
     values: {},
@@ -222,7 +222,7 @@ const commands = {
     exit_code: 1,
     stdout: "",
     stderr:
-      "--- FAIL: TestInterviewAnswer (0.02s)\n    rows_test.go:88: answered = 0, want > 0\nFAIL\nFAIL    gimbal/internal/observation   0.412s\n",
+      "--- FAIL: TestInteractiveAnswer (0.02s)\n    rows_test.go:88: answered = 0, want > 0\nFAIL\nFAIL    gimbal/internal/observation   0.412s\n",
     stdout_file: "",
     stderr_file: "",
     error: "",
@@ -260,7 +260,7 @@ const modelCalls = {
   ],
 } satisfies Record<string, ModelCallRow[]>;
 
-const interviews = {} satisfies Record<string, InterviewRow>;
+const interactions = {} satisfies Record<string, InteractiveRow>;
 
 export const mismatchedHistorySnapshot: RunSnapshot = {
   stream: "mismatched-history-specimen",
@@ -268,7 +268,7 @@ export const mismatchedHistorySnapshot: RunSnapshot = {
   run,
   scopes,
   sessions,
-  interviews,
+  interactions,
   turns,
   turn_usage: { "coding.1/turn.4": { "gpt-5.6-luna": usage } },
   model_calls: modelCalls,

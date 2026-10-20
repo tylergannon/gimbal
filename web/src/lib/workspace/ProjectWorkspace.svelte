@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { archiveConversation } from "../../routes/conversation.remote";
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { APP_NAME } from "#lib/app";
   import { errorMessage } from "#lib/errors";
@@ -28,7 +29,7 @@
   import WorkflowGuide from './WorkflowGuide.svelte';
   import type { RunCardItem } from '#lib/run/RunsList.svelte';
   import RunPanel from './RunPanel.svelte';
-  import type { RunSnapshot, InterviewRow } from '#lib/observation';
+  import type { RunSnapshot, InteractiveRow } from '#lib/observation';
   import { nativeMessage, recordingControl, recordingTime, type NativeStatus } from './native';
   import { conversationsForWorkspace, conversationNeedsUpdates, completedReply, conversationStatus } from './conversations';
   import { harnessName } from '#lib/conversation/names';
@@ -84,7 +85,7 @@
   ]);
   // Both the Runs view and tab labels read the same live inventory.
   const runQuery = $derived(watchRuns(project));
-  const runData = $derived((runQuery.current ?? ((page.url.pathname === root || page.url.pathname === allRuns) ? page.data : undefined)) as { items: RunCardItem[]; attention: InterviewRow[]; now: number } | undefined);
+  const runData = $derived((runQuery.current ?? ((page.url.pathname === root || page.url.pathname === allRuns) ? page.data : undefined)) as { items: RunCardItem[]; attention: InteractiveRow[]; now: number } | undefined);
   const runVersion = (item: RunCardItem) => `${item.activity_at}:${item.run.status}:${item.run.error}:${runData?.attention.filter(question => question.run === item.run.id).map(question => `${question.question_id}:${question.status}`).join(',')}`;
   const runTabs = $derived<WorkspaceTab[]>(runData?.items.map(item => {
     const { run } = item; const id = `${root}/runs/${encodeURIComponent(run.id)}`;
@@ -177,7 +178,11 @@
     workspaceChanged();
   });
   function select(path: string) { markSeen(); fileChooser = false; projectChooser = false; void goto(path, { reset: false }); }
-  function close(path: string) {
+  async function close(path: string) {
+    if (path.startsWith(`${root}/conversations/`)) {
+      try { await archiveConversation({ project, conversation: path.slice(`${root}/conversations/`.length), id: crypto.randomUUID() }); }
+      catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); return; }
+    }
     if (path.startsWith(`${root}/runs/`)) dismissedRuns.add(path);
     const index = open.findIndex(tab => tab.id === path);
     open = open.filter(tab => tab.id !== path);

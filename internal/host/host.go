@@ -176,10 +176,11 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	conversations.WorkflowObserve = func(id string) (gimbal.InteractiveTranscript, string, error) {
 		snapshot, err := p.registry.Snapshot(id)
 		if err != nil {
-			return gimbal.InteractiveTranscript{}, "unresolved", err
+			return gimbal.InteractiveTranscript{}, "unavailable", err
 		}
 		transcript := gimbal.InteractiveTranscript{Messages: []gimbal.InteractiveMessage{}}
 		status := "waiting"
+		var verdict error
 		rows := make([]observation.InteractiveRow, 0, len(snapshot.Interactions))
 		for _, row := range snapshot.Interactions {
 			rows = append(rows, row)
@@ -192,6 +193,7 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 			transcript.EndedBy = row.EndedBy
 			if row.Status == "unresolved" {
 				status = "unresolved"
+				verdict = errors.New(row.Unresolved)
 			}
 			if row.Status == "runnable" {
 				status = "runnable"
@@ -200,12 +202,13 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 				status = "working"
 			}
 		}
-		if snapshot.Run.Status == "completed" {
+		if snapshot.Run.Status == observation.StatusCompleted {
 			status = "completed"
-		} else if snapshot.Run.Status == "error" {
-			status = "unresolved"
+		} else if snapshot.Run.Status == observation.StatusFailed || snapshot.Run.Status == observation.StatusCancelled {
+			status = "error"
+			verdict = errors.New(snapshot.Run.Error)
 		}
-		return transcript, status, nil
+		return transcript, status, verdict
 	}
 
 	p.promises, err = promises.Open(state)
@@ -244,9 +247,26 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		if json.Unmarshal(raw, &request) != nil {
 			continue
 		}
+		if snapshot, e := p.registry.Snapshot(request.RunID); e == nil && snapshot.Run.Status != observation.StatusRunning {
+			_ = os.Remove(file)
+			continue
+		}
 		go func() {
-			if _, e := runner.Spawn(request); e != nil {
-				log.Printf("gimbal: recover %s: %v", request.RunID, e)
+			for {
+				if _, e := runner.Connect(state, request.RunID); e == nil {
+					return
+				}
+				if _, e := runner.Spawn(request); e == nil {
+					return
+				} else if !errors.Is(e, runstore.ErrBusy) {
+					log.Printf("gimbal: recover %s: %v", request.RunID, e)
+					return
+				}
+				select {
+				case <-p.ctx.Done():
+					return
+				case <-time.After(100 * time.Millisecond):
+				}
 			}
 		}()
 	}

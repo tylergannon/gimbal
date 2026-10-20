@@ -579,7 +579,10 @@ func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error 
 }
 
 func (r *run) State() string {
-	if r.closed {
+	r.lifecycleMu.Lock()
+	closed := r.closed
+	r.lifecycleMu.Unlock()
+	if closed {
 		return "terminal"
 	}
 	if r.suspended.Load() {

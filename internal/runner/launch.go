@@ -3,6 +3,7 @@ package runner
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/runstore"
 	"io"
@@ -21,6 +22,9 @@ func Spawn(request invocation.Request) (Response, error) {
 	}
 	_ = read.Close()
 	if response.Error != "" {
+		if response.Retry {
+			return response, fmt.Errorf("%w: %s", runstore.ErrBusy, response.Error)
+		}
 		return response, errors.New(response.Error)
 	}
 	return response, nil

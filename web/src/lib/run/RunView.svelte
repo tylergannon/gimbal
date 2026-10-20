@@ -36,7 +36,6 @@
   } from "#lib/run/selection.js";
   import { watcherRows } from "#lib/run/watchers.js";
   import { cancelRun, stopTurn } from "../../routes/control.remote.js";
-  import { answerInterview, type InterviewAnswer } from "../../routes/interview.remote.js";
   import { steerLoop, type LoopMessage } from "../../routes/steer.remote.js";
 	import { page } from "$app/state";
 
@@ -57,7 +56,6 @@
     data.source ? (JSON.parse(data.source) as SourcePage) : graph ? sourceFromGraph(graph) : undefined,
   );
   const loopForm = $derived(steerLoop.for(`workspace-loop-${project}-${data.snapshot.run.id}`));
-  const answerForm = $derived(answerInterview.for(`workspace-answer-${project}-${data.snapshot.run.id}`));
 
   let revision = $state(0);
   let selection = $state<RunSelection>();
@@ -100,7 +98,7 @@
   );
 
   const waiting = $derived(
-    snapshot.run.status === "running" ? Object.values(snapshot.interviews).filter((row) => row.status === "pending").length : 0,
+    snapshot.run.status === "running" ? Object.values(snapshot.interactions).filter((row) => row.status === "pending").length : 0,
   );
   const openScopes = $derived(
     Object.values(snapshot.scopes).filter((scope) => scope.status === "running").length,
@@ -251,32 +249,8 @@
     }
   }
 
-  async function deliverAnswer(request: InterviewAnswer): Promise<ActionFeedback> {
-    try {
-      answerForm.fields.set(request);
-      await tick();
-      const submitted = await answerForm.submit();
-      if (!submitted || !answerForm.result?.accepted) {
-        return {
-          ok: false,
-          message: issueText(answerForm.fields.allIssues(), "The interview is no longer waiting."),
-        };
-      }
-      return {
-        ok: true,
-        message: request.answer ? "Answer accepted by the waiting interview." : "Interview ended.",
-      };
-    } catch (error) {
-      navigateOnUnauthorized(error);
-      return { ok: false, message: error instanceof Error ? error.message : String(error) };
-    }
-  }
 
-  function selectScope(scopeKey: string) {
-    const target = snapshot.scopes[scopeKey];
-    if (target) selectWithoutReveal({ kind: "sheet", scope: target });
-  }
-
+  function selectScope(scopeKey:string){const target=snapshot.scopes[scopeKey];if(target)selectWithoutReveal({kind:"sheet",scope:target});}
   async function stopActiveTurn() {
     if (!activeTurn || stopping) return;
     stopping = true;
@@ -390,7 +364,7 @@
   {:else}
     <div class="map-toolbar"><button class="transcript-back" onclick={() => view = 'transcript'}>← Transcript</button></div>
     <Topbar {project} {active} run={snapshot.run} agentFocus={view === "focus"} {connection} {activeTurn} {waiting} {stopping} {cancelling} feedback={controlFeedback} {searchItems} currentAvailable={Boolean(currentSelection)} onnavigate={(item) => navigateTo(item.selection)} oncurrent={() => currentSelection && navigateTo(currentSelection)} onstop={stopActiveTurn} oncancel={() => snapshot.run.status === "running" ? (cancelOpen = true) : void cancelActiveRun()} sessionName={openSessionName} onclosesession={closeSession} />
-    {#if waiting}<div class="run-questions" aria-label="Run questions">{#each Object.values(snapshot.interviews).filter(question => question.status === 'pending') as question (question.question_id)}<RunQuestions run={snapshot.run.id} {question} />{/each}</div>{/if}
+    {#if waiting}<div class="run-questions" aria-label="Run questions">{#each Object.values(snapshot.interactions).filter(question => question.status === 'pending') as question (question.question_id)}<RunQuestions run={snapshot.run.id} {question} />{/each}</div>{/if}
   {/if}
   <div class={["workspace-slot", { hidden: view !== "transcript" }]}>
     <RunTranscript {project} {snapshot} {observation} {revision} graph={graphMatches ? graph : undefined} onmap={(next) => { showMap(); if (next) selectWithoutReveal(next); }} />
@@ -447,7 +421,7 @@
           {maximized}
           {onmaximize}
           onloop={deliverLoop}
-          onanswer={deliverAnswer}
+
           onselectscope={selectScope}
           onopen={() => openSession(selection)}
         />
@@ -495,16 +469,7 @@
   <input {...loopForm.fields.message.as("hidden", loopForm.fields.message.value() ?? "")} />
   <input {...loopForm.fields.wrap_up.as("hidden", loopForm.fields.wrap_up.value() ?? false)} />
 </form>
-<form class="remote-form" {...answerForm} aria-hidden="true">
-  <input {...answerForm.fields.run.as("hidden", answerForm.fields.run.value() ?? "")} />
-  <input
-    {...answerForm.fields.question_id.as(
-      "hidden",
-      answerForm.fields.question_id.value() ?? "",
-    )}
-  />
-  <input {...answerForm.fields.answer.as("hidden", answerForm.fields.answer.value() ?? "")} />
-</form>
+
 
 <style>
   .map-toolbar { padding: 6px 16px 0; } .transcript-back { border: 0; color: var(--muted-foreground); background: transparent; font: 12px var(--font-sans); cursor: pointer; }

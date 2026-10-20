@@ -1,4 +1,4 @@
-import type { InterviewRow, RunRow } from "../../observation/index.js";
+import type { InteractiveRow, RunRow } from "../../observation/index.js";
 import { planTripSnapshot } from "./plan-trip.js";
 
 const rows = [
@@ -12,7 +12,7 @@ const rows = [
   },
   {
     id: "01M2RX4A9Q0ZT7V4C3D8N1KMB2",
-    name: "implement-interview",
+    name: "implement-interactive",
     status: "running",
     error: "",
     started: 1_799_997_340_000,
@@ -20,7 +20,7 @@ const rows = [
   },
   {
     id: "01M2R9K2WQ6HS8E5A1F0J4TPCX",
-    name: "interview",
+    name: "interactive",
     status: "completed",
     error: "",
     started: 1_799_910_000_000,
@@ -28,7 +28,7 @@ const rows = [
   },
   {
     id: "01M2QZ7PB3N6D0R9X2G5HKW8VY",
-    name: "implement-interview",
+    name: "implement-interactive",
     status: "failed",
     error: "test exited with code 1",
     started: 1_799_910_662_000,
@@ -44,7 +44,7 @@ const rows = [
   },
   {
     id: "01M2P0AAZ5V3C1K8Y6W2E4RQHT",
-    name: "interview",
+    name: "interactive",
     status: "completed",
     error: "",
     started: 1_799_730_000_000,
@@ -53,9 +53,9 @@ const rows = [
 ] satisfies RunRow[];
 
 const attention = [
-  planTripSnapshot.interviews["01M2RWXNFFYQA4HHQWMQ252CYF"],
-  planTripSnapshot.interviews["01M2RWXNFFYQA4HHQWMQ252CYG"],
-] satisfies InterviewRow[];
+  planTripSnapshot.interactions["01M2RWXNFFYQA4HHQWMQ252CYF"],
+  planTripSnapshot.interactions["01M2RWXNFFYQA4HHQWMQ252CYG"],
+] satisfies InteractiveRow[];
 
 export const runsListFixture = {
   items: rows.map((run, index) => ({

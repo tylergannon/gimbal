@@ -1,7 +1,7 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import CancelGuard from "./CancelGuard.svelte";
-  import { implementInterviewFixture } from "./fixtures/index.js";
+  import { implementInteractiveFixture } from "./fixtures/index.js";
 
   const { Story } = defineMeta({
     title: "Gimbal/Run/Cancel guard",
@@ -14,8 +14,8 @@
   name="Confirm whole-run cancellation"
   args={{
     open: true,
-    run: implementInterviewFixture.snapshot.run,
-    activeTurn: implementInterviewFixture.snapshot.turns["coding.1/turn.3"],
+    run: implementInteractiveFixture.snapshot.run,
+    activeTurn: implementInteractiveFixture.snapshot.turns["coding.1/turn.3"],
     openScopes: 3,
     supervisors: 2,
     onopenchange: () => undefined,

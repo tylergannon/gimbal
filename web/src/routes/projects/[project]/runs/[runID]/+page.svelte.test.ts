@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { error as httpError } from "@sveltejs/kit";
 import { render } from "vitest-browser-svelte";
-import { implementInterviewFixture, planTripFixture } from "#lib/run/fixtures/index.js";
+import { implementInteractiveFixture, planTripFixture } from "#lib/run/fixtures/index.js";
 import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
 import type { Graph } from "#lib/workflow/types.js";
 import Page from "./+page.svelte";
@@ -44,8 +44,8 @@ vi.mock("#lib/environments.remote", () => ({
   environmentSnapshot: () => ({ current: undefined }),
 }));
 
-vi.mock("../../../../interview.remote", () => ({
-  answerInterview: {
+vi.mock("../../../../interactive.remote", () => ({
+  answerInteractive: {
     for: () => ({
       pending: 0,
       fields: {
@@ -227,7 +227,7 @@ test("a run opens as a transcript and retains its workflow map, drawn with the d
 test("transcript opens the waiting session, shows actual invocation and answers inline", async () => {
   const snapshot = multiAgentSnapshot();
   const session = Object.values(snapshot.sessions)[0];
-  const question = Object.values(snapshot.interviews).find((row) => row.status === "pending")!;
+  const question = Object.values(snapshot.interactions).find((row) => row.status === "pending")!;
   question.session = session.id;
   snapshot.scopes[""].values.goal = { value: "Choose a quiet cabin with reliable Wi-Fi." };
   session.steers = [
@@ -265,7 +265,7 @@ test("transcript opens the waiting session, shows actual invocation and answers 
   await expect.element(screen.getByText(`Answer ${session.name}`, { exact: true })).toBeVisible();
   expect(document.querySelector('.run-head .pip[data-state="needs-you"]')).not.toBeNull();
   await expect.poll(() => TestEventSource.instances.length).toBe(1);
-  const remaining = Object.values(snapshot.interviews)
+  const remaining = Object.values(snapshot.interactions)
     .filter((row) => row.status === "pending")
     .map((row) => ({
       ...row,
@@ -278,7 +278,7 @@ test("transcript opens the waiting session, shows actual invocation and answers 
     position: snapshot.position + 1,
     frames: remaining.map((row) => ({
       type: "row" as const,
-      data: { table: "interviews" as const, key: row.question_id, row },
+      data: { table: "interactions" as const, key: row.question_id, row },
     })),
   });
   await expect
@@ -290,12 +290,12 @@ test("transcript opens the waiting session, shows actual invocation and answers 
 });
 
 test("a saved source page draws the designer's titles over the run", async () => {
-  const snapshot = structuredClone(implementInterviewFixture.snapshot);
+  const snapshot = structuredClone(implementInteractiveFixture.snapshot);
   const { sourceFromGraph } = await import("#lib/run/runSource.js");
-  const source = sourceFromGraph(implementInterviewFixture.graph);
+  const source = sourceFromGraph(implementInteractiveFixture.graph);
   const coding = JSON.stringify(source).replace('"title":"coding"', '"title":"Implement the task"');
   const screen = await render(Page, {
-    data: { snapshot, graph: JSON.stringify(implementInterviewFixture.graph), source: coding },
+    data: { snapshot, graph: JSON.stringify(implementInteractiveFixture.graph), source: coding },
   });
   await screen.getByRole("button", { name: "Map", exact: true }).first().click();
   await expect.element(mapRegion(screen)).toBeVisible();
@@ -305,7 +305,7 @@ test("a saved source page draws the designer's titles over the run", async () =>
 });
 
 test("a command step in an earlier task instance selects into the detail pane", async () => {
-  const { screen } = await renderRunningPage(implementInterviewFixture);
+  const { screen } = await renderRunningPage(implementInteractiveFixture);
   const find = () =>
     document.querySelector<HTMLSelectElement>('select[aria-label="implementation instance"]');
   await expect.poll(find).not.toBeNull();
@@ -317,13 +317,13 @@ test("a command step in an earlier task instance selects into the detail pane", 
 });
 
 test("Map runtime selection rebinds across snapshots and clears when its row disappears", async () => {
-  const { screen, stream } = await renderRunningPage(implementInterviewFixture);
+  const { screen, stream } = await renderRunningPage(implementInteractiveFixture);
   (await stepButton("coding")).click();
   await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
   await screen.getByRole("button", { name: "Close" }).first().click();
   await expect.poll(() => step("coding")?.getAttribute("aria-pressed")).toBe("true");
 
-  const refreshed = structuredClone(implementInterviewFixture.snapshot);
+  const refreshed = structuredClone(implementInteractiveFixture.snapshot);
   refreshed.position++;
   stream.send("snapshot", refreshed);
   await expect.poll(() => step("coding")?.getAttribute("aria-pressed")).toBe("true");
@@ -355,7 +355,7 @@ test("a missing saved graph reports the missing run data", async () => {
 test("an incompatible saved graph reports the mismatch", async () => {
   const snapshot = structuredClone(planTripFixture.snapshot);
   const screen = await render(Page, {
-    data: { snapshot, graph: JSON.stringify(implementInterviewFixture.graph) },
+    data: { snapshot, graph: JSON.stringify(implementInteractiveFixture.graph) },
   });
 
   await screen.getByRole("button", { name: "Map", exact: true }).first().click();
@@ -393,7 +393,7 @@ test("topbar navigation reveals folded current activity and keeps map and detail
 });
 
 test("search selects an old turn through a collapsed loop instance", async () => {
-  const { screen } = await renderRunningPage(implementInterviewFixture);
+  const { screen } = await renderRunningPage(implementInteractiveFixture);
   await press("Collapse implementation");
   await expect
     .poll(() => document.querySelector('button[aria-label="Expand implementation"]'))
@@ -414,7 +414,7 @@ test("search selects an old turn through a collapsed loop instance", async () =>
 });
 
 test("Map agent selection opens the session and it stays open through live snapshots", async () => {
-  const { screen, snapshot } = await renderRunningPage(implementInterviewFixture);
+  const { screen, snapshot } = await renderRunningPage(implementInteractiveFixture);
   (await stepButton("coding")).click();
   await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 
@@ -422,7 +422,7 @@ test("Map agent selection opens the session and it stays open through live snaps
   refreshed.position++;
   refreshed.scopes["implementation.1/task.3"].values.refresh = { value: "fresh data" };
   await screen.rerender({
-    data: { snapshot: refreshed, graph: JSON.stringify(implementInterviewFixture.graph) },
+    data: { snapshot: refreshed, graph: JSON.stringify(implementInteractiveFixture.graph) },
   });
   await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 
@@ -430,7 +430,7 @@ test("Map agent selection opens the session and it stays open through live snaps
   missing.position++;
   delete missing.turns["coding.1/turn.3"];
   await screen.rerender({
-    data: { snapshot: missing, graph: JSON.stringify(implementInterviewFixture.graph) },
+    data: { snapshot: missing, graph: JSON.stringify(implementInteractiveFixture.graph) },
   });
   await expect.element(screen.getByRole("region", { name: "Agent chat" })).toBeVisible();
 });
@@ -465,14 +465,14 @@ test("an open connection followed by one changed delta renders that update", asy
   await expect.element(screen.getByText("Live", { exact: true })).toBeVisible();
 
   const key = "01M2RWXNFFYQA4HHQWMQ252CYF";
-  const answered = structuredClone(snapshot.interviews[key]);
+  const answered = structuredClone(snapshot.interactions[key]);
   answered.status = "answered";
   answered.answer = "A single streamed answer.";
   answered.answered = Date.now();
   stream.send("delta", {
     stream: snapshot.stream,
     position: snapshot.position + 1,
-    frames: [{ type: "row", data: { table: "interviews", key, row: answered } }],
+    frames: [{ type: "row", data: { table: "interactions", key, row: answered } }],
   });
 
   await expect
@@ -594,14 +594,14 @@ test("retained run panels close observation while inactive and preserve their se
 
 test("switching between retained run panels observes the selected run identity", async () => {
   const first = structuredClone(planTripFixture.snapshot);
-  const second = structuredClone(implementInterviewFixture.snapshot);
+  const second = structuredClone(implementInteractiveFixture.snapshot);
   const firstProps = {
     project: "retained-project",
     data: { snapshot: first, graph: JSON.stringify(planTripFixture.graph) },
   };
   const secondProps = {
     project: "retained-project",
-    data: { snapshot: second, graph: JSON.stringify(implementInterviewFixture.graph) },
+    data: { snapshot: second, graph: JSON.stringify(implementInteractiveFixture.graph) },
   };
   const one = await render(RunView, { ...firstProps, active: false });
   const two = await render(RunView, { ...secondProps, active: true });
@@ -634,8 +634,8 @@ test("a retained run panel renders a raw route preload without proxying its obse
     project: "retained-project",
     id: data.snapshot.run.id,
     initial: {
-      snapshot: structuredClone(implementInterviewFixture.snapshot),
-      graph: JSON.stringify(implementInterviewFixture.graph),
+      snapshot: structuredClone(implementInteractiveFixture.snapshot),
+      graph: JSON.stringify(implementInteractiveFixture.graph),
     },
     active: false,
   });

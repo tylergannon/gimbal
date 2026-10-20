@@ -24,7 +24,7 @@ type controlledRun struct {
 	cause error
 }
 
-func (*controlledRun) AnswerInterview(string, string) error { return nil }
+func (*controlledRun) SubmitInteractive(string, string) error { return nil }
 func (*controlledRun) Steer(context.Context, string, string) (bool, error) {
 	return false, nil
 }

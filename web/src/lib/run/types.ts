@@ -1,11 +1,11 @@
-import type { CommandRow, InterviewRow, ScopeRow, TurnRow } from "../observation/index.js";
-import type { AgentCall, Command, Interview, Service, Supervisor } from "../workflow/types.js";
+import type { CommandRow, InteractiveRow, ScopeRow, TurnRow } from "../observation/index.js";
+import type { AgentCall, Command, Interactive, Service, Supervisor } from "../workflow/types.js";
 
 /** The run graph operations the map draws as steps with a runtime record. */
 export type NodeOperation =
   | (AgentCall & { kind: "agent_call" })
   | (Command & { kind: "command" })
-  | (Interview & { kind: "interview" });
+  | (Interactive & { kind: "interactive" });
 
 /** What the run map selects and the detail pane shows. */
 export type MapSelection =
@@ -15,7 +15,7 @@ export type MapSelection =
       kind: "node";
       scope: ScopeRow;
       operation: NodeOperation;
-      runtime?: TurnRow | CommandRow | InterviewRow;
+      runtime?: TurnRow | CommandRow | InteractiveRow;
     }
   | { kind: "service"; scope: ScopeRow; service: Service; runtime?: CommandRow }
   | {

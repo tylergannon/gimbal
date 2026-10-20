@@ -223,3 +223,42 @@ finish, atomic chat/wait reopening/native-ID continuity, Group sibling/join,
 and exact 80,000-byte original/replay command output with no redispatch. These
 are cell-local stand-ins, not native/app integration claims; broad checks and
 live local then remote proof remain outstanding.
+
+
+decision: Runtime reports a restart-ingress construction need: accept durable
+input before the live controller/socket is available, using the same runstore
+writer briefly. Transfer internal/runstate/store.go (40 existing lines) from E
+to J for that storage boundary/helper (~80 added lines). J baseline 953/max1,400;
+E baseline7,388/max9,000. Busy ownership without controller remains retryable,
+never false acceptance; full interaction/owner identity and closed-state checks
+must survive even when a fact is rooted in the run journal.
+
+progress: A reports all maintained workflow sources individually pass admission,
+with migration-specific graph/test issues being fixed. Current A handwritten
+production count 12,239 / 13,200. Maintained example now persists its registered
+conversation admission/unfinished ID; generated SKGO sources are regenerated,
+not edited by hand. Final source/generation and checks remain outstanding.
+
+
+decision: A identifies validate-product Suite.Timeout as the concrete unsupported
+authored whole-workflow deadline (default1h; context.WithTimeout around all
+preparation/agent/browser work). Accepted its removal under the human-approved
+timing restriction and explicitly reported the consequence in chat/spec. Caller
+Run deadlines/cancellation remain supported; research-eval TrialMinutes remains
+preserved through recorded commands/control. A may add luna as missing default
+for the existing RoleAgenticDialogues required by ordinary conversation admission.
+No new root role/API is introduced.
+
+
+progress: A checkpoint 56af1883 carries admission/generation/workflow migrations;
+4d81e8f7 carries generated schemas/application bindings. Focused A checks passed:
+`go test ./internal/gimballint ./internal/generate ./internal/devgenerate ./internal/workflows/...`,
+`go test ./cmd/gimbal -run TestAuditIndexReadOnly`, generation-refusal tests,
+`go run ./cmd/gimbal lint ./internal/workflows/...`, `go generate ./...`.
+Hook's 100-path limit required two commits; no bypass and no repeated checks
+solely for committing. A's production count reported 12,239/13,200.
+
+progress: Runtime checkpoint 0621b7f0 contains core local replay/Interactive/
+shared-host source. Focused root Interactive and migrated conversation tests
+pass; frontend fixture/projection migrations remain before the local app build.
+Remote implementation has not started; local native checkpoint comes first.

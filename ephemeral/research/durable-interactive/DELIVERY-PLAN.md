@@ -54,7 +54,7 @@ InteractiveMessage and EndedBy contract.
 
 | Cell | Existing source to change or replace |
 | --- | --- |
-| J | runstore contract and directory journal; use its existing identity/batch seam |
+| J | runstore contract/directory journal and internal/runstate/store.go; use its existing identity/batch seam and writer-fenced restart inbox acceptance |
 | E | run/scope/group/session/command and recording/context reconstruction; lifecycle schema |
 | I | replace interview.go and its transcript/decision generation with Interactive and durable input handling |
 | H | host, runner, invocation and conversation ownership; preserve project/environment routing |

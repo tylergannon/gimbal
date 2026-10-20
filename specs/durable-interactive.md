@@ -96,8 +96,12 @@ observations (including ctx.Err/Done) are also rejected. They introduce timing
 or cancellation decisions outside recorded library outcomes. Use RunCommand
 for explicit waits and observations. Cancellation still reaches library calls,
 and their recorded outcomes can drive ordinary error handling. Existing
-agent-turn timeouts without a library equivalent are removed in this delivery;
-no new timeout API or dormant-deadline semantics are introduced.
+authored workflow/agent-turn deadlines without a library equivalent are removed
+in this delivery; this includes validate-product's suite timeout option (formerly
+defaulting to one hour). Normal caller-level Run deadlines/cancellation remain.
+Research-eval's child-trial deadline remains expressible through recorded clock
+observations and existing control commands. No new timeout API or authored
+dormant-deadline semantics are introduced.
 
 Use existing RunCommand operations for file reads/writes, stat, clock reads,
 randomness and other external work when Check or Service is not the relevant
@@ -120,8 +124,8 @@ the slice spec can settle file organization without changing these contracts.
 
 | Cell | Responsibility and boundary | Reason to change | Current lines | Proposed maximum |
 | --- | --- | --- | ---: | ---: |
-| J: durable records and inbox | Durable identity, committed batches, inbox acceptance and durable transition storage; no provider calls or scheduling policy | Storage consistency and recovery format | 913 | 1,400 |
-| E: execution and replay | Reconstruct library operations, scopes, session bindings and concurrent branches; distinguish suspension from terminal outcomes | Workflow execution semantics | 7,428 | 9,000 |
+| J: durable records and inbox | Durable identity, committed batches, inbox acceptance and durable transition storage; no provider calls or scheduling policy | Storage consistency and recovery format | 953 | 1,400 |
+| E: execution and replay | Reconstruct library operations, scopes, session bindings and concurrent branches; distinguish suspension from terminal outcomes | Workflow execution semantics | 7,388 | 9,000 |
 | I: interaction protocol | Interpret chat/end, transcript, human message/finish input and turn delivery; use J for durable transitions and E for execution | Human/agent interaction contract | 102 | 900 |
 | H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 6,803 | 8,500 |
 | P: presentation | Project durable lifecycle and interaction state into run/chat views and route user actions through durable acceptance | Product presentation and observation | 13,882 | 14,800 |
@@ -147,12 +151,14 @@ Generated output must match its source.
 Expanded baselines count existing affected code, not just newly written code.
 The measured ownership sets are:
 
-- J: `runstore/**/*.go`.
+- J: `runstore/**/*.go` and `internal/runstate/store.go` (shared store
+  resolution and fenced restart-inbox acceptance).
 - E: root `run.go`, `scope.go`, `group.go`, `iterate.go`, `session.go`,
   `command.go`, `run_recording.go`, `event_persistence.go`, `artifact.go`,
   `schema.go`, `events.go`, `harness.go`, `env.go`, `loop.go`, `service.go`,
   `remote_execution.go`, `supervise.go`, `supervise_jev.go`, `doc.go`; Go source
-  in `internal/{runstate,agentexecutor,executor,commandexecutor,effects}/`.
+  in `internal/{runstate,agentexecutor,executor,commandexecutor,effects}/`,
+  excluding `internal/runstate/store.go`, which belongs to J.
   New root execution/replay source belongs to E.
 - I: `interview.go` until removed, `interactive.go`, and new handwritten
   interaction protocol source including `internal/interaction/**` if useful.

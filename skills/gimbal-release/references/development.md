@@ -26,6 +26,14 @@ ad-hoc signing or manufacturing certificates. Use the existing
 `MACOS_SIGNING_IDENTITY`/`scripts/sign-native-dev.sh` workflow; never weaken its
 designated requirement or change macOS permissions to avoid a prompt.
 
+If a File Provider workspace keeps restoring `com.apple.FinderInfo` on generated
+app output and signing rejects that metadata, use one fixed staging location
+outside File Provider storage. Copy only the generated bundle with
+`ditto --noextattr --norsrc`, then run `scripts/sign-native-dev.sh` on that staged
+bundle. This is build-artifact preparation, not a privacy reset. Keep the staging
+and launch paths stable; move the signed candidate to the established test target
+only at the tester's idle handoff, never over its running bundle.
+
 Version/build numbers and visible source provenance are separate from privacy
 identity. `CFBundleVersion` alone does not explain TCC changes: compare the actual
 signing requirement, identifier and path. Debug metadata defaults to `0.1.0 (1)`;

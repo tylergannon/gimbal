@@ -22,7 +22,7 @@ design record is historical rationale.
 | Scope end | `scope.go:184-304` | Return/cancellation currently ends scopes, stops owned work and clears values; suspension cannot use normal teardown |
 | SERVICE boundary | `service.go`; `remote_execution.go`; `scope.go:252-304` | Leave services and claims untouched on suspension; restoration is outside scope |
 | Hosted execution | `internal/host/routes.go:104-136`; `internal/runner/launch.go:16-54` | Hosted workflows currently launch independent OS processes |
-| Launch inputs | `internal/invocation/invocation.go:19-32,69-107` | Reconstruction needs invocation, bindings and code identity; graph.json alone is display metadata |
+| Launch inputs | `internal/invocation/invocation.go:19-32,69-107` | Reconstruction needs registered invocation, inputs and bindings; graph.json alone is display metadata |
 | Interview | `interview.go:13-80`; `run.go:363-411`; `web/src/routes/interview.remote.go:27-47` | Existing Q/A API waits in memory and answers route to a live controller |
 | Conversation manager | `internal/host/host.go:140-155`; `internal/conversation/manager.go:53-81,113-155` | Separate runtime today, rather than an ordinary workflow |
 | Conversation delivery | `internal/conversation/requests.go:44-240` | Journals admission, steers active turns or queues serialized turns, calls prose RunTurn directly |
@@ -111,3 +111,18 @@ The human resolved the termination-provenance defect by approving EndedBy
 workflow loop can remain interactive after agent end and return normally on
 human finish; durable re-entry waits and pending input preserve continuity.
 SERVICE restoration remains explicitly deferred.
+
+
+## Review corrections to the initial map
+
+The initial map described the conversation manager's direct-adapter recovery,
+not the ordinary workflow harness route. At the mapped source revision,
+internal/binding.Adapter selects internal/agentexecutor for Claude/Codex/Pi/Agy.
+That executor already persists session checkpoints, accepted requests and turn
+results with deterministic execution identities and reattaches to them. The
+replacement uses that path, not conversation-only ResumeSession. Taskdaemon
+indexes were in memory despite underlying executor persistence; the human
+chooses to add their durability after the local stage. Build/version handling
+has explicitly no policy or enforcement; the earlier code-identity suggestion
+is not a requirement. This map is historical source evidence, not current
+implementation proof or a second authority for the spec.

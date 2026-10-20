@@ -157,3 +157,47 @@ plan authority. A fresh spec/plan review uses the committed source snapshot whil
 implementation proceeds, so its target is stable and broad build checks are not
 duplicated. Construction blockers still return to the manager; no implementer
 amends the durable contract.
+
+
+## Round-05 adjudication and construction clarifications
+
+Opus run 01M5BKY6SHM652B4XJH3QVSWD1.run-prompt reviewed pinned afd5958a
+while implementation proceeded. Artifact:
+`ephemeral/reviews/durable-interactive-opus-spec-round-05.md`.
+
+- F1 accepted and returned to HITL: the human chooses BOTH local durability and
+  remote daemon durability, sequentially ("do both, one and then the other").
+  Same owners/delivery, local native checkpoint first, remote L5 afterward,
+  one final broad validation pass. H gains taskdaemon (1,409 lines) and daemon
+  command (65): baseline 6,803/max 8,500. No SERVICE restoration/rechecks.
+- F2 accepted preservation of existing Stop behavior: durable STOP requests
+  turn interruption and returns the still-pending Interactive to wait after
+  confirmed cessation; distinct from FINISH, no fabricated partial chat,
+  EndedBy or sibling cancellation. Uncertainty remains unresolved.
+- F3 accepted explicit preservation inventory. Metadata, cached file context,
+  worktree/environment/association/rename/setup and explicit cleanup remain;
+  settled-idle local Codex model/effort changes use durable private controls
+  and existing native thread. No new root API or new provider-wide config.
+- F4 accepted named generation gate. A had already implemented admission in
+  gimbalgen before this report: violations refuse generated registration/graph
+  output. Hosting consumes generated definitions; no runtime source sandbox
+  or cryptographic provenance machinery is added.
+- F5 ownership nit fixed: P gets handwritten conversation route Go/Svelte
+  (+95 existing lines, baseline 13,882/max 14,800); A owns generated skgo links
+  copies by provenance and only regenerates them. Plan now covers changes to
+  existing unowned files as well as additions.
+- The four small gaps are construction clarifications: maintained example
+  uses hosted registered admission with saved accepted ID; direct Run ingress
+  is the existing host/control installation (absent it, no input is invented);
+  ordinary run Interactive has Finish as well as message/Stop controls; expired
+  native evidence never authorizes fresh dispatch of an unmatched recorded
+  intent. Runtime is adding the private reconstruction guard.
+
+A separate observed construction gap adds minimal existing audit-index read
+modes (--completion and --verify-current) so recorded library commands preserve
+ReadCompletion/VerifyCurrent validation. A owns its 83 existing lines; baseline
+11,609/max 13,200. This is existing behavior, no new paid audit or root API.
+
+These changes remain inside the one delivery; the next independent full review
+will include the coherent implementation and observed proof as well as current
+spec/plan, rather than repeat standalone spec passes while code is changing.

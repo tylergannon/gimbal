@@ -123,9 +123,9 @@ the slice spec can settle file organization without changing these contracts.
 | J: durable records and inbox | Durable identity, committed batches, inbox acceptance and durable transition storage; no provider calls or scheduling policy | Storage consistency and recovery format | 913 | 1,400 |
 | E: execution and replay | Reconstruct library operations, scopes, session bindings and concurrent branches; distinguish suspension from terminal outcomes | Workflow execution semantics | 7,428 | 9,000 |
 | I: interaction protocol | Interpret chat/end, transcript, human message/finish input and turn delivery; use J for durable transitions and E for execution | Human/agent interaction contract | 102 | 900 |
-| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 5,329 | 6,500 |
-| P: presentation | Project durable lifecycle and interaction state into run/chat views and route user actions through durable acceptance | Product presentation and observation | 13,787 | 14,800 |
-| A: workflow admission | Accept only library-owned effects, migrate maintained workflows, expose Interactive in extraction/diagrams and replace Interview support | Accepted workflow language and static representation | 11,526 | 13,200 |
+| H: shared hosting | Own execution capacity and placement, accept controls independent of an activation, schedule runnable work and reconstruct runs | Host ownership, placement and dispatch | 6,803 | 8,500 |
+| P: presentation | Project durable lifecycle and interaction state into run/chat views and route user actions through durable acceptance | Product presentation and observation | 13,882 | 14,800 |
+| A: workflow admission | Accept only library-owned effects, migrate maintained workflows, expose Interactive in extraction/diagrams and replace Interview support | Accepted workflow language and static representation | 11,609 | 13,200 |
 
 J stores authoritative facts; I and E decide their meaning. H owns when and
 where an activation runs, independently of E's workflow semantics. P observes
@@ -140,7 +140,10 @@ fixtures, mocks, stories and generated source. For Go and TypeScript, a
 generated header is an actual `^// Code generated .* DO NOT EDIT\.$` comment
 (before the Go package clause, or in the TypeScript header),
 never a string emitted by a generator; `_gen.go` and `.gen.*` suffixes
-also identify generated output. Generated output must match its source.
+also identify generated output. The skgo-generated source copies under
+`internal/skgo/links/**` are also generated (owned with A's generated outputs,
+not handwritten production); regenerate them rather than hand-editing them.
+Generated output must match its source.
 Expanded baselines count existing affected code, not just newly written code.
 The measured ownership sets are:
 
@@ -154,15 +157,19 @@ The measured ownership sets are:
 - I: `interview.go` until removed, `interactive.go`, and new handwritten
   interaction protocol source including `internal/interaction/**` if useful.
 - H: Go source in `internal/{host,runner,invocation,conversation,live}/`,
-  `backend/backend.go`, `registry.go`, `cmd/gimbal/main.go`.
+  `backend/backend.go`, `registry.go`, `cmd/gimbal/main.go`,
+  `cmd/gimbal/daemon.go`, and Go source in `internal/taskdaemon/`.
 - P: Go source in `internal/observation/` and `web/runview/`;
   Go/TypeScript/Svelte in `web/src/lib/{conversation,run,observation}/`;
   `web/src/lib/workflow/types.ts`; workspace `ProjectWorkspace.svelte`,
   `ProjectHome.svelte`, `ProjectRuns.svelte`, `projectHome.ts`,
   `conversations.ts`; route `conversation.remote.*`, `interview.remote.*`,
-  `control.remote.*` and `projects/**/+page.server.ts`, plus replacements.
+  `control.remote.*`, `projects/**/+page.server.ts`, and handwritten Go/Svelte
+  under `projects/[project]/conversations/**`, plus replacements.
 - A: Go source in `internal/{gimballint,generate,devgenerate,builtin,workflows}/`,
-  `workflow/` and `cmd/examples/`.
+  `workflow/`, `cmd/examples/`, and `cmd/gimbal/audit_index.go` (the existing
+  existing validated completion/freshness reads exposed as minimal CLI modes
+  for recorded workflow use).
 
 Additional or relocated production source implementing a cell's responsibility
 counts toward that cell; moving files cannot evade a budget. A slice names
@@ -253,7 +260,7 @@ RECORD InboxInput:
     address      : InteractionAddress
     identity     : InputIdentity
     sequence     : AcceptanceOrder
-    kind         : MESSAGE | FINISH
+    kind         : MESSAGE | FINISH | STOP
     message      : String when kind is MESSAGE
     disposition  : pending | delivered | unresolved | unprocessed
     occurrence   : OperationIdentity when claimed for delivery
@@ -308,7 +315,11 @@ The existing store's exclusive writer and atomic batch mechanisms may satisfy
 these contracts. Inbox admission and workflow commits must share an ownership
 arrangement that permits acceptance while an activation is running or absent.
 No specific database, DBOS dependency, distributed lease system or new storage
-backend is required.
+backend is required. Existing accepted-intent evidence remains authoritative if
+native result retention later removes a request/result: absence then cannot
+prove the operation never ran. A replayed intent without an outcome or retained
+native evidence remains unresolved rather than being submitted as fresh work.
+Completed journal outcomes already bypass native dispatch.
 
 ### Agent and human protocol: I
 
@@ -364,6 +375,16 @@ produce one logical completion for that call, with the winning EndedBy
 recorded. Do not rewrite a completed result to change its ending. A pending
 human finish still reaches the next call if the conversation workflow
 continues after an agent end.
+
+STOP is the existing operator interrupt control, distinct from FINISH. It
+requests turn-scoped interruption and, after confirmed cessation, records a
+wait and keeps Interactive logically pending. It does not fabricate a partial
+assistant chat reply, return an Interactive error merely because Stop was
+requested, set EndedBy, close ingress, end the workflow or cancel siblings.
+Confirmed delivered input remains in that occurrence's transcript; unresolved
+cessation/delivery stays honestly unresolved. The same control applies in
+ordinary run views and conversation tabs. Duplicate STOP requests are
+idempotent; a settled/no-active-turn stop does not create a new agent turn.
 
 Use the adapter's supported interruption and reconciliation contract. Do not
 introduce a universal detector for arbitrary tool-side corruption or a rollback
@@ -489,7 +510,14 @@ Chat naming and workspace metadata may remain product data. This applies to
 local and non-local workflow placement in the selected execution environment.
 Remote ingress uses existing ControlWorkflow transport with interaction/input
 identity in its control payload, routed to that environment's durable owner;
-no new root API or backend interface method is required.
+no new root API or backend interface method is required. Implement local
+durability first, then remote durability in the same delivery. The remote
+workflow/task daemon persists its run/session indexes and accepted identity
+bindings, reconstructs its durable input owner on startup, and routes input
+without a live-activation prerequisite. Steering through the existing messaging
+transport is included. Reuse executor checkpoint/reattach for accepted native
+work; a daemon restart cannot turn missing in-memory maps into a fresh run or
+native session. SERVICE restoration/rechecks remain excluded.
 
 Ingress must not require an in-memory waiter or a run classified as actively
 executing. During restart, requests are either durably accepted or receive a
@@ -518,8 +546,21 @@ native/run identity. Uncertainty may remain unresolved when the external state
 cannot be confirmed; no forced abandon outcome or eventual-settlement promise
 is introduced. SERVICE restoration/rechecks remain excluded.
 
+Preserve these existing conversation product behaviors while replacing their
+execution owner; this does not authorize new high-level workflow APIs:
+
+| Existing feature | Expression in this delivery |
+| --- | --- |
+| Stop turn | Durable STOP above, returning to wait after confirmed cessation |
+| Model/effort change | Preserve existing settled-idle local Codex change; record configuration for subsequent turns on the existing thread through private workflow/executor controls; completed outcomes retain their original binding |
+| File discussion | Preserve CacheFile before admission and bind its cached absolute path/context durably; an opening message uses the normal human-first inbox |
+| Worktree, environment selection and run association | Keep product metadata/placement preparation and association; workflow execution uses that saved placement, including the remote stage |
+| Rename and setup queries | Keep as product data/queries |
+| Explicit cleanup | Retain explicit cleanup ownership and truthful outcome; suspension never invokes it |
+
 P projects committed identity, replies, input disposition and execution state.
-Waiting and dormancy remain visibly unfinished; successful completion,
+An ordinary run view supplies message, Stop and Finish controls for Interactive;
+Finish is not limited to the conversation-tab Archive action. Waiting and dormancy remain visibly unfinished; successful completion,
 cancellation and unresolved recovery are distinguishable. Human messages and
 archive use durable ingress. Browser disconnects do not cancel workflow work;
 observation gaps do not change execution truth. Archive completes through the
@@ -545,6 +586,17 @@ admitted deterministic forms. This is a static authoring boundary, not a
 whole-Go sandbox. Revise public godoc for Steer, Killed, Group and package
 lifetime guidance to stop teaching newly forbidden authored constructs;
 steering/control still comes through library-owned ingress/concurrency.
+The gate is generation: gimbalgen runs admission over each selected entry and
+its reachable helpers and fails before emitting/refreshing registration/graph
+output on a violation. Built-in and project workflow generation use this same
+gate. Registration/hosting consume generated definitions under the existing
+graph contract; they do not perform source analysis of arbitrary compiled Go
+plugins. No general sandbox or cryptographic provenance scheme is introduced.
+Keep diagnostics through lint/vet too; C12 demonstrates generation refusal,
+not merely an advisory diagnostic. Maintained hosted examples persist their
+registered invocation/accepted ID rather than minting an unrelated run on
+restart through an unregistered body wrapper.
+
 Migrate all maintained built-ins/examples to these rules using the existing
 library operations, including complete RunCommand outputs, and admit them
 through the same checks as project workflows.
@@ -600,16 +652,17 @@ screenshots or execution logs are committed as evidence.
 | C4 | Cell-local: E | Reconstruction uses saved run/scope/session identities, context and completed outputs without redispatching completed commands or turns; unconfirmed native work remains actionable and recoverable; RunCommand returns complete stdout/stderr above 64 KiB on original execution and replay while display excerpts stay bounded |
 | C5 | Cell-local: E | A waiting branch leaves runnable siblings progressing; all-waiting work becomes dormant; Go execution unwinds without authored completion effects or generic panic handling; neither path emits terminal teardown or alters SERVICE claims because of suspension |
 | C6 | Cell-local: I | Polytype validates the specified chat/end alternatives; per-occurrence transcripts include only confirmed delivered input and committed replies in the specified order; durable EndedBy distinguishes agent/human completion, with no invented ending on error; conversation re-entry waits or uses pending input instead of spinning |
-| C7 | Cell-local: I | Active input steers; a confirmed missed steer remains pending; uncertain delivery is not blindly repeated |
+| C7 | Cell-local: I | Active input steers; a confirmed missed steer remains pending; uncertain delivery is not blindly repeated; operator Stop safely returns to wait without completing the interaction |
 | C8 | Cell-local: I | Finish is durable and idempotent, interrupts the active turn when safe, completes normally, and prevents late results from reopening the interaction |
 | C9 | Cell-local: H | Runnable runs from different projects share host capacity with independent invocation data and authoritative execution ownership; a panic in one run leaves other runs and host controls working |
 | C10 | Cell-local: H | Pending durable input is discovered after restart or lost notification without requiring a second human message or a competing activation; dormant cancellation and retry-reconciliation preserve ownership and honest unresolved outcomes |
-| C11 | Cell-local: P | Committed replies and waiting/runnable/terminal/unresolved state are rendered honestly; message/archive actions use durable addresses and acknowledgements |
-| C12 | Cell-local: A | Prohibited nondeterminism, effects, authored defer/recover and unrecorded timing/cancellation observations in bodies/helpers are rejected; Interactive replaces Interview in accepted API and workflow inspection; maintained built-ins/examples pass the same admission checks after migration |
+| C11 | Cell-local: P | Committed replies and waiting/runnable/terminal/unresolved state are rendered honestly; message/archive/Stop/Finish actions use durable addresses and acknowledgements; listed existing conversation product behaviors remain available |
+| C12 | Cell-local: A | Prohibited nondeterminism, effects, authored defer/recover and unrecorded timing/cancellation observations in bodies/helpers are rejected; generation fails on such source; Interactive replaces Interview in accepted API and workflow inspection; maintained built-ins/examples pass the same admission checks after migration |
 | L1 | Integration: J, E, I, H, P and native adapter | In the real app, converse, observe chat/wait, restart the host, send again, and observe the same run, native session continuity, scoped context, prior results and nonduplicated transcript |
 | L2 | Integration: J, E, I, H and native adapter | In an ordinary workflow, a useful runnable branch progresses while another waits, alongside another project's work on the shared host; resume the waiting branch and observe its join and subsequent workflow code execute with independent project/run state |
 | L3 | Integration: J, E, I, H, P and native adapter | Accept messages during active execution, waiting and restart; exercise a commit/wake-up interruption and verify accepted input is retained and safely delivered or explicitly unresolved |
 | L4 | Integration: J, E, I, H, P and native adapter | An agent end leaves the conversation available on its existing run without autonomous repeated turns; archive during an active turn then causes safe interruption, EndedBy human, normal Interactive return and actual successful workflow completion; unconfirmed cessation is shown honestly |
+| L5 | Integration: J, E, I, H, P, remote workflow/task daemon and native adapter | After local proof, run through a real separate daemon/transport, reach durable wait, restart that daemon, submit input and observe the same run/native session continue without losing accepted input; exercise active steering through the remote/messaging route and normal finish |
 
 Cell-local tests may use contract-faithful stand-ins. Live claims use the real
 application and native adapter, with the cheapest unversioned alias of the exercised harness (`luna`,

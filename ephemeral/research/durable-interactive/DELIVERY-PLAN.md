@@ -61,8 +61,14 @@ InteractiveMessage and EndedBy contract.
 | P | observation reduction and conversation/interaction routes and components |
 | A | workflow extraction/linting, schemas/graphs and the built-in workflows affected by the library-only rule |
 
-Before adding production files outside the spec's measured ownership sets,
+Before adding or changing production files outside the spec's measured ownership sets,
 report the exact paths and their cell to the manager for budget assignment.
+A also owns cmd/gimbal/audit_index.go (83 existing lines): expose the existing
+ReadCompletion/VerifyCurrent checks through minimal audit-index --completion
+and --verify-current modes so research-document can preserve its gate via recorded RunCommand, with
+no new paid audit or duplicated revision algorithm. A baseline is 11,609; its
+maximum remains 13,200.
+
 The existing built-in workflow source contains direct I/O and clock calls;
 they cannot be hidden in helpers or exempted from the new authoring rule.
 Use existing library operations for those effects. Initial preparation is
@@ -110,12 +116,22 @@ agent-turn timeouts without a library equivalent. Do not add APIs for these.
    bodies/helpers, update affected built-ins through existing library calls,
    and regenerate maintained output. Remove replaced Interview code and
    parallel conversation execution instead of adding compatibility paths.
-6. Demonstrate routed C1-C12 and L1-L4 claims. Add meaningful package-adjacent
+6. Demonstrate routed C1-C12 and L1-L5 claims. Add meaningful package-adjacent
    tests for the changed contracts, finish one consolidated build/check
    cycle, then observe the real hosted application with an inexpensive
    unversioned native model alias and disposable catalog. Report the actual
    model and observations, including any unmet claim. Commit and push
    interesting milestones with Conventional Commit titles.
+
+The human chose local durability first, then remote durability. Finish the
+local path and one real local proof checkpoint before expanding the remote
+daemon. Keep the same owners and delivery unit; H additionally owns
+internal/taskdaemon/** and cmd/gimbal/daemon.go (baseline 6,803/max 8,500).
+Persist the remote run/session indexes, durable input ownership and missing
+steering through the real transport, then demonstrate L5. This does not add
+SERVICE restoration/recheck guarantees. P also owns handwritten Go/Svelte
+conversation routes (95 existing lines; baseline 13,882/max 14,800).
+A owns generated internal/skgo/links copies by provenance, with no manual edits.
 
 These are internal work items of one slice, not separate delivery gates. An
 error behavior named in the nlspec belongs in this slice. Fix actual failures;

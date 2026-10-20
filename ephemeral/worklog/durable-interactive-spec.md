@@ -179,3 +179,47 @@ cancellation/reconciliation. Rejected SERVICE restoration/recheck requirements a
 version policy under the human's explicit exclusions. Full adjudication in REVIEW.
 Ready for the two Sol 6.1 owners; a fresh spec review sees the pinned committed
 snapshot while they implement, avoiding serial idle time and duplicate proof.
+
+
+result: Full scoped Go-cache clean initially raced a concurrent writer (one
+bucket was recreated); a retry completed successfully. Measured cache afterward
+279 MiB while new compilation had already begun, and host free space 163 GiB.
+Docker build cache is zero; zoom-connect-postgres remains healthy. Do not
+repeatedly purge caches now that implementation is compiling.
+
+decision: Started exactly two requested gpt-6.1-sol workers in this shared
+worktree: runtime_impl owns J/E/I/H/P; authoring_impl owns A and generated output.
+Manager retains contract/review/worklog and final live acceptance. Fresh Opus run
+01M5BKY6SHM652B4XJH3QVSWD1.run-prompt reviews pinned afd5958a spec/source while
+they implement; output ephemeral/reviews/durable-interactive-opus-spec-round-05.md.
+
+
+decision: A reports a concrete migration gap: research-document's existing
+claimaudit.VerifyCurrent gate has no CLI exposure, while audit-index currently
+only prepares or performs a paid audit. Approved minimal --verify-current flag
+calling that existing verifier, preserving behavior through RunCommand. Assigned
+cmd/gimbal/audit_index.go (83 production lines) to A; baseline 11,609 and max
+13,200. No root API/new audit/duplicated revision algorithm is authorized.
+
+
+decision: Also expose existing validated ReadCompletion through --completion
+in that same CLI file: raw JSON reads would lose inventory/claim revision checks,
+including incomplete results used by repair loops. Both modes are read-only
+existing behavior, with direct JSON/exit semantics and no new paid operation.
+
+
+decision: Human chooses local then remote durability, same two owners and delivery.
+H ownership adds taskdaemon and daemon command (baseline 6,803/max 8,500); L5
+covers the actual remote daemon/transport restart and steering seam. P gets
+handwritten conversation routes (+95 lines). A generation is the admission gate.
+Preserve existing Stop and conversation product behaviors through replacement,
+including settled-idle local Codex model changes via private durable controls.
+Current spec/plan carry these and full review adjudication is in REVIEW.md.
+
+progress: Runtime reports focused core checks passing via explicit source-list
+`go test $(go list -f '{{join .GoFiles " "}}') interactive_test.go -run '^TestInteractive' -v`
+while built-in migration/init prevents the broad suite. Covers local suspension,
+finish, atomic chat/wait reopening/native-ID continuity, Group sibling/join,
+and exact 80,000-byte original/replay command output with no redispatch. These
+are cell-local stand-ins, not native/app integration claims; broad checks and
+live local then remote proof remain outstanding.

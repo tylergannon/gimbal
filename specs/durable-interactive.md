@@ -1,10 +1,7 @@
 # Durable Interactive execution
 
-Status: revised draft; round-03 review leaves upgrade recovery and authored
-unwinding/timing behavior pending human decisions. Do not implement yet.
-The behavioral choices reflect the human's brief, answers and delegated choice
-of the simplest correct initial behavior. No implementation or live proof has
-been performed.
+Status: contract updated with the human's round-03 decisions; final independent
+spec/plan review pending. No implementation or live proof is claimed.
 
 ## Overview and goals
 
@@ -59,8 +56,9 @@ Human messages enter a durable inbox addressed to the interaction regardless
 of whether execution is active, suspended, or restarting. An incoming message
 signals that the interaction can run again. Resume preserves run identity,
 session binding, scoped context, and completed results. Execution may be
-reconstructed by replay under the same code; serializing Go stacks is not
-required.
+reconstructed by replay; the demonstrations here use the same code.
+Serializing Go stacks is not required. Version changes across runs have no
+policy or explicit enforcement in this change.
 
 When a message arrives during an active agent turn, delivery steers that turn.
 The message still enters the durable inbox before delivery; active execution
@@ -88,6 +86,18 @@ select and map iteration in authored workflow execution are rejected because
 they introduce scheduling or iteration choices outside recorded library
 operations. Deterministic slice/array iteration, map lookups and pure helper
 calculations remain allowed. Opaque helpers cannot hide prohibited effects.
+Authored defer and recover are rejected: suspension must not execute authored
+completion work or permit authored recovery to continue beyond a pending wait.
+Write cleanup on explicit completion/error paths using library operations.
+Library internals retain their own suspension-aware defer/recovery handling.
+
+Authored context deadlines/timeouts, sleeps/tickers, and direct cancellation
+observations (including ctx.Err/Done) are also rejected. They introduce timing
+or cancellation decisions outside recorded library outcomes. Use RunCommand
+for explicit waits and observations. Cancellation still reaches library calls,
+and their recorded outcomes can drive ordinary error handling. Existing
+agent-turn timeouts without a library equivalent are removed in this delivery;
+no new timeout API or dormant-deadline semantics are introduced.
 
 Use existing RunCommand operations for file reads/writes, stat, clock reads,
 randomness and other external work when Check or Service is not the relevant
@@ -370,7 +380,7 @@ INTERFACE Execution:
 
 RECORD SavedInvocation:
     runIdentity       : RunIdentity
-    workflowAndCode   : SameCodeIdentity
+    workflow          : RegisteredWorkflowIdentity
     inputs            : ImmutableInvocationInputs
     projectAndWorkdir : SavedPlacement
     rolesAndRoutes    : SavedBindings
@@ -402,8 +412,13 @@ unfinished join to run.
 A waiting branch permits runnable siblings to continue. When no branch can
 progress and the unfinished branches have durable waits, the run can release
 its activation and remain dormant. Resumption reconstructs enough execution
-to continue, including pending joins. The pending call is a logical property
-of recorded execution, not a requirement to retain its current Go stack.
+to continue, including pending joins. Dormancy releases the activation's Go execution by unwinding it; parked
+workflow stacks are not the suspension mechanism. Library scopes and Group
+recognize suspension before generic panic/error handling, preserve logical
+scope state, and avoid terminal cleanup or sibling cancellation. Admission
+rejects authored defer/recover so user code cannot intercept this unwind or
+run completion effects during it. The pending call is a property of recorded
+execution; reconstruction uses ordinary Go code and recorded outcomes.
 
 Suspension does not run normal scope teardown or emit scope/run completion or
 cancellation. Actual completion and explicit cancellation retain their normal
@@ -411,22 +426,15 @@ lifetime behavior. Replay must not repeat completed operations or already
 performed terminal cleanup. This is not a SERVICE restoration contract; the
 explicit SERVICE exclusion below takes precedence at that boundary.
 
-Only same-code reconstruction is in scope. SameCodeIdentity is the SHA-256
-digest of the executable artifact together with sorted digests of its loaded
-workflow plugin artifacts, persisted with the invocation. It covers the linked
-replay runtime, not just the workflow graph. Hash artifacts once per host/build;
-never substitute a source graph hash for executable identity. A shared host
-executes only its loaded artifact set; no multiversion plugin hosting or
-unloading is required.
-
-A dormant run whose artifact identity differs after a rebuild is visibly blocked
-awaiting its matching build, with input and records retained. It is not silently
-redispatched on the new code. New builds can admit new runs. Even an unrelated
-rebuild may therefore require the old build to resume an existing run; automatic
-upgrade continuity and retention/restoration of old builds are not promised.
-If matching code or a recorded native operation cannot be recovered, expose an
-actionable recoverable state instead of inventing a fresh run or blindly
-redispatching. Hot upgrades and code migration are outside scope.
+Version changes across runs have explicitly no policy and no explicit
+policy enforcement. Do not add executable/plugin digest gates, version-mismatch
+blocking, saved-build retention, per-version execution hosts, upgrade migration
+machinery, or tests purporting to establish a cross-version guarantee or
+non-guarantee. This is not a deferred policy-design task. The reconstruction
+claims use unchanged code and do not prescribe behavior at a version boundary.
+Existing record identity/conflict validation remains ordinary storage integrity,
+not an added version policy. Unconfirmed native work remains actionable and
+recoverable rather than being blindly redispatched.
 
 ### Hosting and ingress: H
 
@@ -527,16 +535,16 @@ screenshots or execution logs are committed as evidence.
 | C1 | Cell-local: J | Crash/failure around commit exposes reply and wait together or neither; replay never creates a second logical reply |
 | C2 | Cell-local: J | Accepted input survives restart; identical retry preserves identity; conflicting retry fails; equal timestamps cannot make durable order ambiguous; stable ingress preserves pending input between occurrences and closes unconsumed input at owner termination |
 | C3 | Cell-local: J | Record recovery preserves valid committed batches and enforces writer authority; interrupted acknowledgement does not require duplicate admission |
-| C4 | Cell-local: E | Reconstruction uses saved run/scope/session identities, context and completed outputs without redispatching completed commands or turns; incompatible code or unconfirmed native work remains actionable and recoverable; RunCommand returns complete stdout/stderr above 64 KiB on original execution and replay while display excerpts stay bounded |
-| C5 | Cell-local: E | A waiting branch leaves runnable siblings progressing; all-waiting work becomes dormant; neither path emits terminal teardown or alters SERVICE claims because of suspension |
+| C4 | Cell-local: E | Reconstruction uses saved run/scope/session identities, context and completed outputs without redispatching completed commands or turns; unconfirmed native work remains actionable and recoverable; RunCommand returns complete stdout/stderr above 64 KiB on original execution and replay while display excerpts stay bounded |
+| C5 | Cell-local: E | A waiting branch leaves runnable siblings progressing; all-waiting work becomes dormant; Go execution unwinds without authored completion effects or generic panic handling; neither path emits terminal teardown or alters SERVICE claims because of suspension |
 | C6 | Cell-local: I | Polytype validates the specified chat/end alternatives; per-occurrence transcripts include only confirmed delivered input and committed replies in the specified order; durable EndedBy distinguishes agent/human completion, with no invented ending on error; conversation re-entry waits or uses pending input instead of spinning |
 | C7 | Cell-local: I | Active input steers; a confirmed missed steer remains pending; uncertain delivery is not blindly repeated |
 | C8 | Cell-local: I | Finish is durable and idempotent, interrupts the active turn when safe, completes normally, and prevents late results from reopening the interaction |
 | C9 | Cell-local: H | Runnable runs from different projects share host capacity with independent invocation data and authoritative execution ownership |
 | C10 | Cell-local: H | Pending durable input is discovered after restart or lost notification without requiring a second human message or a competing activation |
 | C11 | Cell-local: P | Committed replies and waiting/runnable/terminal/unresolved state are rendered honestly; message/archive actions use durable addresses and acknowledgements |
-| C12 | Cell-local: A | Prohibited nondeterminism and effects in authored bodies/helpers are rejected; Interactive replaces Interview in accepted API and workflow inspection; maintained built-ins/examples pass the same admission checks after migration |
-| L1 | Integration: J, E, I, H, P and native adapter | In the real app, converse, observe chat/wait, restart the host, send again, and observe the same run, native session continuity, scoped context, prior results and nonduplicated transcript; changing the executable/plugin artifact before resume visibly blocks that old run without input loss or dispatch on incompatible code |
+| C12 | Cell-local: A | Prohibited nondeterminism, effects, authored defer/recover and unrecorded timing/cancellation observations in bodies/helpers are rejected; Interactive replaces Interview in accepted API and workflow inspection; maintained built-ins/examples pass the same admission checks after migration |
+| L1 | Integration: J, E, I, H, P and native adapter | In the real app, converse, observe chat/wait, restart the host, send again, and observe the same run, native session continuity, scoped context, prior results and nonduplicated transcript |
 | L2 | Integration: J, E, I, H and native adapter | In an ordinary workflow, a useful runnable branch progresses while another waits, alongside another project's work on the shared host; resume the waiting branch and observe its join and subsequent workflow code execute with independent project/run state |
 | L3 | Integration: J, E, I, H, P and native adapter | Accept messages during active execution, waiting and restart; exercise a commit/wake-up interruption and verify accepted input is retained and safely delivered or explicitly unresolved |
 | L4 | Integration: J, E, I, H, P and native adapter | An agent end leaves the conversation available on its existing run without autonomous repeated turns; archive during an active turn then causes safe interruption, EndedBy human, normal Interactive return and actual successful workflow completion; unconfirmed cessation is shown honestly |
@@ -562,8 +570,9 @@ It must not use style objections or unrequested guarantees as acceptance gates.
   internal. This is not a deferred policy that an implementer must go design.
 - No Activity API, arbitrary user-I/O escape hatch or author-promised
   replay safety for prohibited operations.
-- No stack serialization, changed-code replay, automatic code migration,
-  alternate durable-workflow framework, or new database backend.
+- No stack serialization, alternate durable-workflow framework or new
+  database backend. Version changes across runs carry no policy or enforcement
+  as stated above; no version-handling work or tests are required.
 - No arbitrary exactly-once agent/tool effects, universal interruption-safety
   detector, transactional rollback of provider tools, or blind redispatch of
   unresolved native work.

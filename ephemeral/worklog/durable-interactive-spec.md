@@ -131,3 +131,18 @@ Asked two batched material questions: retain required builds for old-run
 recovery across upgrades; reject authored unwind/timing constructs and remove
 unsupported turn timeouts for the initial library-only delivery. Do not assume
 approval or launch dependent implementation while these remain unanswered.
+
+
+correction: The human explicitly rejects version-policy support AND non-support:
+NO POLICY and no explicit enforcement for version change across runs. Proposed
+build retention meant old executable/plugin copies and per-build hosts; explained
+that and removed it, digest gates, mismatch blocking and associated tests/claims.
+Do not reintroduce this as a requirement from reviewer concerns. Same-code replay
+is a proof scenario, not a version-handling policy.
+
+decision: The human approves rejecting authored defer/recover and unrecorded
+timing/cancellation observations, requesting explanation. Explained that Go stack
+unwind runs defers and recover can defeat suspension, while timing observations
+can change replay control flow. Library internals handle suspension; maintained
+workflows use explicit completion/error paths and library operations, with
+unsupported agent-turn timeouts removed. No new API is authorized for them.

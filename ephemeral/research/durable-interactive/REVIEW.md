@@ -100,3 +100,21 @@ five further contract gaps. It reproduced the corrected six baselines exactly.
 
 Implementation has not started. The two batched questions are necessary
 material authoring/upgrade choices, not requests to reapprove internal tactics.
+
+
+## Human resolution of round-03 choices
+
+The human explicitly rejects both support and non-support policy/enforcement
+for version changes across runs: there is NO POLICY. This supersedes the
+author's proposed digest gating, mismatch blocking and retained-build options.
+Removed them and the version-boundary claim; no replacement policy or policy
+tests are added. Same-code replay is the proof scenario, not an enforcement gate.
+This resolves the review's version-policy dissent through HITL rather than
+turning the reviewer's objection into an implementation requirement.
+
+The human approves the proposed authored defer/recover and unrecorded timing/
+cancellation restrictions ("sounds fine but please explain"). Explained Go
+unwinding and deterministic replay, including removal of unsupported agent-turn
+timeouts. Spec/plan now require library-controlled suspension unwind, rejected
+authored constructs, explicit completion cleanup and existing library waits.
+F2/F5 and remote ingress resolutions remain as recorded above.

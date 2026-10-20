@@ -1,6 +1,6 @@
 # Durable Interactive: one delivery unit
 
-Status: finalized proposal pending the independent Opus spec/plan rereview. Do not
+Status: finalized proposal reflecting human decisions; independent Opus rereview pending. Do not
 start implementation until the manager resolves that review and finalizes
 this handoff. This document is a per-slice technical plan; `specs/durable-interactive.md` holds the durable contract.
 
@@ -72,11 +72,18 @@ captured stdout/stderr to its caller and on replay; display excerpts remain
 bounded. The user explicitly approved this contract change. No file/clock API
 or Activity is added. First entry is human-first for every occurrence.
 
-Same-code recovery compares executable plus loaded plugin digests. A changed
-build visibly blocks old runs, preserving their inbox and outcomes; do not
-build a multiversion execution manager. The stable interaction address omits
-occurrence ordinal, while operation results retain it. Native resource handling
-has no policy.
+Version changes across runs have NO POLICY and NO explicit enforcement.
+Do not build digest gates, version-mismatch blocking, build retention,
+per-version hosts, migration or tests claiming support/non-support. Recovery
+proof uses unchanged code. This is not a deferred policy to go design.
+The stable interaction address omits occurrence ordinal, while operation
+results retain it. Native resource handling also has no policy.
+
+Dormancy unwinds Go execution, with library suspension handling bypassing
+normal cleanup and generic panic/error handling. Admission rejects authored
+defer/recover and unrecorded context/timing/cancellation observations. Migrate
+cleanup to explicit completion paths and waits to library commands; remove
+agent-turn timeouts without a library equivalent. Do not add APIs for these.
 
 ## Work items and acceptance denominator
 
@@ -90,7 +97,7 @@ has no policy.
    conversation re-entry; agent end cannot cause an autonomous spin loop.
 3. Wire shared hosting and the ordinary conversation workflow through the
    real application's existing project and placement paths. Persist enough
-   invocation/code information for same-code reconstruction and startup
+   invocation information for same-code reconstruction and startup
    discovery. Preserve services/claims on suspension without defining their
    restoration behavior.
 4. Replace the app's live-waiter admission path with durable message/archive

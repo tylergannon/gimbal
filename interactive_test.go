@@ -1,148 +1,156 @@
 package gimbal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
 	"github.com/tylergannon/gimbal/internal/live"
 	"github.com/tylergannon/gimbal/runstore"
-	"os"
-	"path/filepath"
-	"testing"
 )
 
-func TestInteractiveHumanFirstDurableFinish(t *testing.T) {
-	ctx := Project(context.Background(), t.TempDir())
-	id := string(runstore.NewRunID())
-	var controller *run
-	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
-	returned := false
-	body := func(ctx context.Context) error {
-		session := NewSession(ctx, RoleAgenticDialogues, "")
-		transcript, err := Interactive(ctx, "dialogue", session, "Discuss the task.")
-		if err != nil {
-			return err
-		}
-		returned = transcript.EndedBy == "human"
-		return nil
-	}
-	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {}}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if returned {
-		t.Fatal("waiting returned through authored continuation")
-	}
-	if controller == nil {
-		t.Fatal("controller missing")
-	}
-	if err := controller.acceptInteractive("dialogue", "finish-1", "", true); err != nil {
-		t.Fatal(err)
-	}
-	if err := controller.acceptInteractive("dialogue", "finish-1", "", true); err != nil {
-		t.Fatal(err)
-	}
-	if err := controller.acceptInteractive("dialogue", "finish-1", "conflict", true); err == nil {
-		t.Fatal("conflicting retry accepted")
-	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if !returned {
-		t.Fatal("finish did not run authored continuation")
-	}
-}
-
 type interactionAdapter struct {
-	replies []string
-	calls   int
-	native  string
+	mu                 sync.Mutex
+	replies            []string
+	calls              int
+	prompts            []string
+	native             string
+	started            chan struct{}
+	release            chan struct{}
+	landed             bool
+	steerErr           error
+	successAfterCancel bool
+	closes             int
 }
 
-func (a *interactionAdapter) CreateSession(context.Context, string, string, string) (string, error) {
+func (*interactionAdapter) CreateSession(context.Context, string, string, string) (string, error) {
 	return "native-continuity", nil
 }
-func (a *interactionAdapter) RunTurn(_ context.Context, native, _ string, _ json.RawMessage, _ func(AgentEvent) error) (TurnResult, error) {
+func (a *interactionAdapter) RunTurn(ctx context.Context, native, prompt string, _ json.RawMessage, emit func(AgentEvent) error) (TurnResult, error) {
+	a.mu.Lock()
 	a.native = native
-	reply := a.replies[a.calls]
+	a.prompts = append(a.prompts, prompt)
+	ordinal := a.calls
 	a.calls++
-	return TurnResult{Output: json.RawMessage(reply)}, nil
-}
-func (*interactionAdapter) Steer(context.Context, string, string) (bool, error) { return false, nil }
-func (*interactionAdapter) Fork(context.Context, string) (string, error)        { return "fork", nil }
-func (*interactionAdapter) Close(context.Context, string) error                 { return nil }
-
-func TestInteractiveChatReconstructsWithoutRedispatch(t *testing.T) {
-	directory := t.TempDir()
-	ctx := Project(context.Background(), directory)
-	id := string(runstore.NewRunID())
-	adapter := &interactionAdapter{replies: []string{`{"decision":{"type":"chat","message":"Hello"}}`, `{"decision":{"type":"end"}}`}}
-	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}
-	var controller *run
-	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
-	var result InteractiveTranscript
-	body := func(ctx context.Context) error {
-		session := NewSession(ctx, RoleAgenticDialogues, "")
-		var err error
-		result, err = Interactive(ctx, "dialogue", session, "Converse.")
-		return err
+	a.mu.Unlock()
+	if err := emit(nativeEvent("session.step.started", map[string]any{"sessionID": native, "assistantMessageID": fmt.Sprintf("reply-%d", ordinal)}, map[string]any{"provider": "test", "sessionID": native, "messageID": fmt.Sprintf("reply-%d", ordinal)})); err != nil {
+		return TurnResult{}, err
 	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if err := controller.acceptInteractive("dialogue", "one", "Hi", false); err != nil {
-		t.Fatal(err)
-	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if adapter.calls != 1 {
-		t.Fatalf("turn calls %d", adapter.calls)
-	}
-	controller.interactionMu.Lock()
-	controller.refreshInteractions()
-	for _, state := range controller.interactionStates {
-		if !state.Waiting || len(state.Transcript.Messages) != 2 {
-			t.Fatalf("chat/wait transition: %+v", state)
+	if ordinal == 0 && a.started != nil {
+		close(a.started)
+		select {
+		case <-ctx.Done():
+			if !a.successAfterCancel {
+				return TurnResult{}, ctx.Err()
+			}
+		case <-a.release:
 		}
 	}
-	controller.interactionMu.Unlock()
-	// Simulate process loss by discarding activation-local handles and opening
-	// the same committed directory, without native adapter lifecycle assertions.
-	dormantRuns.Delete(controller.dir)
-	controller.closeObservers()
-	if err := controller.records.Close(); err != nil {
-		t.Fatal(err)
+	reply := `{"decision":{"type":"chat","message":"Acknowledged"}}`
+	if len(a.replies) > ordinal {
+		reply = a.replies[ordinal]
 	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
+	return TurnResult{Output: json.RawMessage(reply)}, nil
+}
+func (a *interactionAdapter) Steer(context.Context, string, string) (bool, error) {
+	return a.landed, a.steerErr
+}
+func (*interactionAdapter) Fork(context.Context, string) (string, error) { return "fork", nil }
+func (a *interactionAdapter) Close(context.Context, string) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.closes++
+	return nil
+}
+func (a *interactionAdapter) count() int { a.mu.Lock(); defer a.mu.Unlock(); return a.calls }
+
+func eventuallyInteractive(t *testing.T, ready func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for !ready() {
+		if time.Now().After(deadline) {
+			t.Fatal("interaction did not reach expected state")
+		}
+		time.Sleep(time.Millisecond)
 	}
-	if adapter.calls != 1 {
-		t.Fatal("reconstruction dispatched a completed turn")
+}
+func waitingInteractive(r *run, messages int) bool {
+	r.interactionMu.Lock()
+	defer r.interactionMu.Unlock()
+	for _, state := range r.interactionStates {
+		if state.Waiting && len(state.Transcript.Messages) == messages {
+			return true
+		}
 	}
-	if err := controller.acceptInteractive("dialogue", "two", "Finish", false); err != nil {
-		t.Fatal(err)
-	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if adapter.calls != 2 || adapter.native != "native-continuity" {
-		t.Fatalf("native continuity: %+v", adapter)
-	}
-	if result.EndedBy != "agent" || len(result.Messages) != 3 {
-		t.Fatalf("transcript %+v", result)
+	return false
+}
+func startInteractiveTest(t *testing.T, adapter *interactionAdapter, body func(context.Context) error) (*run, <-chan error) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(Project(t.Context(), t.TempDir()))
+	t.Cleanup(cancel)
+	registered := make(chan *run, 1)
+	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { registered <- c.(*run); return func() {} })
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(ctx, string(runstore.NewRunID()), "test", map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}, body)
+	}()
+	r := <-registered
+	eventuallyInteractive(t, func() bool { return waitingInteractive(r, 0) })
+	return r, done
+}
+func assertPending(t *testing.T, done <-chan error) {
+	t.Helper()
+	select {
+	case err := <-done:
+		t.Fatalf("Run returned while waiting: %v", err)
+	default:
 	}
 }
 
-func TestInteractiveSuspensionLeavesSiblingProgressAndReplaysCompleteOutput(t *testing.T) {
+func TestInteractiveHumanFirstDurableFinish(t *testing.T) {
+	adapter := &interactionAdapter{}
+	var result InteractiveTranscript
+	r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+		var err error
+		result, err = Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+		return err
+	})
+	assertPending(t, done)
+	if err := r.acceptInteractive("dialogue", "finish-1", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.acceptInteractive("dialogue", "finish-1", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.acceptInteractive("dialogue", "finish-1", "conflict", true); !errors.Is(err, runstore.ErrConflict) {
+		t.Fatalf("conflicting retry: %v", err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if result.EndedBy != "human" || adapter.count() != 0 {
+		t.Fatalf("result=%+v calls=%d", result, adapter.count())
+	}
+	if err := r.acceptInteractive("dialogue", "late", "too late", false); err == nil {
+		t.Fatal("closed ingress accepted message")
+	}
+}
+func TestInteractiveWaitingSiblingAndOrdinaryJoin(t *testing.T) {
 	directory := t.TempDir()
-	ctx := Project(context.Background(), directory)
-	id := string(runstore.NewRunID())
-	var controller *run
-	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
-	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {}}
-	joined := false
-	body := func(ctx context.Context) error {
+	joined := make(chan struct{})
+	sibling := make(chan struct{})
+	r, done := startInteractiveTest(t, &interactionAdapter{}, func(ctx context.Context) error {
 		group := Group(ctx, "parallel")
 		group.Go("human", func(ctx context.Context) error {
 			_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Wait.")
@@ -151,195 +159,324 @@ func TestInteractiveSuspensionLeavesSiblingProgressAndReplaysCompleteOutput(t *t
 		group.Go("useful", func(ctx context.Context) error {
 			code, out, _, err := RunCommand(ctx, "output", directory, "sh", "-c", "printf x >> executions; head -c 80000 /dev/zero | tr '\\0' z")
 			if err == nil && (code != 0 || len(out) != 80000) {
-				return fmt.Errorf("complete output: exit %d bytes %d", code, len(out))
+				err = fmt.Errorf("exit %d output bytes %d", code, len(out))
 			}
+			close(sibling)
 			return err
 		})
 		if err := group.Wait(); err != nil {
 			return err
 		}
-		joined = true
+		close(joined)
 		return nil
+	})
+	<-sibling
+	assertPending(t, done)
+	select {
+	case <-joined:
+		t.Fatal("Group joined waiting child")
+	default:
 	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if joined {
-		t.Fatal("pending group joined")
-	}
-	if raw, err := os.ReadFile(filepath.Join(directory, "executions")); err != nil || string(raw) != "x" {
-		t.Fatalf("runnable sibling: %q %v", raw, err)
-	}
-	if err := controller.acceptInteractive("parallel.1/human.1/dialogue", "finish", "", true); err != nil {
-		t.Fatal(err)
-	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if !joined {
-		t.Fatal("resumed branches did not join")
-	}
-	if raw, _ := os.ReadFile(filepath.Join(directory, "executions")); string(raw) != "x" {
-		t.Fatal("completed command dispatched twice")
-	}
-}
-
-type activeInteractionAdapter struct {
-	started  chan struct{}
-	release  chan struct{}
-	landed   bool
-	steerErr error
-	calls    int
-	steers   int
-	output   string
-}
-
-func (*activeInteractionAdapter) CreateSession(context.Context, string, string, string) (string, error) {
-	return "active-native", nil
-}
-func (a *activeInteractionAdapter) RunTurn(ctx context.Context, _ string, _ string, _ json.RawMessage, emit func(AgentEvent) error) (TurnResult, error) {
-	a.calls++
-	if a.calls == 1 {
-		if err := emit(nativeEvent("session.step.started", map[string]any{"sessionID": "active-native", "assistantMessageID": "reply"}, map[string]any{"provider": "test", "sessionID": "active-native", "turnID": "turn", "messageID": "reply"})); err != nil {
-			return TurnResult{}, err
-		}
-		close(a.started)
-		select {
-		case <-ctx.Done():
-			return TurnResult{}, ctx.Err()
-		case <-a.release:
-		}
-	}
-	if a.output != "" {
-		return TurnResult{Output: json.RawMessage(a.output)}, nil
-	}
-	return TurnResult{Output: json.RawMessage(`{"decision":{"type":"chat","message":"Acknowledged"}}`)}, nil
-}
-func (a *activeInteractionAdapter) Steer(context.Context, string, string) (bool, error) {
-	a.steers++
-	return a.landed, a.steerErr
-}
-func (*activeInteractionAdapter) Fork(context.Context, string) (string, error) { return "fork", nil }
-func (*activeInteractionAdapter) Close(context.Context, string) error          { return nil }
-
-func TestInteractiveActiveFinishReturnsNormally(t *testing.T) {
-	ctx := Project(context.Background(), t.TempDir())
-	id := string(runstore.NewRunID())
-	adapter := &activeInteractionAdapter{started: make(chan struct{}), release: make(chan struct{})}
-	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}
-	var controller *run
-	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
-	continued := false
-	body := func(ctx context.Context) error {
-		result, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Converse.")
-		if err == nil {
-			continued = result.EndedBy == "human" && len(result.Messages) == 1 && result.Messages[0].Message == "Hello"
-		}
-		return err
-	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if err := controller.acceptInteractive("dialogue", "opening", "Hello", false); err != nil {
-		t.Fatal(err)
-	}
-	done := make(chan error, 1)
-	go func() { done <- Run(ctx, id, "test", models, body) }()
-	<-adapter.started
-	if err := controller.acceptInteractive("dialogue", "archive", "", true); err != nil {
+	if err := r.acceptInteractive("parallel.1/human.1/dialogue", "finish", "", true); err != nil {
 		t.Fatal(err)
 	}
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if !continued {
-		t.Fatal("archive did not take normal workflow continuation")
+	<-joined
+	raw, err := os.ReadFile(filepath.Join(directory, "executions"))
+	if err != nil || string(raw) != "x" {
+		t.Fatalf("sibling effect %q %v", raw, err)
 	}
 }
-func TestInteractiveStopWaitsAndNextInputContinues(t *testing.T) {
-	ctx := Project(context.Background(), t.TempDir())
-	id := string(runstore.NewRunID())
-	adapter := &activeInteractionAdapter{started: make(chan struct{}), release: make(chan struct{})}
-	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}
-	var controller *run
-	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
-	body := func(ctx context.Context) error {
-		_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Converse.")
+func TestInteractiveChatUsesNativeHistoryAndOneRegistration(t *testing.T) {
+	adapter := &interactionAdapter{replies: []string{`{"decision":{"type":"chat","message":"First reply"}}`, `{"decision":{"type":"end"}}`}}
+	var result InteractiveTranscript
+	r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+		var err error
+		result, err = Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
 		return err
+	})
+	_ = r.acceptInteractive("dialogue", "one", "Remember the token.", false)
+	eventuallyInteractive(t, func() bool { return waitingInteractive(r, 2) })
+	assertPending(t, done)
+	adapter.mu.Lock()
+	closes := adapter.closes
+	adapter.mu.Unlock()
+	if closes != 0 {
+		t.Fatal("waiting closed native session")
 	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	_ = controller.acceptInteractive("dialogue", "opening", "Hello", false)
-	done := make(chan error, 1)
-	go func() { done <- Run(ctx, id, "test", models, body) }()
-	<-adapter.started
-	if err := controller.CancelTurn("agentic-dialogues.1/turn.1", Killed{Reason: "Operator stopped the turn"}); err != nil {
-		t.Fatal(err)
-	}
+	_ = r.acceptInteractive("dialogue", "two", "Recall it.", false)
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if controller.State() != "waiting" {
-		t.Fatal("stop ended workflow")
+	adapter.mu.Lock()
+	defer adapter.mu.Unlock()
+	if result.EndedBy != "agent" || len(result.Messages) != 3 || adapter.calls != 2 || adapter.native != "native-continuity" {
+		t.Fatalf("result=%+v adapter=%+v", result, adapter)
 	}
-	if err := controller.acceptInteractive("dialogue", "next", "Continue", false); err != nil {
-		t.Fatal(err)
+	if strings.Contains(adapter.prompts[1], "First reply") || strings.Contains(adapter.prompts[1], "Remember the token") {
+		t.Fatal("prompt repeated native history")
 	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
+	if adapter.closes != 1 || r.State() != "terminal" {
+		t.Fatalf("closes %d state %s", adapter.closes, r.State())
 	}
-	if adapter.calls != 2 {
-		t.Fatalf("stop replayed or lost turn: %d", adapter.calls)
+}
+func TestInteractiveActiveFinishAndStopRace(t *testing.T) {
+	for _, control := range []string{"finish", "stop"} {
+		for _, success := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/success=%v", control, success), func(t *testing.T) {
+				adapter := &interactionAdapter{started: make(chan struct{}), release: make(chan struct{}), successAfterCancel: success, replies: []string{`{"decision":{"type":"end"}}`}}
+				var result InteractiveTranscript
+				r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+					var err error
+					result, err = Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+					return err
+				})
+				_ = r.acceptInteractive("dialogue", "opening", "Hello", false)
+				<-adapter.started
+				err := r.acceptInput(interactionInput{Address: "dialogue", ID: "control", Finish: control == "finish", Stop: control == "stop"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if control == "stop" && !success {
+					eventuallyInteractive(t, func() bool { return waitingInteractive(r, 1) })
+					assertPending(t, done)
+					_ = r.acceptInteractive("dialogue", "finish", "", true)
+				}
+				if err := <-done; err != nil {
+					t.Fatal(err)
+				}
+				expected := "human"
+				if control == "stop" && success {
+					expected = "agent"
+				}
+				if result.EndedBy != expected {
+					t.Fatalf("result %+v", result)
+				}
+			})
+		}
 	}
-	_ = controller.acceptInteractive("dialogue", "finish", "", true)
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
+}
+func TestInteractiveSteeringAssignedOnce(t *testing.T) {
+	for _, landed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("landed=%v", landed), func(t *testing.T) {
+			adapter := &interactionAdapter{started: make(chan struct{}), release: make(chan struct{}), landed: landed}
+			r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+				_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+				return err
+			})
+			_ = r.acceptInteractive("dialogue", "opening", "Hello", false)
+			<-adapter.started
+			_ = r.acceptInteractive("dialogue", "second", "More", false)
+			eventuallyInteractive(t, func() bool {
+				r.interactionMu.Lock()
+				defer r.interactionMu.Unlock()
+				input := r.interactionInputs["second"]
+				return input.Disposition == "delivered" || (!landed && input.Disposition == "pending")
+			})
+			close(adapter.release)
+			messages := 3
+			if !landed {
+				messages = 4
+			}
+			eventuallyInteractive(t, func() bool { return waitingInteractive(r, messages) })
+			want := 1
+			if !landed {
+				want = 2
+			}
+			if adapter.count() != want {
+				t.Fatalf("calls %d want %d", adapter.count(), want)
+			}
+			_ = r.acceptInteractive("dialogue", "finish", "", true)
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
-func TestInteractiveUncertainSteerCannotClaimAgentEnd(t *testing.T) {
-	ctx := Project(context.Background(), t.TempDir())
-	id := string(runstore.NewRunID())
-	adapter := &activeInteractionAdapter{started: make(chan struct{}), release: make(chan struct{}), steerErr: fmt.Errorf("lost steering acknowledgment"), output: `{"decision":{"type":"end"}}`}
-	models := map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}
-	var controller *run
-	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() { controller = c.(*run); return func() {} })
-	var ended string
-	body := func(ctx context.Context) error {
-		transcript, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
-		ended = transcript.EndedBy
+// A real child process is killed while waiting. Its replacement executes the
+// unchanged body, reading command results/context and session positions from disk.
+func TestInteractiveRestartChild(t *testing.T) {
+	state := os.Getenv("GIMBAL_INTERACTIVE_RESTART_CHILD")
+	if state == "" {
+		t.Skip("restart child")
+	}
+	adapter := &interactionAdapter{}
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := Project(context.Background(), state)
+	ctx = live.WithHook(ctx, func(_ string, c live.Controller) func() {
+		go func() {
+			_ = http.Serve(listener, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				raw, _ := ioReadAll(r)
+				if err := c.SubmitInteractive("dialogue", string(raw)); err != nil {
+					http.Error(w, err.Error(), 503)
+					return
+				}
+				w.WriteHeader(204)
+			}))
+		}()
+		if err := os.WriteFile(filepath.Join(state, "endpoint"), []byte("http://"+listener.Addr().String()), 0600); err != nil {
+			panic(err)
+		}
+		return func() {}
+	})
+	err = Run(ctx, os.Getenv("GIMBAL_INTERACTIVE_RESTART_ID"), "restart", map[WorkflowRole]ModelBinding{RoleAgenticDialogues: {Adapter: adapter}}, func(ctx context.Context) error {
+		code, out, _, err := RunCommand(ctx, "once", state, "sh", "-c", "printf x >> executions; printf saved-result")
+		if err != nil {
+			return err
+		}
+		if code != 0 || out != "saved-result" {
+			return fmt.Errorf("saved command %d %q", code, out)
+		}
+		Set(ctx, "remember", out)
+		session := NewSession(ctx, RoleAgenticDialogues, "")
+		_, err = Interactive(ctx, "dialogue", session, "Context must contain saved-result.")
 		return err
-	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := controller.acceptInteractive("dialogue", "opening", "Hello", false); err != nil {
+	adapter.mu.Lock()
+	defer adapter.mu.Unlock()
+	if len(adapter.prompts) > 0 && !strings.Contains(adapter.prompts[len(adapter.prompts)-1], "saved-result") {
+		t.Fatal("scope context lost")
+	}
+}
+func ioReadAll(r *http.Request) ([]byte, error) {
+	var b bytes.Buffer
+	_, err := b.ReadFrom(r.Body)
+	return b.Bytes(), err
+}
+func TestInteractiveResultsContextAndSessionSurviveRestart(t *testing.T) {
+	state := t.TempDir()
+	id := string(runstore.NewRunID())
+	var child *exec.Cmd
+	var output bytes.Buffer
+	start := func() {
+		t.Helper()
+		output.Reset()
+		child = exec.Command(os.Args[0], "-test.run=^TestInteractiveRestartChild$")
+		child.Env = append(os.Environ(), "GIMBAL_INTERACTIVE_RESTART_CHILD="+state, "GIMBAL_INTERACTIVE_RESTART_ID="+id)
+		child.Stdout = &output
+		child.Stderr = &output
+		if err := child.Start(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Cleanup(func() {
+		if child != nil && child.ProcessState == nil {
+			_ = child.Process.Kill()
+			_ = child.Wait()
+		}
+	})
+	snapshot := func() (interactionState, bool) {
+		raw, err := os.ReadFile(filepath.Join(state, "runs", id, "run.jsonl"))
+		if err != nil {
+			return interactionState{}, false
+		}
+		var latest InteractiveChanged
+		for _, line := range bytes.Split(raw, []byte{'\n'}) {
+			var event LifecycleRecord
+			if json.Unmarshal(line, &event) == nil {
+				if changed, ok := event.Event.(InteractiveChanged); ok {
+					latest = changed
+				}
+			}
+		}
+		return interactionState{Waiting: latest.Waiting, Transcript: latest.Transcript}, latest.ID != ""
+	}
+	send := func(input, message string, finish bool) {
+		t.Helper()
+		eventuallyInteractive(t, func() bool {
+			endpoint, err := os.ReadFile(filepath.Join(state, "endpoint"))
+			if err != nil {
+				return false
+			}
+			raw, _ := json.Marshal(interactionInput{ID: input, Message: message, Finish: finish})
+			response, err := http.Post(string(endpoint), "application/json", bytes.NewReader(raw))
+			if err != nil {
+				return false
+			}
+			_ = response.Body.Close()
+			return response.StatusCode == 204
+		})
+	}
+	start()
+	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting })
+	send("one", "First", false)
+	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting && len(s.Transcript.Messages) == 2 })
+	if err := child.Process.Kill(); err != nil {
 		t.Fatal(err)
 	}
-	done := make(chan error, 1)
-	go func() { done <- Run(ctx, id, "test", models, body) }()
-	<-adapter.started
-	if err := controller.acceptInteractive("dialogue", "uncertain", "Please change course", false); err == nil {
-		t.Fatal("steering uncertainty hidden")
+	_ = child.Wait()
+	first := string(mustReadInteractive(t, filepath.Join(state, "runs", id, "run.jsonl")))
+	start()
+	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting && len(s.Transcript.Messages) == 2 })
+	send("two", "Second", false)
+	eventuallyInteractive(t, func() bool { s, ok := snapshot(); return ok && s.Waiting && len(s.Transcript.Messages) == 4 })
+	send("finish", "", true)
+	if err := child.Wait(); err != nil {
+		t.Fatalf("child %v: %s", err, output.String())
 	}
-	close(adapter.release)
+	raw := mustReadInteractive(t, filepath.Join(state, "executions"))
+	if string(raw) != "x" {
+		t.Fatalf("command redispatched %q", raw)
+	}
+	second := string(mustReadInteractive(t, filepath.Join(state, "runs", id, "run.jsonl")))
+	if !strings.HasPrefix(second, first) {
+		t.Fatal("restart replaced prior history")
+	}
+	if strings.Count(second, `"kind":"turn_started"`) != 2 {
+		t.Fatalf("turn history: %s", second)
+	}
+}
+func mustReadInteractive(t *testing.T, path string) []byte {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func TestInteractiveIdleConfigurationAndFinalDeregistration(t *testing.T) {
+	adapter := &interactionAdapter{}
+	r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+		_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+		return err
+	})
+	if err := r.acceptInput(interactionInput{Address: "dialogue", ID: "config", Configure: true, Model: "new-model", Effort: "low"}); err != nil {
+		t.Fatal(err)
+	}
+	eventuallyInteractive(t, func() bool {
+		r.interactionMu.Lock()
+		defer r.interactionMu.Unlock()
+		for _, state := range r.interactionStates {
+			for _, id := range state.Consumed {
+				if id == "config" {
+					return true
+				}
+			}
+		}
+		return false
+	})
+	_ = r.acceptInteractive("dialogue", "finish", "", true)
 	if err := <-done; err != nil {
 		t.Fatal(err)
 	}
-	if ended != "" || controller.State() != "waiting" || controller.Runnable() {
-		t.Fatalf("uncertain end=%q state=%s runnable=%v", ended, controller.State(), controller.Runnable())
+	r.interactionMu.Lock()
+	defer r.interactionMu.Unlock()
+	if len(r.activeInteractions) != 0 {
+		t.Fatal("terminal run retained interaction owner")
 	}
-	if err := controller.acceptInteractive("dialogue", "finish", "", true); err != nil {
-		t.Fatal(err)
-	}
-	if err := Run(ctx, id, "test", models, body); err != nil {
-		t.Fatal(err)
-	}
-	if ended != "human" || adapter.calls != 1 {
-		t.Fatalf("finish=%s calls=%d", ended, adapter.calls)
-	}
-	if controller.interactionInputs["uncertain"].Disposition != "uncertain" {
-		t.Fatal("unknown delivery relabeled as unprocessed")
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.scopes) != 0 {
+		t.Fatal("terminal run retained live scopes")
 	}
 }

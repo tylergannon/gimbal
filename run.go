@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
@@ -25,8 +24,6 @@ import (
 )
 
 type projectKey struct{}
-
-var dormantRuns sync.Map
 
 func runDir(ctx context.Context) string {
 	s, _ := ctx.Value(scopeKey{}).(*scope)
@@ -51,7 +48,6 @@ func RegisteredGraph(name string) (workflow.Graph, bool) {
 }
 
 type run struct {
-	suspended          atomic.Bool
 	interactionMu      sync.Mutex
 	interactionEnded   map[string]bool
 	interactionCursor  uint64
@@ -129,9 +125,9 @@ func (r *run) closeError() error {
 	return &CloseError{errs: append([]error(nil), r.closeErrs...)}
 }
 
-// Run starts or reconstructs one recorded workflow activation. At an explicit
-// durable wait it releases authored execution and returns nil while the run
-// remains unfinished. Re-enter with the same run ID to reconstruct its work.
+// Run executes one recorded workflow until its body completes. Interactive
+// waits keep Run pending. After process restart, re-enter the same body with
+// the same run ID to reuse saved results and continue unfinished work.
 // A TypeSafe key is required only when the workflow uses WithSupervisor.
 // models binds every role the workflow names to the harness, model, and reasoning
 // effort it runs on; a role the workflow names and models leaves out is a
@@ -157,27 +153,12 @@ func Run(ctx context.Context, runID string, name string, models map[WorkflowRole
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if v := recover(); v != nil {
-			if _, ok := v.(suspension); ok {
-				r.suspended.Store(true)
-				dormantRuns.Store(r.dir, r)
-				result = nil
-				return
-			}
-			panic(v)
-		}
-	}()
-	err = func() error {
-		defer func() {
-			if !r.suspended.Load() {
-				release()
-			}
-		}()
-		result := r.root(ctx, name, body)
-		r.suspended.Store(false)
-		return result
-	}()
+	defer release()
+	if completed, err := r.completedResult(); completed {
+		r.closeObservers()
+		return err
+	}
+	err = r.root(ctx, name, body)
 	// A panic that a Group child recovered comes back as the body's error
 	// and is raised again here, after the same terminal records a panic in
 	// the body itself gets: misuse anywhere means one thing, a complete
@@ -205,15 +186,6 @@ func beginRun(ctx context.Context, runID string, name string, models map[Workflo
 		return nil, nil, errors.New("gimbal: Run requires a valid ULID run ID")
 	}
 	dir := filepath.Join(project, "runs", id)
-	if previous, ok := dormantRuns.LoadAndDelete(dir); ok {
-		r := previous.(*run)
-		r.suspended.Store(false)
-		r.scopes = make(map[string]*scope)
-		if err := r.loadReplay(); err != nil {
-			return nil, nil, err
-		}
-		return r, func() {}, nil
-	}
 
 	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
 		return nil, nil, fmt.Errorf("gimbal: %w", err)
@@ -319,9 +291,6 @@ func (r *run) complete(ctx context.Context, name string, err error) error {
 func (r *run) root(ctx context.Context, name string, body func(ctx context.Context) error) error {
 	defer func() {
 		if v := recover(); v != nil {
-			if _, ok := v.(suspension); ok {
-				panic(v)
-			}
 			_ = r.finish(name, fmt.Errorf("gimbal: panic: %v", v))
 			panic(v)
 		}
@@ -600,9 +569,6 @@ func (r *run) State() string {
 	r.lifecycleMu.Unlock()
 	if closed {
 		return "terminal"
-	}
-	if r.suspended.Load() {
-		return "waiting"
 	}
 	return "active"
 }

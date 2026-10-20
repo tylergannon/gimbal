@@ -54,14 +54,12 @@ type interactionState struct {
 	Node           runstore.NodeID       `json:"node"`
 	Transcript     InteractiveTranscript `json:"transcript"`
 	Consumed       []string              `json:"consumed"`
-	Turns          int                   `json:"turns"`
-	Generations    int                   `json:"generations"`
 	Waiting        bool                  `json:"waiting"`
 }
 type interactionRuntime struct {
 	ctx     context.Context
 	session *Session
-	cancel  context.CancelCauseFunc
+	wake    chan struct{}
 }
 
 // Interactive waits for human input before each occurrence's first turn. A
@@ -87,236 +85,244 @@ func Interactive(ctx context.Context, name string, session *Session, purpose str
 	r.refreshInteractions()
 	if old, ok := r.interactionStates[node]; ok {
 		state = old
-		session.mu.Lock()
-		session.turns = max(session.turns, state.Turns)
-		session.generations = max(session.generations, state.Generations)
-		session.mu.Unlock()
 	}
-	r.interactionStates[node] = state
-	r.interactionMu.Unlock()
+	session.restoreInteraction(node, state.ActiveInput)
 	if state.Transcript.EndedBy != "" {
+		r.interactionMu.Unlock()
 		return state.Transcript, nil
 	}
+	if _, exists := r.activeInteractions[address]; exists {
+		r.interactionMu.Unlock()
+		return empty, fmt.Errorf("gimbal: simultaneous Interactive consumers at %q", address)
+	}
+	// Install the wakeup before inspecting the committed queue. Notifications
+	// can coalesce; committed input is always the authority.
+	active := interactionRuntime{ctx: context.WithoutCancel(ctx), session: session, wake: make(chan struct{}, 1)}
+	r.activeInteractions[address] = active
+	r.interactionStates[node] = state
+	r.interactionMu.Unlock()
+	defer func() {
+		r.interactionMu.Lock()
+		delete(r.activeInteractions, address)
+		r.interactionMu.Unlock()
+	}()
+	type turnResult struct {
+		output interactiveOutput
+		err    error
+	}
+	var result <-chan turnResult
+	var cancel context.CancelCauseFunc
+	defer func() {
+		if cancel != nil {
+			cancel(nil)
+		}
+	}()
 	for {
+		if err := context.Cause(ctx); err != nil {
+			return state.Transcript, err
+		}
 		r.interactionMu.Lock()
 		r.refreshInteractions()
 		inputs := r.pendingInput(state)
-		continuing := !state.Waiting && state.ActiveInput != ""
-		if continuing {
-			inputs = append([]interactionInput{r.interactionInputs[state.ActiveInput]}, inputs...)
-		}
-		if len(inputs) == 0 {
-			state.Waiting = true
-			err = r.commitInteraction(state)
-			r.interactionMu.Unlock()
-			if err != nil {
-				return state.Transcript, err
-			}
-			panic(suspension{})
-		}
-		input := inputs[0]
-		if input.Disposition == "uncertain" {
-			if !continuing {
-				for _, control := range inputs {
-					if control.Finish {
-						state.Consumed = append(state.Consumed, control.ID)
-						state.Unresolved, state.Transcript.EndedBy, state.Waiting = "", "human", false
-						err = r.commitInteraction(state)
-						r.interactionMu.Unlock()
-						return state.Transcript, err
-					}
+		if result == nil {
+			// Finish closes ingress at acceptance, including queued messages that
+			// were accepted before it. They must never start another native turn.
+			for _, input := range inputs {
+				if input.Finish {
+					state.Consumed = append(state.Consumed, input.ID)
+					state.Transcript.EndedBy, state.Waiting = "human", false
+					state.ActiveInput, state.Prompt = "", ""
+					err = r.commitInteraction(state)
+					r.interactionMu.Unlock()
+					return state.Transcript, err
 				}
 			}
-			state.Unresolved = fmt.Sprintf("Input %s delivery is unresolved", input.ID)
-			_ = r.commitInteraction(state)
-			r.interactionMu.Unlock()
-			panic(suspension{})
-		}
-		if input.Configure {
-			if session.native != "" {
-				if configurable, ok := session.adapter.(interface {
-					ConfigureSession(context.Context, string, string, string) error
-				}); ok {
-					err = configurable.ConfigureSession(ctx, session.native, input.Model, input.Effort)
-				} else {
-					err = errors.New("gimbal: executor cannot configure this session")
-				}
+			continuing := state.ActiveInput != ""
+			if continuing {
+				inputs = append([]interactionInput{r.interactionInputs[state.ActiveInput]}, inputs...)
 			}
-			if err == nil {
-				session.model, session.effort = input.Model, input.Effort
-				err = r.recordFact(session.node, s.node, session.node, "session-configuration", map[string]string{"model": input.Model, "effort": input.Effort}, runstore.Committed)
-			}
-			if err != nil {
+			if len(inputs) == 0 {
+				state.Waiting = true
+				err = r.commitInteraction(state)
 				r.interactionMu.Unlock()
-				return state.Transcript, err
-			}
-			state.Consumed = append(state.Consumed, input.ID)
-			state.Waiting = true
-			err = r.commitInteraction(state)
-			r.interactionMu.Unlock()
-			if err != nil {
-				return state.Transcript, err
-			}
-			continue
-		}
-		if input.Stop {
-			state.Consumed = append(state.Consumed, input.ID)
-			state.Waiting = true
-			err = r.commitInteraction(state)
-			r.interactionMu.Unlock()
-			if err != nil {
-				return state.Transcript, err
-			}
-			continue
-		}
-		if input.Finish {
-			state.Consumed = append(state.Consumed, input.ID)
-			state.Transcript.EndedBy = "human"
-			state.Waiting = false
-			err = r.commitInteraction(state)
-			r.interactionMu.Unlock()
-			return state.Transcript, err
-		}
-		if !continuing {
-			state.Consumed = append(state.Consumed, input.ID)
-			state.ActiveInput = input.ID
-			state.InputPublished = false
-			state.Prompt = ""
-		}
-		state.Waiting = false
-		if state.Prompt == "" {
-			promptTranscript := state.Transcript
-			promptTranscript.Messages = append(append([]InteractiveMessage(nil), state.Transcript.Messages...), InteractiveMessage{Role: "user", Message: input.Message})
-			raw, _ := json.Marshal(promptTranscript)
-			state.Prompt = purpose + "\n\nConversation:\n" + string(raw) + `
-
-Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision":{"type":"end"}} when finished.`
-			if text := scopeText(ctx); text != "" {
-				state.Prompt += "\n\n" + text
-			}
-		}
-		err = r.commitInteraction(state)
-		turnCtx, cancel := context.WithCancelCause(ctx)
-		r.activeInteractions[address] = interactionRuntime{ctx: context.WithoutCancel(ctx), session: session, cancel: cancel}
-		session.mu.Lock()
-		session.interactiveDelivery = func() error {
-			r.interactionMu.Lock()
-			defer r.interactionMu.Unlock()
-			if !state.InputPublished {
-				state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: input.Message})
-				state.InputPublished = true
-				return r.commitInteraction(state)
-			}
-			return nil
-		}
-		session.mu.Unlock()
-		r.interactionMu.Unlock()
-		if err != nil {
-			cancel(nil)
-			return state.Transcript, err
-		}
-		output, turnErr := dispatch[interactiveOutput](turnCtx, session, state.Prompt, nil)
-		cancel(nil)
-		session.mu.Lock()
-		delivered := session.generationDelivered
-		session.interactiveDelivery = nil
-		session.mu.Unlock()
-		r.interactionMu.Lock()
-		delete(r.activeInteractions, address)
-		r.refreshInteractions()
-		pending := r.pendingInput(state)
-		if !isUnresolved(turnErr) {
-			session.mu.Lock()
-			state.Turns = session.turns
-			state.Generations = session.generations
-			session.mu.Unlock()
-		}
-
-		if !state.InputPublished && (turnErr == nil || delivered) {
-			state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: input.Message})
-			state.InputPublished = true
-		}
-		if turnErr == nil {
-			state.ActiveInput = ""
-			state.Prompt = ""
-		}
-		finish := false
-		stop := false
-		for _, next := range pending {
-			if next.Stop {
-				state.Consumed = append(state.Consumed, next.ID)
-				stop = true
+				if err != nil {
+					return state.Transcript, err
+				}
+				select {
+				case <-ctx.Done():
+					return state.Transcript, context.Cause(ctx)
+				case <-active.wake:
+				}
 				continue
 			}
-			if next.Finish {
-				state.Consumed = append(state.Consumed, next.ID)
-				finish = true
-				break
+			input := inputs[0]
+			if input.Disposition == "uncertain" || input.Disposition == "inflight" {
+				state.Unresolved = fmt.Sprintf("Input %s delivery is unresolved; inspect the recorded native operation", input.ID)
+				_ = r.commitInteraction(state)
+				r.interactionMu.Unlock()
+				return state.Transcript, errors.New(state.Unresolved)
 			}
-			if next.Disposition == "delivered" {
-				state.Consumed = append(state.Consumed, next.ID)
-				state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: next.Message})
+			if input.Configure {
+				err = session.configure(ctx, input.Model, input.Effort)
+				if err == nil {
+					state.Consumed = append(state.Consumed, input.ID)
+					err = r.commitInteraction(state)
+				}
+				r.interactionMu.Unlock()
+				if err != nil {
+					return state.Transcript, err
+				}
+				continue
 			}
-		}
-		if finish && !isUnresolved(turnErr) {
-			state.Transcript.EndedBy = "human"
+			if input.Stop {
+				state.Consumed = append(state.Consumed, input.ID)
+				err = r.commitInteraction(state)
+				r.interactionMu.Unlock()
+				if err != nil {
+					return state.Transcript, err
+				}
+				continue
+			}
+			if !continuing {
+				state.Consumed = append(state.Consumed, input.ID)
+				state.ActiveInput, state.InputPublished = input.ID, false
+				state.Prompt = purpose + "\n\nHuman input:\n" + input.Message + `
+
+Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision":{"type":"end"}} when finished.`
+				if text := scopeText(ctx); text != "" {
+					state.Prompt += "\n\n" + text
+				}
+			}
 			state.Waiting = false
-			err = r.commitInteraction(state)
-			r.interactionMu.Unlock()
-			return state.Transcript, err
-		}
-		if stop && !isUnresolved(turnErr) {
-			state.Waiting = true
-			state.ActiveInput = ""
-			state.Prompt = ""
 			err = r.commitInteraction(state)
 			r.interactionMu.Unlock()
 			if err != nil {
 				return state.Transcript, err
 			}
+			turnCtx, stop := context.WithCancelCause(ctx)
+			cancel = stop
+			turnCtx = context.WithValue(turnCtx, interactionGenerationKey{}, interactionGeneration{Node: node, Input: input.ID})
+			done := make(chan turnResult, 1)
+			result = done
+			prompt := state.Prompt
+			go func() {
+				output, err := dispatch[interactiveOutput](turnCtx, session, prompt, nil)
+				done <- turnResult{output, err}
+			}()
 			continue
 		}
-		if turnErr != nil {
-			if isUnresolved(turnErr) {
-				state.Unresolved = turnErr.Error()
-				_ = r.commitInteraction(state)
-				r.interactionMu.Unlock()
-				panic(suspension{})
+		// Only this loop assigns accepted messages to a native turn. Admission
+		// never starts hidden turns or calls back from Session into interaction.
+		for _, input := range inputs {
+			if input.Finish || input.Stop {
+				cancel(errors.New("human requested interruption"))
+				continue
 			}
+			if input.Configure || input.Disposition != "pending" {
+				continue
+			}
+			input.Disposition = "inflight"
+			err = r.updateInput(input)
 			r.interactionMu.Unlock()
-			return state.Transcript, turnErr
+			if err != nil {
+				return state.Transcript, err
+			}
+			landed, deliveryErr := session.Steer(effects.WithInputID(active.ctx, input.ID), input.Message)
+			r.interactionMu.Lock()
+			input.Disposition = "pending"
+			if deliveryErr != nil {
+				input.Disposition = "uncertain"
+			} else if landed {
+				input.Disposition = "delivered"
+			}
+			if err = r.updateInput(input); err != nil {
+				r.interactionMu.Unlock()
+				return state.Transcript, err
+			}
 		}
-		session.mu.Lock()
-		state.Turns = session.turns
-		state.Generations = session.generations
-		session.mu.Unlock()
-		switch decision := output.Decision.(type) {
-		case chat:
-			state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "assistant", Message: decision.Message})
-			state.Waiting = true
-		case end:
-			for _, next := range pending {
-				if next.Disposition == "uncertain" {
-					state.Unresolved = fmt.Sprintf("Input %s delivery is unresolved", next.ID)
+		r.interactionMu.Unlock()
+		select {
+		case <-ctx.Done():
+			cancel(context.Cause(ctx))
+			<-result
+			return state.Transcript, context.Cause(ctx)
+		case <-active.wake:
+			continue
+		case completed := <-result:
+			cancel(nil)
+			result = nil
+			session.mu.Lock()
+			delivered := session.generationDelivered
+			session.mu.Unlock()
+			r.interactionMu.Lock()
+			r.refreshInteractions()
+			if !state.InputPublished && (completed.err == nil || delivered) {
+				input := r.interactionInputs[state.ActiveInput]
+				state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: input.Message})
+				state.InputPublished = true
+			}
+			finish, stop := false, false
+			for _, next := range r.pendingInput(state) {
+				if next.Finish {
+					finish = true
+					state.Consumed = append(state.Consumed, next.ID)
+					continue
+				}
+				if next.Stop {
+					stop = true
+					state.Consumed = append(state.Consumed, next.ID)
+					continue
+				}
+				if next.Disposition == "delivered" {
+					state.Consumed = append(state.Consumed, next.ID)
+					state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "user", Message: next.Message})
+				}
+				if next.Disposition == "uncertain" || next.Disposition == "inflight" {
+					state.Unresolved = fmt.Sprintf("Input %s delivery is unresolved; inspect the recorded native operation", next.ID)
 				}
 			}
-			state.Waiting = state.Unresolved != ""
-			if !state.Waiting {
-				state.Transcript.EndedBy = "agent"
+			if isUnresolved(completed.err) {
+				state.Unresolved = completed.err.Error()
 			}
-		default:
+			if state.Unresolved != "" {
+				_ = r.commitInteraction(state)
+				r.interactionMu.Unlock()
+				return state.Transcript, errors.New(state.Unresolved)
+			}
+			if completed.err == nil {
+				switch decision := completed.output.Decision.(type) {
+				case chat:
+					state.Transcript.Messages = append(state.Transcript.Messages, InteractiveMessage{Role: "assistant", Message: decision.Message})
+				case end:
+					state.Transcript.EndedBy = "agent"
+				default:
+					r.interactionMu.Unlock()
+					return state.Transcript, errors.New("gimbal: invalid interaction decision")
+				}
+			} else if !(finish || stop) || !errors.Is(completed.err, context.Canceled) {
+				r.interactionMu.Unlock()
+				return state.Transcript, completed.err
+			}
+			state.ActiveInput, state.Prompt = "", ""
+			state.Waiting = state.Transcript.EndedBy == ""
+			if finish {
+				state.Transcript.EndedBy, state.Waiting = "human", false
+			}
+			err = r.commitInteraction(state)
 			r.interactionMu.Unlock()
-			return state.Transcript, errors.New("gimbal: invalid interaction decision")
-		}
-		err = r.commitInteraction(state)
-		r.interactionMu.Unlock()
-		if err != nil || state.Transcript.EndedBy != "" {
-			return state.Transcript, err
-		}
-		if state.Unresolved != "" {
-			panic(suspension{})
+			if err != nil || state.Transcript.EndedBy != "" {
+				return state.Transcript, err
+			}
 		}
 	}
+}
+
+func (r *run) updateInput(input interactionInput) error {
+	if err := r.recordFact(r.rootNode, "", "", "interaction-input", input, runstore.Committed); err != nil {
+		return err
+	}
+	r.interactionInputs[input.ID] = input
+	return nil
 }
 
 // State changes and inbox entries use the same committed run journal. Its
@@ -440,9 +446,6 @@ func (r *run) acceptInputAtTurn(input interactionInput, expectedTurn string) err
 	address, id, message, finish := input.Address, input.ID, input.Message, input.Finish
 	r.interactionMu.Lock()
 	defer r.interactionMu.Unlock()
-	if r.State() == "terminal" {
-		return errors.New("gimbal: interaction owner has ended")
-	}
 	r.refreshInteractions()
 	if id == "" {
 		return errors.New("gimbal: interaction input requires an id")
@@ -452,6 +455,9 @@ func (r *run) acceptInputAtTurn(input interactionInput, expectedTurn string) err
 			return runstore.ErrConflict
 		}
 		return nil
+	}
+	if r.State() == "terminal" {
+		return errors.New("gimbal: interaction owner has ended")
 	}
 	if expectedTurn != "" {
 		active, ok := r.activeInteractions[address]
@@ -466,23 +472,9 @@ func (r *run) acceptInputAtTurn(input interactionInput, expectedTurn string) err
 		}
 	}
 	if input.Configure {
-		if _, active := r.activeInteractions[address]; active {
-			return errors.New("gimbal: wait for the active turn before changing model")
-		}
 		for _, state := range r.interactionStates {
 			if state.Address == address && state.Transcript.EndedBy == "" && (!state.Waiting || len(r.pendingInput(state)) > 0) {
 				return errors.New("gimbal: wait for pending input before changing model")
-			}
-		}
-	}
-	if finish || input.Stop {
-		for node, state := range r.interactionStates {
-			if state.Address == address && state.Unresolved != "" {
-				state.Unresolved = ""
-				r.interactionStates[node] = state
-				if err := r.commitInteraction(state); err != nil {
-					return err
-				}
 			}
 		}
 	}
@@ -493,59 +485,27 @@ func (r *run) acceptInputAtTurn(input interactionInput, expectedTurn string) err
 	if r.interactionEnded[""] || r.interactionEnded[owner] {
 		return errors.New("gimbal: interaction owner has ended")
 	}
-	input.Disposition = "pending"
-	if err := r.recordFact(r.rootNode, "", "", "interaction-input", input, runstore.Committed); err != nil {
-		return err
-	}
-	r.interactionInputs[id] = input
-	r.interactionOrder = append(r.interactionOrder, id)
-	for _, state := range r.interactionStates {
-		if state.Address == address && state.Transcript.EndedBy == "" {
-			if err := r.commitInteraction(state); err != nil {
-				return err
-			}
+	for _, accepted := range r.interactionInputs {
+		if accepted.Address == address && accepted.Finish {
+			return errors.New("gimbal: interaction ingress is closed")
 		}
 	}
 	active, ok := r.activeInteractions[address]
 	if !ok {
-		return nil
+		return errors.New("gimbal: interaction owner is starting or unavailable; retry input with the same ID")
 	}
-	if finish || input.Stop {
-		reason := "human finished interaction"
-		if input.Stop {
-			reason = "human stopped interaction turn"
-		}
-		active.cancel(errors.New(reason))
-		return nil
+	input.Disposition = "pending"
+	if err := r.updateInput(input); err != nil {
+		return err
 	}
-	r.interactionMu.Unlock()
-	landed, err := active.session.Steer(effects.WithInputID(active.ctx, input.ID), message)
-	r.interactionMu.Lock()
-	if err != nil {
-		input.Disposition = "uncertain"
-	} else if landed {
-		input.Disposition = "delivered"
+	r.interactionOrder = append(r.interactionOrder, id)
+	select {
+	case active.wake <- struct{}{}:
+	default:
 	}
-	if e := r.recordFact(r.rootNode, "", "", "interaction-input", input, runstore.Committed); e != nil {
-		return e
-	}
-	r.interactionInputs[id] = input
-	return err
+	return nil
 }
-func (r *run) Runnable() bool {
-	if r.rootCancellation() != nil {
-		return true
-	}
-	r.interactionMu.Lock()
-	defer r.interactionMu.Unlock()
-	r.refreshInteractions()
-	for _, state := range r.interactionStates {
-		if state.Transcript.EndedBy == "" && state.Unresolved == "" && len(r.pendingInput(state)) > 0 {
-			return true
-		}
-	}
-	return false
-}
+
 func isUnresolved(err error) bool {
 	var uncertain *backend.DeliveryUncertain
 	return errors.As(err, &uncertain)

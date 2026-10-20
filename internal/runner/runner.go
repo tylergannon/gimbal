@@ -88,7 +88,6 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		defer func() { _ = connection.Close() }()
 	}
 
-	var controller live.Controller
 	var server *http.Server
 	var lock *os.File
 	var socket string
@@ -104,7 +103,6 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		}
 	}()
 	ctx = live.WithHook(ctx, func(id string, c live.Controller) func() {
-		controller = c
 		dir := filepath.Join(state, "runs", id)
 		lock, err = os.OpenFile(filepath.Join(dir, "runner.lock"), os.O_CREATE|os.O_RDWR, 0600)
 		if err != nil {
@@ -172,26 +170,7 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 		}()
 		return gimbal.Run(gimbal.Project(ctx, state), request.RunID, request.Workflow, models, body)
 	}()
-	if err == nil {
-		if durable, ok := controller.(interface {
-			Runnable() bool
-			State() string
-		}); ok {
-			for durable.State() == "waiting" {
-				time.Sleep(100 * time.Millisecond)
-				if !durable.Runnable() {
-					continue
-				}
-				err = gimbal.Run(gimbal.Project(ctx, state), request.RunID, request.Workflow, models, body)
-				if err != nil {
-					break
-				}
-			}
-		}
-	}
-	if durable, ok := controller.(interface{ State() string }); ok && durable.State() == "terminal" {
-		_ = os.Remove(filepath.Join(dir, request.RunID+".json"))
-	}
+	_ = os.Remove(filepath.Join(dir, request.RunID+".json"))
 	return err
 }
 

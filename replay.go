@@ -9,10 +9,6 @@ import (
 	"github.com/tylergannon/gimbal/runstore"
 )
 
-// suspension crosses only library-owned recovery boundaries. It is neither a
-// workflow error nor normal completion, so scope teardown must not run.
-type suspension struct{}
-
 func (r *run) loadReplay() error {
 	r.replay = make(map[runstore.NodeID][]runstore.Record)
 	var cursor uint64
@@ -113,4 +109,34 @@ func (r *run) acceptedContext(ctx context.Context, node runstore.NodeID) (contex
 		return context.WithDeadline(ctx, intent.Input.Deadline)
 	}
 	return ctx, func() {}
+}
+
+func (r *run) scopeCompleted(node runstore.NodeID) bool {
+	for _, record := range r.replay[node] {
+		if record.Kind != "lifecycle" {
+			continue
+		}
+		var lifecycle LifecycleRecord
+		if json.Unmarshal(record.Payload, &lifecycle) == nil {
+			if _, ok := lifecycle.Event.(ScopeEnded); ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (r *run) completedResult() (bool, error) {
+	for _, record := range r.replay[r.rootNode] {
+		if record.Kind != "lifecycle" {
+			continue
+		}
+		var lifecycle LifecycleRecord
+		if json.Unmarshal(record.Payload, &lifecycle) == nil {
+			if ended, ok := lifecycle.Event.(RunEnded); ok {
+				return true, stringError(ended.Error)
+			}
+		}
+	}
+	return false, nil
 }

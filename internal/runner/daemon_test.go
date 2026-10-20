@@ -43,10 +43,17 @@ func TestWorkflowDaemonRestoresIndexAndDeduplicatesAdmission(t *testing.T) {
 	server := httptest.NewServer(second.Handler())
 	defer server.Close()
 	transport := backend.HTTP{Endpoint: server.URL}
-	if _, err := transport.ControlWorkflow(t.Context(), backend.Control{Run: id, Action: "interactive", Target: "conversation", Message: `{"id":"finish","finish":true}`}); err != nil {
-		t.Fatal(err)
-	}
 	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, err := transport.ControlWorkflow(t.Context(), backend.Control{Run: id, Action: "interactive", Target: "conversation", Message: `{"id":"finish","finish":true}`})
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	for {
 		status, err := transport.WorkflowStatus(t.Context(), backend.Target{Run: id})
 		if err != nil {

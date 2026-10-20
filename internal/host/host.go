@@ -169,7 +169,7 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 	conversations.WorkflowInput = func(id, address, request string) error {
 		controller, err := p.resolve(id)
 		if err != nil {
-			return runstate.SubmitInteractive(context.Background(), p.dir, id, address, request)
+			return fmt.Errorf("gimbal: interaction owner is starting or unavailable; retry input with the same ID: %w", err)
 		}
 		return controller.SubmitInteractive(address, request)
 	}
@@ -417,33 +417,7 @@ func (p *Project) Run(ctx context.Context, name string, models map[gimbal.Workfl
 	runCtx = live.WithRuns(runCtx, p.runs)
 	runCtx = live.WithHook(runCtx, p.runs.Hook)
 	id := string(runstore.NewRunID())
-	for {
-		err = gimbal.Run(gimbal.Project(runCtx, p.dir), id, name, models, body)
-		if err != nil {
-			break
-		}
-		controller, e := p.runs.InProgress(id)
-		if e != nil {
-			break
-		}
-		durable, ok := controller.(interface {
-			Runnable() bool
-			State() string
-		})
-		if !ok || durable.State() != "waiting" {
-			break
-		}
-		for !durable.Runnable() {
-			select {
-			case <-runCtx.Done():
-				_ = controller.CancelScope("", context.Cause(runCtx))
-			case <-time.After(100 * time.Millisecond):
-			}
-			if runCtx.Err() != nil {
-				break
-			}
-		}
-	}
+	err = gimbal.Run(gimbal.Project(runCtx, p.dir), id, name, models, body)
 
 	if err == nil && context.Cause(runCtx) != nil {
 		return context.Cause(runCtx)

@@ -185,10 +185,6 @@ func (s *scope) do(ctx context.Context, body func(context.Context) error) (err e
 	ctx = s.begin(ctx)
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			if _, ok := recovered.(suspension); ok {
-				s.run.suspended.Store(true)
-				panic(recovered)
-			}
 			_ = s.end()
 			panic(recovered)
 		}

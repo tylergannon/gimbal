@@ -30,6 +30,9 @@ func effectContext(ctx context.Context, s *scope, task string) context.Context {
 	})
 }
 func (s *scope) remoteCleanup() error {
+	if s.run.scopeCompleted(s.node) {
+		return nil
+	}
 	endpoint := effects.Endpoint(s.ctx)
 	if endpoint == "" {
 		return nil

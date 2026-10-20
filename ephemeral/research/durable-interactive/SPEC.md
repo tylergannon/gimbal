@@ -28,6 +28,17 @@ logically pending. `end` completes the interactive step and permits the
 workflow to continue. Conversation workflows remain interactive until the
 human archives them.
 
+Human archive requests successful completion. It signals the interaction to
+finish through its durable inbox. Handling this finish signal makes
+`Interactive` return normally, so subsequent workflow code runs and the
+conversation workflow can complete successfully through its ordinary return
+path. Archive does not merely mark an unfinished workflow successful.
+
+The finish signal is proposed within this change because it can share the
+durable interaction inbox. If implementing it requires a materially separate
+mechanism, return that scope decision to the human, who permits deferring it.
+Its handling during an active turn still requires alignment.
+
 Human messages enter a durable inbox addressed to the interaction regardless
 of whether execution is active, suspended, or restarting. An incoming message
 signals that the interaction can run again. Resume preserves run identity,
@@ -61,6 +72,6 @@ seams first, then define routed behavioral claims and exclusions. Run
 spec-review before this draft governs work.
 
 Contract decisions requiring alignment include replay-safe ordinary Go work,
-steering delivery races, archive's workflow outcome, the return contract
+steering delivery races, active-turn archive handling, the return contract
 of `Interactive`, and the unit of shared execution capacity. These are open
 authoring decisions, not implementation permission to choose silently.

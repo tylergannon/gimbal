@@ -20,3 +20,8 @@ resumed-work deduplication.
 
 decision: Human messages arriving during an active agent turn steer that turn
 (Tyler: "steer."). Durable inbox acceptance still precedes delivery.
+
+decision: Human archive is successful completion. Tyler prefers a signal that
+makes the workflow exit Interactive and actually finish normally, and permits
+deferring that signal if it is hard. Proposed finish input shares the required
+durable inbox; handling archive during an active turn remains open.

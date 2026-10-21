@@ -107,7 +107,7 @@ func routeAnalysis(args []string) ([]string, bool) {
 func isOrdinaryCLI(args []string) bool {
 	if len(args) > 0 {
 		switch args[0] {
-		case "agent-executor", "generate", "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact", "user":
+		case "agent-executor", "generate", "run-prompt", "run", "runs", "watch", "steer", "count-tokens", "audit-index", "opencode", "upload-artifact", "user", "secrets-server":
 			return true
 		}
 	}
@@ -177,6 +177,7 @@ Only provisioned users may sign in when authentication is selected. The optional
 	root.SetErr(stderr)
 	root.CompletionOptions.DisableDefaultCmd = true
 	server.bind(root.Flags())
+	root.AddCommand(newSecretsServerCommand())
 	root.AddCommand(newRunCommand(), &cobra.Command{
 		Use:                "run-prompt [flags] PROMPT",
 		Short:              "Run one prompt in a separate headless runtime and print the answer",

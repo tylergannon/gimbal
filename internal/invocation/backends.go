@@ -11,9 +11,22 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/backend/localorchestrator"
 	"github.com/tylergannon/gimbal/backend/secretfiles"
+	"github.com/tylergannon/gimbal/internal/secretshttp"
 )
 
 func registerResourceBackends(registry *gimbal.Registry) error {
+	if err := registry.RegisterSecrets(gimbal.SecretsDefinition{Name: "http", SharedAcrossProcesses: true, ValidateConfiguration: func(raw json.RawMessage) error {
+		_, err := secretshttp.ParseConfig(raw)
+		return err
+	}, Construct: func(_ context.Context, raw json.RawMessage) (backend.SecretsBackend, error) {
+		config, err := secretshttp.ParseConfig(raw)
+		if err != nil {
+			return nil, err
+		}
+		return secretshttp.Connect(config)
+	}}); err != nil {
+		return err
+	}
 	if err := registry.RegisterOrchestrator(gimbal.OrchestratorDefinition{Name: "local", RequiresSharedSecrets: true, ValidateConfiguration: func(raw json.RawMessage) error {
 		if err := localorchestrator.ValidateConfiguration(raw); err != nil {
 			return err

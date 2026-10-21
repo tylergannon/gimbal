@@ -1,0 +1,4 @@
+decision: Tyler deferred HTTPS to get the shared secrets backend working. Use bearer-authenticated HTTP, encrypted file storage with an age native X25519 identity, and the existing whole-store dependency semantics. HTTP is for a trusted network until transport encryption is added.
+decision: Keep the decryption identity on the secrets server. Workers receive a separately provisioned bearer credential through a local file; retained backend configuration contains its path, never the credential.
+decision: This first backend trusts authenticated execution hosts. Workflow requirements continue to be enforced by the executor; no per-value ACL or service-status coordination is being introduced.
+friction: The broad cmd/gimbal suite needs generated web assets; a fresh source worktree lacks skgo.manifest.json. Use the affected CLI tests for this backend-only change and report the broader suite limitation explicitly.

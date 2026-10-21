@@ -161,6 +161,8 @@ jobs:
           TAG: ${{ steps.version.outputs.tag }}
           RELEASE_SHA: ${{ steps.version.outputs.sha }}
           REPOSITORY: ${{ github.repository }}
+          # Recovery is explicit; the release commit's push only observes its candidate.
+          RETRY_FAILED_RELEASE: ${{ github.event_name == 'workflow_dispatch' || github.run_attempt > 1 }}
         run: go run ./internal/automation/dispatch-release "$TAG" "$RELEASE_SHA" "$REPOSITORY"
       - name: Report main-to-release elapsed time
         if: always() && steps.version.outputs.tag != ''

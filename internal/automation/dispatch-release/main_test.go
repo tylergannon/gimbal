@@ -14,13 +14,22 @@ func TestDispatch(t *testing.T) {
 		name, status, conclusion string
 		post                     bool
 		failure                  bool
+		retry                    bool
 	}{
-		{"active reused", "in_progress", "", false, false}, {"success reused", "completed", "success", false, false}, {"failed retried", "completed", "failure", true, false}, {"publication failure", "queued", "", false, true},
+		{"new candidate dispatched", "", "", true, false, false},
+		{"active reused", "in_progress", "", false, false, false},
+		{"success reused", "completed", "success", false, false, false},
+		{"failed candidate reported without redispatch", "completed", "failure", false, true, false},
+		{"cancelled candidate reported without redispatch", "completed", "cancelled", false, true, false},
+		{"failed explicitly retried", "completed", "failure", true, false, true},
+		{"active reused during manual recovery", "in_progress", "", false, false, true},
+		{"success reused during manual recovery", "completed", "success", false, false, true},
+		{"publication failure", "queued", "", false, true, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			calls := [][]string{}
 			listed := 0
-			d := dispatcher{now: time.Now, sleep: func(time.Duration) {}, gh: func(args ...string) ([]byte, error) {
+			d := dispatcher{now: time.Now, sleep: func(time.Duration) {}, retryFailed: test.retry, gh: func(args ...string) ([]byte, error) {
 				calls = append(calls, args)
 				if slices.Contains(args, "POST") {
 					if !slices.Contains(args, "ref=v0.13.4") || !slices.Contains(args, "inputs[tag]=v0.13.4") {
@@ -31,6 +40,9 @@ func TestDispatch(t *testing.T) {
 				r := releaseRun{ID: 12, SHA: "abc", Event: "workflow_dispatch", Status: test.status, Conclusion: test.conclusion, URL: "https://example.invalid/run"}
 				if strings.Contains(args[1], "/runs?") {
 					listed++
+					if test.status == "" && listed == 1 {
+						return []byte(`{"workflow_runs":[]}`), nil
+					}
 					if listed > 1 {
 						r.ID = 13
 						r.Status = "completed"
@@ -48,6 +60,11 @@ func TestDispatch(t *testing.T) {
 			err := d.wait("v0.13.4", "abc", "owner/repo", time.Minute)
 			if (err != nil) != test.failure {
 				t.Fatalf("error=%v", err)
+			}
+			if test.status == "completed" && test.conclusion != "success" && !test.retry {
+				if len(calls) != 1 || !strings.Contains(err.Error(), "https://example.invalid/run") || !strings.Contains(err.Error(), "inspect the failed job") {
+					t.Fatalf("failed candidate was not reported directly: calls=%v error=%v", calls, err)
+				}
 			}
 			posts := 0
 			for _, call := range calls {
@@ -68,7 +85,7 @@ func TestDispatchIgnoresOtherSourcesAndOldFailedRunAfterRetry(t *testing.T) {
 	now := time.Now()
 	posts := 0
 	lists := 0
-	d := dispatcher{now: func() time.Time { return now }, sleep: func(value time.Duration) { now = now.Add(value) }, gh: func(args ...string) ([]byte, error) {
+	d := dispatcher{now: func() time.Time { return now }, sleep: func(value time.Duration) { now = now.Add(value) }, retryFailed: true, gh: func(args ...string) ([]byte, error) {
 		if slices.Contains(args, "POST") {
 			posts++
 			return nil, nil

@@ -83,7 +83,10 @@ run for the slow stage. There is no separate timing workflow or issue scanner.
 
 For failed publication, rerun the failed tagged **Release** job, or dispatch
 **Automatic release** on main to reuse its existing tag. Inspect the failed stage
-before retrying; avoid repeating successful application checks. Read
+before retrying; avoid repeating successful application checks. Ordinary pushes,
+including the release commit, report an existing candidate's failure without
+dispatching another build. Only a manual dispatch or rerun of **Automatic release**
+requests another attempt. Read
 [distribution.md](references/distribution.md) for credentials, rules,
 manual minor tags, signing recovery, and plugin compatibility. Routine delivery
 needs no new credential or permission changes.

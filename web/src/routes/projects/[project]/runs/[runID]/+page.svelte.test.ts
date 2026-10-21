@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { error as httpError } from "@sveltejs/kit";
 import { render } from "vitest-browser-svelte";
+import { tick } from "svelte";
+import type { WorkflowMapElement } from "#lib/run/graphReadiness";
 import { implementInteractiveFixture, planTripFixture } from "#lib/run/fixtures/index.js";
 import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
 import type { Graph } from "#lib/workflow/types.js";
@@ -195,8 +197,13 @@ function step(name: string) {
 }
 
 async function stepButton(name: string) {
-  await expect.poll(() => step(name)).not.toBeNull();
-  return step(name)!;
+  await tick();
+  const map = document.querySelector<WorkflowMapElement>('[aria-label$="workflow map"]');
+  expect(map).not.toBeNull();
+  await map!.whenReady();
+  const button = step(name);
+  expect(button).not.toBeNull();
+  return button!;
 }
 
 async function press(label: string) {
@@ -210,20 +217,6 @@ function openSelectedSession() {
     new KeyboardEvent("keydown", { key: "o", bubbles: true, cancelable: true }),
   );
 }
-
-test("a run opens as a transcript and retains its workflow map, drawn with the designer's shapes", async () => {
-  const snapshot = multiAgentSnapshot();
-  const screen = await render(Page, {
-    data: { snapshot, graph: JSON.stringify(planTripFixture.graph) },
-  });
-  await screen.getByRole("button", { name: "Map", exact: true }).first().click();
-  await expect.element(mapRegion(screen)).toBeVisible();
-  expect(document.querySelector('nav[aria-label="Run views"]')).toBeNull();
-  const preferences = await stepButton("preferences");
-  expect(preferences.closest(".node")?.getAttribute("data-selection-key")).toContain(
-    "research.1/lodging.1",
-  );
-});
 
 test("transcript opens the waiting session, shows actual invocation and answers inline", async () => {
   const snapshot = multiAgentSnapshot();

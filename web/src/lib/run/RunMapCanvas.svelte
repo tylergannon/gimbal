@@ -11,6 +11,7 @@
   import type { MapSelection } from "./types.js";
   import { bindRun, selectionKeyOf, type WatcherMark } from "./runSource.js";
   import { selectedInstancesFor } from "./selection.js";
+  import { GraphReadiness, type WorkflowMapElement } from "./graphReadiness";
 
   let {
     source,
@@ -41,7 +42,7 @@
   let selectedInstances = $state<Record<string, string>>({});
   /** The viewer's own open/closed choices, over the run's default. */
   let toggled = $state<Record<string, boolean>>({});
-  let laid = $state.raw<{ nodes: WorkflowNode[]; edges: WorkflowEdge[] }>();
+  let laid = $state.raw<{ revision: number; nodes: WorkflowNode[]; edges: WorkflowEdge[] }>();
   let nodes = $state.raw<WorkflowNode[]>([]);
   let edges = $state.raw<WorkflowEdge[]>([]);
   let error = $state("");
@@ -88,18 +89,25 @@
   }
 
   let layoutRevision = 0;
+  const readiness = new GraphReadiness();
+  function graphAPI(element: HTMLDivElement) {
+    const map = element as WorkflowMapElement;
+    // Flush pending source/binding updates before capturing the current revision.
+    map.whenReady = async () => { await tick(); return readiness.whenReady(); };
+    return { destroy() { readiness.dispose(); delete (element as Partial<WorkflowMapElement>).whenReady; } };
+  }
   $effect(() => {
     const page = source;
     const expanded = new Set(expandedKey ? expandedKey.split("|") : []);
-    const current = ++layoutRevision;
+    const current = layoutRevision = readiness.begin();
     layoutWorkflow(page, expanded, measure)
       .then((result) => {
         if (current !== layoutRevision) return;
-        laid = result;
+        laid = { ...result, revision: current };
         error = "";
       })
       .catch((reason) => {
-        if (current === layoutRevision) error = String(reason);
+        if (current === layoutRevision) { error = String(reason); readiness.failed(current, reason); }
       });
   });
 
@@ -181,6 +189,8 @@
       });
     nodes = decorated;
     edges = laid.edges.map((e) => ({ ...e, data: { ...e.data!, headerMasks: masks } }));
+    const applied = laid.revision;
+    void tick().then(() => readiness.applied(applied, nodes.length, edges.length));
     untrack(() => void settleCamera());
   });
 
@@ -253,7 +263,7 @@
   });
 </script>
 
-<div class="run-map" role="region" aria-label={`${source.name} workflow map`} bind:this={canvas}>
+<div class="run-map" role="region" aria-label={`${source.name} workflow map`} bind:this={canvas} use:graphAPI>
   {#if error}<p role="alert" class="notice">{error}</p>{/if}
   {#if nodes.length}
     <SvelteFlow

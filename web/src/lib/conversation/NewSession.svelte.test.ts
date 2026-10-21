@@ -255,12 +255,21 @@ test("unborn repository explains why worktrees are unavailable", async () => {
 });
 
 test("environment selection preserves each checkout draft and does not submit a session", async () => {
+  remote.setup.harnesses.push({
+    id: "opencode",
+    default: "opencode/opencode/beam-free",
+    models: ["opencode/opencode/beam-free"],
+    efforts: [],
+  });
   const screen = await render(NewSession, {
     project: "project",
     name: "Project",
     oncreated: vi.fn(),
   });
   await screen.getByRole("textbox", { name: "First message" }).fill("Keep the same message");
+  await screen.getByRole("button", { name: "Harness and model" }).click();
+  await screen.getByRole("button", { name: "OpenCode", exact: true }).click();
+  await screen.getByRole("button", { name: "Harness and model" }).click();
   await screen.getByRole("button", { name: "Worktree", exact: true }).click();
   await screen.getByRole("textbox", { name: "New branch" }).fill("feature/local");
   await screen.getByRole("combobox", { name: "Base branch" }).selectOptions("release");
@@ -268,12 +277,18 @@ test("environment selection preserves each checkout draft and does not submit a 
   await screen.getByRole("button", { name: "Environment", exact: true }).click();
   await expect.element(screen.getByRole("button", { name: /\/offline\/project/ })).toBeDisabled();
   await screen.getByRole("button", { name: /\/srv\/project/ }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Harness and model" }))
+    .toHaveTextContent("O OpenCode · opencode/opencode/beam-free");
   await screen.getByRole("button", { name: "Worktree", exact: true }).click();
   await screen.getByRole("textbox", { name: "New branch" }).fill("feature/remote");
   await screen.getByRole("switch", { name: "Create a worktree" }).click();
   await screen.getByRole("button", { name: "Worktree", exact: true }).click();
   await screen.getByRole("button", { name: "Environment", exact: true }).click();
   await screen.getByRole("button", { name: /~\/project/ }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Harness and model" }))
+    .toHaveTextContent("O OpenCode · opencode/opencode/beam-free");
   await screen.getByRole("button", { name: "Worktree", exact: true }).click();
   await expect
     .element(screen.getByRole("textbox", { name: "New branch" }))
@@ -283,7 +298,15 @@ test("environment selection preserves each checkout draft and does not submit a 
     .toHaveValue("release");
   await screen.getByRole("button", { name: "Worktree", exact: true }).click();
   await screen.getByRole("button", { name: "Environment", exact: true }).click();
+  remote.setup.harnesses = remote.setup.harnesses.filter((harness) => harness.id !== "opencode");
   await screen.getByRole("button", { name: /\/srv\/project/ }).click();
+  await expect
+    .element(screen.getByRole("button", { name: "Harness and model" }))
+    .toHaveTextContent("O OpenCode · opencode/opencode/beam-free");
+  await expect.element(screen.getByRole("button", { name: "Start session" })).toBeDisabled();
+  await expect
+    .element(screen.getByText(/The selected harness is unavailable on Build box/))
+    .toBeVisible();
   await screen.getByRole("button", { name: "Worktree", exact: true }).click();
   await expect.element(screen.getByRole("switch", { name: "Create a worktree" })).not.toBeChecked();
   await expect

@@ -51,15 +51,16 @@
   {#if buildMismatch}<p class="build-warning">Build differs from this Mac ({localBuild}). Sessions are allowed; native workflow plugins may fail to load. Use matching Gimbal builds before running workflows here.</p>{/if}
   <ConnectionChecks progress={connection?.current} />
   {#if connection?.error}<p role="alert">Connection check updates were lost. <button class="action" onclick={() => connection?.reconnect()}>Reconnect updates</button></p>{/if}
-  <h3>Harnesses</h3>
-  <ul class="harnesses">{#each machine.harnesses as harness (harness.id)}<li><strong>{harness.id}</strong><span>{harness.state === 'ready' ? 'Ready' : harness.state === 'sign-in-required' ? 'Sign-in required' : harness.state === 'missing' ? 'Not installed' : 'Sign-in unverified'}</span>{#if harness.detail}<small>{harness.detail}</small>{/if}{#if harness.state !== 'ready'}<small>{harness.state === 'missing' ? `Install ${harness.id}` : `Verify ${harness.id} sign-in`} on this machine in Terminal.</small>{/if}</li>{:else}<li>Harness availability has not been observed.</li>{/each}</ul>
+  <div class="harness-heading"><h3>Harnesses</h3><button class="text-action" onclick={openTerminal}>{configuration?.ssh?.host || machine.id === 'local' ? 'Open in Terminal' : 'Terminal instructions'}</button></div>
+  <p class="inventory-note">This inventory does not check sign-in. A completed session establishes access for that request's model.</p>
+  <ul class="harnesses">{#each machine.harnesses as harness (harness.id)}<li><strong>{harness.id}</strong><span class={{ muted: harness.state === 'unknown', trouble: harness.state === 'missing' || harness.state === 'sign-in-required' }}>{harness.state === 'ready' ? 'Ready' : harness.state === 'sign-in-required' ? 'Sign-in required' : harness.state === 'missing' ? 'Not installed' : 'Sign-in not checked'}</span>{#if harness.detail && !(harness.state === 'unknown' && harness.detail === 'Sign-in has not been verified on this machine')}<small>{harness.detail}</small>{/if}{#if harness.state === 'missing' || harness.state === 'sign-in-required'}<small>{harness.state === 'missing' ? `Install ${harness.id}` : `Sign in to ${harness.id}`} on this machine using Terminal.</small>{/if}</li>{:else}<li>Harness availability has not been observed.</li>{/each}</ul>
   <h3>Environments</h3>
   <ul class="environments">{#each environments as row (`${row.environment.project}/${row.environment.id}`)}<li><code>{row.environment.directory}</code><small>{row.directory.git ? `Git · ${row.directory.branch}` : row.directory.unborn ? 'No commits yet' : row.observed ? 'Shared directory' : 'Not inspected'} · {row.live_sessions} sessions</small>{#each row.issues as issue}<small class="trouble">{issue.message}</small>{/each}{#if row.environment.machine !== 'local'}<button class="edit-environment" onclick={() => oneditenvironment(row.environment)}>Edit directory…</button>{/if}</li>{:else}<li>No project directories configured.</li>{/each}</ul>
   <button class="action" onclick={onadd}>Add environment…</button>
   <h3>Capabilities</h3><p>{machine.capabilities.steer ? 'Mid-turn steering' : 'Mid-turn messages queue; steering unavailable'} · {machine.capabilities.fork ? 'Fork supported' : 'Fork unavailable'} · {machine.capabilities.worktree ? 'Worktrees available in Git' : 'Shared checkout only'}</p>
   <h3>Sessions retained here</h3>
   <ul class="sessions">{#each sessions as item (`${item.project}/${item.conversation}`)}<li><a href={`/projects/${item.project}/conversations/${item.conversation}`} target="_blank" rel="noreferrer" onclick={event => openSession(event, `/projects/${item.project}/conversations/${item.conversation}`)}>{item.title || item.conversation}</a><small>{item.status}{item.pending ? ' · outcome or cleanup unconfirmed' : ' · open session'} · {item.directory}</small></li>{:else}<li>No open or uncertain sessions.</li>{/each}</ul>
-  <div class="actions"><button class="action" onclick={reconnect} disabled={pending}>{pending ? 'Working…' : 'Reconnect'}</button><button class="action" onclick={openTerminal}>{configuration?.ssh?.host || machine.id === 'local' ? 'Open in Terminal' : 'Terminal instructions'}</button>{#if machine.id !== 'local'}{#if configuration && configuration.kind !== 'route'}<button class="action" onclick={onedit}>Edit…</button>{/if}<button class="action" onclick={() => { confirm = true; selected = []; error = ''; }}>Remove…</button>{/if}</div>
+  <div class="actions"><button class="action" onclick={reconnect} disabled={pending}>{pending ? 'Working…' : 'Reconnect'}</button>{#if machine.id !== 'local'}{#if configuration && configuration.kind !== 'route'}<button class="action" onclick={onedit}>Edit…</button>{/if}<button class="action" onclick={() => { confirm = true; selected = []; error = ''; }}>Remove…</button>{/if}</div>
   {#if error && !confirm}<p role="alert" class="trouble">{error}</p>{/if}
 </section>
 
@@ -89,6 +90,10 @@
   li { display: grid; gap: 2px; }
   small { color: var(--muted-foreground); font-size: 11px; overflow-wrap: anywhere; }
   .harnesses li { grid-template-columns: 1fr 1.5fr; } .harnesses small { grid-column: 1 / -1; }
+  .harness-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .inventory-note { margin: 0 0 10px; }
+  .muted { color: var(--muted-foreground); }
+  .text-action { border: 0; padding: 0; background: none; color: inherit; font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
   code { overflow-wrap: anywhere; font-size: 12px; }
   .edit-environment { justify-self: start; border: 0; padding: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
   .actions { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 24px; }

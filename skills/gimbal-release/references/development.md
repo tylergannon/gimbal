@@ -55,6 +55,49 @@ server and leaves its lifetime externally owned. Real recording needs the native
 app so microphone/speech permissions are attributed correctly. The synthetic
 preset supplies deterministic speech for development.
 
+## Native test ownership and cleanup
+
+The tester owns the lifetime of each app it launches. Before launching, record
+the existing Gimbal app and bundled-server PIDs, parent PIDs, executable paths,
+catalog arguments, and canonical project paths. Reuse an existing test instance
+only when its path, catalog, source and ownership match the agreed test slot.
+`open -n` explicitly creates another instance; `just app-run` is a launcher, not
+a qualification workflow with automatic shutdown.
+
+Register cleanup before the first launch. Scripted or supervised tests need a
+`finally`/`EXIT`, `INT`, and `TERM` cleanup path, including failed assertions and
+interrupted work. Scope it to the exact app/server PIDs created by that test and
+recheck their executable and catalog ownership before acting. Never use
+`killall Gimbal`, a broad `pkill`, or terminate unrelated instances. For manual
+agent testing, make cleanup the final required step and the first action after
+resuming an interrupted test; use a bounded cleanup guard for unattended probes.
+
+On success, failure, or cancellation, use normal **Quit Gimbal / Command-Q** on
+the owned instance. Closing its window, closing a view, or reporting “GUI
+ownership released; app idle” does not stop it or its server. If actual unsaved
+work or a confirmation prevents quitting, preserve it and report the remaining
+PID, path, catalog and blocker. Keep stored catalogs, documents and history.
+Leave an app running only for an explicitly accepted handoff to a named next
+tester, who assumes cleanup ownership; report that transfer rather than declaring
+the test cleaned up. Honor an explicit user request to quit all instances,
+including the installed app, without deleting their data.
+
+After Quit, verify from read-only process inspection that the recorded app PID
+and its owned server exited, and compare against the pre-test inventory. Do not
+query the closed app through computer-use `getApp` or `getAXState` to verify
+shutdown: those calls can launch it again, without the disposable catalog
+override. Do not finish while an owned qualification instance remains running.
+Report the before/after PID and path inventory with any preserved instances.
+
+The project lock is separate from this cleanup responsibility. The host
+canonicalizes a project path with `Abs` and `EvalSymlinks`, then holds an exclusive
+nonblocking lock on that project's `.gimbal/owner.lock` while it owns the project.
+It prevents concurrent ownership of the same project, including path aliases;
+it is not a global single-app lock or a lock on the catalog directory. Distinct
+projects can therefore have separate native instances. A lock check must attempt
+the same canonical project from two owners, observe refusal while the first
+owns it and admission after it quits, then clean up both instances.
+
 Run checks for the changed contract: affected Go packages, frontend units or
 browser behavior, generated-output/freshness checks, or the actual native path.
 `just check-cli-release` is a separate real-executable gate using the already

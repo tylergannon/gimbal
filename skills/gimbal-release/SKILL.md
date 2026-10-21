@@ -47,6 +47,10 @@ summaries with optional disclosed detail, not bold bordered command cards that
 dominate the conversation. Evaluate that hierarchy in the complete viewport. Model markers and backend event
 checks supplement this; they do not qualify usability. When another tester owns
 the desktop, hand off the candidate before replacing or relaunching their app.
+Finish every native test by gracefully quitting its owned app and verifying that
+its app PID and bundled server have exited. Releasing the GUI or leaving an idle
+window is not cleanup. Follow the ownership, interruption, and shutdown procedure
+in [development.md](references/development.md#native-test-ownership-and-cleanup).
 
 Observe the actual app and macOS system menubar using a
 disposable catalog, never `~/.gimbal/desktop`. Upload requested screenshots with

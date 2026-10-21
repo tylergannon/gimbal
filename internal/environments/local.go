@@ -93,7 +93,10 @@ func localFactsFor(lookPath func(string) (string, error)) (string, []Harness) {
 func openCodeModels(executable string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, executable, "models").Output()
+	cmd := exec.CommandContext(ctx, executable, "models")
+	// A launcher may exit while a child still owns its output pipes.
+	cmd.WaitDelay = 100 * time.Millisecond
+	out, err := cmd.Output()
 	if err != nil {
 		return []string{}, errors.New("OpenCode model catalog unavailable; inspect opencode models on this machine")
 	}

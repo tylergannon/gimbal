@@ -198,6 +198,7 @@ func TestOpenCodeCatalogUsesOnlyInstalledReportedModels(t *testing.T) {
 		{"catalog", "printf 'opencode/beam-free\\nopenai/gpt-5-nano\\nopencode/beam-free\\n'", []string{"opencode/opencode/beam-free", "opencode/openai/gpt-5-nano"}, false},
 		{"empty", "exit 0", []string{}, false},
 		{"failure", "echo 'private CLI diagnostic' >&2; exit 1", []string{}, true},
+		{"inherited-pipe", "sleep 1 & exit 0", []string{}, true},
 		{"malformed", "printf 'not a model\\n'", []string{}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

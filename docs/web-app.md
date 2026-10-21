@@ -9,6 +9,14 @@ user stories by name, and what is deliberately not on the page.
 The app is the SvelteKit app in `web/`. Go answers its loads, remote
 functions and server routes; see `README.md` for how that works.
 
+The workflow map exposes `whenReady()` on its region element. It resolves with
+the current revision and node/edge counts after layout and DOM application;
+layout errors, superseded revisions and unmounting reject pending calls. Browser
+journeys await that contract before checking visible nodes and selection. The
+recorded-run journey uses one production server and one browser page to open the
+transcript, inspect the map, select a scope and return without a document reload.
+Readiness synchronization is separate from process, HTTP and layout timing.
+
 ## UI decisions
 
 Only what Tyler has decided. Add a row when a decision is made; do not

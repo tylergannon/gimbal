@@ -1,4 +1,4 @@
-import { type Page, type Route } from "@playwright/test";
+import { type Page, type Route, type ElementHandle } from "@playwright/test";
 import { createBdd, test as base } from "playwright-bdd";
 import { mkdirSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,8 @@ export type BrowserState = {
   runsRequestSeen?: Promise<void>;
   releaseRunsRequest?: () => void;
   pendingNavigation?: Promise<void>;
+  graphReady?: { revision: number; nodes: number; edges: number };
+  graphElement?: ElementHandle<HTMLElement | SVGElement>;
 };
 
 export const test = base.extend<{ browserState: BrowserState }>({
@@ -137,7 +139,7 @@ export function setRunsFixture(populated: boolean): void {
     turn_usage: [],
     model_calls: [],
     commands: [],
-    interviews: [],
+    interactions: [],
   };
   for (const [table, rows] of Object.entries(tables)) {
     writeFileSync(join(runDir, `${table}.json`), JSON.stringify(rows));

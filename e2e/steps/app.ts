@@ -1,4 +1,5 @@
 import { expect } from '@playwright/test';
+import type { WorkflowMapElement } from '../../web/src/lib/run/graphReadiness.js';
 import { createBdd } from 'playwright-bdd';
 import {
 	delayNextRunsData,
@@ -24,51 +25,74 @@ Given('I open the controlled project runs', async ({ page, browserState }) => {
 	await hydrated(page);
 	await page.locator('section.projects a').first().click();
 	await hydrated(page);
+	await page.getByRole('button', { name: /All runs/ }).click();
 	expect(browserState.documents).toBe(1);
 });
 
-Then('recorded runs show identity, status and time', async ({ page, browserState }) => {
-	await expect(page.getByRole('heading', { name: 'Runs', exact: true })).toBeVisible();
-	const cards = page.getByRole('region', { name: 'Recorded runs' }).getByRole('button', { name: /^Open / });
-	expect(await cards.count()).toBeGreaterThan(0);
-	const card = cards.first();
-	await expect(card.locator('.identity strong')).not.toHaveText('');
-	await expect(card.locator('.identity code')).not.toHaveText('');
-	await expect(card.locator('.status')).toContainText(/Running|Ended|Failed|Cancelled/);
-	await expect(card.locator('time')).toContainText(/^(\d+ s|\d+ (min|h) ago|[A-Z][a-z]{2} \d+)$/);
-	await expect(card.locator('.stats')).toContainText('Total cost');
-	await expect(card.locator('.stats')).toContainText('Elapsed');
-	await expect(card.locator('.instruction')).toContainText('Latest instruction');
-	expect(browserState.pageErrors).toEqual([]);
+Then('the recorded run shows its identity, failure and cost', async ({ page, browserState }) => {
+  const card = page.getByRole('button', { name: 'Open implement fixture-failed', exact: true });
+  await expect(card).toBeVisible();
+  await expect(card.locator('strong')).toHaveText('implement');
+  await expect(card.getByTitle('Failed', { exact: true })).toBeVisible();
+  await expect(card.getByTitle('Elapsed', { exact: true })).toHaveText('1m 00s');
+  await expect(card.getByTitle('Total cost', { exact: true })).toHaveText('$0.00');
+  expect(browserState.pageErrors).toEqual([]);
 });
 
-When('I filter runs by the first recorded status', async ({ page }) => {
-	const recorded = page.getByRole('region', { name: 'Recorded runs' });
-	const firstCard = recorded.getByRole('button', { name: /^Open / }).first();
-	const status = (await firstCard.locator('.status').innerText()).trim();
-	const filter = status === 'Running' ? 'Active' : status;
-	await recorded.getByRole('button', { name: new RegExp(`^${filter} ·`) }).click();
+When('I open the recorded fixture run', async ({ page }) => {
+  await page.getByRole('button', { name: 'Open implement fixture-failed', exact: true }).click();
+  await expect(page).toHaveURL(/\/runs\/fixture-failed$/);
 });
 
-Then('only runs with that status remain', async ({ page }) => {
-	const recorded = page.getByRole('region', { name: 'Recorded runs' });
-	const selected = recorded.getByRole('button', { pressed: true });
-	const filter = ((await selected.innerText()).split('·')[0] ?? '').trim();
-	const status = filter === 'Active' ? 'Running' : filter;
-	const cards = recorded.getByRole('button', { name: /^Open / });
-	expect(await cards.count()).toBeGreaterThan(0);
-	for (const card of await cards.all()) {
-		await expect(card.locator('.status')).toContainText(status);
-	}
+Then('the recorded transcript is visible', async ({ page, browserState }) => {
+  await expect(page.locator('.run-transcript')).toBeVisible();
+  await expect(page.locator('.run-transcript .ended')).toHaveText('This run has ended.');
+  expect(browserState.documents).toBe(1);
 });
 
-When('I open the first filtered run', async ({ page }) => {
-	const open = page
-		.getByRole('region', { name: 'Recorded runs' })
-		.locator('button[aria-label^="Open "]')
-		.first();
-	await open.click();
-	await expect(page).toHaveURL(/\/runs\/[^/]+$/);
+When('I open its workflow map and await the graph API', async ({ page, browserState }) => {
+  await page.getByRole('button', { name: 'Map', exact: true }).first().click();
+  const map = page.getByRole('region', { name: /workflow map/ });
+  browserState.graphReady = await map.evaluate(element => (element as WorkflowMapElement).whenReady());
+  browserState.graphElement = await map.elementHandle() ?? undefined;
+  expect(browserState.graphReady.nodes).toBeGreaterThan(0);
+});
+
+Then('the graph shows the recorded scope', async ({ page }) => {
+  const map = page.getByRole('region', { name: /workflow map/ });
+  await expect(map).toBeVisible();
+  const outcome = map.getByRole('button', { name: /^outcome,/ });
+  await expect(outcome).toBeVisible();
+  expect(await outcome.evaluate(element => element.closest('.node')?.getAttribute('data-selection-key'))).toContain('outcome.1');
+});
+
+When('I select that recorded scope', async ({ page }) => {
+  await page.getByRole('region', { name: /workflow map/ }).getByRole('button', { name: /^outcome,/ }).click();
+});
+
+Then('the detail pane describes that scope', async ({ page }) => {
+  const detail = page.locator('aside.detail');
+  await expect(detail.getByRole('heading', { name: 'outcome.1', exact: true })).toBeVisible();
+  await expect(detail.locator('.placement')).toHaveText('outcome.1');
+});
+
+When('I return to the transcript and reopen the map', async ({ page }) => {
+  await page.getByRole('button', { name: '← Transcript', exact: true }).click();
+  await expect(page.locator('.run-transcript')).toBeVisible();
+  await page.getByRole('button', { name: 'Map', exact: true }).first().click();
+  await page.getByRole('region', { name: /workflow map/ }).evaluate(element => (element as WorkflowMapElement).whenReady());
+});
+
+Then('the same graph and selection are retained without a document reload', async ({ page, browserState }) => {
+  const map = page.getByRole('region', { name: /workflow map/ });
+  expect(await map.evaluate((element, previous) => element === previous, browserState.graphElement!)).toBe(true);
+  const ready = await map.evaluate(element => (element as WorkflowMapElement).whenReady());
+  expect(ready).toEqual(browserState.graphReady);
+  await expect(map.getByRole('button', { name: /^outcome,/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('aside.detail .placement')).toHaveText('outcome.1');
+  expect(browserState.documents).toBe(1);
+  expect(page.context().pages()).toHaveLength(1);
+  expect(browserState.pageErrors).toEqual([]);
 });
 
 When('I follow the About link', async ({ page }) => {
@@ -89,31 +113,6 @@ When('I load the About route directly', async ({ page }) => {
 Then('About is visible in a new document', async ({ page, browserState }) => {
 	await expect(page.getByTestId('title')).toHaveText('About Gimbal');
 	expect(browserState.documents).toBe(2);
-	expect(browserState.pageErrors).toEqual([]);
-});
-
-Then('the run workspace shows its identity and observation', async ({ page, browserState }) => {
-	await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Runs' })).toBeVisible();
-	const map = page.locator('[aria-label$="workflow map"]');
-	await expect(map).toBeVisible();
-	await expect(page.getByRole('region', { name: 'Recorded run history' })).toHaveCount(0);
-	expect(browserState.pageErrors).toEqual([]);
-});
-
-When('I select recorded work in the workspace', async ({ page }) => {
-	const mapSelection = page
-		.locator(
-			'[aria-label$="workflow map"] button[aria-label^="Select "]:not([aria-label$=" instance"])'
-		)
-		.first();
-	await mapSelection.click();
-});
-
-Then('the detail pane describes that selected work', async ({ page, browserState }) => {
-	const detail = page.locator('aside.detail');
-	await expect(detail.getByRole('heading')).toBeVisible();
-	await expect(detail.locator('.empty-selection')).toHaveCount(0);
-	await expect(detail.locator('.placement')).toBeVisible();
 	expect(browserState.pageErrors).toEqual([]);
 });
 

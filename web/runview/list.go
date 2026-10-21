@@ -4,6 +4,7 @@ package runview
 import (
 	"context"
 	"fmt"
+	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/host"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/skgo"
@@ -18,6 +19,7 @@ import (
 // state model at the load boundary.
 type RunItem struct {
 	Run          observation.RunRow `json:"run"`
+	SessionTitle string             `json:"session_title"`
 	Summary      string             `json:"summary"`
 	Elapsed      string             `json:"elapsed"`
 	ActivityAt   int64              `json:"activity_at"`
@@ -54,6 +56,16 @@ func List(ctx context.Context) (RunsData, error) {
 		return RunsData{}, err
 	}
 	data := RunsData{Items: []RunItem{}, Attention: []observation.InteractiveRow{}, Now: now}
+	// Only the session's own backing run takes its title. Workflows launched
+	// from that session keep their workflow identity, even when names match.
+	titles := map[string]string{}
+	if manager := conversation.FromContext(ctx); manager != nil {
+		for _, session := range manager.List() {
+			if session.WorkflowRun != "" {
+				titles[session.WorkflowRun] = session.Title
+			}
+		}
+	}
 	for _, id := range ids {
 		reader := fresh
 		if _, live := registry.Live(id); live {
@@ -67,6 +79,7 @@ func List(ctx context.Context) (RunsData, error) {
 		data.Attention = append(data.Attention, pending...)
 		data.Items = append(data.Items, RunItem{
 			Run:          snapshot.Run,
+			SessionTitle: titles[id],
 			Summary:      summarizeRun(snapshot, pending),
 			Elapsed:      formatElapsed(snapshot.Run, now),
 			ActivityAt:   latestActivity(snapshot),

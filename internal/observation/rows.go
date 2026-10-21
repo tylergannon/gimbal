@@ -224,4 +224,6 @@ type CancellationState struct {
 type InteractiveMessage struct {
 	Role    string `json:"role"`
 	Message string `json:"message"`
+	// HTML is server-rendered from Message, never trusted from a log.
+	HTML polytype.Optional[string] `json:"html,omitzero"`
 }

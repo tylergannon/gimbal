@@ -140,7 +140,7 @@
 
 <header class="topbar">
   <nav aria-label="Breadcrumb" class="breadcrumb">
-	<a href={`/projects/${project}`}>Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
+	<a href={`/projects/${project}/runs`}>Runs</a><span aria-hidden="true">›</span><strong>{run.name}</strong
     ><span class="run-separator" aria-hidden="true">›</span><code>{run.id.split(".")[0]?.slice(-8) || run.id}</code
     >{#if sessionName}<span aria-hidden="true">›</span><strong>{sessionName}</strong>{/if}
   </nav>

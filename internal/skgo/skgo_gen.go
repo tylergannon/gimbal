@@ -5941,20 +5941,22 @@ func encRunItem(v pkg_runview.RunItem, at string) (any, error) {
 		return nil, err
 	}
 	enc1.Set("run", enc2)
-	var enc3 any = string(v.Summary)
-	enc1.Set("summary", enc3)
-	var enc4 any = string(v.Elapsed)
-	enc1.Set("elapsed", enc4)
-	var enc5 any = float64(v.ActivityAt)
-	enc1.Set("activity_at", enc5)
-	var enc6 any = string(v.Cost)
-	enc1.Set("cost", enc6)
-	var enc7 any = float64(v.SessionCount)
-	enc1.Set("session_count", enc7)
-	var enc8 any = float64(v.TurnCount)
-	enc1.Set("turn_count", enc8)
-	var enc9 any = string(v.Instruction)
-	enc1.Set("instruction", enc9)
+	var enc3 any = string(v.SessionTitle)
+	enc1.Set("session_title", enc3)
+	var enc4 any = string(v.Summary)
+	enc1.Set("summary", enc4)
+	var enc5 any = string(v.Elapsed)
+	enc1.Set("elapsed", enc5)
+	var enc6 any = float64(v.ActivityAt)
+	enc1.Set("activity_at", enc6)
+	var enc7 any = string(v.Cost)
+	enc1.Set("cost", enc7)
+	var enc8 any = float64(v.SessionCount)
+	enc1.Set("session_count", enc8)
+	var enc9 any = float64(v.TurnCount)
+	enc1.Set("turn_count", enc9)
+	var enc10 any = string(v.Instruction)
+	enc1.Set("instruction", enc10)
 	return enc1, nil
 }
 
@@ -5965,7 +5967,7 @@ func decRunItem(raw any, at string) (pkg_runview.RunItem, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "run", "summary", "elapsed", "activity_at", "cost", "session_count", "turn_count", "instruction"); err != nil {
+	if err := dvKnown(obj2, at, "run", "session_title", "summary", "elapsed", "activity_at", "cost", "session_count", "turn_count", "instruction"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "run", at+"/run")
@@ -5977,72 +5979,81 @@ func decRunItem(raw any, at string) (pkg_runview.RunItem, error) {
 		return dvZero, err
 	}
 	dec1.Run = dec4
-	raw5, err := dvRequired(obj2, "summary", at+"/summary")
+	raw5, err := dvRequired(obj2, "session_title", at+"/session_title")
 	if err != nil {
 		return dvZero, err
 	}
-	dec6, err := dvString(raw5, at+"/summary")
+	dec6, err := dvString(raw5, at+"/session_title")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Summary = dec6
-	raw7, err := dvRequired(obj2, "elapsed", at+"/elapsed")
+	dec1.SessionTitle = dec6
+	raw7, err := dvRequired(obj2, "summary", at+"/summary")
 	if err != nil {
 		return dvZero, err
 	}
-	dec8, err := dvString(raw7, at+"/elapsed")
+	dec8, err := dvString(raw7, at+"/summary")
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Elapsed = dec8
-	raw9, err := dvRequired(obj2, "activity_at", at+"/activity_at")
+	dec1.Summary = dec8
+	raw9, err := dvRequired(obj2, "elapsed", at+"/elapsed")
 	if err != nil {
 		return dvZero, err
 	}
-	num11, err := dvInteger(raw9, at+"/activity_at", math.MinInt64, math.MaxInt64)
+	dec10, err := dvString(raw9, at+"/elapsed")
 	if err != nil {
 		return dvZero, err
 	}
-	dec10 := int64(num11)
-	dec1.ActivityAt = dec10
-	raw12, err := dvRequired(obj2, "cost", at+"/cost")
+	dec1.Elapsed = dec10
+	raw11, err := dvRequired(obj2, "activity_at", at+"/activity_at")
 	if err != nil {
 		return dvZero, err
 	}
-	dec13, err := dvString(raw12, at+"/cost")
+	num13, err := dvInteger(raw11, at+"/activity_at", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Cost = dec13
-	raw14, err := dvRequired(obj2, "session_count", at+"/session_count")
+	dec12 := int64(num13)
+	dec1.ActivityAt = dec12
+	raw14, err := dvRequired(obj2, "cost", at+"/cost")
 	if err != nil {
 		return dvZero, err
 	}
-	num16, err := dvInteger(raw14, at+"/session_count", math.MinInt, math.MaxInt)
+	dec15, err := dvString(raw14, at+"/cost")
 	if err != nil {
 		return dvZero, err
 	}
-	dec15 := int(num16)
-	dec1.SessionCount = dec15
-	raw17, err := dvRequired(obj2, "turn_count", at+"/turn_count")
+	dec1.Cost = dec15
+	raw16, err := dvRequired(obj2, "session_count", at+"/session_count")
 	if err != nil {
 		return dvZero, err
 	}
-	num19, err := dvInteger(raw17, at+"/turn_count", math.MinInt, math.MaxInt)
+	num18, err := dvInteger(raw16, at+"/session_count", math.MinInt, math.MaxInt)
 	if err != nil {
 		return dvZero, err
 	}
-	dec18 := int(num19)
-	dec1.TurnCount = dec18
-	raw20, err := dvRequired(obj2, "instruction", at+"/instruction")
+	dec17 := int(num18)
+	dec1.SessionCount = dec17
+	raw19, err := dvRequired(obj2, "turn_count", at+"/turn_count")
 	if err != nil {
 		return dvZero, err
 	}
-	dec21, err := dvString(raw20, at+"/instruction")
+	num21, err := dvInteger(raw19, at+"/turn_count", math.MinInt, math.MaxInt)
 	if err != nil {
 		return dvZero, err
 	}
-	dec1.Instruction = dec21
+	dec20 := int(num21)
+	dec1.TurnCount = dec20
+	raw22, err := dvRequired(obj2, "instruction", at+"/instruction")
+	if err != nil {
+		return dvZero, err
+	}
+	dec23, err := dvString(raw22, at+"/instruction")
+	if err != nil {
+		return dvZero, err
+	}
+	dec1.Instruction = dec23
 	return dec1, nil
 }
 
@@ -6568,6 +6579,10 @@ func encInteractiveMessage(v pkg_observation.InteractiveMessage, at string) (any
 	enc1.Set("role", enc2)
 	var enc3 any = string(v.Message)
 	enc1.Set("message", enc3)
+	if v.HTML.Present {
+		var enc4 any = string(v.HTML.Value)
+		enc1.Set("html", enc4)
+	}
 	return enc1, nil
 }
 
@@ -6578,7 +6593,7 @@ func decInteractiveMessage(raw any, at string) (pkg_observation.InteractiveMessa
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "role", "message"); err != nil {
+	if err := dvKnown(obj2, at, "role", "message", "html"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "role", at+"/role")
@@ -6599,6 +6614,18 @@ func decInteractiveMessage(raw any, at string) (pkg_observation.InteractiveMessa
 		return dvZero, err
 	}
 	dec1.Message = dec6
+	raw7, ok8, err := dvPresent(obj2, "html", at+"/html")
+	if err != nil {
+		return dvZero, err
+	}
+	if ok8 {
+		dec1.HTML.Present = true
+		dec9, err := dvString(raw7, at+"/html")
+		if err != nil {
+			return dvZero, err
+		}
+		dec1.HTML.Value = dec9
+	}
 	return dec1, nil
 }
 

@@ -1,8 +1,51 @@
 import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import "../../app.css";
-import RunsList from "./RunsList.svelte";
+import RunsList, { type RunCardItem } from "./RunsList.svelte";
 import { runsListFixture } from "./fixtures/index.js";
+
+test("session titles and run IDs distinguish history and remain searchable after rename", async () => {
+  const items: RunCardItem[] = structuredClone(runsListFixture.items.slice(0, 3));
+  for (const item of items) item.run.name = "conversation";
+  items[0].session_title = "Pi macOS startup notes";
+  items[1].session_title = "Project orientation";
+  const opened: string[] = [];
+  const screen = await render(RunsList, {
+    items,
+    attention: [],
+    onopenrun: (run) => opened.push(run.id),
+  });
+  const first = screen.getByRole("button", {
+    name: `Open Pi macOS startup notes ${items[0].run.id}`,
+  });
+  await expect.element(first).toBeVisible();
+  await expect.element(first).toMatchTextContent(items[0].run.id.split(".")[0].slice(-6));
+  await first.click();
+  expect(opened).toEqual([items[0].run.id]);
+  await screen.getByRole("button", { name: "Search runs", exact: true }).click();
+  await screen.getByRole("searchbox").fill("pi MACOS startup notes");
+  await expect.element(first).toBeVisible();
+  expect(document.querySelectorAll(".open-run")).toHaveLength(1);
+  items[0].session_title = "Revised startup notes";
+  await screen.rerender({ items, attention: [], onopenrun: (run) => opened.push(run.id) });
+  await expect
+    .element(screen.getByRole("status"))
+    .toHaveTextContent("No runs match this filter or search.");
+  await screen.getByRole("searchbox").fill("Revised startup notes");
+  await expect
+    .element(screen.getByRole("button", { name: `Open Revised startup notes ${items[0].run.id}` }))
+    .toBeVisible();
+  await screen.getByRole("searchbox").fill(items[2].run.id);
+  await expect
+    .element(screen.getByRole("button", { name: `Open conversation ${items[2].run.id}` }))
+    .toBeVisible();
+  await screen.getByRole("searchbox").fill("no matching title");
+  await expect.element(screen.getByRole("status")).toBeVisible();
+  await screen.getByRole("searchbox").fill("conversation");
+  expect(document.querySelectorAll(".open-run")).toHaveLength(3);
+  await screen.rerender({ items: [], attention: [] });
+  await expect.element(screen.getByRole("status")).toBeVisible();
+});
 const navigation = vi.hoisted(() => ({ after: undefined as undefined | (() => void) }));
 vi.mock("$app/navigation", () => ({
   goto: vi.fn(async () => {}),

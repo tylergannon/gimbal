@@ -5,6 +5,7 @@
  */
 export type RunItem = {
   run: RunRow;
+  session_title: string;
   summary: string;
   elapsed: string;
   activity_at: number;
@@ -72,4 +73,8 @@ export type InteractiveRow = {
 export type InteractiveMessage = {
   role: string;
   message: string;
+  /**
+   * HTML is server-rendered from Message, never trusted from a log.
+   */
+  html?: string;
 };

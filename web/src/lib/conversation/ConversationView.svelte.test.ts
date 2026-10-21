@@ -1,4 +1,5 @@
 import { expect, test, vi } from "vite-plus/test";
+import { userEvent } from "vitest/browser";
 import { render } from "vitest-browser-svelte";
 import type { Conversation } from "#lib/skgo/conversation/types";
 import ConversationView from "./ConversationView.svelte";
@@ -264,4 +265,63 @@ test("distinct conversation and request errors are each shown", async () => {
   await expect.element(screen.getByText("turn failed: second cause")).toBeVisible();
   expect(visible("run ended: first cause")).toBe(1);
   expect(visible("turn failed: second cause")).toBe(1);
+});
+
+test("Find keeps controls visible, reports results, and advances repeated searches", async () => {
+  const current = {
+    ...record("find"),
+    messages: Array.from({ length: 30 }, (_, i) => ({
+      role: i % 2 ? "assistant" : "user",
+      text: i === 3 || i === 25 ? `Needle passage ${i}` : `Other passage ${i}\n`.repeat(8),
+    })),
+  } as Conversation;
+  const screen = await render(ConversationView, { project: "project", current });
+  screen.container.style.height = "700px";
+  const transcript = screen.container.querySelector<HTMLElement>(".transcript")!;
+  const button = screen.getByRole("button", { name: "Find in session", exact: true });
+  await button.click();
+  const input = screen.getByRole("textbox", { name: "Find in session", exact: true });
+  await expect.element(input).toHaveFocus();
+  await input.fill("needle");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(screen.getByText("1 of 2 matching passages")).toBeVisible();
+  expect(transcript.querySelector("[data-find-match]")?.textContent).toBe("Needle passage 3");
+  const firstScroll = transcript.scrollTop;
+  const controlsTop = input.element().getBoundingClientRect().top;
+  await userEvent.keyboard("{Enter}");
+  await expect.element(screen.getByText("2 of 2 matching passages")).toBeVisible();
+  expect(transcript.scrollTop).toBeGreaterThan(firstScroll);
+  expect(input.element().getBoundingClientRect().top).toBe(controlsTop);
+  await expect.element(input).toBeVisible();
+  await userEvent.keyboard("{Enter}");
+  await expect.element(screen.getByText("1 of 2 matching passages")).toBeVisible();
+  await input.fill("missing-symbol");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(screen.getByText("No results", { exact: true })).toBeVisible();
+  expect(transcript.querySelector("[data-find-match]")).toBeNull();
+  await input.fill("passage 25");
+  await userEvent.keyboard("{Enter}");
+  await expect.element(screen.getByText("1 of 1 matching passages")).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(input).not.toBeInTheDocument();
+  await expect.element(button).toHaveFocus();
+  expect(transcript.querySelector("[data-find-match]")).toBeNull();
+});
+
+test("Escape closes Find before Stop and preserves the composer draft", async () => {
+  remote.stop.mockClear();
+  const current = { ...record("find-stop"), active_request: "working", status: "working" };
+  const screen = await render(ConversationView, { project: "project", current });
+  const draft = screen.getByRole("textbox", { name: "Message Chat find-stop" });
+  await draft.fill("Unsent followup");
+  const button = screen.getByRole("button", { name: "Find in session", exact: true });
+  await button.click();
+  await draft.click();
+  await userEvent.keyboard("{Escape}");
+  await expect
+    .element(screen.getByRole("textbox", { name: "Find in session", exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(button).toHaveFocus();
+  await expect.element(draft).toHaveValue("Unsent followup");
+  expect(remote.stop).not.toHaveBeenCalled();
 });

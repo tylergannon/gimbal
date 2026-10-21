@@ -7,12 +7,14 @@ import (
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 	"github.com/yuin/goldmark/util"
 )
 
 func renderProjectFileMarkdown(source []byte) (string, error) {
-	document := goldmark.DefaultParser().Parse(text.NewReader(source))
+	markdown := goldmark.New(goldmark.WithParserOptions(parser.WithAutoHeadingID()))
+	document := markdown.Parser().Parse(text.NewReader(source))
 	var unavailable []*ast.Link
 	_ = ast.Walk(document, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if link, ok := node.(*ast.Link); ok && entering {
@@ -36,7 +38,7 @@ func renderProjectFileMarkdown(source []byte) (string, error) {
 		parent.RemoveChild(parent, link)
 	}
 	var html bytes.Buffer
-	if err := goldmark.DefaultRenderer().Render(&html, source, document); err != nil {
+	if err := markdown.Renderer().Render(&html, source, document); err != nil {
 		return "", err
 	}
 	return html.String(), nil

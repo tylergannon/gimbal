@@ -54,3 +54,20 @@ func TestProjectFileOtherMarkdownKeepsExistingRenderingPolicy(t *testing.T) {
 		})
 	}
 }
+
+func TestProjectFileFragmentLinksHaveHeadingTargets(t *testing.T) {
+	source := []byte("[Jump to distribution instructions](#distribution-instructions)\n\n## Distribution instructions\n\nLocal target.\n\n## Distribution instructions\n")
+	html, err := renderProjectFileMarkdown(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, expected := range []string{
+		`href="#distribution-instructions"`,
+		`<h2 id="distribution-instructions">Distribution instructions</h2>`,
+		`<h2 id="distribution-instructions-1">Distribution instructions</h2>`,
+	} {
+		if !strings.Contains(html, expected) {
+			t.Fatalf("fragment navigation requires a stable heading target %q: %s", expected, html)
+		}
+	}
+}

@@ -16,7 +16,7 @@ func TestScope(t *testing.T) {
 		{"docs", []string{"AGENTS.md", "CHANGELOG.md", "skills/gimbal-release/SKILL.md"}, selection{Kind: "documentation", Packages: []string{}}},
 		{"automation", []string{"scripts/pre-commit.mts", ".github/workflows/release.yml", "Justfile"}, selection{Kind: "automation", Release: true, Packages: []string{}}},
 		{"runtime prompt", []string{"internal/builtin/prompt.md"}, selection{Kind: "application", Release: true, Packages: []string{}}},
-		{"Go and web", []string{"engine.go", "internal/envfile/file.go", "web/src/routes/+page.svelte"}, selection{Kind: "application", Release: true, Packages: []string{"./.", "./internal/envfile"}, Web: true}},
+		{"shared Go runtime and web", []string{"engine.go", "internal/envfile/file.go", "web/src/routes/+page.svelte"}, selection{Kind: "application", Release: true, Packages: []string{"./..."}, Web: true}},
 		{"route Go", []string{"web/src/routes/projects/[project]/page.server.go", "web/src/routes/projects/[project]/runs/[runID]/page.server.go"}, selection{Kind: "application", Release: true, Packages: []string{"./internal/skgo/...", "./web/..."}, Web: true}},
 		{"analyzer fixtures", []string{"internal/gimballint/testdata/src/setchecks/setchecks.go", "internal/gimballint/testdata/src/stub/go.mod"}, selection{Kind: "application", Release: true, Packages: []string{"./internal/gimballint"}}},
 		{"dependencies", []string{"go.mod"}, selection{Kind: "application", Release: true, Packages: []string{"./..."}}},

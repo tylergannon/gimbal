@@ -29,8 +29,9 @@ independent of Go and Node. `just check-hooks` exercises both paths; the launche
 rejects unsupported Node versions for source changes rather than skipping checks.
 
 PR CI selects checks from changed files: instruction/link checks for docs,
-script/hook checks for automation, and affected unit tests for application
-changes. Main has one complete application gate before distribution. Do not
+script/hook checks for automation, and release lint plus affected unit tests for
+application changes. Root Go changes check all Go consumers together, including
+the host. Main has one complete application gate before distribution. Do not
 repeat an unchanged check merely because a commit was made, a PR merged, or a
 tag appeared. Existing evidence must name its source and cover the claim; a new
 failure or changed input calls for the relevant check again.

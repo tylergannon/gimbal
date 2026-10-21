@@ -17,6 +17,14 @@ type projector struct {
 	emit      func(gimbal.AgentEvent) error
 	steps     map[string]*projectedStep
 	parts     map[string]*projectedPart
+	roles     map[string]string
+	pending   map[string][]pendingProjection
+}
+
+type pendingProjection struct {
+	eventType  string
+	eventID    string
+	properties json.RawMessage
 }
 
 type projectedStep struct {
@@ -41,6 +49,7 @@ func newProjector(sessionID, provider, model string, emit func(gimbal.AgentEvent
 	return &projector{
 		sessionID: sessionID, provider: provider, model: model, emit: emit,
 		steps: make(map[string]*projectedStep), parts: make(map[string]*projectedPart),
+		roles: make(map[string]string), pending: make(map[string][]pendingProjection),
 	}
 }
 
@@ -56,13 +65,41 @@ func (p *projector) event(eventType, eventID string, payload json.RawMessage) er
 	switch eventType {
 	case "message.updated":
 		return p.messageUpdated(eventID, event.Properties)
-	case "message.part.updated":
-		return p.partUpdated(eventID, event.Properties)
-	case "message.part.delta":
-		return p.partDelta(eventID, event.Properties)
+	case "message.part.updated", "message.part.delta":
 	default:
 		return nil
 	}
+	var identity struct {
+		MessageID string `json:"messageID"`
+		Part      struct {
+			MessageID string `json:"messageID"`
+		} `json:"part"`
+	}
+	if err := json.Unmarshal(event.Properties, &identity); err != nil {
+		return err
+	}
+	messageID := identity.MessageID
+	if eventType == "message.part.updated" {
+		messageID = identity.Part.MessageID
+	}
+	if messageID == "" {
+		return nil
+	}
+	if p.roles[messageID] == "" {
+		p.pending[messageID] = append(p.pending[messageID], pendingProjection{eventType, eventID, event.Properties})
+		return nil
+	}
+	if p.roles[messageID] != "assistant" {
+		return nil
+	}
+	return p.projectEvent(eventType, eventID, event.Properties)
+}
+
+func (p *projector) projectEvent(eventType, eventID string, properties json.RawMessage) error {
+	if eventType == "message.part.updated" {
+		return p.partUpdated(eventID, properties)
+	}
+	return p.partDelta(eventID, properties)
 }
 
 func (p *projector) messageUpdated(eventID string, properties json.RawMessage) error {
@@ -76,10 +113,27 @@ func (p *projector) messageUpdated(eventID string, properties json.RawMessage) e
 		ID   string `json:"id"`
 		Role string `json:"role"`
 	}
-	if err := json.Unmarshal(update.Info, &info); err != nil || info.Role != "assistant" {
+	if err := json.Unmarshal(update.Info, &info); err != nil {
 		return err
 	}
-	return p.ensureStep(info.ID, eventID)
+	if info.ID == "" || info.Role == "" {
+		return nil
+	}
+	p.roles[info.ID] = info.Role
+	pending := p.pending[info.ID]
+	delete(p.pending, info.ID)
+	if info.Role != "assistant" {
+		return nil
+	}
+	if err := p.ensureStep(info.ID, eventID); err != nil {
+		return err
+	}
+	for _, event := range pending {
+		if err := p.projectEvent(event.eventType, event.eventID, event.properties); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p *projector) partUpdated(eventID string, properties json.RawMessage) error {
@@ -135,7 +189,7 @@ func (p *projector) projectPart(eventID string, raw json.RawMessage) error {
 	if err := json.Unmarshal(raw, &part); err != nil {
 		return err
 	}
-	if part.MessageID == "" {
+	if part.MessageID == "" || p.roles[part.MessageID] != "assistant" {
 		return nil
 	}
 	switch part.Type {

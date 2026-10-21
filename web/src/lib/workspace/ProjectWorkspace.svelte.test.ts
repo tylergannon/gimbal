@@ -40,13 +40,17 @@ function form() {
   let message = "";
   let notify = () => {};
   let element: HTMLTextAreaElement | null = null;
+  let formElement: HTMLFormElement | null = null;
   const subscribe = createSubscriber((update) => { notify = update; });
   const fields = Object.fromEntries(["project", "conversation", "id", "created", "message", "path", "file"].map(name => [name, {
     as: (type: string, value?: unknown) => name === "message"
       ? { name, get value() { subscribe(); return message; } }
       : { name, type, ...(value === undefined ? {} : { value }) },
     value: () => { subscribe(); return message; },
-    set: (value: string) => { message = value; if (element) element.value = value; notify(); },
+    set: (value: string | number) => {
+      if (name === "message") { message = String(value); if (element) element.value = message; notify(); }
+      else { const input = formElement?.elements.namedItem(name); if (input instanceof HTMLInputElement) input.value = String(value); }
+    },
   }]));
   return {
     pending: 0, fields: { ...fields, allIssues: () => [] },
@@ -56,7 +60,8 @@ function form() {
       onsubmit: async (event: SubmitEvent) => {
         event.preventDefault();
         const target = event.currentTarget as HTMLFormElement;
-        await handler({ element: target, submit: () => ({ updates: () => state.send(new FormData(target)) }) });
+        formElement = target;
+        await handler({ element: target, fields, submit: () => ({ updates: () => state.send(new FormData(target)) }) });
       },
     }),
   };

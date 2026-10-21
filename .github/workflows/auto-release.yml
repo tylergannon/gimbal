@@ -17,7 +17,7 @@ concurrency:
 jobs:
   check:
     name: Check release source
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, Linux, X64, bob-gimbal]
     outputs:
       release: ${{ steps.scope.outputs.release }}
     steps:
@@ -37,6 +37,7 @@ jobs:
         with:
           go-version-file: go.mod
           check-latest: true
+          cache: false
       - name: Ensure release automation runs without Python
         run: |
           blocked="$RUNNER_TEMP/gimbal-no-python"
@@ -74,7 +75,7 @@ jobs:
           working-directory: web
           node-version: '24'
           run-install: false
-          cache: ${{ github.event_name == 'pull_request' && (steps.scope.outputs.web == 'true' || steps.prerequisites.outputs.web_assets == 'true') }}
+          cache: false
       - uses: golangci/golangci-lint-action@v9.3.0
         if: steps.scope.outputs.release == 'true'
         with:
@@ -90,11 +91,6 @@ jobs:
           vp install --frozen-lockfile
           vp build
           test -s build/skgo.manifest.json
-      - name: Install workflow runtime shell for affected Go tests
-        if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes zsh
       - name: Check affected Go packages on PRs
         if: github.event_name == 'pull_request' && steps.scope.outputs.go_packages != '[]'
         run: go run ./internal/automation/ci-scope --run-go

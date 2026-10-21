@@ -1,0 +1,2 @@
+decision: Source checks use the existing bob-gimbal runner pool, matching release qualification. Persistent Go and frontend caches belong to the host; Actions cache archives are disabled. The runner image already provides zsh.
+friction: Lightpanda's CDP connection is distinct from the Playwright protocol used by Vitest's built-in connectOptions. Replacing the browser also changes layout behavior; preserve existing assertions while deciding whether to split DOM-only tests from rendering tests.

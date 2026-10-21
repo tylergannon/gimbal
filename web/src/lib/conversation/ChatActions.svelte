@@ -30,7 +30,7 @@
   }
 </script>
 
-{#if current.placement && current.placement.machine.id !== 'local' && (current.live || current.cleanup_pending)}
+{#if current.live || current.cleanup_pending}
   <button type="button" onclick={() => confirmEnd = true}>{current.cleanup_pending ? 'Retry cleanup…' : 'End session…'}</button>
 {/if}
 {#if renaming}<RenameChat {project} conversation={current} onclose={() => renaming = false} onsaved={onchanged} />{/if}

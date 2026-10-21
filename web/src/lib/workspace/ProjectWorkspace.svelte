@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { archiveConversation } from "../../routes/conversation.remote";
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { APP_NAME } from "#lib/app";
   import { errorMessage } from "#lib/errors";
@@ -77,6 +76,8 @@
   const active = $derived(page.status >= 400 ? undefined : open.find(tab => tab.id === page.url.pathname)?.id ?? (page.url.pathname === `${root}/conversations` ? open[0]?.id : undefined));
   const seen = new SvelteMap<string, string>(untrack(() => seenReplies.map(item => [item.path, item.request] as const)));
   const dismissedRuns = new SvelteSet<string>();
+  // Closing a panel releases its UI, while unsent messages belong to the session.
+  const drafts = new SvelteMap<string, string>();
   const conversationVersion = (item: Conversation) => `${item.updated}:${item.revision}:${item.status}:${completedReply(item)}`;
   const items = $derived<WorkspaceTab[]>([
     ...conversations.map(item => ({ id: `${root}/conversations/${item.id}`, title: item.title,
@@ -190,15 +191,7 @@
       if (!navigateOnUnauthorized(error)) actionError = `Could not open this view: ${errorMessage(error)}`;
     }
   }
-  async function close(path: string) {
-    if (path.startsWith(`${root}/conversations/`) && path !== `${root}/conversations/new`) {
-      const id = path.slice(`${root}/conversations/`.length);
-      const item = conversations.find(item => item.id === id);
-      if (!item || (item.live && !["completed", "error", "failed", "cancelled", "canceled"].includes(item.status))) {
-        try { await archiveConversation({ project, conversation: id, id: crypto.randomUUID() }); }
-        catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); return; }
-      }
-    }
+  function close(path: string) {
     if (path.startsWith(`${root}/runs/`)) dismissedRuns.add(path);
     const index = open.findIndex(tab => tab.id === path);
     open = open.filter(tab => tab.id !== path);
@@ -305,7 +298,7 @@
       {#if tab.id === `${root}/conversations/new`}<NewSession bind:this={composer} {project} {name} {fileContext} oncontextremoved={() => fileContext = undefined} active={active === tab.id} oncreated={created} />
       {:else if tab.id.startsWith(`${root}/conversations/`)}
         {@const current = conversations.find(item => `${root}/conversations/${item.id}` === tab.id)}
-        {#if current}<ConversationView {project} {current} {runStatuses} onchanged={workspaceChanged} active={active === tab.id} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
+        {#if current}<ConversationView {project} {current} {runStatuses} onchanged={workspaceChanged} active={active === tab.id} savedDraft={drafts.get(current.id)} ondraft={message => { if (message) drafts.set(current.id, message); else drafts.delete(current.id); }} />{:else}<p class="notice">Conversation unavailable.</p>{/if}
       {:else if tab.id.startsWith(`${root}/files/`)}<FileViewer {project} id={tab.id.split('/').at(-1)!} active={active === tab.id} ondiscuss={discuss} onmove={() => moveFile(tab.id)} />
       {:else if tab.id.startsWith(`${root}/workflows/`)}<WorkflowGuide name={decodeURIComponent(tab.id.split("/").at(-1)!)} />
       {:else if tab.id === allRuns}<ProjectRuns {project} active={active === tab.id} onopenguide={guide} data={runData} error={runQuery?.error} onretry={() => runQuery?.reconnect()} onopen={select} />

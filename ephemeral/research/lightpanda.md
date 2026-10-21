@@ -1,15 +1,29 @@
 # Lightpanda and Gimbal's browser tests
 
-Researched 2026-10-21. Scope: Lightpanda 1.0.1, Playwright 1.64.0,
-Vitest 5.0.1, and Gimbal's current Svelte component-test harness.
+Researched 2026-10-21. Scope: official Lightpanda 1.0.1 and
+1.1.0-nightly.10865+dba88f2d3, Playwright 1.64.0, Vitest 5.0.1,
+and Gimbal's Svelte component-test harness.
 
 ## What we learned
 
-Lightpanda can run Gimbal Svelte components through Playwright and Vitest.
-The first failed attempt omitted iframe loading, which Vitest needs. That
-failure did not establish that the integration was unsupported. The remaining
-question is compatibility with the interactions our tests exercise, rather
-than whether an SVG has exactly the expected pixel dimensions.
+**Keep Chromium and run source checks on Bob.** Official Lightpanda did not
+qualify as a replacement for this suite. Basic component execution and several
+interactions work, but ordinary functional tests exposed browser compatibility
+gaps beyond fixed SVG dimensions.
+
+An experimental custom Lightpanda build eventually passed all 140 browser
+tests after native browser patches, a custom Vitest harness, and test changes.
+That result does **not** establish compatibility of an official Lightpanda
+release. Building and maintaining a modified browser was outside the intended
+scope. Tyler rejected that approach; [PR #652](https://github.com/tylergannon/gimbal/pull/652)
+was closed and its CI compilation run was cancelled. None of that integration,
+browser patching, or test changes was merged. The source-check job remains on
+Bob with Chromium.
+
+The unchanged main-branch frontend was then checked inside Bob's
+`gimbal-actions-runner-1` container: the normal Playwright Chromium installation
+succeeded, and `vp run test` passed all 228 tests in 48 files in 12.96 seconds.
+The original Chromium download failure was not reproduced on Bob.
 
 ## Browser model
 
@@ -93,25 +107,46 @@ plain HTML form also submitted successfully at the top level but failed at the
 button click when the same form was inside an iframe. This gives a smaller
 reproduction independent of Svelte and the fixed-size assertions.
 
-Module-mocking tests also encountered a browser disconnect while resolving a
-manual mock. That failure's cause has not been isolated. Neither disconnects
-nor pointer timeouts should be described as a universal lack of DOM or form
-support.
+Module-mocking tests encountered a deadlock: Lightpanda's synchronous V8 module
+linking defers JavaScript/WebSocket callbacks while waiting for a module fetch,
+but Vitest's lazy mock interception needs a browser WebSocket round trip to
+discover exports. The experimental harness changed mock-resolution timing to
+work around that dependency. Neither this nor pointer timeouts establishes a
+universal lack of DOM or form support.
 
 The initial macOS attempt and the follow-up on Bob used the same released
 Lightpanda version. Bob's check ran on its Arch Linux x86_64 host with Node
 24.22.1, outside the registered Actions runner containers. It does not qualify
-the complete suite or a CI deployment. No browser tests or application code were
-changed as part of this research.
+the complete suite or a CI deployment. No application component was changed.
+Experimental test and harness edits remained on the closed migration branch.
 
-## Questions still open
+## Follow-up compatibility findings
 
-- Which existing interaction tests run unchanged with the CDP provider?
-- Does a current nightly address the observed hit testing, or is an upstream
-  issue needed? Only the released 1.0.1 binary has been evaluated.
-- What is the smallest maintained provider/lifecycle integration for Gimbal?
-- Which styling assertions should be removed on their own merits? This should
-  not become a second rendering suite merely to preserve fixed pixel values.
+Nightly includes [PR #4016](https://github.com/lightpanda-io/browser/pull/4016),
+which routes native mouse input into iframe documents. With explicit iframe
+dimensions, the minimal iframe form and cancellation disclosure work. This is
+an improvement over released 1.0.1, but it does not resolve every interaction.
 
-The research supports further Lightpanda integration work. It does not yet
-establish either complete suite compatibility or that Lightpanda is unusable.
+Follow-up also examined upstream source at `9c97385c277a29138ccd69f66e3ed4bbd03a869e`
+before modifying the affected browser behaviors. Observed gaps included:
+
+- CDP scrolling scrolls the target's document but can leave it clipped by an
+  ancestor iframe. Document extent also omits iframe bounds in the relevant
+  case. Inline answer submission exposed this with an ordinary locator click.
+- At viewport width 1000, `matchMedia('(width < 1100px)').matches` is false,
+  while `(max-width: 1099px)` is true. Gimbal's responsive sidebar uses the
+  range form, so this changes functional dismissal behavior.
+- CDP frame metadata omits iframe names, breaking Vitest keyboard commands
+  that look up `vitest-iframe` by name.
+- Pointer-capture methods are absent. Clicking the splitter before testing
+  its keyboard controls raises `setPointerCapture`/`hasPointerCapture` errors.
+
+The attempted browser patches addressed ancestor scrolling, iframe extent,
+and media-query ranges. They required Lightpanda's Zig toolchain and its Rust
+dependencies. Compiling those during CI was the wrong deployment approach and
+maintaining those patches was the wrong scope for this migration. Installing
+an official binary alone would not supply those missing behaviors.
+
+Reconsider the replacement when an official build handles these functional
+cases. This conclusion concerns the tested Gimbal suite and versions above;
+it is not a claim that Lightpanda cannot serve other automation workloads.

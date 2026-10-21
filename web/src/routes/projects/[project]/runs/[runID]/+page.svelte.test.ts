@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test, vi } from "vite-plus/test";
 import { error as httpError } from "@sveltejs/kit";
 import { render } from "vitest-browser-svelte";
+import { page as browserPage } from "vite-plus/test/browser";
 import { implementInteractiveFixture, planTripFixture } from "#lib/run/fixtures/index.js";
 import type { ObservationDelta, RunSnapshot } from "#lib/observation/index.js";
 import type { Graph } from "#lib/workflow/types.js";
@@ -195,8 +196,14 @@ function step(name: string) {
 }
 
 async function stepButton(name: string) {
-  await expect.poll(() => step(name)).not.toBeNull();
-  return step(name)!;
+  // The first map loads ELK and lays out the graph asynchronously. A browser
+  // locator waits within the test's deadline instead of expect.poll's 1s cap.
+  const button = browserPage
+    .getByRole("region", { name: /workflow map/ })
+    .getByRole("button", { name: new RegExp(`^${name},`) })
+    .first();
+  await expect.element(button).toBeInTheDocument();
+  return button.element() as HTMLButtonElement;
 }
 
 async function press(label: string) {

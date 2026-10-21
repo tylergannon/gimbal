@@ -338,7 +338,7 @@ test("unavailable harnesses stay visible with their machine-specific reason", as
     .toBeDisabled();
 });
 
-test("last session and Start like restore environment and checkout setup", async () => {
+test("last session restores setup and the environment picker changes it", async () => {
   remote.recent = [
     {
       id: "last",
@@ -372,7 +372,8 @@ test("last session and Start like restore environment and checkout setup", async
     shared_checkout: false,
     base: "main",
   } as Conversation);
-  screen.component.applySetup(remote.recent[1]);
+  await screen.getByRole("button", { name: "Environment", exact: true }).click();
+  await screen.getByRole("button", { name: /~\/project.*Git/ }).click();
   await expect
     .element(screen.getByRole("button", { name: "Environment" }))
     .toHaveTextContent("This Mac · ~/project");

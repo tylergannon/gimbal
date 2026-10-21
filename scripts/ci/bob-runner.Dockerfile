@@ -1,6 +1,6 @@
 FROM ghcr.io/actions/actions-runner:2.337.0
 USER root
-RUN apt-get update && apt-get install --yes zsh build-essential pkg-config \
+RUN apt-get update && apt-get install --yes zsh build-essential pkg-config gh \
     && rm -rf /var/lib/apt/lists/* \
     && userdel ubuntu \
     && usermod --uid 1000 runner && groupmod --gid 1000 runner \

@@ -7,3 +7,15 @@ doc_bug: Run's doc comment said it joins the first recording failure; updated in
 friction: `go tool skgo generate` needs web/node_modules (vp install) and `-web web` when the worktree dir is not named gimbal; types.ts RunRow.recording_error was hand-edited to the generator's form, not regenerated.
 discovery: A >=512KiB turn result with a broken blobs dir makes Generate itself return the record error (store payload). Left alone: not finalization.
 discovery: web/ and cmd/gimbal tests fail here without a built frontend (skgo.manifest.json missing); unrelated.
+
+2026-10-21 completion: generated source rejected the preserved omitempty tag.
+RunRow recording_error is now an explicit string; regenerated Go encoder/decoder
+and TypeScript match. Active provider event storage and post-native outcome
+storage failures remain diagnostics and cannot replace native success/failure.
+New 600KiB real-blob-directory failures cover native success and provider error;
+the preserved partial source fails this regression. Durable-intent admission
+before new native side effects is retained. The existing execution/recording
+suites pass; empty-table serialization expectation updated for the new field.
+Run transcript and overview expose recording health beside execution status;
+a real server-render regression checks successful status and diagnostic text.
+No session projection, Stop, provider routing, history, or activity edits.

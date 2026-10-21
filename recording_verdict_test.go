@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,5 +116,70 @@ func TestRecordingFailureAfterHarnessResultKeepsExecutionVerdict(t *testing.T) {
 				t.Errorf("run log does not show the degraded recording:\n%s", raw)
 			}
 		})
+	}
+}
+
+// Fail real blob creation only after the native turn has started. Its valid
+// result still reaches the workflow; provider failure keeps its own meaning.
+func TestMidTurnRecordingFailureKeepsNativeVerdict(t *testing.T) {
+	for _, providerFails := range []bool{false, true} {
+		for _, eventFails := range []bool{false, true} {
+			t.Run(fmt.Sprintf("provider_failure=%v/event_recording=%v", providerFails, eventFails), func(t *testing.T) {
+				project := t.TempDir()
+				id := string(runstore.NewRunID())
+				registry := observation.NewRegistry(project)
+				ctx := observation.WithRegistry(Project(t.Context(), project), registry)
+				answer := strings.Repeat("x", 600<<10)
+				providerErr := errors.New("provider refused turn")
+				adapter := &fake{answer: func(_ context.Context, _, _ string, _ json.RawMessage, emit func(AgentEvent) error) (string, error) {
+					blobs := filepath.Join(project, "runs", id, "state", "blobs")
+					if err := os.RemoveAll(blobs); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(blobs, []byte("unavailable"), 0600); err != nil {
+						t.Fatal(err)
+					}
+					if eventFails {
+						raw, _ := json.Marshal(map[string]string{"sessionID": "native", "text": answer})
+						if err := emit(nativeEvent("session.text.started", json.RawMessage(raw), map[string]any{"provider": "fake", "sessionID": "native"})); err != nil {
+							return "", err
+						}
+					}
+					if providerFails {
+						return "", providerErr
+					}
+					return answer, nil
+				}}
+				var got Text
+				err := Run(ctx, id, "mid-turn-recording", bind(adapter, "test", "agent"), func(ctx context.Context) error {
+					var err error
+					got, err = NewSession(ctx, "agent", project).Generate[Text](ctx, "answer")
+					return err
+				})
+				if providerFails {
+					if !errors.Is(err, providerErr) {
+						t.Fatalf("Run=%v, want provider failure", err)
+					}
+				} else if err != nil || string(got) != answer {
+					t.Fatalf("Run=%v, output bytes=%d, want %d", err, len(got), len(answer))
+				}
+				snapshot, err := registry.Snapshot(id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				status := observation.StatusCompleted
+				if providerFails {
+					status = observation.StatusFailed
+				}
+				if snapshot.Run.Status != status {
+					t.Errorf("status=%q, want %q", snapshot.Run.Status, status)
+				}
+				// A small provider error only reaches the broken blob path when the
+				// event itself needed a blob. All successful results need one.
+				if (!providerFails || eventFails) && !strings.Contains(snapshot.Run.RecordingError, "not a directory") {
+					t.Errorf("recording_error=%q", snapshot.Run.RecordingError)
+				}
+			})
+		}
 	}
 }

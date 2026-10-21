@@ -32,6 +32,7 @@ export type RunRow = {
   name: string;
   status: RunStatus;
   error: string;
+  recording_error?: string;
   started: number;
   ended: number;
   cancellation?: {

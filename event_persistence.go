@@ -239,10 +239,9 @@ func (r *run) sessionEvent(ctx context.Context, scope, session, turn string, eve
 	if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
 		return nil // Cancellation diagnostics need not survive the canceled append.
 	}
-	if err != nil {
-		r.recordFailure("record agent event", err)
-		return err
-	}
+	// Provider events are diagnostic evidence. Keep projecting and let the
+	// active turn finish even when its durable event journal is unavailable.
+	r.recordFailure("record agent event", err)
 	r.mu.Lock()
 	w := r.sessions[session]
 	var openErr error

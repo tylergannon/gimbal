@@ -42,7 +42,7 @@ type RunRow struct {
 	Name                string                               `json:"name"`
 	Status              string                               `json:"status"`
 	Error               string                               `json:"error"`
-	RecordingError      string                               `json:"recording_error,omitempty"`
+	RecordingError      string                               `json:"recording_error"`
 	Started             int64                                `json:"started"`
 	Ended               int64                                `json:"ended"`
 	Cancellation        polytype.Optional[CancellationState] `json:"cancellation,omitzero"`

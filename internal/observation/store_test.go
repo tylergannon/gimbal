@@ -410,7 +410,7 @@ func TestOpenWritesEmptyTables(t *testing.T) {
 		}
 		want := "[]"
 		if table == tableRun {
-			want = `[{"workflow_environment":"","task_environment":"","id":"run-1","name":"fixture","status":"running","error":"","started":0,"ended":0}]`
+			want = `[{"workflow_environment":"","task_environment":"","id":"run-1","name":"fixture","status":"running","error":"","recording_error":"","started":0,"ended":0}]`
 		}
 		if string(raw) != want {
 			t.Fatalf("%s.json = %s, want %s", table, raw, want)

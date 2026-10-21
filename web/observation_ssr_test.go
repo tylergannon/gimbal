@@ -139,3 +139,47 @@ func TestRunPageKeepsTranscriptWhenTheGraphIsUnavailable(t *testing.T) {
 		t.Fatal("the default transcript view rendered the Map view's graph correction")
 	}
 }
+
+func TestCompletedRunShowsRecordingHealthBesideExecutionVerdict(t *testing.T) {
+	dist, err := fs.Sub(Build, "build")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, _, err := NewHandler(dist, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	project := t.TempDir()
+	registry := observation.NewRegistry(project)
+	store := openTestRun(t, registry, project, "recording-degraded", "successful-work")
+	defer func() { _ = store.Close() }()
+	for _, raw := range []string{
+		`{"seq":1,"time":"2026-10-20T12:00:00Z","event":{"kind":"run_started","name":"successful-work"}}`,
+		`{"seq":2,"time":"2026-10-20T12:00:01Z","event":{"kind":"run_ended","name":"successful-work","error":""}}`,
+		`{"seq":3,"time":"2026-10-20T12:00:01Z","event":{"kind":"complete","recording_error":"disk unavailable"}}`,
+	} {
+		if err := store.Lifecycle(json.RawMessage(raw)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	request := httptest.NewRequest(http.MethodGet, "/projects/test/runs/recording-degraded", nil)
+	request = request.WithContext(observation.WithRegistry(request.Context(), registry))
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("GET run: %d %s", recorder.Code, recorder.Body.String())
+	}
+	rendered := strings.SplitN(recorder.Body.String(), "<script>", 2)[0]
+	for _, want := range []string{"Recording incomplete:", "disk unavailable", "This run has ended."} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("missing %q in %s", want, rendered)
+		}
+	}
+	snapshot, err := registry.Snapshot("recording-degraded")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Run.Status != observation.StatusCompleted || snapshot.Run.Error != "" {
+		t.Fatalf("execution verdict %+v", snapshot.Run)
+	}
+}

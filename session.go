@@ -525,9 +525,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			result, err = s.adapter.RunTurn(turnContext, native, nativePrompt, schema, func(event AgentEvent) error {
 				switch event.Type {
 				case "session.step.started", "session.text.started", "session.tool.called":
-					if err := s.notePromptDelivery(turnNode); err != nil {
-						return err
-					}
+					// Delivery has already happened; a journal failure cannot
+					// stop the provider or erase its eventual result.
+					_ = s.notePromptDelivery(turnNode)
 				}
 				return wrapped(event)
 			})
@@ -546,7 +546,9 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 			Output []byte           `json:"output"`
 			Usage  map[string]Usage `json:"usage"`
 		}{result.Output, result.Usage}
-		err = errors.Join(err, scope.run.finishAction(scope.node, s.node, turnNode, rawOutcome, err))
+		// The native result is authoritative. A failed outcome write is
+		// retained as recording health, not a failure of the completed turn.
+		_ = scope.run.finishAction(scope.node, s.node, turnNode, rawOutcome, err)
 		scope.run.removeTurn(turnID)
 	}
 	stopped := context.Cause(turnCtx)

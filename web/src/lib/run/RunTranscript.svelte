@@ -96,6 +96,7 @@
       {/each}
       {#if !chosen}<p class="quiet">Waiting for the workflow to start a session…</p>{/if}
       {#if snapshot.run.error}<p class="error">{snapshot.run.error}</p>{/if}
+      {#if snapshot.run.recording_error}<p class="quiet">Recording incomplete: {snapshot.run.recording_error}</p>{/if}
     </div>
   </div>
   {#if !follow && readerScrolled}<button class="jump" onclick={() => { if (scroller) scroller.scrollTop = scroller.scrollHeight; follow = true; }}>Jump to latest ↓</button>{/if}

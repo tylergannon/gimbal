@@ -138,9 +138,10 @@ func (r *run) closeError() error {
 // cancelled.
 // The body must join its concurrent work before returning. Run then finishes
 // every log it owns and returns the body's error joined with a *CloseError
-// aggregating every session's Close failure (nil when there were none) and
-// with the first recording failure, if any; cancellation alone is not
-// completion.
+// aggregating every session's Close failure (nil when there were none);
+// cancellation alone is not completion. A recording failure does not change
+// that result: the first one is reported in the run's Complete event and as
+// the run observation's recording_error.
 //
 // Called with only a Project context, Run executes in the caller's process and
 // writes its supplied project's durable files without joining a running web
@@ -310,7 +311,9 @@ func (r *run) root(ctx context.Context, name string, body func(ctx context.Conte
 
 // finish writes the run's terminal records and closes what it holds:
 // RunEnded with the verdict, then Complete with any recording failure.
-// It returns the verdict joined with the recording failure.
+// It returns the verdict. Recording health is diagnostic evidence beside the
+// verdict, in Complete and the run's observation: a failure to record a
+// result the harness already returned does not replace that result.
 func (r *run) finish(name string, err error) error {
 	// The root scope's deferred end already ran inside do, closing every
 	// session before body returned control here, so the aggregate close
@@ -319,10 +322,9 @@ func (r *run) finish(name string, err error) error {
 	err = errors.Join(err, r.closeError())
 	r.event("", "", "", RunEnded{Name: name, Error: errString(err)})
 	r.projectEvent(RunEnded{Name: name, Error: errString(err)})
-	r.event("", "", "", Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))})
 	r.recordFailure("flush run store", r.records.Flush(context.Background()))
+	r.event("", "", "", Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))})
 	r.closeObservers()
-	err = errors.Join(err, r.recordingError())
 	logf("run %s ended: %v", filepath.Base(r.dir), orNone(err))
 	return err
 }
@@ -543,11 +545,9 @@ func (r *run) observeLifecycle(_, _, _ string, _ LifecycleEvent, record json.Raw
 // session log holds it; NativeRef rides beside it as placement metadata and
 // is never inserted into the native event.
 //
-// The error is both recorded as a recording failure and returned, so a turn
-// whose events cannot be observed fails where it is produced instead of
-// continuing against an observation that no longer describes it. A read the
-// runtime cannot answer is not this error: it is reported on its own read
-// frame and does not fail the turn.
+// The error is returned to the recording owner and retained as observation
+// health. Diagnostic gaps do not replace the native turn's execution verdict.
+// A read the runtime cannot answer is reported on its own read frame.
 func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error {
 	if r == nil || r.store == nil {
 		return nil

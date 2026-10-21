@@ -257,8 +257,14 @@ func TestRunCommandNeedsARun(t *testing.T) {
 		}
 		return nil
 	})
-	if runErr == nil || !strings.Contains(runErr.Error(), "capture command output capture.1") {
-		t.Fatalf("run error = %v, want recorded capture failure", runErr)
+	// The body saw the failure and chose to return nil, so the run's verdict
+	// is success; the capture failure is recorded beside it.
+	if runErr != nil {
+		t.Fatalf("run error = %v, want the body's success", runErr)
+	}
+	log, err := os.ReadFile(filepath.Join(dir, "run.jsonl"))
+	if err != nil || !strings.Contains(string(log), `"kind":"complete","recording_error":"gimbal: record: capture command output capture.1`) {
+		t.Fatalf("run log = %s (%v), want the capture failure in Complete", log, err)
 	}
 	row := find(commandRows(t, dir), "capture.1")
 	if row.Error == "" || row.StdoutFile != "" || row.StderrFile != "" {

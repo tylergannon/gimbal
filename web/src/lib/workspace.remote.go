@@ -1,7 +1,6 @@
 package workspace
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"github.com/tylergannon/gimbal/internal/promises"
 	"github.com/tylergannon/gimbal/internal/skgo/params"
 	"github.com/tylergannon/skgo"
-	"github.com/yuin/goldmark"
 )
 
 func project(ctx context.Context, id string) (*host.Project, error) {
@@ -135,11 +133,10 @@ func viewFile(ctx context.Context, r FileRequest) (FileView, error) {
 		}
 		out.Text = string(data)
 		if strings.HasSuffix(strings.ToLower(f.Name), ".md") || strings.HasPrefix(f.MediaType, "text/markdown") {
-			var html bytes.Buffer
-			if e := goldmark.Convert(data, &html); e != nil {
+			out.HTML, e = renderProjectFileMarkdown(data)
+			if e != nil {
 				return FileView{}, e
 			}
-			out.HTML = html.String()
 		}
 	}
 	return out, nil

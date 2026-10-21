@@ -50,7 +50,7 @@ func (a *interactionAdapter) RunTurn(ctx context.Context, native, prompt string,
 	ordinal := a.calls
 	a.calls++
 	a.mu.Unlock()
-	if !(a.silent && ordinal == 0) {
+	if !a.silent || ordinal != 0 {
 		if err := emit(nativeEvent("session.step.started", map[string]any{"sessionID": native, "assistantMessageID": fmt.Sprintf("reply-%d", ordinal)}, map[string]any{"provider": "test", "sessionID": native, "messageID": fmt.Sprintf("reply-%d", ordinal)})); err != nil {
 			return TurnResult{}, err
 		}

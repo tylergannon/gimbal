@@ -57,7 +57,9 @@ func plan(paths []string) selection {
 			}
 		}
 	}
-	if slices.Contains(paths, "go.mod") || slices.Contains(paths, "go.sum") {
+	// Root Go code is the shared runtime used by the host and other consumers.
+	// Qualify those consumers together, as the tagged release does.
+	if slices.Contains(result.Packages, "./.") || slices.Contains(paths, "go.mod") || slices.Contains(paths, "go.sum") {
 		result.Packages = []string{"./..."}
 	}
 	slices.Sort(result.Packages)
@@ -134,7 +136,7 @@ func execute(args []string) error {
 	base := flags.String("base", "", "Compare changed paths with this ref")
 	head := flags.String("head", "HEAD", "Selected revision")
 	file := flags.String("plan", "/tmp/gimbal-ci-scope.json", "Scope JSON path")
-	runGo := flags.Bool("run-go", false, "Run affected Go tests")
+	runGo := flags.Bool("run-go", false, "Run release lint and uncached tests for affected Go packages")
 	prerequisites := flags.Bool("go-prerequisites", false, "Select Go test prerequisites")
 	links := flags.Bool("check-links", false, "Check instruction links")
 	if err := flags.Parse(args); err != nil {
@@ -174,10 +176,20 @@ func execute(args []string) error {
 		if len(packages) == 0 {
 			return nil
 		}
-		command := exec.Command("go", append([]string{"test", "-count=1"}, packages...)...)
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
-		return command.Run()
+		// Use the release linter/configuration before these packages can reach main.
+		// Passing go test alone does not establish the release qualification gate.
+		for _, args := range [][]string{
+			append([]string{"golangci-lint", "run"}, packages...),
+			append([]string{"go", "test", "-count=1"}, packages...),
+		} {
+			command := exec.Command(args[0], args[1:]...)
+			command.Stdout = os.Stdout
+			command.Stderr = os.Stderr
+			if err := command.Run(); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	if *base == "" {
 		return errors.New("--base is required to select checks")

@@ -15,6 +15,7 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/internal/runner"
 )
 
 func TestRemoteRoutesRestoreControlWithoutSharedRunFiles(t *testing.T) {
@@ -207,6 +208,19 @@ func TestLocalWorkflowRetainsRemoteTaskDirectoryAndRoute(t *testing.T) {
 		}
 		if time.Now().After(deadline) {
 			t.Fatalf("completion=%+v %v", snapshot.Run, err)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	// The completed observation precedes the independent runner's final writes.
+	// Retain its project until invocation cleanup and controller shutdown finish.
+	for {
+		_, invocationErr := os.Stat(filepath.Join(project.Dir(), "invocations", id+".json"))
+		_, controllerErr := runner.Connect(project.Dir(), id)
+		if os.IsNotExist(invocationErr) && controllerErr != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("completed workflow host did not finish teardown")
 		}
 		time.Sleep(time.Millisecond)
 	}

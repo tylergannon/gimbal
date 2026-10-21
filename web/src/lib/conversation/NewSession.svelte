@@ -8,7 +8,7 @@
   import type { Conversation } from '#lib/skgo/conversation/types';
   import { goto } from '$app/navigation';
   import { conversationSetup, createConversation, projectConversations } from '../../routes/conversation.remote';
-  import { harnessName } from './names';
+  import { openMachines } from '#lib/environments/navigation';
   import SessionSetup, { type Choices } from './SessionSetup.svelte';
   import { environmentSnapshot } from '#lib/environments.remote';
 
@@ -18,7 +18,6 @@
   } = $props();
   const form = $derived(createConversation.for(project));
   const conversationsQuery = $derived(projectConversations(project));
-  const recent = $derived(conversationsQuery.current ?? []);
   let environment = $state('local');
   let touched = false;
   let defaults: Conversation[] = [];
@@ -63,9 +62,9 @@
   const harnesses = $derived(setup?.harnesses ?? []);
   const usable = $derived(harnesses.filter(item => !setup?.harness_states.some(state => state.id === item.id && (state.state === 'missing' || state.state === 'sign-in-required'))));
   const choice = $derived(selected.harness ?? ((usable[0] ?? harnesses[0]) && { provider: (usable[0] ?? harnesses[0]).id, model: (usable[0] ?? harnesses[0]).default, effort: '' }));
-  const canStart = $derived(!!choice && usable.some(item => item.id === choice.provider) && (!choice.effort || !!harnesses.find(item => item.id === choice.provider)?.efforts.find(item => item.model === choice.model)?.levels.includes(choice.effort)));
-  const setupKey = (item: Conversation) => JSON.stringify([item.provider, item.model, item.effort || '', item.environment || 'local', !!item.shared_checkout, item.base || '']);
-  const starts = $derived(recent.filter((item, index) => recent.findIndex(other => setupKey(other) === setupKey(item)) === index).slice(0, 3));
+  const selectedHarness = $derived(usable.find(item => item.id === choice?.provider));
+  const modelAvailable = $derived(!!choice && !!selectedHarness?.models.includes(choice.model));
+  const canStart = $derived(modelAvailable && (!choice?.effort || !!selectedHarness?.efforts.find(item => item.model === choice.model)?.levels.includes(choice.effort)));
   function setupOf(item: Conversation): Choices {
     return { shared: !!item.shared_checkout, base: item.base || undefined,
       harness: { provider: item.provider, model: item.model, effort: item.effort || '' } };
@@ -112,18 +111,9 @@
     {/if}
   </form>
   {#if setupQuery.error}<p class="issue" role="alert">{errorMessage(setupQuery.error)} <button type="button" onclick={() => setupQuery.refresh()}>Retry setup</button></p>{/if}
-  {#if setup && !canStart}<p class="issue" role="status">No usable harness is available on {setup.machine}. Open Machines to inspect sign-in and installation details.</p>{/if}
-  {#if setup?.harness_states.some(item => item.id === choice?.provider && item.state === 'unknown')}<p class="note">Harness sign-in on {setup.machine} is unverified. The first request will report any sign-in needed there.</p>{/if}
+  {#if setup && !canStart}<p class="issue" role="status">{selectedHarness ? !modelAvailable ? 'The previous model is no longer offered here. Choose an available model from the harness picker.' : 'The selected effort is unavailable for this model. Choose another effort.' : `No usable harness is available on ${setup.machine}.`} {#if !selectedHarness}<button type="button" onclick={() => openMachines()}>Open Machines</button>{/if}</p>{/if}
   {#if actionError}<p class="issue" role="alert">{actionError}</p>{/if}
   {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p class="issue" role="alert">{issue.message}</p>{/each}
-  {#if starts.length > 0}
-    <div class="start-like">
-      <span>Start like</span>
-      {#each starts as item (item.id)}
-        <button type="button" disabled={!!form.pending} onclick={() => applySetup(item)}>{item.title} · {harnessName(item.provider)} on {item.placement?.machine.name ?? 'This Mac'}{item.effort ? ` · ${item.effort}` : ''}</button>
-      {/each}
-    </div>
-  {/if}
 </section>
 
 <style>
@@ -136,8 +126,6 @@
   .file-context span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .file-context button { display: flex; padding: 2px; border: 0; background: none; color: var(--muted-foreground); cursor: pointer; }
   .issue { margin: 8px 2px 0; color: var(--destructive); font-size: 12px; }
-  .start-like { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin-top: 12px; padding: 0 2px; color: var(--muted-foreground); font-size: 12px; }
-  .start-like button { padding: 0; border: 0; color: var(--foreground); opacity: .75; background: none; font: inherit; cursor: pointer; }
-  .start-like button:hover { opacity: 1; text-decoration: underline; }
+  .issue button { border: 0; padding: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
   @media (max-height: 640px) { .new-session { padding-top: 40px; } }
 </style>

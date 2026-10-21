@@ -40,7 +40,7 @@ network, or put it behind a TLS proxy. No TLS configuration is required.`,
 			if err != nil {
 				return err
 			}
-			defer listener.Close()
+			defer func() { _ = listener.Close() }()
 			server := &http.Server{Handler: secretshttp.Handler(store, token), ReadHeaderTimeout: 10 * time.Second}
 			ctx, cancel := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
 			defer cancel()

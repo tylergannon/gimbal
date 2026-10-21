@@ -166,7 +166,7 @@ func (c *Client) call(ctx context.Context, operation string, input request) (map
 	if err != nil {
 		return nil, fmt.Errorf("secrets %s: %w", operation, err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("secrets %s: HTTP %d", operation, response.StatusCode)
 	}

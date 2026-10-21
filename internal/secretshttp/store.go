@@ -61,7 +61,7 @@ func (s *Store) access(ctx context.Context, write bool, fn func(backend.ScopedVa
 	if err != nil {
 		return err
 	}
-	defer lock.Close()
+	defer func() { _ = lock.Close() }()
 	for {
 		err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if err == nil {
@@ -76,7 +76,7 @@ func (s *Store) access(ctx context.Context, write bool, fn func(backend.ScopedVa
 		case <-time.After(10 * time.Millisecond):
 		}
 	}
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -118,8 +118,8 @@ func (s *Store) access(ctx context.Context, write bool, fn func(backend.ScopedVa
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
-	defer tmp.Close()
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	defer func() { _ = tmp.Close() }()
 	encrypted, err := age.Encrypt(tmp, s.identity.Recipient())
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func (s *Store) access(ctx context.Context, write bool, fn func(backend.ScopedVa
 	if err != nil {
 		return err
 	}
-	defer dir.Close()
+	defer func() { _ = dir.Close() }()
 	return dir.Sync()
 }
 

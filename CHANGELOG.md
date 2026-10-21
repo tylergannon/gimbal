@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.4] - 2026-10-21
+
+### Changed
+
+- fix: use installed OpenCode models and preserve stream roles (#633)
+
 ## [0.19.3] - 2026-10-21
 
 ### Changed
@@ -570,7 +576,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.19.3...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.19.4...main
+[0.19.4]: https://github.com/tylergannon/gimbal/compare/v0.19.3...v0.19.4
 [0.19.3]: https://github.com/tylergannon/gimbal/compare/v0.19.2...v0.19.3
 [0.19.2]: https://github.com/tylergannon/gimbal/compare/v0.19.1...v0.19.2
 [0.19.1]: https://github.com/tylergannon/gimbal/compare/v0.19.0...v0.19.1

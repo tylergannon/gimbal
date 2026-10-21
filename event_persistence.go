@@ -186,12 +186,20 @@ func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) err
 	// observation still describe what happened: a degraded store is the
 	// thing they exist to show.
 	recordErr := r.recordFact(node, r.nodeID(scope), r.optionalNodeID(session), "lifecycle", record, runstore.Committed)
+	if _, complete := event.(Complete); complete && recordErr != nil {
+		// Complete's own append can be the first failure. The surviving
+		// run log and observation must describe that degradation too.
+		record.Event = Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))}
+	}
 	raw, err := json.Marshal(record)
 	if err == nil && r.writer != nil {
 		raw, err = r.writer.writeLifecycleRecord(record, true)
 	}
 	r.observationFailure("write run log", err)
 	if err != nil {
+		if _, complete := event.(Complete); complete {
+			record.Event = Complete{RecordingError: errString(errors.Join(r.recordingError(), r.observationError()))}
+		}
 		raw, _ = json.Marshal(record)
 	}
 	r.observationFailure("observe lifecycle", r.observeLifecycle(scope, session, turn, event, raw))

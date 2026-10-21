@@ -545,11 +545,9 @@ func (r *run) observeLifecycle(_, _, _ string, _ LifecycleEvent, record json.Raw
 // session log holds it; NativeRef rides beside it as placement metadata and
 // is never inserted into the native event.
 //
-// The error is both recorded as a recording failure and returned, so a turn
-// whose events cannot be observed fails where it is produced instead of
-// continuing against an observation that no longer describes it. A read the
-// runtime cannot answer is not this error: it is reported on its own read
-// frame and does not fail the turn.
+// The error is returned to the recording owner and retained as observation
+// health. Diagnostic gaps do not replace the native turn's execution verdict.
+// A read the runtime cannot answer is reported on its own read frame.
 func (r *run) observeAgent(scope, session, turn string, event AgentEvent) error {
 	if r == nil || r.store == nil {
 		return nil

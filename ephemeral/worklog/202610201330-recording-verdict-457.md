@@ -19,3 +19,7 @@ suites pass; empty-table serialization expectation updated for the new field.
 Run transcript and overview expose recording health beside execution status;
 a real server-render regression checks successful status and diagnostic text.
 No session projection, Stop, provider routing, history, or activity edits.
+Final review also qualified the first failure at Complete's own durable append.
+Surviving run log and observation now include that failure instead of retaining
+an empty diagnostic computed before the attempted append. Focused real Run
+regression passes; execution verdict remains completed.

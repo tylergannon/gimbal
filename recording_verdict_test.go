@@ -24,6 +24,7 @@ func TestRecordingFailureAfterHarnessResultKeepsExecutionVerdict(t *testing.T) {
 		name string
 		// sabotage runs inside the workflow after the harness has answered.
 		sabotage      func(t *testing.T, project, id string, runStoreFails *atomic.Bool) error
+		completeOnly  bool
 		bodyErr       error
 		wantStatus    string
 		wantError     string
@@ -51,6 +52,13 @@ func TestRecordingFailureAfterHarnessResultKeepsExecutionVerdict(t *testing.T) {
 			wantRecording: "disk gone",
 		},
 		{
+			name:          "first store failure is Complete itself",
+			sabotage:      func(_ *testing.T, _, _ string, fails *atomic.Bool) error { fails.Store(true); return nil },
+			completeOnly:  true,
+			wantStatus:    observation.StatusCompleted,
+			wantRecording: "disk gone",
+		},
+		{
 			name: "run store refuses appends, workflow failed",
 			sabotage: func(_ *testing.T, _, _ string, fails *atomic.Bool) error {
 				fails.Store(true)
@@ -67,8 +75,16 @@ func TestRecordingFailureAfterHarnessResultKeepsExecutionVerdict(t *testing.T) {
 			project := t.TempDir()
 			id := string(runstore.NewRunID())
 			var storeFails atomic.Bool
-			store := faultStore{Store: directory.Store{Root: filepath.Join(project, "runs")}, beforeAppend: func([]runstore.Fact) error {
+			store := faultStore{Store: directory.Store{Root: filepath.Join(project, "runs")}, beforeAppend: func(facts []runstore.Fact) error {
 				if storeFails.Load() {
+					if tc.completeOnly {
+						for _, fact := range facts {
+							if fact.Kind == "lifecycle" && strings.Contains(string(fact.Payload), `"kind":"complete"`) {
+								return errors.New("disk gone")
+							}
+						}
+						return nil
+					}
 					return errors.New("disk gone")
 				}
 				return nil

@@ -25,6 +25,9 @@ function fixture(t: test.TestContext) {
   t.after(() => rmSync(repo, { recursive: true, force: true }));
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repo });
   git('init', '--quiet');
+  // Disposable fixtures must not leave detached Git housekeeping racing teardown.
+  git('config', 'maintenance.auto', 'false');
+  git('config', 'gc.auto', '0');
   for (const path of [
     'go.mod', 'go.sum', 'web/package.json', 'internal/modelalias', 'internal/envfile',
     'internal/sessionstate', 'internal/pi/model', 'internal/automation/dispatch-release',

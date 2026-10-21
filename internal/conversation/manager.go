@@ -241,6 +241,28 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		return Conversation{}, err
 	}
 	in.Model, in.Effort = model, strings.TrimSpace(in.Effort)
+	m.mu.RLock()
+	observedEnvironment := m.environments != nil
+	m.mu.RUnlock()
+	if provider == "opencode" && observedEnvironment {
+		setup, err := m.SetupEnvironment(ctx, in.Environment)
+		if err != nil {
+			return Conversation{}, err
+		}
+		canonical := strings.TrimPrefix(model, "opencode/")
+		if !strings.Contains(canonical, "/") {
+			canonical = "opencode/" + canonical
+		}
+		offered := false
+		for _, harness := range setup.Harnesses {
+			if harness.ID == provider && (slices.Contains(harness.Models, model) || slices.Contains(harness.Models, "opencode/"+canonical)) {
+				offered = true
+			}
+		}
+		if !offered {
+			return Conversation{}, fmt.Errorf("conversation: OpenCode model %q is unavailable on %s; choose a model from Harness and model", model, setup.Machine)
+		}
+	}
 	if in.Environment != "" && in.Environment != environments.Local {
 		m.mu.RLock()
 		service, projectID := m.environments, m.projectID
@@ -348,7 +370,7 @@ type Setup struct {
 func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 	newest := modelalias.Newest()
 	setup := Setup{Harnesses: []Harness{}, Bases: []string{}}
-	for _, provider := range []string{"claude", "codex", "agy", "opencode", "pi"} {
+	for _, provider := range []string{"claude", "codex", "agy", "pi"} {
 		model, _, err := providerModel(provider, "")
 		if err != nil {
 			return Setup{}, err
@@ -694,7 +716,7 @@ func providerModel(provider, model string) (string, string, error) {
 		return model, "", nil
 	case "opencode":
 		if model == "" {
-			model = "opencode/gpt-5-nano"
+			return "", "", errors.New("conversation: choose an OpenCode model from this machine's catalog")
 		}
 		if !strings.HasPrefix(model, "opencode/") {
 			model = "opencode/" + model

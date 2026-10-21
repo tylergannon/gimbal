@@ -53,6 +53,9 @@ func TestManagerRecordsCLIAssociationBesideOrdinaryChat(t *testing.T) {
 	if !ok || len(saved.Runs) != 1 || saved.Runs[0].ID != "run-1" {
 		t.Fatalf("saved association: %+v", saved)
 	}
+	if saved.Updated != replied.Updated {
+		t.Fatalf("reopening moved interaction time from %d to %d", replied.Updated, saved.Updated)
+	}
 }
 
 func TestManagerStartTitlesByFirstMessageAndRepliesInBackground(t *testing.T) {
@@ -390,6 +393,9 @@ func TestListRefreshesWorkflowFailureAndKeepsUndeliveredInputQueued(t *testing.T
 		return gimbal.InteractiveTranscript{}, "error", nil, errors.New("native schema rejected")
 	}
 	failed := manager.List()[0]
+	if waiting.Updated != item.Updated || failed.Updated != waiting.Updated {
+		t.Fatalf("observation changed interaction time: created=%d waiting=%d failed=%d", item.Updated, waiting.Updated, failed.Updated)
+	}
 	if failed.Status != "error" || failed.Error != "native schema rejected" || failed.Revision <= waiting.Revision || failed.Requests[0].Status != "failed" {
 		t.Fatalf("list did not refresh failure: %+v", failed)
 	}

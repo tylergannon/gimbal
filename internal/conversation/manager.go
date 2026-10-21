@@ -414,7 +414,8 @@ func (m *Manager) List() []Conversation {
 	return items
 }
 
-// Get returns one durable snapshot.
+// Get returns one durable snapshot. Reconciliation updates its revision, not
+// the interaction time used to order saved history.
 func (m *Manager) Get(id string) (Conversation, bool) {
 	m.mu.Lock()
 	item := m.items[id]
@@ -480,7 +481,6 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 			after, _ := json.Marshal(item)
 			if string(before) != string(after) {
 				item.Revision++
-				item.Updated = time.Now().UnixMilli()
 				_ = m.save(item)
 			}
 		} else if err != nil {
@@ -490,7 +490,6 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 			after, _ := json.Marshal(item)
 			if string(before) != string(after) {
 				item.Revision++
-				item.Updated = time.Now().UnixMilli()
 				_ = m.save(item)
 			}
 		}
@@ -502,7 +501,6 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 		if err == nil || errors.Is(err, observation.ErrNoRun) || errors.Is(err, runstore.ErrIncomplete) {
 			if changed, err := projectTranscript(item, run, err == nil); err == nil && changed {
 				item.Revision++
-				item.Updated = time.Now().UnixMilli()
 				_ = m.save(item)
 			}
 		}
@@ -574,7 +572,6 @@ func (m *Manager) refresh(item *Conversation) {
 	}
 	if changed {
 		item.Revision++
-		item.Updated = time.Now().UnixMilli()
 		_ = m.save(item)
 	}
 }

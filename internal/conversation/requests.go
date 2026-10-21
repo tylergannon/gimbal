@@ -136,6 +136,8 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	item.Requests = append(item.Requests, state)
+	item.Revision++
+	item.Updated = time.Now().UnixMilli()
 	if request.Kind == "prompt" {
 		item.Messages = append(item.Messages, Message{Role: "user", Text: request.Message, Created: request.Created})
 	}

@@ -19,7 +19,6 @@ func TestSelectedHarnessSurvivesRoleBinding(t *testing.T) {
 	}{
 		{"opencode", "opencode/gpt-5-nano", "", "opencode/gpt-5-nano", "gpt-5-nano", "opencode"},
 		{"opencode", "gpt-5-nano", "", "opencode/gpt-5-nano", "gpt-5-nano", "opencode"},
-		{"opencode", "", "", "opencode/gpt-5-nano", "gpt-5-nano", "opencode"},
 		{"opencode", "anthropic/claude-haiku-4-5", "", "opencode/anthropic/claude-haiku-4-5", "anthropic/claude-haiku-4-5", "opencode"},
 		{"opencode", "opencode/opencode/gpt-5-nano", "", "opencode/opencode/gpt-5-nano", "opencode/gpt-5-nano", "opencode"},
 		{"codex", "gpt-6-luna", "high", "gpt-6-luna", "gpt-6-luna", "codex"},
@@ -76,7 +75,7 @@ func TestRoleSpecRefusesModelOfAnotherHarness(t *testing.T) {
 }
 
 func TestCreateRefusesUnroutableModel(t *testing.T) {
-	for _, tc := range [][2]string{{"pi", "anthropic/claude-haiku-4-5"}, {"opencode", "opencode/"}, {"codex", "claude-haiku-4-5"}} {
+	for _, tc := range [][2]string{{"pi", "anthropic/claude-haiku-4-5"}, {"opencode", ""}, {"opencode", "opencode/"}, {"codex", "claude-haiku-4-5"}} {
 		if _, err := selectModel(tc[0], tc[1], ""); err == nil {
 			t.Errorf("%s accepted %q", tc[0], tc[1])
 		}

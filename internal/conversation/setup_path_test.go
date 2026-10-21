@@ -3,8 +3,10 @@ package conversation
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -17,6 +19,14 @@ import (
 // The native UI offers what SetupEnvironment returns for the local machine.
 // Each offered selection must create, survive a reload, and bind its harness.
 func TestLocalSetupSelectionsCreateReloadAndBind(t *testing.T) {
+	bin := t.TempDir()
+	if err := os.WriteFile(filepath.Join(bin, "opencode"), []byte(`#!/bin/sh
+[ "$1" = models ] || exit 1
+printf 'opencode/beam-free\nopenai/gpt-5-nano\n'
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	project, instance := t.TempDir(), t.TempDir()
 	service, err := environments.New(t.Context(), environments.Options{InstanceDir: instance})
 	if err != nil {
@@ -42,14 +52,20 @@ func TestLocalSetupSelectionsCreateReloadAndBind(t *testing.T) {
 	for _, harness := range setup.Harnesses {
 		offered[harness.ID] = harness
 	}
-	if got := offered["opencode"]; got.Default != "opencode/gpt-5-nano" || !slices.Equal(got.Models, []string{"opencode/gpt-5-nano"}) {
+	if got := offered["opencode"]; got.Default != "opencode/opencode/beam-free" || !slices.Equal(got.Models, []string{"opencode/opencode/beam-free", "opencode/openai/gpt-5-nano"}) {
 		t.Errorf("opencode offers default %q models %q", got.Default, got.Models)
+	}
+	if _, err := m.Create(t.Context(), NewConversation{Provider: "opencode", Model: "opencode/gpt-5-nano", SharedCheckout: true}); err == nil || !strings.Contains(err.Error(), "unavailable") {
+		t.Fatalf("stale OpenCode model was not rejected: %v", err)
+	}
+	if got := len(m.List()); got != 0 {
+		t.Fatalf("unavailable selection created %d conversations", got)
 	}
 	wantPi := []string{"pi/diffusion/deepseek-4.1-flash", "pi/diffusion/glm-5.3", "pi/diffusion/glm-5.3-flash", "pi/diffusion/glm-5.3-vision"}
 	if got := offered["pi"]; got.Default != wantPi[0] || !slices.Equal(got.Models, wantPi) {
 		t.Errorf("pi offers default %q models %q", got.Default, got.Models)
 	}
-	natives := map[string]string{"opencode/gpt-5-nano": "gpt-5-nano", "pi/diffusion/glm-5.3": "diffusion/glm-5.3", "gpt-6-luna": "gpt-6-luna", "claude-haiku-4-5": "claude-haiku-4-5"}
+	natives := map[string]string{"opencode/opencode/beam-free": "opencode/beam-free", "opencode/openai/gpt-5-nano": "openai/gpt-5-nano", "pi/diffusion/glm-5.3": "diffusion/glm-5.3", "gpt-6-luna": "gpt-6-luna", "claude-haiku-4-5": "claude-haiku-4-5"}
 	for _, harness := range setup.Harnesses {
 		for _, model := range harness.Models {
 			if n := len(slices.DeleteFunc(slices.Clone(harness.Models), func(other string) bool { return other != model })); n != 1 {

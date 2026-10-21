@@ -114,8 +114,11 @@ func TestHarnessMetadataUsesCheapDefaultsAndNeverInventsAuthentication(t *testin
 		if h.ID == "claude" && h.Default != claudeDefault.Model {
 			t.Fatalf("Claude default = %q, want resolved haiku alias %q", h.Default, claudeDefault.Model)
 		}
-		if !slices.Contains(h.Models, h.Default) {
+		if h.Default != "" && !slices.Contains(h.Models, h.Default) {
 			t.Fatal("default missing from models")
+		}
+		if h.ID == "opencode" && slices.Contains(h.Models, "opencode/gpt-5-nano") {
+			t.Fatal("OpenCode advertised the removed hardcoded default")
 		}
 	}
 }
@@ -183,5 +186,33 @@ func TestInspectionWithNoExecutablesOnPathStillOffersPi(t *testing.T) {
 		if states[id] != HarnessMissing {
 			t.Fatalf("%s = %q with an empty PATH, want missing", id, states[id])
 		}
+	}
+}
+
+func TestOpenCodeCatalogUsesOnlyInstalledReportedModels(t *testing.T) {
+	for _, tc := range []struct {
+		name, body string
+		models     []string
+		failure    bool
+	}{
+		{"catalog", "printf 'opencode/beam-free\\nopenai/gpt-5-nano\\nopencode/beam-free\\n'", []string{"opencode/opencode/beam-free", "opencode/openai/gpt-5-nano"}, false},
+		{"empty", "exit 0", []string{}, false},
+		{"failure", "echo 'private CLI diagnostic' >&2; exit 1", []string{}, true},
+		{"inherited-pipe", "sleep 1 & exit 0", []string{}, true},
+		{"malformed", "printf 'not a model\\n'", []string{}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "opencode")
+			if err := os.WriteFile(path, []byte("#!/bin/sh\n"+tc.body+"\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			models, err := openCodeModels(path)
+			if (err != nil) != tc.failure || !slices.Equal(models, tc.models) {
+				t.Fatalf("models %q error %v", models, err)
+			}
+			if err != nil && strings.Contains(err.Error(), "private CLI diagnostic") {
+				t.Fatal("exposed CLI stderr")
+			}
+		})
 	}
 }

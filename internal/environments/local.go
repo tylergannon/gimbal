@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/tylergannon/gimbal/internal/modelalias"
 )
@@ -57,25 +58,69 @@ func localFactsFor(lookPath func(string) (string, error)) (string, []Harness) {
 	hs := []Harness{}
 	for _, id := range []string{"claude", "codex", "agy", "opencode", "pi"} {
 		h := Harness{ID: id, Models: models[id], State: HarnessUnknown, Detail: "Sign-in has not been verified on this machine"}
-		defaults := map[string]string{"claude": "haiku", "codex": "gpt-6-luna", "agy": "gemini-3.8-flash-low", "opencode": "opencode/gpt-5-nano", "pi": "pi/diffusion/deepseek-4.1-flash"}
+		defaults := map[string]string{"claude": "haiku", "codex": "gpt-6-luna", "agy": "gemini-3.8-flash-low", "pi": "pi/diffusion/deepseek-4.1-flash"}
 		h.Default = defaults[id]
 		// OpenCode and Pi native ids do not name their harness; their selection does.
 		if resolved, e := modelalias.Resolve(modelalias.Selection{Name: h.Default}); e == nil && id != "opencode" && id != "pi" {
 			h.Default = resolved.Model
 		}
-		if !slices.Contains(h.Models, h.Default) {
+		if h.Default != "" && !slices.Contains(h.Models, h.Default) {
 			h.Models = append([]string{h.Default}, h.Models...)
 		}
 		if slices.Contains(inProcessHarnesses, id) {
 			h.Detail = "Built into Gimbal; provider sign-in has not been verified on this machine"
-		} else if _, e := lookPath(id); e != nil {
+		} else if executable, e := lookPath(id); e != nil {
 			h.State = HarnessMissing
 			h.Detail = "Not installed on this machine"
+		} else if id == "opencode" {
+			// The installed CLI knows its configured catalog. Do not advertise a
+			// historical Zen model or infer authentication from this read.
+			h.Models, e = openCodeModels(executable)
+			if e != nil {
+				h.Detail = e.Error()
+			} else if len(h.Models) > 0 {
+				h.Default = h.Models[0]
+			} else {
+				h.Detail = "OpenCode reports no models; inspect opencode models on this machine"
+			}
 		}
 		hs = append(hs, h)
 	}
 	return build, hs
 }
+
+// openCodeModels reads metadata only: it starts neither a server nor inference.
+func openCodeModels(executable string) ([]string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, executable, "models")
+	// A launcher may exit while a child still owns its output pipes.
+	cmd.WaitDelay = 100 * time.Millisecond
+	out, err := cmd.Output()
+	if err != nil {
+		return []string{}, errors.New("OpenCode model catalog unavailable; inspect opencode models on this machine")
+	}
+	models := []string{}
+	for line := range strings.SplitSeq(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		provider, model, ok := strings.Cut(line, "/")
+		if !ok || provider == "" || model == "" || len(strings.Fields(line)) != 1 || strings.ContainsAny(line, "\x1b\x00") || strings.Contains(line, "://") {
+			return []string{}, errors.New("OpenCode returned an invalid model catalog; inspect opencode models on this machine")
+		}
+		selection := "opencode/" + line // harness/provider/model; never infer Codex from gpt-.
+		if _, err := modelalias.Resolve(modelalias.Selection{Name: selection}); err != nil {
+			return []string{}, errors.New("OpenCode returned an invalid model catalog; inspect opencode models on this machine")
+		}
+		if !slices.Contains(models, selection) {
+			models = append(models, selection)
+		}
+	}
+	return models, nil
+}
+
 func canonical(path string) (string, error) {
 	if path == "~" || strings.HasPrefix(path, "~/") {
 		home, e := os.UserHomeDir()

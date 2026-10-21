@@ -131,7 +131,7 @@ test("harness sign-in facts stay distinct and build mismatch permits sessions", 
     oneditenvironment: vi.fn(),
   });
   await expect.element(screen.getByText("Sign-in required", { exact: true })).toBeVisible();
-  await expect.element(screen.getByText("Sign-in unverified", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("Sign-in not checked", { exact: true })).toBeVisible();
   await expect.element(screen.getByText("Not installed", { exact: true })).toBeVisible();
   await expect
     .element(screen.getByText(/Sessions are allowed; native workflow plugins may fail/))

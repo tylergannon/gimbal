@@ -85,4 +85,4 @@ jobs:
 
           Follow `skills/gimbal-release/references/model-catalog.md` for model review, then the normal Automatic release pipeline after merge. Verify the published version and updater feed; do not repeat unchanged builds at commit, merge, or tag milestones.
           EOF
-          gh pr create --base main --head "$branch" --title "Refresh models.dev catalog and review model defaults" --body-file /tmp/model-catalog-pr.md
+          gh pr create --base main --head "$branch" --title "chore: refresh model catalog and review defaults" --body-file /tmp/model-catalog-pr.md

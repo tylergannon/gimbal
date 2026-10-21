@@ -21,6 +21,8 @@ type dispatcher struct {
 	gh    func(...string) ([]byte, error)
 	sleep func(time.Duration)
 	now   func() time.Time
+	// Pushes must not retry a failed candidate when its release commit reaches main.
+	retryFailed bool
 }
 
 func latestRun(runs []releaseRun, sha string) *releaseRun {
@@ -53,7 +55,7 @@ func (d dispatcher) wait(tag, sha, repository string, timeout time.Duration) err
 	if err != nil {
 		return err
 	}
-	if run == nil || (run.Status == "completed" && run.Conclusion != "success") {
+	if run == nil || (run.Status == "completed" && run.Conclusion != "success" && d.retryFailed) {
 		var previous int64
 		if run != nil {
 			previous = run.ID
@@ -91,7 +93,7 @@ func (d dispatcher) wait(tag, sha, repository string, timeout time.Duration) err
 		}
 	}
 	if run.Conclusion != "success" {
-		return fmt.Errorf("release %s: %s; rerun automatic release to retry", run.Conclusion, run.URL)
+		return fmt.Errorf("release %s: %s; inspect the failed job, then rerun that tagged Release job or manually dispatch Automatic release to retry", run.Conclusion, run.URL)
 	}
 	fmt.Printf("Published %s: %s\n", tag, run.URL)
 	return nil
@@ -101,7 +103,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: dispatch-release TAG SHA OWNER/REPOSITORY")
 		os.Exit(1)
 	}
-	d := dispatcher{now: time.Now, sleep: time.Sleep, gh: func(args ...string) ([]byte, error) {
+	d := dispatcher{now: time.Now, sleep: time.Sleep, retryFailed: os.Getenv("RETRY_FAILED_RELEASE") == "true", gh: func(args ...string) ([]byte, error) {
 		command := exec.Command("gh", args...)
 		command.Stderr = os.Stderr
 		return command.Output()

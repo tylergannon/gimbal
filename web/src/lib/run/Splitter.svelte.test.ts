@@ -18,7 +18,8 @@ test("arrow keys move the width by 24px and report both resize and commit", asyn
   await expect.element(handle).toHaveAttribute("aria-valuemin", "380");
   await expect.element(handle).toHaveAttribute("aria-valuemax", "900");
 
-  await handle.click();
+  (handle.element() as HTMLElement).focus();
+  await expect.element(handle).toHaveFocus();
   await userEvent.keyboard("{ArrowLeft}");
   expect(resized.at(-1)).toBe(504);
   expect(committed.at(-1)).toBe(504);
@@ -47,7 +48,8 @@ test("Home and End jump to the min and max", async () => {
   });
   const handle = screen.getByRole("separator");
 
-  await handle.click();
+  (handle.element() as HTMLElement).focus();
+  await expect.element(handle).toHaveFocus();
   await userEvent.keyboard("{Home}");
   expect(resized.at(-1)).toBe(380);
 

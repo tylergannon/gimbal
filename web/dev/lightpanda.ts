@@ -20,6 +20,10 @@ lightpanda.providerFactory = (project) => {
         "127.0.0.1",
         "--port",
         "0",
+        "--http-timeout",
+        "0",
+        "--log-format",
+        "logfmt",
         "--load-resources",
         "iframe",
         "--load-resources",
@@ -66,12 +70,35 @@ lightpanda.providerFactory = (project) => {
     }
   }
 
-  // Static ESM linking blocks Lightpanda's WebSocket callbacks. Resolve
-  // factories while registration can still exchange messages with Vitest.
+  // The browser setup registers a resolved factory again. Only that second
+  // registration can safely ask the browser for its already-cached exports.
+  const registered = new Set<string>();
   const register = provider.mocker.register.bind(provider.mocker);
   provider.mocker.register = async (id, module) => {
-    if (module.type === "manual") await module.resolve();
+    const key = `${id}:${module.url}`;
+    if (module.type === "manual" && registered.has(key)) await module.resolve();
+    registered.add(key);
     return register(id, module);
+  };
+  const clear = provider.mocker.clear.bind(provider.mocker);
+  provider.mocker.clear = async (id) => {
+    for (const key of registered) if (key.startsWith(`${id}:`)) registered.delete(key);
+    return clear(id);
+  };
+  // Lightpanda's CDP frame metadata currently omits the iframe's name.
+  const commands = provider.getCommandsContext.bind(provider);
+  provider.getCommandsContext = (id) => {
+    const context = commands(id);
+    return {
+      ...context,
+      frame: async () => {
+        const handle = await context.page.locator("iframe[data-vitest]").elementHandle();
+        const frame = await handle?.contentFrame();
+        await handle?.dispose();
+        if (!frame) throw new Error("Vitest test iframe is unavailable");
+        return frame;
+      },
+    };
   };
   const openPage = provider.openPage.bind(provider);
   provider.openPage = async (...args) => {

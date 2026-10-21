@@ -29,7 +29,12 @@ export default defineConfig(({ command }) => ({
         experimental: { async: true },
       },
       adapter: adapter(),
-      experimental: { remoteFunctions: true },
+      experimental: {
+        remoteFunctions: true,
+        // These are ordinary TypeScript tests, not rune modules. Compiling
+        // their awaits adds reactive imports inside hoisted mock factories.
+        compileModule: { exclude: /\.(test|spec)\.[jt]s$/ },
+      },
       paths: { origin: process.env.ORIGIN ?? "http://127.0.0.1:8080" },
     }),
   ]),
@@ -39,6 +44,7 @@ export default defineConfig(({ command }) => ({
         extends: "./vite.config.ts",
         test: {
           name: "client",
+          setupFiles: ["./dev/lightpanda-mocks.js"],
           browser: {
             enabled: true,
             // Headless checks need the full viewport: the runner UI scales its

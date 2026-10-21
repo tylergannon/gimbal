@@ -333,9 +333,9 @@ test("unavailable harnesses stay visible with their machine-specific reason", as
     oncreated: vi.fn(),
   });
   await screen.getByRole("button", { name: "Harness and model" }).click();
-  await expect
-    .element(screen.getByRole("button", { name: /Codex Not installed · This Mac/ }))
-    .toBeDisabled();
+  const unavailable = screen.getByRole("button", { name: /Codex/ });
+  await expect.element(unavailable).toBeDisabled();
+  await expect.element(unavailable).toHaveAttribute("title", "Not installed · This Mac");
 });
 
 test("last session and Start like restore environment and checkout setup", async () => {

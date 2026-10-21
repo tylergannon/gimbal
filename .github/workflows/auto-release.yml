@@ -99,7 +99,7 @@ jobs:
         run: |
           cd web
           vp install --frozen-lockfile
-          vp exec playwright install --with-deps chromium
+          bash ../scripts/ci/prepare-lightpanda.sh
       - name: Check frontend units on PRs
         if: github.event_name == 'pull_request' && steps.scope.outputs.web == 'true'
         run: cd web && vp run test

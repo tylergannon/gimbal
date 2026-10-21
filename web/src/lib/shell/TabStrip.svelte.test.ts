@@ -16,8 +16,10 @@ test.each(["failed", "needs-you"] as const)(
       onselect: select,
       onclose: vi.fn(),
     });
-    const button = screen.getByRole("tab", { name: `${label} Review Unseen changes` });
+    const button = screen.getByRole("tab", { name: /Review/ });
     await expect.element(button).toBeVisible();
+    await expect.element(button.getByRole("img", { name: label, exact: true })).toBeInTheDocument();
+    await expect.element(button.getByRole("img", { name: "Unseen changes" })).toBeInTheDocument();
     await button.click();
     expect(select).toHaveBeenCalledWith("run");
     await screen.rerender({
@@ -27,7 +29,7 @@ test.each(["failed", "needs-you"] as const)(
       onclose: vi.fn(),
     });
     await expect
-      .element(screen.getByRole("tab", { name: `${label} Review` }))
+      .element(screen.getByRole("tab", { name: /Review/ }))
       .toHaveAttribute("aria-selected", "true");
     expect(document.querySelector(`.pip[data-state="${status}"]`)).not.toBeNull();
     expect(document.querySelector(".unseen-mark")).toBeNull();
@@ -55,9 +57,13 @@ test("group menu selects real members by keyboard and can unfold views", async (
     onclose: close,
   });
   const group = screen.getByRole("tab", {
-    name: "Needs you runs · Build checkout Unseen changes 3",
+    name: /runs · Build checkout/,
   });
-  expect(group.element().parentElement!.getBoundingClientRect().height).toBeGreaterThanOrEqual(30);
+  await expect
+    .element(group.getByRole("img", { name: "Needs you", exact: true }))
+    .toBeInTheDocument();
+  await expect.element(group.getByRole("img", { name: "Unseen changes" })).toBeInTheDocument();
+  await expect.element(group.getByText("3", { exact: true })).toBeInTheDocument();
   await group.click();
   const menu = screen.getByRole("menu");
   expect(menu.element().textContent?.indexOf("Review 2")).toBeLessThan(

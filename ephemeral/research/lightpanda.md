@@ -1,7 +1,10 @@
 # Lightpanda and Gimbal's browser tests
 
-Researched 2026-10-21. Scope: Lightpanda 1.0.1, Playwright 1.64.0,
-Vitest 5.0.1, and Gimbal's current Svelte component-test harness.
+Researched 2026-10-21. Scope: Lightpanda 1.0.1, nightly
+1.1.0-nightly.10865+dba88f2d3, a local build of upstream commit
+9c97385c277a29138ccd69f66e3ed4bbd03a869e with two scrolling fixes
+and media-query range support,
+Playwright 1.64.0, Vitest 5.0.1, and Gimbal's Svelte component-test harness.
 
 ## What we learned
 
@@ -93,25 +96,115 @@ plain HTML form also submitted successfully at the top level but failed at the
 button click when the same form was inside an iframe. This gives a smaller
 reproduction independent of Svelte and the fixed-size assertions.
 
-Module-mocking tests also encountered a browser disconnect while resolving a
-manual mock. That failure's cause has not been isolated. Neither disconnects
-nor pointer timeouts should be described as a universal lack of DOM or form
-support.
+Neither disconnects nor pointer timeouts establish a universal lack of DOM or
+form support. Follow-up investigation identified concrete causes below.
 
 The initial macOS attempt and the follow-up on Bob used the same released
 Lightpanda version. Bob's check ran on its Arch Linux x86_64 host with Node
 24.22.1, outside the registered Actions runner containers. It does not qualify
-the complete suite or a CI deployment. No browser tests or application code were
-changed as part of this research.
+the complete suite or a CI deployment. The initial research changed no tests.
+The subsequent integration branch changes the harness and selected test
+assertions; it has not changed application components.
 
-## Questions still open
+## Follow-up integration findings
 
-- Which existing interaction tests run unchanged with the CDP provider?
-- Does a current nightly address the observed hit testing, or is an upstream
-  issue needed? Only the released 1.0.1 binary has been evaluated.
-- What is the smallest maintained provider/lifecycle integration for Gimbal?
-- Which styling assertions should be removed on their own merits? This should
-  not become a second rendering suite merely to preserve fixed pixel values.
+### Native iframe input and scrolling
 
-The research supports further Lightpanda integration work. It does not yet
-establish either complete suite compatibility or that Lightpanda is unusable.
+Nightly includes upstream [PR #4016](https://github.com/lightpanda-io/browser/pull/4016),
+which routes native mouse input into iframe documents. With explicit HTML
+iframe dimensions, the minimal iframe form and Gimbal's cancellation disclosure
+work with normal Playwright clicks. Released 1.0.1 fails the same interaction.
+
+Vitest sizes its iframe using CSS custom properties. Copying its configured
+viewport into the iframe's HTML width and height attributes gives Lightpanda
+the intended test viewport, including viewport changes.
+
+Current upstream CDP scrolling only scrolls the target's own frame. A control
+can therefore be inside that frame's viewport but clipped by an ancestor frame.
+Additionally, document extent excludes the synthetic bottom of an iframe whose
+height comes from an HTML attribute. A local native patch scrolls ancestor
+frames when needed and includes iframe viewport bounds in document extent.
+The patch adds a CDP regression test. Lightpanda's full suite passed 1968 tests
+with 7 skips; the attribute-height regression also passed separately.
+
+With this research build, all 22 existing run-page tests passed, including
+ordinary form filling and inline answer submission. This is evidence for the
+patched source build; it must not be attributed to the official nightly.
+
+### Module loading and mocks
+
+Lightpanda's `ScriptManagerBase.waitForImport` runs during synchronous V8 module
+instantiation. It delivers only the required module transfer while linking and
+defers callbacks that could reenter V8. Vitest's lazy manual-mock interception
+needs a browser WebSocket round trip to discover exports. When requested by a
+static dependency during linking, each side waits for the other.
+
+Resolving a factory during initial server registration is insufficient:
+`importOriginal` waits for Vitest's pending registrations, including its own.
+The working experiment resolves client factories after registration completes,
+then registers them again so the server caches export keys before linking.
+Factories are resolved in their declaration order; that is an integration
+constraint, not a claim of complete compatibility with arbitrary mock graphs.
+All five workspace tests passed with their existing async mock factories.
+
+Svelte's async compileModule transform also inserted reactivity-tracker imports
+inside hoisted mock factories. Excluding ordinary TypeScript test modules from
+rune compilation removes that initialization-order problem. Application rune
+modules still compile normally.
+
+### Additional harness and assertion boundaries
+
+- The inherited provider prewarm must be removed or it still launches Chromium.
+- Lightpanda allows only one browser context per CDP connection. Tell Vitest
+  that the provider executes browser files sequentially.
+- CDP frame metadata omits iframe names. Resolve the actual test iframe's DOM
+  element for keyboard commands instead of looking it up by frame name.
+- Keep mock-registration bookkeeping scoped to its lifetime; retaining it
+  after Vitest clears mocks makes later test files deadlock.
+- CSS layout affects whitespace in computed accessible names. Check the
+  relevant status image, title, unseen indicator, and control independently
+  instead of expecting one precise CSS-dependent concatenation.
+- A tail-following test needs actual overflow before an earlier-reader
+  assertion is meaningful. Explicit fixture dimensions establish that premise
+  without relying on approximate text or flex layout.
+- Exact SVG dimensions, minimum tab pixel height, and a fixed view width were
+  removed from the candidate functional suite. Keyboard selection, status,
+  draft preservation, submission, and sidebar dismissal remain exercised.
+
+Lightpanda also rejects MQ4 range comparisons: at width 1000, `(width < 1100px)`
+is false while `(max-width: 1099px)` is true. Gimbal's sidebar uses the range
+form. The native patch adds width and height comparisons, including reversed
+operands and chained bounds, with boundary and malformed-input coverage.
+The complete Lightpanda suite still passed 1968 tests with 7 skips.
+
+The final host run passed **all 140 tests across all 31 browser files** in
+32.73 seconds. No application component was changed. This includes keyboard
+resizing, status and unseen indicators, narrow-viewport sidebar dismissal,
+tail following and earlier-reader preservation, workspace drafts, and inline
+answer submission. Keyboard-only splitter tests now focus the handle directly;
+Lightpanda does not implement pointer capture, and clicking that handle had
+unnecessarily exercised drag handlers before testing the keys.
+
+## Reproducing the candidate
+
+The complete native changes, including their regression tests, are kept in
+[`scripts/ci/lightpanda.patch`](../../scripts/ci/lightpanda.patch). Bob's
+[`prepare-lightpanda.sh`](../../scripts/ci/prepare-lightpanda.sh) builds the
+pinned upstream revision with that patch. Its cache key includes the complete
+patch hash. Zig 0.17.0 is checksum-verified and Rust 1.94.0 is selected for the
+build. The static-V8 build targets Ubuntu 24.04's libc for the Actions runners.
+The script exports the resulting absolute `LIGHTPANDA_BINARY` path through
+`GITHUB_ENV` in Actions; the Vite provider uses it instead of launching Chromium.
+
+From the repository root on Linux x86_64:
+
+```sh
+export LIGHTPANDA_BINARY=$(bash scripts/ci/prepare-lightpanda.sh)
+cd web
+vp run test
+```
+
+The CI container qualification remains in progress. These patches have not
+been released by Lightpanda; a plain stable or nightly binary is not yet an
+equivalent replacement. The provider also depends on Vitest 5.0.1 mocker
+internals, so a runner upgrade requires rechecking that integration.

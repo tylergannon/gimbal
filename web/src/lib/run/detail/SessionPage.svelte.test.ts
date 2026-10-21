@@ -359,6 +359,11 @@ test("live focus follows its tail but leaves an earlier reader in place", async 
       revision: observation.revision,
     });
   }
+  // Set explicit overflow geometry so this exercises following behavior,
+  // independent of the browser's text layout and flex sizing.
+  scroller.style.height = "500px";
+  scroller.querySelector<HTMLElement>(".prose")!.style.height = "2000px";
+  expect(scroller.scrollHeight - scroller.clientHeight).toBeGreaterThan(48);
   // Explicitly start following after constraining the mounted test viewport.
   scroller.scrollTop = scroller.scrollHeight;
   await delta(" more prose".repeat(30));

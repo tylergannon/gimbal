@@ -1,0 +1,160 @@
+diff --git a/src/browser/css/MediaQuery.zig b/src/browser/css/MediaQuery.zig
+index a860ef1..57b5552 100644
+--- a/src/browser/css/MediaQuery.zig
++++ b/src/browser/css/MediaQuery.zig
+@@ -30,0 +31,2 @@
++//!   - Width/height ranges: `<`, `<=`, `=`, `>=`, `>`, including a feature
++//!     between two bounds whose comparisons point in the same direction.
+@@ -273,0 +276 @@ fn evalFeature(text: []const u8, viewport: Viewport) bool {
++    if (rangeOperator(trimmed)) |op| return evalRange(trimmed, op, viewport);
+@@ -276,0 +280,60 @@ fn evalFeature(text: []const u8, viewport: Viewport) bool {
++const RangeOperator = struct {
++    at: usize,
++    len: usize,
++    direction: u8,
++    equal: bool,
++};
++
++fn rangeOperator(text: []const u8) ?RangeOperator {
++    var i: usize = 0;
++    while (i < text.len) {
++        i = skipWsAndComments(text, i);
++        if (i == text.len) break;
++        const c = text[i];
++        if (c == '<' or c == '>' or c == '=') {
++            const equal = c == '=' or (i + 1 < text.len and text[i + 1] == '=');
++            return .{ .at = i, .len = if (c != '=' and equal) 2 else 1, .direction = c, .equal = equal };
++        }
++        i += 1;
++    }
++    return null;
++}
++
++const RangeOperand = struct { value: u32, feature: bool };
++
++fn rangeOperand(text: []const u8, viewport: Viewport) ?RangeOperand {
++    const value = trimWsAndComments(text);
++    if (std.ascii.eqlIgnoreCase(value, "width") or std.ascii.eqlIgnoreCase(value, "device-width")) {
++        return .{ .value = viewport.width, .feature = true };
++    }
++    if (std.ascii.eqlIgnoreCase(value, "height") or std.ascii.eqlIgnoreCase(value, "device-height")) {
++        return .{ .value = viewport.height, .feature = true };
++    }
++    return .{ .value = parseLengthPx(value) orelse return null, .feature = false };
++}
++
++fn rangeCompare(left: u32, op: RangeOperator, right: u32) bool {
++    if (op.equal and left == right) return true;
++    return switch (op.direction) {
++        '<' => left < right,
++        '>' => left > right,
++        else => false,
++    };
++}
++
++fn evalRange(text: []const u8, first: RangeOperator, viewport: Viewport) bool {
++    const left = rangeOperand(text[0..first.at], viewport) orelse return false;
++    const rest = text[first.at + first.len ..];
++    if (rangeOperator(rest)) |second| {
++        // A chained range has one feature in the middle and points in one direction.
++        if (first.direction == '=' or first.direction != second.direction) return false;
++        const middle = rangeOperand(rest[0..second.at], viewport) orelse return false;
++        const right = rangeOperand(rest[second.at + second.len ..], viewport) orelse return false;
++        if (left.feature or !middle.feature or right.feature) return false;
++        return rangeCompare(left.value, first, middle.value) and rangeCompare(middle.value, second, right.value);
++    }
++    const right = rangeOperand(rest, viewport) orelse return false;
++    if (left.feature == right.feature) return false;
++    return rangeCompare(left.value, first, right.value);
++}
++
+@@ -623 +686 @@ test "MediaQuery: unimplemented units fail closed" {
+-test "MediaQuery: range syntax is unsupported (fails closed)" {
++test "MediaQuery: range syntax" {
+@@ -625,3 +688 @@ test "MediaQuery: range syntax is unsupported (fails closed)" {
+-    // MQ4 range form is not implemented — should evaluate false rather than
+-    // accidentally matching via the `width` boolean form.
+-    try testing.expect(!matches("(width >= 600px)", v));
++    try testing.expect(matches("(width >= 600px)", v));
+@@ -630,0 +692,12 @@ test "MediaQuery: range syntax is unsupported (fails closed)" {
++    try testing.expect(matches("(600px < width <= 1920px)", v));
++    try testing.expect(matches("(1920px >= width > 600px)", v));
++    try testing.expect(matches("(width = 1920px)", v));
++    try testing.expect(!matches("(width > 1920px)", v));
++    try testing.expect(matches("(height >= 1080px)", v));
++    try testing.expect(matches("(1100px > width)", .{ .width = 1000, .height = 600 }));
++    try testing.expect(matches("(width < 1100px)", .{ .width = 1000, .height = 600 }));
++    try testing.expect(!matches("(width < 1100px)", .{ .width = 1100, .height = 600 }));
++    try testing.expect(matches("(WIDTH /* limit */ <= 120rem)", v));
++    for ([_][]const u8{ "(width == 1920px)", "(width >< 1920px)", "(width <=)", "(width > height)", "(1px < 2px)", "(600px < width > 100px)", "(600px < width < 2000px < 3000px)" }) |invalid| {
++        try testing.expect(!matches(invalid, v));
++    }
+diff --git a/src/browser/webapi/Document.zig b/src/browser/webapi/Document.zig
+index 7a7dc0d..892b346 100644
+--- a/src/browser/webapi/Document.zig
++++ b/src/browser/webapi/Document.zig
+@@ -520,3 +520,4 @@ pub fn extent(self: *Document) Extent {
+-        const parent = el.asNode().flatTreeParentElement(frame) orelse continue;
+-        if (parent.isRootContainer()) {
+-            continue;
++        // A child frame's viewport must fit at its synthetic document
++        // position, including height attributes on a direct body child.
++        if (el.is(@import("element/html/IFrame.zig")) != null) {
++            size.height = @max(size.height, index * 5.0 + el.getElementAxis(frame, .height).value);
+@@ -523,0 +525,2 @@ pub fn extent(self: *Document) Extent {
++        const parent = el.asNode().flatTreeParentElement(frame) orelse continue;
++        if (parent.isRootContainer()) continue;
+diff --git a/src/server/cdp/domains/dom.zig b/src/server/cdp/domains/dom.zig
+index a61cbdd..b33fc61 100644
+--- a/src/server/cdp/domains/dom.zig
++++ b/src/server/cdp/domains/dom.zig
+@@ -504 +504,13 @@ fn scrollIntoViewIfNeeded(cmd: *CDP.Command) !void {
+-            element.scrollIntoViewIfNeeded(null, element.ownerFrame(frame) orelse frame);
++            var owner = element.ownerFrame(frame) orelse frame;
++            element.scrollIntoViewIfNeeded(null, owner);
++            // Scrolling the element's own document is insufficient when its
++            // containing iframe sits outside an ancestor's viewport.
++            while (owner.parent) |parent| {
++                const iframe = owner.iframe orelse break;
++                const rect = viewportRect(element, parent);
++                const height: f64 = @floatFromInt(parent.window.getInnerHeight(parent));
++                if (rect.y < 0 or rect.y + rect.height > height) {
++                    iframe.asElement().scrollIntoView(null, parent);
++                }
++                owner = parent;
++            }
+@@ -1560,0 +1573,34 @@ test "cdp.dom: getContentQuads of a node in a nested iframe is in the top-level
++test "cdp.dom: scrollIntoViewIfNeeded scrolls ancestor frames" {
++    var ctx = try testing.context();
++    defer ctx.deinit();
++
++    const bc = try ctx.loadBrowserContext(.{ .url = "input_mouse_frames.html" });
++    const main = bc.mainFrame().?;
++    const child = main.child_frames.items[0];
++    const target = child.document.getElementById("middle", child).?;
++    {
++        var ls: js.Local.Scope = undefined;
++        main.js.localScope(&ls);
++        defer ls.deinit();
++        _ = try ls.local.compileAndRun(
++            \\const container = document.getElementById('child');
++            \\container.style.removeProperty('height');
++            \\container.height = '300';
++            \\for (let i = 0; i < 300; i++) {
++            \\  const filler = document.createElement('p');
++            \\  filler.textContent = 'filler';
++            \\  container.before(filler);
++            \\}
++        , null);
++    }
++    const height: f64 = @floatFromInt(main.window.getInnerHeight(main));
++    try testing.expect(viewportRect(target, main).y > height);
++    const node = try bc.node_registry.register(target.asNode());
++    try ctx.processMessage(.{ .id = 1, .method = "DOM.scrollIntoViewIfNeeded", .params = .{ .nodeId = node.id } });
++    try ctx.expectSentResult(null, .{ .id = 1 });
++    const rect = viewportRect(target, main);
++    try testing.expect(rect.y >= 0);
++    try testing.expect(rect.y + rect.height <= height);
++    try testing.expect(main.window.getScrollY() > 0);
++}
++

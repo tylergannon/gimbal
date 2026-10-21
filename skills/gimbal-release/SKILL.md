@@ -35,7 +35,19 @@ repeat an unchanged check merely because a commit was made, a PR merged, or a
 tag appeared. Existing evidence must name its source and cover the claim; a new
 failure or changed input calls for the relevant check again.
 
-For native UI changes, observe the actual app and macOS system menubar using a
+Before native user testing, follow the stable test identity and launch procedure
+in [development.md](references/development.md). Reuse the established app path,
+bundle ID and signing requirement; do not create a new identity for each build.
+Test realistic user stories, navigation, look and feel, and the complete visible
+conversation, including ordinary replies, useful tool work, follow-ups, Stop and
+reopening. Inspect actual pixels after each step. Narrative and results are the
+primary reading surface; tool activity should be compact, muted, single-line
+summaries with optional disclosed detail, not bold bordered command cards that
+dominate the conversation. Evaluate that hierarchy in the complete viewport. Model markers and backend event
+checks supplement this; they do not qualify usability. When another tester owns
+the desktop, hand off the candidate before replacing or relaunching their app.
+
+Observe the actual app and macOS system menubar using a
 disposable catalog, never `~/.gimbal/desktop`. Upload requested screenshots with
 `gimbal upload-artifact`. A build or HTTP response alone does not prove pixels.
 Read [development.md](references/development.md) for source builds and app

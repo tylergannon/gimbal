@@ -23,6 +23,7 @@ import (
 	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/internal/observation"
 	"github.com/tylergannon/gimbal/internal/sessionstate"
+	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/polytype"
 )
 
@@ -352,7 +353,14 @@ func (m *Manager) Setup(ctx context.Context) (Setup, error) {
 		if err != nil {
 			return Setup{}, err
 		}
-		models := slices.Clone(newest[provider])
+		models := []string{}
+		for _, native := range newest[provider] {
+			offered, _, err := providerModel(provider, native)
+			if err != nil {
+				return Setup{}, err
+			}
+			models = append(models, offered)
+		}
 		if !slices.Contains(models, model) {
 			models = append([]string{model}, models...)
 		}
@@ -406,7 +414,8 @@ func (m *Manager) List() []Conversation {
 	return items
 }
 
-// Get returns one durable snapshot.
+// Get returns one durable snapshot. Reconciliation updates its revision, not
+// the interaction time used to order saved history.
 func (m *Manager) Get(id string) (Conversation, bool) {
 	m.mu.Lock()
 	item := m.items[id]
@@ -472,7 +481,6 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 			after, _ := json.Marshal(item)
 			if string(before) != string(after) {
 				item.Revision++
-				item.Updated = time.Now().UnixMilli()
 				_ = m.save(item)
 			}
 		} else if err != nil {
@@ -482,7 +490,17 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 			after, _ := json.Marshal(item)
 			if string(before) != string(after) {
 				item.Revision++
-				item.Updated = time.Now().UnixMilli()
+				_ = m.save(item)
+			}
+		}
+	}
+	if item.WorkflowRun != "" {
+		// The run's journal is the transcript. A run not yet opened shows only the
+		// admitted prompt; one that cannot be read leaves a transcript already shown.
+		run, err := m.registry.Snapshot(item.WorkflowRun)
+		if err == nil || errors.Is(err, observation.ErrNoRun) || errors.Is(err, runstore.ErrIncomplete) {
+			if changed, err := projectTranscript(item, run, err == nil); err == nil && changed {
+				item.Revision++
 				_ = m.save(item)
 			}
 		}
@@ -554,7 +572,6 @@ func (m *Manager) refresh(item *Conversation) {
 	}
 	if changed {
 		item.Revision++
-		item.Updated = time.Now().UnixMilli()
 		_ = m.save(item)
 	}
 }
@@ -641,6 +658,10 @@ func (m *Manager) save(item *Conversation) error {
 	return nil
 }
 
+// providerModel returns the model as a Gimbal selection name that resolves to
+// provider's harness. OpenCode and Pi native ids are ambiguous without their
+// harness prefix (a bare "gpt-5-nano" resolves to Codex), so the selected
+// provider decides the prefix rather than the model string's shape.
 func providerModel(provider, model string) (string, string, error) {
 	switch provider {
 	case "codex":
@@ -675,19 +696,34 @@ func providerModel(provider, model string) (string, string, error) {
 		if model == "" {
 			model = "opencode/gpt-5-nano"
 		}
-		return model, "", nil
+		if !strings.HasPrefix(model, "opencode/") {
+			model = "opencode/" + model
+		}
+		return providerSelection(provider, model)
 	case "pi":
 		if model == "" {
-			resolved, err := modelalias.Resolve(modelalias.Selection{Name: "haiku"})
-			if err != nil {
-				return "", "", fmt.Errorf("conversation: resolve default Pi model: %w", err)
-			}
-			model = resolved.Provider + "/" + resolved.Model
+			model = "pi/diffusion/deepseek-4.1-flash"
 		}
-		return model, "", nil
+		if strings.HasPrefix(model, "diffusion/") {
+			model = "pi/" + model
+		}
+		return providerSelection(provider, model)
 	default:
 		return "", "", fmt.Errorf("conversation: unknown provider %q", provider)
 	}
+}
+
+// providerSelection refuses a model that would run on another harness than
+// the one the person selected.
+func providerSelection(provider, model string) (string, string, error) {
+	resolved, err := modelalias.Resolve(modelalias.Selection{Name: model})
+	if err != nil {
+		return "", "", fmt.Errorf("conversation: %s cannot run model %q: %w", provider, model, err)
+	}
+	if resolved.Harness != provider {
+		return "", "", fmt.Errorf("conversation: model %q runs on %s, not %s", model, resolved.Harness, provider)
+	}
+	return model, "", nil
 }
 
 func providerLabel(provider string) string {

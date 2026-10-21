@@ -2,6 +2,11 @@ import { expect, test, vi } from "vite-plus/test";
 import { render } from "vitest-browser-svelte";
 import type { Conversation } from "#lib/skgo/conversation/types";
 import ConversationView from "./ConversationView.svelte";
+import claudeCompleted from "./fixtures/claude-completed.json";
+import claudeWaiting from "./fixtures/claude-waiting.json";
+import claudeNarrated from "./fixtures/claude-narrated.json";
+import codexTurns from "./fixtures/codex-turns.json";
+import steeredTurns from "./fixtures/steered-turns.json";
 
 const remote = vi.hoisted(() => ({
   watch: vi.fn(() => {
@@ -129,4 +134,106 @@ test("leaving a chat destroys Rename without losing its message draft", async ()
   await expect
     .element(screen.getByRole("textbox", { name: "Message Chat rename" }))
     .toHaveValue("Unsent followup");
+});
+
+// These render the conversation exactly as the Go manager produced it for a
+// recorded run, so the reply has to be visible through the real page.
+for (const [name, fixture] of [
+  ["completed", claudeCompleted],
+  ["waiting", claudeWaiting],
+] as const)
+  test(`a Claude ${name} StructuredOutput reply is visible as the chat reply`, async () => {
+    const screen = await render(ConversationView, {
+      project: "project",
+      current: fixture as unknown as Conversation,
+      active: true,
+    });
+    await expect.element(screen.getByText(/Hello there\s+friend/)).toBeVisible();
+    await expect
+      .element(screen.getByText(/StructuredOutput|"decision"|"state"/))
+      .not.toBeInTheDocument();
+  });
+
+test("Claude narration and the StructuredOutput reply both show", async () => {
+  const screen = await render(ConversationView, {
+    project: "project",
+    current: claudeNarrated as unknown as Conversation,
+    active: true,
+  });
+  await expect.element(screen.getByText("I checked the files.", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("The answer is 42.", { exact: true })).toBeVisible();
+  await expect
+    .element(screen.getByText(/StructuredOutput|"decision"|"state"/))
+    .not.toBeInTheDocument();
+});
+
+test("Codex replies show once each, per turn, with no queued prompt", async () => {
+  const screen = await render(ConversationView, {
+    project: "project",
+    current: codexTurns as unknown as Conversation,
+    active: true,
+  });
+  await expect.element(screen.getByText("one", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText("two", { exact: true })).toBeVisible();
+  await expect.element(screen.getByText(/"decision"/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText(/Queued/)).not.toBeInTheDocument();
+  await expect.element(screen.getByRole("region", { name: "Turn 2", exact: true })).toBeVisible();
+});
+
+test("a steered prompt is not queued and the second turn is the running one", async () => {
+  const screen = await render(ConversationView, {
+    project: "project",
+    current: steeredTurns as unknown as Conversation,
+    active: true,
+  });
+  await expect.element(screen.getByText(/Queued/)).not.toBeInTheDocument();
+  await expect.element(screen.getByText("turn 2", { exact: true })).toBeVisible();
+  const first = screen.getByRole("region", { name: "Turn 1", exact: true });
+  await expect.element(first.getByText("go on", { exact: true })).toBeVisible();
+  await expect.element(first.getByText("On it", { exact: true })).toBeVisible();
+  const second = screen.getByRole("region", { name: "Turn 2", exact: true });
+  await expect.element(second.getByText("go on", { exact: true })).toBeVisible();
+  expect(screen.getByText("go on", { exact: true }).elements()).toHaveLength(2);
+});
+
+const failedRecord = (error: string, requestError: string, delivery: string) =>
+  ({
+    ...record("failed"),
+    live: false,
+    status: "error",
+    error,
+    state: JSON.stringify({
+      message: { failed: [{ id: "user", type: "user", requestID: "request", text: "hello" }] },
+    }),
+    requests: [
+      {
+        id: "request",
+        created: 1,
+        kind: "prompt",
+        message: "hello",
+        status: "failed",
+        error: requestError,
+        delivery,
+      },
+    ],
+  }) as unknown as Conversation;
+const visible = (text: string) => (document.body.textContent?.split(text).length ?? 1) - 1;
+
+// The same failure is copied to the conversation and its request; either way it is read once.
+for (const delivery of ["turn", "durable"]) {
+  test(`a failed ${delivery} request shows its error once`, async () => {
+    const error = "gimbal: agentic-dialogues.1: codex: model is not supported";
+    const current = failedRecord(error, error, delivery);
+    const screen = await render(ConversationView, { project: "project", current, active: true });
+    await expect.element(screen.getByText(error, { exact: true })).toBeVisible();
+    expect(visible(error)).toBe(1);
+  });
+}
+
+test("distinct conversation and request errors are each shown", async () => {
+  const current = failedRecord("run ended: first cause", "turn failed: second cause", "turn");
+  const screen = await render(ConversationView, { project: "project", current, active: true });
+  await expect.element(screen.getByText("turn failed: second cause")).toBeVisible();
+  expect(visible("run ended: first cause")).toBe(1);
+  expect(visible("turn failed: second cause")).toBe(1);
 });

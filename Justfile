@@ -23,8 +23,8 @@ app: build
     cmp -s bin/gimbal native/Resources/gimbal || install -m 755 bin/gimbal native/Resources/gimbal
     go tool skgo native build --platform macos
 
-# Real microphone validation needs a stable identity so macOS permissions survive
-# rebuilds. Ordinary source builds remain usable without a signing certificate.
+# Native user testing needs a stable identity so Documents/microphone/speech
+# permissions survive rebuilds. Ordinary source builds can remain unsigned.
 app-validate: app
     scripts/sign-native-dev.sh native/build/macos/DerivedData/Build/Products/Debug/Gimbal.app
 

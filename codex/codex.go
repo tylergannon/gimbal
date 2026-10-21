@@ -40,10 +40,13 @@ import (
 
 var errTurnInterrupted = errors.New("codex: the turn was interrupted")
 
-const (
-	requestTimeout = 30 * time.Second
-	controlTimeout = 5 * time.Second
-)
+const requestTimeout = 30 * time.Second
+
+// controlTimeout bounds one stop confirmation step; tests shorten it.
+var controlTimeout = 5 * time.Second
+
+// busyPoll is how often a waiting prompt rereads the thread's native status.
+var busyPoll = time.Second
 
 // adapter runs Codex sessions against the machine's shared app-server
 // daemon over one shared connection, dialed lazily on first use.
@@ -311,6 +314,32 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if err != nil {
 		return gimbal.TurnResult{}, err
 	}
+	// An earlier Stop may have gone unconfirmed. The thread has one owner, so a
+	// turn still in progress is that earlier work. Ask it to stop again and wait
+	// for its terminal status under this prompt's own context; nothing is sent
+	// until then, and cancelling this turn abandons a prompt Codex never saw.
+	for first := true; ; first = false {
+		busy := ""
+		for _, native := range before.Turns {
+			if native.Status == "inProgress" {
+				busy = native.ID
+			}
+		}
+		if busy == "" {
+			break
+		}
+		if first {
+			interrupt(conn, sessionID, busy)
+		}
+		select {
+		case <-ctx.Done():
+			return gimbal.TurnResult{}, ctx.Err()
+		case <-time.After(busyPoll):
+		}
+		if before, err = readThread(ctx, conn, sessionID, "notLoaded"); err != nil {
+			return gimbal.TurnResult{}, err
+		}
+	}
 	active := &activeTurn{noticeID: fmt.Sprintf("connection.%d", time.Now().UnixNano()), conn: conn, resume: make(chan struct{}, 1), emit: newProjector(sessionID, "", s.model, onEvent)}
 	s.setActive(active)
 	defer s.setActive(nil)
@@ -330,34 +359,19 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if ctx.Err() == nil && (isTransportError(err) || errors.Is(err, context.DeadlineExceeded)) {
 		text, err = a.recoverTurn(ctx, s, sessionID, prompt, params, before, active, err)
 	}
-	if ctx.Err() != nil {
+	// A native turn that completed is authoritative even if cancellation raced it.
+	if ctx.Err() != nil && err != nil {
 		active.mu.Lock()
 		current, turn := active.conn, active.turnID
 		active.mu.Unlock()
 		// Cancellation is local intent. Only a terminal native outcome confirms
 		// cessation; Close retains ownership when delivery/reconciliation fails.
-		confirmed := err == nil || errors.Is(err, errTurnInterrupted)
+		confirmed := errors.Is(err, errTurnInterrupted)
 		if !confirmed && turn != "" {
-			interrupt(current, sessionID, turn)
-			if !current.dead() {
-				drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
-				_, drainErr := readTurn(drainCtx, current, current.registerThread(sessionID), sessionID, turn, active.emit)
-				confirmed = drainErr == nil || errors.Is(drainErr, errTurnInterrupted)
-				if !confirmed && drainCtx.Err() == nil {
-					snapshot, readErr := readThread(drainCtx, current, sessionID, "notLoaded")
-					if readErr == nil {
-						for _, native := range snapshot.Turns {
-							if native.ID == turn && (native.Status == "completed" || native.Status == "interrupted" || native.Status == "failed") {
-								confirmed = true
-							}
-						}
-					}
-				}
-				drainCancel()
-			}
+			confirmed = stopConfirmed(current, sessionID, turn, active.emit)
 		}
 		if !confirmed {
-			return gimbal.TurnResult{}, &backend.DeliveryUncertain{RequestID: turn, Err: errors.Join(ctx.Err(), errors.New("codex has not confirmed the stop; the native turn may still be running"))}
+			return gimbal.TurnResult{}, &backend.DeliveryUncertain{RequestID: turn, Accepted: turn != "", Err: errors.Join(ctx.Err(), errors.New("codex has not confirmed the stop; the native turn may still be running"))}
 		}
 		return gimbal.TurnResult{}, ctx.Err()
 	}
@@ -550,6 +564,35 @@ func (s *session) getActive() *activeTurn {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.active
+}
+
+// stopConfirmed interrupts a native turn and reports whether Codex then
+// recorded a terminal outcome, by notification or by its thread history.
+func stopConfirmed(conn *connection, threadID, turnID string, emit *projector) bool {
+	interrupt(conn, threadID, turnID)
+	if conn.dead() {
+		return false
+	}
+	drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
+	defer drainCancel()
+	_, err := readTurn(drainCtx, conn, conn.registerThread(threadID), threadID, turnID, emit)
+	if err == nil || errors.Is(err, errTurnInterrupted) {
+		return true
+	}
+	// The terminal notification can be missing while native history already
+	// records the outcome; read it with its own budget.
+	readCtx, readCancel := context.WithTimeout(context.Background(), controlTimeout)
+	defer readCancel()
+	snapshot, err := readThread(readCtx, conn, threadID, "notLoaded")
+	if err != nil {
+		return false
+	}
+	for _, native := range snapshot.Turns {
+		if native.ID == turnID && (native.Status == "completed" || native.Status == "interrupted" || native.Status == "failed") {
+			return true
+		}
+	}
+	return false
 }
 
 func interrupt(conn *connection, threadID, turnID string) {

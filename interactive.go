@@ -292,7 +292,11 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 					state.Unresolved = fmt.Sprintf("Input %s delivery is unresolved; inspect the recorded native operation", next.ID)
 				}
 			}
-			if isUnresolved(completed.err) {
+			// A prompt the native session already took leaves only one thing in
+			// doubt after Stop: whether cessation was confirmed. That is not an
+			// unresolved input, so the conversation stays open for the next turn.
+			unconfirmedStop := stop && !finish && state.InputPublished && isUnresolved(completed.err)
+			if isUnresolved(completed.err) && !unconfirmedStop {
 				state.Unresolved = completed.err.Error()
 			}
 			if state.Unresolved != "" {
@@ -310,7 +314,7 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 					r.interactionMu.Unlock()
 					return state.Transcript, errors.New("gimbal: invalid interaction decision")
 				}
-			} else if (!finish && !stop) || !errors.Is(completed.err, context.Canceled) {
+			} else if !unconfirmedStop && ((!finish && !stop) || !errors.Is(completed.err, context.Canceled)) {
 				r.interactionMu.Unlock()
 				return state.Transcript, completed.err
 			}

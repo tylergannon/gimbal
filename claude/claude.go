@@ -208,7 +208,14 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}
 	defer func() { _ = client.Close() }()
+	// Before initialize returns there is no stream to interrupt, and no
+	// prompt has been sent. Stop must still release this process owner.
+	stopInitialization := context.AfterFunc(ctx, stop)
 	stream, err := client.Stream(processCtx)
+	stopInitialization()
+	if ctx.Err() != nil {
+		return gimbal.TurnResult{}, ctx.Err()
+	}
 	if err != nil {
 		return gimbal.TurnResult{}, fmt.Errorf("claude: %w", err)
 	}

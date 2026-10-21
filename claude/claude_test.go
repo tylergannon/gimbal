@@ -3,9 +3,13 @@ package claude
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -184,4 +188,77 @@ func TestTextOnlyLoadsNoToolsOrSettings(t *testing.T) {
 	if !New(TextOnly()).(*adapter).textOnly {
 		t.Fatal("TextOnly did not select a text-only session")
 	}
+}
+
+// Stop can arrive while the SDK is waiting for the CLI initialize response,
+// before a stream exists to receive an interrupt. No prompt has been sent.
+func TestStopDuringCLIInitializationReturnsWithoutLeavingTheProcess(t *testing.T) {
+	bin := t.TempDir()
+	pidFile := filepath.Join(bin, "pid")
+	readyFile := filepath.Join(bin, "ready")
+	script := fmt.Sprintf("#!/bin/sh\nif [ \"$1\" = \"--version\" ]; then echo \"2.1.305 (Claude Code)\"; exit 0; fi\nprintf '%%s' $$ > %q\nIFS= read -r init\nprintf ready > %q\nexec sleep 3600\n", pidFile, readyFile)
+	if err := os.WriteFile(filepath.Join(bin, "claude"), []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	a := New()
+	id, err := a.CreateSession(t.Context(), "claude-haiku-4-5", "", bin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := a.RunTurn(ctx, id, "Never sent", nil, func(gimbal.AgentEvent) error { return nil })
+		done <- err
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(readyFile); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("CLI never received initialization")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	raw, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid, err := strconv.Atoi(string(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	running := true
+	t.Cleanup(func() {
+		if running {
+			_ = proc.Kill()
+		}
+	})
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("stop error: %v", err)
+		}
+	// The SDK gives a non-cooperative CLI five seconds before killing it.
+	case <-time.After(7 * time.Second):
+		_ = proc.Kill()
+		<-done
+		t.Fatal("Stop left the CLI initialize handshake running")
+	}
+	deadline = time.Now().Add(time.Second)
+	for proc.Signal(syscall.Signal(0)) == nil {
+		if time.Now().After(deadline) {
+			t.Fatal("Stop returned while its CLI process remained alive")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	running = false
 }

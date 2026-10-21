@@ -1,6 +1,9 @@
 import { expect, test } from "vite-plus/test";
 import type { Conversation } from "#lib/skgo/conversation/types";
+import type { ProjectionState } from "#lib/sessionstate";
 import { sessionTurns, runEvents, sessionTurnSeconds } from "./sessionTurns";
+import steered from "./fixtures/steered-turns.json";
+import codex from "./fixtures/codex-turns.json";
 
 test("run provenance requires known completed launch output and explicit source request", () => {
   const record = {
@@ -64,4 +67,37 @@ test("turn elapsed excludes idle draft time and remains unknown without recorded
   expect(sessionTurnSeconds(turn)).toBe(1);
   expect(sessionTurnSeconds(turn, 123000)).toBe(2);
   expect(sessionTurnSeconds({ ...turn, messages: turn.messages.slice(1) })).toBeUndefined();
+});
+
+// The fixtures are what the Go conversation manager produced for a recorded run.
+const grouped = (fixture: unknown) => {
+  const record = fixture as Conversation;
+  const messages = (JSON.parse(record.state) as ProjectionState).message[record.id] ?? [];
+  return sessionTurns(record, messages);
+};
+
+test("a steer is part of the turn that took it and a later identical prompt is its own turn", () => {
+  const groups = grouped(steered);
+  expect(groups.turns.map((turn) => [turn.request.id, turn.ordinal])).toEqual([
+    ["req-1", 1],
+    ["req-3", 2],
+  ]);
+  expect(groups.turns[0].messages.map((message) => message.id)).toEqual([
+    "req-1/prompt",
+    "req-1/msg_1",
+    "req-1/turn-1/steer/req-2",
+  ]);
+  expect(groups.turns[1].messages.map((message) => message.id)).toEqual([
+    "req-3/prompt",
+    "req-3/msg_2",
+  ]);
+  expect(groups.history).toEqual([]);
+  expect((steered as Conversation).active_request).toBe("req-3");
+});
+
+test("two ended turns with the same words each keep their own reply", () => {
+  const groups = grouped(codex);
+  expect(groups.turns.map((turn) => turn.request.id)).toEqual(["req-1", "req-2"]);
+  expect(groups.turns.map((turn) => turn.messages.length)).toEqual([2, 2]);
+  expect(groups.history).toEqual([]);
 });

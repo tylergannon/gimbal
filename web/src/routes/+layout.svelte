@@ -3,7 +3,7 @@
   import { untrack } from 'svelte';
   import type { WindowState } from '#lib/skgo/host/types';
   import { rememberWindow } from '#lib/window.remote';
-  import { MediaQuery } from "svelte/reactivity";
+  import { MediaQuery, SvelteMap } from "svelte/reactivity";
   import Account from "#lib/auth/Account.svelte";
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { navigating, page } from "$app/state";
@@ -15,10 +15,12 @@
 
   let { children, data } = $props();
   let windowState = $state<WindowState>(untrack(() => data.window));
+  const projectPlaces = new SvelteMap<string, WindowState>(untrack(() => windowState.project ? [[windowState.project, windowState]] : []));
   let saving = Promise.resolve();
   let saveError = $state('');
   function moved(place: WindowState) {
     const root = `/projects/${place.project}/`;
+    projectPlaces.set(place.project, place);
     windowState = { ...place, seen: [...(windowState.seen ?? []).filter(item => !item.path.startsWith(root)), ...place.seen] };
     saving = saving.then(async () => {
       try { await rememberWindow(place); saveError = ''; }
@@ -103,7 +105,7 @@
               ?.path.split("/")
               .at(-1) ?? "Project"}
             projects={data.workspaceProjects}
-            restored={windowState.project === project ? windowState.tabs : []}
+            restored={projectPlaces.get(project)?.tabs ?? []}
             sidebarPreference={windowState.sidebar}
             seenReplies={windowState.seen ?? []}
             onplace={moved}

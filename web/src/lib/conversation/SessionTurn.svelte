@@ -9,12 +9,15 @@
   let { project, record, turn, runStatuses = {} }: { project:string; record:Conversation; turn:SessionTurn; runStatuses?:Record<string,WorkspaceTab['status']> } = $props();
   const running = $derived(record.active_request === turn.request.id);
   const failed = $derived(turn.request.status === 'failed' || !!turn.request.error);
+  const stopped = $derived(turn.request.status === 'canceled');
+  const notSent = $derived(turn.request.status === 'unprocessed');
   const seconds = $derived(sessionTurnSeconds(turn,running ? clock.now : undefined));
   const events = $derived(turn.messages.flatMap(message => message.content ?? []).filter(part => part.type === 'tool' || part.type === 'reasoning').length);
 </script>
 <section class="turn" aria-label={`Turn ${turn.ordinal}`}>
  {#each turn.messages.filter(message => message.type === 'user' && message.requestID === turn.request.id) as message (message.id)}<ConversationMessage {message} revision={record.revision} provider="Agent" model="" location="" compact />{/each}
- <div class="turn-head"><b>Turn {turn.ordinal}</b><span>·</span><Pip state={running ? 'running' : failed ? 'failed' : turn.request.status === 'canceled' ? 'cancelled' : turn.request.status === 'accepted' ? 'queued' : 'ended'} /><span>{running ? 'running' : failed ? 'failed' : turn.request.status === 'canceled' ? 'stopped' : turn.request.status === 'accepted' ? 'queued' : 'ended'}</span>{#if seconds !== undefined}<span>·</span><span>{Math.floor(seconds/60)}m {String(seconds%60).padStart(2,'0')}s</span>{/if}<span>·</span><span>{events} {events === 1 ? 'event' : 'events'}</span></div>
+ <div class="turn-head"><b>Turn {turn.ordinal}</b><span>·</span><Pip state={running ? 'running' : failed ? 'failed' : stopped || notSent ? 'cancelled' : turn.request.status === 'accepted' ? 'queued' : 'ended'} /><span>{running ? 'running' : failed ? 'failed' : stopped ? 'stopped' : notSent ? 'delivery unconfirmed' : turn.request.status === 'accepted' ? 'queued' : 'ended'}</span>{#if seconds !== undefined}<span>·</span><span>{Math.floor(seconds/60)}m {String(seconds%60).padStart(2,'0')}s</span>{/if}<span>·</span><span>{events} {events === 1 ? 'event' : 'events'}</span></div>
+ {#if turn.request.status === 'unprocessed'}<p class="notice">Delivery of this message was not confirmed.</p>{/if}
  {#each turn.messages.filter(message => !(message.type === 'user' && message.requestID === turn.request.id)) as message (message.id)}<ConversationMessage {message} revision={record.revision} provider="Agent" model="" location="" compact {project} {runStatuses} runs={runEvents(message,record,turn.request)} />{/each}
  {#if turn.request.error}<p class="error">{turn.request.error}</p>{/if}
 </section>

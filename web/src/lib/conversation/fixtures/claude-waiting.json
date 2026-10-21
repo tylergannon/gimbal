@@ -1,0 +1,47 @@
+{
+  "workflow_run": "run",
+  "id": "chat",
+  "title": "Codex conversation",
+  "provider": "codex",
+  "model": "gpt-6-luna",
+  "effort": "",
+  "shared_checkout": false,
+  "base": "",
+  "branch": "gimbal/conversation",
+  "worktree": "/project",
+  "native_session": "",
+  "live": true,
+  "status": "waiting",
+  "error": "",
+  "created": 1,
+  "updated": 1,
+  "messages": null,
+  "runs": [],
+  "requests": [
+    {
+      "id": "req-1",
+      "created": 500,
+      "kind": "prompt",
+      "message": "hi",
+      "target": "",
+      "file_id": "",
+      "status": "completed",
+      "delivery": "turn",
+      "error": ""
+    }
+  ],
+  "active_request": "",
+  "state": "{\"info\":{},\"family\":{},\"active\":{},\"message\":{\"chat\":[{\"id\":\"req-1/prompt\",\"type\":\"user\",\"text\":\"hi\",\"time\":{\"created\":1000},\"requestID\":\"req-1\"},{\"id\":\"req-1/msg_1\",\"type\":\"assistant\",\"agent\":\"codex\",\"model\":{\"id\":\"gpt-6-luna\",\"providerID\":\"openai\"},\"content\":[{\"type\":\"tool\",\"id\":\"so_1\",\"name\":\"StructuredOutput\",\"time\":{\"created\":1000,\"ran\":1000},\"state\":{\"status\":\"running\",\"input\":{\"state\":\"waiting\",\"message\":\"Hello there\\nfriend\"},\"metadata\":{}},\"executed\":true},{\"type\":\"text\",\"text\":\"Hello there\\nfriend\",\"html\":\"\\u003cp\\u003eHello there\\nfriend\\u003c/p\\u003e\\n\"}],\"time\":{\"created\":1000}}]},\"pending\":{},\"permission\":{},\"form\":{}}",
+  "revision": 1,
+  "environment": "local",
+  "placement": null,
+  "contact": "connected",
+  "capabilities": {
+    "steer": true,
+    "fork": true,
+    "worktree": true,
+    "browse": true,
+    "clone": true
+  },
+  "cleanup_pending": false
+}

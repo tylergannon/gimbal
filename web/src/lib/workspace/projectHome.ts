@@ -43,6 +43,9 @@ export function projectActivity(
   recordings: Header[],
 ): HomeEntry[] {
   const root = `/projects/${project}`;
+  // A conversation's controller waits for the same person as its session.
+  // Child workflows remain separate work; only its own backing run is hidden.
+  const controllers = new Set(sessions.map((item) => item.workflow_run).filter(Boolean));
   return [
     ...sessions.map((item) => ({
       path: `${root}/conversations/${item.id}`,
@@ -64,26 +67,28 @@ export function projectActivity(
           ? `turn ${item.requests.filter((request) => request.delivery === "turn").length}`
           : ""),
     })),
-    ...runs.map((item) => ({
-      path: `${root}/runs/${encodeURIComponent(item.run.id)}`,
-      title: `${item.run.name} · ${item.run.id.split(".")[0].slice(-6)}`,
-      kind: "Runs" as const,
-      status: runStatus(item.run, attention),
-      bound: [
-        `${item.session_count} ${item.session_count === 1 ? "session" : "sessions"}`,
-        item.run.task_environment,
-      ]
-        .filter(Boolean)
-        .join(" · "),
-      updated: item.activity_at || item.run.ended || item.run.started,
-      detail: item.run.error || item.summary,
-      question: attention.find(
-        (question) =>
-          question.run === item.run.id &&
-          question.status === "pending" &&
-          item.run.status === "running",
-      )?.question,
-    })),
+    ...runs
+      .filter((item) => !controllers.has(item.run.id))
+      .map((item) => ({
+        path: `${root}/runs/${encodeURIComponent(item.run.id)}`,
+        title: `${item.run.name} · ${item.run.id.split(".")[0].slice(-6)}`,
+        kind: "Runs" as const,
+        status: runStatus(item.run, attention),
+        bound: [
+          `${item.session_count} ${item.session_count === 1 ? "session" : "sessions"}`,
+          item.run.task_environment,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        updated: item.activity_at || item.run.ended || item.run.started,
+        detail: item.run.error || item.summary,
+        question: attention.find(
+          (question) =>
+            question.run === item.run.id &&
+            question.status === "pending" &&
+            item.run.status === "running",
+        )?.question,
+      })),
     ...recordings.map((item) => ({
       path: `${root}/recordings/${item.id}`,
       title: `Recording · ${new Date(item.created).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`,

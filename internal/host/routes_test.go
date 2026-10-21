@@ -3,6 +3,7 @@ package host
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -208,5 +209,38 @@ func TestLocalWorkflowRetainsRemoteTaskDirectoryAndRoute(t *testing.T) {
 			t.Fatalf("completion=%+v %v", snapshot.Run, err)
 		}
 		time.Sleep(time.Millisecond)
+	}
+}
+
+// A failed conversation start only releases its run identifier when the route
+// record proves the run never began; an ambiguous or accepted one keeps it.
+func TestFailedStartOutcomeFollowsAdmissionRecord(t *testing.T) {
+	owner := New(t.Context(), t.TempDir())
+	defer owner.Close()
+	project, err := owner.AdmitProject(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("start failed")
+	for _, tc := range []struct {
+		name, run, admission string
+		uncertain            bool
+	}{
+		{"never recorded", "01ARZ3NDEKTSV4RRFFQ69G5FA0", "", false},
+		{"rejected", "01ARZ3NDEKTSV4RRFFQ69G5FA1", "failed", false},
+		{"ambiguous", "01ARZ3NDEKTSV4RRFFQ69G5FA2", "unknown", true},
+		{"accepted but record write failed", "01ARZ3NDEKTSV4RRFFQ69G5FA3", "accepted", true},
+		{"pending", "01ARZ3NDEKTSV4RRFFQ69G5FA4", "pending", true},
+	} {
+		if tc.admission != "" {
+			if err := project.writeRoute(routeRecord{ID: tc.run, Workflow: "conversation", Admission: tc.admission}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got := project.startOutcome(tc.run, cause)
+		uncertain, ok := errors.AsType[*backend.DeliveryUncertain](got)
+		if ok != tc.uncertain || !errors.Is(got, cause) || (ok && uncertain.RequestID != tc.run) {
+			t.Errorf("%s: %v", tc.name, got)
+		}
 	}
 }

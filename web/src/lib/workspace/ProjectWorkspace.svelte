@@ -33,6 +33,7 @@
   import { nativeMessage, recordingControl, recordingTime, type NativeStatus } from './native';
   import { conversationsForWorkspace, conversationNeedsUpdates, completedReply, conversationStatus } from './conversations';
   import { harnessName } from '#lib/conversation/names';
+  import { openMachines } from '#lib/environments/navigation';
 
   let { project, name, projects, restored = [], sidebarPreference = null, seenReplies = [], onplace, children }: {
     project: string; name: string; projects: { id: string; path: string }[]; restored?: WindowTab[]; sidebarPreference?: boolean | null; seenReplies?: { path: string; request: string }[]; onplace?: (place: WindowState) => void; children: Snippet;
@@ -96,7 +97,7 @@
       unseen: id !== active && runVersion(item) !== seen.get(id) };
   }) ?? []);
   const runStatuses = $derived(Object.fromEntries((runData?.items ?? []).map(item => [item.run.id,runStatus(item.run,runData?.attention ?? [])])));
-  const pendingQuestions = $derived(runData?.attention.filter(row => row.status === 'pending' && runData.items.some(item => item.run.id === row.run && item.run.status === 'running')) ?? []);
+  const pendingQuestions = $derived(runData?.attention.filter(row => row.status === 'pending' && !conversations.some(item => item.workflow_run === row.run) && runData.items.some(item => item.run.id === row.run && item.run.status === 'running')) ?? []);
   const sidebarItems = $derived<WorkspaceTab[]>([
     ...items, {id:allRuns,title:'All runs',kind:'runs',count:runData?.items.length,detail:pendingQuestions.length ? `${new Set(pendingQuestions.map(row => row.run)).size} needs you` : undefined}, ...runTabs,
     ...(newest.current?.items ?? history.items).map(item => ({id:`${root}/recordings/${item.id}`,title:`Recording · ${new Date(item.created).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}`,kind:'recording' as const})),
@@ -177,7 +178,18 @@
     else visit(page.url.pathname);
     workspaceChanged();
   });
-  function select(path: string) { markSeen(); fileChooser = false; projectChooser = false; void goto(path, { reset: false }); }
+  async function select(path: string) {
+    actionError = '';
+    try {
+      markSeen(); fileChooser = false; projectChooser = false;
+      await goto(path, { reset: false });
+    } catch (error) {
+      // Cross-project navigation is canceled deliberately while AppKit obtains
+      // recording approval. Other failures must not leave a silent dead button.
+      if (native && !path.startsWith(`${root}/`) && path !== root && error instanceof Error && error.message === 'navigation cancelled') return;
+      if (!navigateOnUnauthorized(error)) actionError = `Could not open this view: ${errorMessage(error)}`;
+    }
+  }
   async function close(path: string) {
     if (path.startsWith(`${root}/conversations/`) && path !== `${root}/conversations/new`) {
       const id = path.slice(`${root}/conversations/`.length);
@@ -281,6 +293,9 @@
 
 <svelte:head><title>{tabs.find(tab => tab.id === active)?.title ?? name} · {APP_NAME}</title></svelte:head>
 
+<div class="workspace-frame">
+{#if actionError}<p class="action-error" role="alert">{actionError}<button onclick={() => actionError = ''}>Dismiss</button></p>{/if}
+<div class="workspace-content">
 <WorkspaceShell project={name} items={sidebarItems} {tabs} {active} bind:sidebar={() => sidebar, setSidebar} {recording} {native}
   onproject={chooseProject} onrecording={openRecording} oncontrol={control}
   onselect={select} onclose={close} onopen={select} onnew={() => select(`${root}/conversations/new`)}>
@@ -309,14 +324,15 @@
     {:else}<div class="route-content">{@render children()}</div>{/if}
   {/snippet}
   {#snippet sidebarExtra()}
-    {#if actionError}<p role="alert">{actionError}</p>{/if}
     <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
     <div class="pager">{#if after}<button onclick={() => after = ''}>Newest</button>{/if}{#if history.next}<button onclick={() => after = history.next}>Older recordings</button>{/if}</div>
   {/snippet}
   {#snippet sidebarFooter()}
-    <nav class="tools" aria-label="Project tools"><a class="row" href={root}>Project home</a><a class="row" href={`/settings/machines/projects/${project}`}><ServerIcon size={14} />Machines</a></nav>
+    <nav class="tools" aria-label="Project tools"><a class="row" href={root}>Project home</a><button class="row" onclick={() => openMachines()}><ServerIcon size={14} />Machines</button></nav>
   {/snippet}
 </WorkspaceShell>
+</div>
+</div>
 
 <Dialog.Root bind:open={fileChooser}>
   <Dialog.Content>
@@ -329,6 +345,10 @@
 
 
 <style>
+  .workspace-frame { display:flex; flex-direction:column; height:100%; min-height:0; }
+  .workspace-content { flex:1; min-height:0; }
+  .action-error { display:flex; align-items:center; gap:12px; flex:none; margin:0; padding:10px 16px; font-size:13px; color:var(--destructive); background:var(--background); }
+  .action-error button { margin-left:auto; padding:2px 4px; border:0; color:inherit; background:transparent; font:inherit; text-decoration:underline; cursor:pointer; }
   .choices { display: grid; gap: 8px; }
   .choices button { padding: 10px; text-align: left; color: inherit; background: var(--muted); border: 0; border-radius: 8px; cursor: pointer; }
   .choices p { color: var(--muted-foreground); font-size: 13px; }
@@ -342,8 +362,9 @@
   .pager button { padding: 4px 0; border: 0; background: transparent; color: var(--muted-foreground); font: inherit; font-size: 12px; cursor: pointer; }
   .pager button:hover { color: var(--foreground); }
   .tools { display: grid; gap: 4px; }
-  .tools a { color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
-  .tools a:hover { color: var(--foreground); }
+  .tools button { border:0; background:transparent; text-align:left; font:inherit; cursor:pointer; }
+  .tools a, .tools button { color: var(--muted-foreground); text-decoration: none; font-size: 13px; }
+  .tools a:hover, .tools button:hover { color: var(--foreground); }
   .projects, .upload { padding: 8px 10px; font-size: 12px; }
   summary { cursor: pointer; color: var(--muted-foreground); }
   .upload form { display: grid; gap: 8px; padding-top: 8px; }

@@ -75,7 +75,7 @@
     } else if (event.key === 'Escape' && canStop) { event.preventDefault(); void stop(); }
   }
   onMount(() => {
-    requestID = crypto.randomUUID(); created = Date.now();
+    requestID = crypto.randomUUID();
     const command = (event: Event) => { if (!active) return; const value = (event as CustomEvent).detail.command; if (value === 'stopResponse') void stop(); };
     const shortcut = (event: KeyboardEvent) => {
       if (active && (event.metaKey || event.ctrlKey) && event.key === '.' && canStop) { event.preventDefault(); void stop(); }
@@ -118,8 +118,12 @@
 
   <form class="composer" {...form.enhance(async (submitted) => {
     actionError = '';
+    // Stamp admission, not time spent with an idle composer. Keep this request's
+    // timestamp for an uncertain retry so its durable identity remains stable.
+    if (!created) created = Date.now();
+    submitted.fields.created.set(created);
     try {
-      if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); requestID = crypto.randomUUID(); created = Date.now(); onchanged?.(); }
+      if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); requestID = crypto.randomUUID(); created = 0; onchanged?.(); }
     } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
   })}>
     <input {...form.fields.conversation.as('hidden', record.id)} />

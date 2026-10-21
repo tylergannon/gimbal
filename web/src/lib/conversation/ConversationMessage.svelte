@@ -5,6 +5,7 @@
   import RunEvent from './RunEvent.svelte';
   import TranscriptEvent from './TranscriptEvent.svelte';
   import Payload from '#lib/run/detail/Payload.svelte';
+  import { sourceReferences } from './sourceReferences';
   let { message, revision = 0, provider, model, location, compact = false, project = '', runs = {}, runStatuses = {} }: { message: JSONObject; revision?: number; provider: string; model: string; location: string; compact?: boolean; project?:string; runs?:Record<number,Run[]>; runStatuses?:Record<string,WorkspaceTab['status']> } = $props();
   // Canonical projections retain identity, including nested tool state. Copy only this
   // message on invalidation so derived tool input/output sees a new reference too.
@@ -26,7 +27,7 @@
     {#if !completionOnly}
     <article class="assistant">{#if !compact}<header><span class="avatar" aria-hidden="true">{provider.slice(0, 1)}</span><span>{provider} · {model} · {location}</span></header>{/if}
       {#each content as part, i (`${row.id}/${i}`)}
-        {#if part.type === 'text'}{#if part.html}<div class="prose">{@html part.html}</div>{:else}<p>{part.text}</p>{/if}
+        {#if part.type === 'text'}{#if part.html}<div class="prose" use:sourceReferences={part.html}>{@html part.html}</div>{:else}<p>{part.text}</p>{/if}
         {:else if part.type === 'reasoning' || part.type === 'tool'}<TranscriptEvent {part} />{/if}
         {#each runs[(row.content ?? []).indexOf(part)] ?? [] as run (run.id)}<RunEvent {project} {run} state={runStatuses[run.id]} />{/each}
       {/each}
@@ -50,7 +51,8 @@
   .prose :global(ol) { list-style: decimal; padding-left: 24px; margin: 8px 0 12px; }
   .prose :global(li + li) { margin-top: 4px; }
   .prose :global(strong) { font-weight: 600; }
-  .prose :global(a) { text-decoration: underline; text-underline-offset: 3px; }
+  .prose :global(a[href]) { text-decoration: underline; text-underline-offset: 3px; }
+  .prose :global(a:not([href])) { font-family: var(--font-mono); font-size: .875em; }
   .prose :global(pre) { max-width: 100%; overflow: auto; padding: 12px; margin: 10px 0; background: var(--muted); border-radius: 6px; white-space: pre; }
   .prose :global(code) { font-family: var(--font-mono); font-size: .875em; }
   .prose :global(blockquote) { padding-left: 14px; border-left: 2px solid var(--border); color: var(--muted-foreground); }

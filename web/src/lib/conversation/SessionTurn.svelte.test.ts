@@ -156,3 +156,27 @@ test("streaming updates preserve disclosure through completion and surface error
   await expect.element(screen.getByText("1 failed", { exact: true })).toBeVisible();
   await expect.element(screen.getByRole("alert")).toHaveTextContent("Build could not finish");
 });
+
+test("local source citations remain readable without navigating the session", async () => {
+  const current = turn();
+  current.messages.at(-1)!.content[0].html =
+    '<p>See <a href="/private/tmp/project/ProjectSwitcher.svelte:26">ProjectSwitcher.svelte:26</a> and <a href="https://example.com/docs">documentation</a>.</p>';
+  const props = { project: "project", record, turn: current };
+  const screen = await render(SessionTurn, props);
+  const source = screen.getByText("ProjectSwitcher.svelte:26", { exact: true });
+  await expect.element(source).toBeVisible();
+  expect(source.element().hasAttribute("href")).toBe(false);
+  expect(source.element().getAttribute("title")).toContain("Source reference:");
+  await expect
+    .element(screen.getByRole("link", { name: "documentation" }))
+    .toHaveAttribute("href", "https://example.com/docs");
+  const updated = structuredClone(current);
+  updated.messages.at(-1)!.content[0].html =
+    '<p><a href="src/main.go#L10">main.go:10</a> and <a href="file:///private/tmp/secret">file</a></p>';
+  await screen.rerender({ ...props, turn: updated, record: { ...record, revision: 2 } });
+  await expect.element(screen.getByText("main.go:10", { exact: true })).toBeVisible();
+  expect(screen.getByText("main.go:10", { exact: true }).element().hasAttribute("href")).toBe(
+    false,
+  );
+  expect(screen.getByText("file", { exact: true }).element().hasAttribute("href")).toBe(false);
+});

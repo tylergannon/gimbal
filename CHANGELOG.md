@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.3] - 2026-10-21
+
+### Changed
+
+- fix: separate recording health from authoritative execution outcomes (#632)
+- test: preserve failed-read output retention coverage (#631)
+- test: characterize harness recovery and conversation factory boundaries (#630)
+- chore: repair release retries and catalog checks (#629)
+
 ## [0.18.2] - 2026-10-20
 
 ### Changed
@@ -524,7 +533,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.18.2...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.18.3...main
+[0.18.3]: https://github.com/tylergannon/gimbal/compare/v0.18.2...v0.18.3
 [0.18.2]: https://github.com/tylergannon/gimbal/compare/v0.18.1...v0.18.2
 [0.18.1]: https://github.com/tylergannon/gimbal/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/tylergannon/gimbal/compare/v0.17.1...v0.18.0

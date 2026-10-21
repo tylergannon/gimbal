@@ -22,7 +22,7 @@
   import ChatActions from './ChatActions.svelte';
   import { harnessName, modelName } from './names';
 
-  let { project, current, active = true, runStatuses = {}, onchanged }: { project: string; current: Conversation; active?: boolean; runStatuses?:Record<string,WorkspaceTab['status']>; onchanged?: () => void } = $props();
+  let { project, current, active = true, runStatuses = {}, onchanged, savedDraft, ondraft }: { project: string; current: Conversation; active?: boolean; runStatuses?:Record<string,WorkspaceTab['status']>; onchanged?: () => void; savedDraft?: string; ondraft?: (message: string) => void } = $props();
   const inventory = $derived(projectConversations(project));
   const record = $derived(current);
   const form = $derived(sendConversationMessage.for(`${project}/${current.id}`));
@@ -75,6 +75,7 @@
     } else if (event.key === 'Escape' && canStop) { event.preventDefault(); void stop(); }
   }
   onMount(() => {
+    if (savedDraft !== undefined) form.fields.message.set(savedDraft);
     requestID = crypto.randomUUID(); created = Date.now();
     const command = (event: Event) => { if (!active) return; const value = (event as CustomEvent).detail.command; if (value === 'stopResponse') void stop(); };
     const shortcut = (event: KeyboardEvent) => {
@@ -119,14 +120,14 @@
   <form class="composer" {...form.enhance(async (submitted) => {
     actionError = '';
     try {
-      if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); requestID = crypto.randomUUID(); created = Date.now(); onchanged?.(); }
+      if (await submitted.submit().updates(projectConversations(project))) { submitted.element.reset(); ondraft?.(''); requestID = crypto.randomUUID(); created = Date.now(); onchanged?.(); }
     } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); }
   })}>
     <input {...form.fields.conversation.as('hidden', record.id)} />
     <input {...form.fields.id.as('hidden', requestID)} />
     <input {...form.fields.created.as('hidden', created)} />
     <div class="mode"><b>{!record.live ? 'Saved history' : working ? canSteer ? 'Steer into current turn' : 'Reply after current turn' : 'Reply'}</b><span>{!record.live ? 'Start a new session to continue' : working ? canSteer ? 'Sends to the running agent now' : 'Queued until this turn ends' : 'Starts the next turn in this session'}</span></div>
-    <textarea {...form.fields.message.as('text')} rows={2} onkeydown={keydown} placeholder={working && canSteer ? 'Steer the current turn…' : `Message ${provider}…`} aria-label={`Message ${record.title}`} disabled={!record.live || !!form.pending || stopping || uncertain}></textarea>
+    <textarea {...form.fields.message.as('text')} rows={2} oninput={event => ondraft?.(event.currentTarget.value)} onkeydown={keydown} placeholder={working && canSteer ? 'Steer the current turn…' : `Message ${provider}…`} aria-label={`Message ${record.title}`} disabled={!record.live || !!form.pending || stopping || uncertain}></textarea>
     <div class="composer-bottom"><span>{stopping ? 'Stopping…' : !record.live ? 'Saved history' : uncertain ? 'Connection needs attention' : '↵ send · ⇧↵ newline'}</span><div class="actions">{#if working}<button type="button" class="stop" aria-label="Stop response" onclick={stop} disabled={!canStop || stopPending}>{#if stopping || stopPending}<LoaderCircle size={13} class="spin" />{:else}<Square size={10} fill="currentColor" />{/if}Stop turn</button>{/if}<button type="submit" class="send" aria-label="Send message" disabled={!record.live || !hasMessage || !!form.pending || stopping || uncertain}>Send<ArrowUp size={14} /></button></div></div>
     {#each form.fields.allIssues() ?? [] as issue}<p class="notice" role="alert">{issue.message}</p>{/each}
     {#if actionError}<p class="notice" role="alert">{actionError}</p>{/if}

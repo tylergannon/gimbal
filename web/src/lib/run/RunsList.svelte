@@ -1,7 +1,7 @@
 <script module lang="ts">
   import type { InteractiveRow, RunRow } from '../observation/index.js';
   export type RunsFilter = 'live' | 'needs-you' | 'ended' | 'all';
-  export type RunCardItem = { run: RunRow; summary: string; elapsed: string; activity_at: number; cost: string; session_count: number; turn_count: number; instruction: string };
+  export type RunCardItem = { run: RunRow; session_title?: string; summary: string; elapsed: string; activity_at: number; cost: string; session_count: number; turn_count: number; instruction: string };
   export type RunsListProps = { items: RunCardItem[]; attention: InteractiveRow[]; now?: number; active?: boolean; onopenrun?: (run: RunRow) => void };
 </script>
 <script lang="ts">
@@ -29,7 +29,7 @@
   const shown = $derived(items.filter(item => {
     const matches = filter === 'all' || filter === 'live' && item.run.status === 'running' || filter === 'needs-you' && pending.has(item.run.id) || filter === 'ended' && item.run.status !== 'running';
     const needle = query.trim().toLocaleLowerCase();
-    return matches && (!needle || `${item.run.name} ${item.run.id} ${item.summary}`.toLocaleLowerCase().includes(needle));
+    return matches && (!needle || `${item.session_title ?? ''} ${item.run.name} ${item.run.id} ${item.summary}`.toLocaleLowerCase().includes(needle));
   }));
   const pipState = (run: RunRow) => pending.has(run.id) && run.status === 'running' ? 'needs-you' : run.status === 'running' ? 'running' : run.status === 'failed' ? 'failed' : run.status === 'cancelled' ? 'cancelled' : 'ended';
   const status = (run: RunRow) => pending.has(run.id) && run.status === 'running' ? 'Needs you' : run.status === 'completed' ? 'Completed' : run.status[0].toUpperCase() + run.status.slice(1);
@@ -52,9 +52,9 @@
   <div class="rows">
     {#each shown as item (item.run.id)}
       <div class="run-row">
-        <button type="button" class="open-run" aria-label={`Open ${item.run.name} ${item.run.id}`} onclick={() => onopenrun?.(item.run)}>
+        <button type="button" class="open-run" aria-label={`Open ${item.session_title || item.run.name} ${item.run.id}`} onclick={() => onopenrun?.(item.run)}>
           <span title={status(item.run)}><Pip state={pipState(item.run)} /><span class="sr-only">{status(item.run)}</span></span>
-          <span class="copy"><strong>{item.run.name}</strong><span class="summary" title={`${item.summary || item.run.error || 'Recorded run'} · ${relative(item.activity_at)}`}>{item.summary || item.run.error || 'Recorded run'}</span></span>
+          <span class="copy"><strong title={item.session_title || item.run.name}>{item.session_title || item.run.name}</strong><code class="run-id" title={item.run.id}>{item.run.id.split('.')[0].slice(-6)}</code><span class="summary" title={`${item.run.name} · ${item.summary || item.run.error || 'Recorded run'} · ${relative(item.activity_at)}`}>{item.session_title ? `${item.run.name} · ` : ''}{item.summary || item.run.error || 'Recorded run'}</span></span>
           <span class="facts"><span title="Elapsed">{item.elapsed}</span><span title="Total cost">{item.cost}</span><span title={`${item.session_count} sessions · ${item.turn_count} turns`}>{item.session_count} {item.session_count === 1 ? 'session' : 'sessions'}</span></span>
         </button>
         {#if item.run.status === 'running'}
@@ -80,7 +80,7 @@
  .search-button { padding: 5px; background: transparent; border: 0; color: var(--muted-foreground); } input { width: 160px; border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; color: var(--foreground); background: var(--background); font-size: 12px; }
  .run-row { display: flex; align-items: center; min-width: 0; border-bottom: 1px solid color-mix(in oklch, var(--border) 65%, transparent); } .run-row:hover { background: var(--muted); }
  .open-run { display: flex; flex: 1; align-items: center; min-width: 0; gap: 12px; padding: 14px 8px; border: 0; color: inherit; background: transparent; text-align: left; }
- .copy { display: flex; align-items: baseline; min-width: 0; flex: 1; gap: 12px; } strong { flex: 0 0 auto; font-size: 13px; font-weight: 500; } .summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
+ .copy { display: flex; align-items: baseline; min-width: 0; flex: 1; gap: 12px; } strong { max-width: 45%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; } .run-id { flex: none; color: var(--muted-foreground); font: 11px var(--font-mono); } .summary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted-foreground); font-size: 12px; }
  .facts { display: flex; gap: 16px; color: var(--muted-foreground); font: 11px var(--font-mono); white-space: nowrap; font-variant-numeric: tabular-nums; } .facts span { min-width: 50px; text-align: right; }
  :global(.run-menu), .menu-space { display: grid; width: 26px; height: 26px; flex: none; place-items: center; border: 0; border-radius: 5px; color: var(--muted-foreground); background: transparent; } :global(.run-menu) { opacity: 0; cursor: pointer; } .run-row:hover :global(.run-menu), .run-row:focus-within :global(.run-menu) { opacity: 1; }
  .cancel-action { display: block; width: 100%; border: 0; background: transparent; color: var(--foreground); padding: 7px 9px; text-align: left; font-size: 12px; }

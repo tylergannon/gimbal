@@ -113,6 +113,62 @@ test("a selected interaction owns its durable message and finish controls", asyn
   );
 });
 
+test("exchange detail renders server Markdown and keeps user and code payloads literal", async () => {
+  const snapshot = structuredClone(planTripFixture.snapshot);
+  const operation = planTripFixture.graph.body[0];
+  if (operation.kind !== "group") throw new Error("missing group");
+  const interactive = operation.children[0].body.find((item) => item.kind === "interactive");
+  if (!interactive) throw new Error("missing interaction");
+  const runtime = snapshot.interactions["01M2RWXNFFYQA4HHQWMQ252CYA"];
+  runtime.messages = [
+    {
+      role: "user",
+      message: "**literal user** <script>literal</script>",
+      html: "<b>must not render</b>",
+    },
+    {
+      role: "assistant",
+      message: "**Startup** uses `Application.swift`.",
+      html: '<p><strong>Startup</strong> uses <code>Application.swift</code>. See <a href="https://example.com/docs">quickstart</a>.</p><pre><code>{"literal":"**text** &lt;tag&gt;"}</code></pre>',
+    },
+  ];
+  const screen = await render(DetailPane, {
+    snapshot,
+    selection: {
+      kind: "node",
+      scope: snapshot.scopes["research.1/lodging.1"],
+      operation: interactive,
+      runtime,
+    },
+  });
+  await expect
+    .element(screen.getByRole("link", { name: "quickstart" }))
+    .toHaveAttribute("href", "https://example.com/docs");
+  expect(document.querySelector(".exchange-prose strong")?.textContent).toBe("Startup");
+  expect(document.querySelector(".exchange-prose code")?.textContent).toBe("Application.swift");
+  expect(document.querySelector(".exchange-prose pre code")?.textContent).toBe(
+    '{"literal":"**text** <tag>"}',
+  );
+  await expect
+    .element(screen.getByText("**literal user** <script>literal</script>", { exact: true }))
+    .toBeVisible();
+  expect(document.querySelector(".exchanges script")).toBeNull();
+  expect(document.querySelector(".exchanges b")).toBeNull();
+  const empty = structuredClone(snapshot);
+  for (const row of Object.values(empty.interactions)) row.messages = [];
+  await screen.rerender({
+    snapshot: empty,
+    selection: {
+      kind: "node",
+      scope: empty.scopes["research.1/lodging.1"],
+      operation: interactive,
+      runtime: empty.interactions[runtime.question_id],
+    },
+  });
+  await expect.element(screen.getByText("Exchanges", { exact: true })).toBeVisible();
+  expect(document.querySelectorAll(".exchange-prose")).toHaveLength(0);
+});
+
 test("the selected loop emits the existing wrap-up control payload", async () => {
   const sent: LoopMessage[] = [];
   const selection = {

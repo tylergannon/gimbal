@@ -422,7 +422,7 @@
         <div class="section-title">Exchanges</div>
         {#each interactiveQuestions as interaction (interaction.question_id)}
           {#each interaction.messages as message, index (`${interaction.question_id}-${index}`)}
-            <article><strong>{message.role === 'user' ? 'You' : 'Assistant'}</strong><p>{message.message}</p></article>
+            <article><strong>{message.role === 'user' ? 'You' : 'Assistant'}</strong>{#if message.role === 'assistant' && message.html}<div class="exchange-prose">{@html message.html}</div>{:else}<p>{message.message}</p>{/if}</article>
           {/each}
         {/each}
       </section>
@@ -554,6 +554,13 @@
   .failure p { margin: 3px 0 0; color: var(--status-muted); }
   .exchanges article { padding: 8px 10px; font-size: 13px; border-left: 2px solid var(--map-line-strong); }
   .exchanges article strong { font-size: 13px; }
+  .exchange-prose { min-width: 0; overflow-wrap: anywhere; }
+  .exchange-prose :global(p) { margin: 0 0 8px; white-space: normal; }
+  .exchange-prose :global(ul) { list-style: disc; padding-left: 20px; }
+  .exchange-prose :global(ol) { list-style: decimal; padding-left: 20px; }
+  .exchange-prose :global(a) { text-decoration: underline; text-underline-offset: 3px; }
+  .exchange-prose :global(pre) { max-width: 100%; overflow: auto; white-space: pre; padding: 8px; background: var(--muted); }
+  .exchange-prose :global(code) { font-family: var(--font-mono); font-size: .9em; }
   .footer-row { display: flex; align-items: center; gap: 8px; }
   .output-reference { margin: 0; color: var(--status-muted); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
   .decision-row { gap: 6px; }

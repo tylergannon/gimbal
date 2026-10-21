@@ -821,7 +821,7 @@ func (s *Store) snapshotLocked() RunSnapshot {
 		out.Sessions[id] = cloneSession(*row)
 	}
 	for id, row := range s.interactions {
-		out.Interactions[id] = *row
+		out.Interactions[id] = renderExchange(*row)
 	}
 	for id, row := range s.turns {
 		out.Turns[id] = *row

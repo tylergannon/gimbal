@@ -25,6 +25,10 @@ export type InteractiveRow = {
 export type InteractiveMessage = {
   role: string;
   message: string;
+  /**
+   * HTML is server-rendered from Message, never trusted from a log.
+   */
+  html?: string;
 };
 
 /**

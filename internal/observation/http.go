@@ -146,6 +146,11 @@ func serveEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeDelta(w io.Writer, control *http.ResponseController, delta Delta) error {
+	var err error
+	delta, err = renderExchangeDelta(delta)
+	if err != nil {
+		return err
+	}
 	if err := control.SetWriteDeadline(time.Now().Add(writeTimeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
 		return err
 	}

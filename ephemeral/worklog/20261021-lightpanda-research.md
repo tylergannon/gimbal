@@ -1,0 +1,2 @@
+correction: A failed browser integration is not proof of incompatibility. The first Lightpanda attempt omitted resource loading required by Vitest's iframe runner; explicitly enabling it allowed a component test to execute.
+correction: Tyler rejected treating a fixed SVG pixel-size assertion as a requirement. Judge assertions by useful behavior rather than preserving them automatically during browser migration.

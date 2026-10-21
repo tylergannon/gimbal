@@ -85,8 +85,10 @@ func TestRecordingFailureDoesNotRetainStoppedResources(t *testing.T) {
 					if owner == nil {
 						t.Fatal("run controller missing")
 					}
-					if !errors.Is(err, injected) || stops.Load() != 1 {
-						t.Fatalf("recording failure blocked stop: err=%v stops=%d", err, stops.Load())
+					// The recording failure is diagnostic; only the native stop's own
+					// failure, when there is one, reaches the verdict.
+					if errors.Is(err, injected) || (err != nil) != stopFailure || stops.Load() != 1 {
+						t.Fatalf("recording failure blocked stop or changed the verdict: err=%v stops=%d", err, stops.Load())
 					}
 					reopened, err := factory.Open(t.Context(), id)
 					if err != nil {

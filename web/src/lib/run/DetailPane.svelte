@@ -379,6 +379,9 @@
         {:else}
           <p class="empty-selection">Select a sheet, call, command, interactive, or watcher to inspect it.</p>
         {/if}
+        {#if snapshot.run.recording_error}
+          <p>Recording incomplete: {snapshot.run.recording_error}</p>
+        {/if}
         <dl>
           <dt>Scopes</dt><dd>{Object.keys(snapshot.scopes).length}</dd>
           <dt>Turns</dt><dd>{Object.keys(snapshot.turns).length}</dd>

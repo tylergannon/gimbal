@@ -6086,16 +6086,18 @@ func encRunRow(v pkg_observation.RunRow, at string) (any, error) {
 	enc1.Set("status", enc6)
 	var enc7 any = string(v.Error)
 	enc1.Set("error", enc7)
-	var enc8 any = float64(v.Started)
-	enc1.Set("started", enc8)
-	var enc9 any = float64(v.Ended)
-	enc1.Set("ended", enc9)
+	var enc8 any = string(v.RecordingError)
+	enc1.Set("recording_error", enc8)
+	var enc9 any = float64(v.Started)
+	enc1.Set("started", enc9)
+	var enc10 any = float64(v.Ended)
+	enc1.Set("ended", enc10)
 	if v.Cancellation.Present {
-		enc10, err := encCancellationState(v.Cancellation.Value, at+"/cancellation")
+		enc11, err := encCancellationState(v.Cancellation.Value, at+"/cancellation")
 		if err != nil {
 			return nil, err
 		}
-		enc1.Set("cancellation", enc10)
+		enc1.Set("cancellation", enc11)
 	}
 	return enc1, nil
 }
@@ -6107,7 +6109,7 @@ func decRunRow(raw any, at string) (pkg_observation.RunRow, error) {
 	if err != nil {
 		return dvZero, err
 	}
-	if err := dvKnown(obj2, at, "workflow_environment", "task_environment", "id", "name", "status", "error", "started", "ended", "cancellation"); err != nil {
+	if err := dvKnown(obj2, at, "workflow_environment", "task_environment", "id", "name", "status", "error", "recording_error", "started", "ended", "cancellation"); err != nil {
 		return dvZero, err
 	}
 	raw3, err := dvRequired(obj2, "workflow_environment", at+"/workflow_environment")
@@ -6164,37 +6166,46 @@ func decRunRow(raw any, at string) (pkg_observation.RunRow, error) {
 		return dvZero, err
 	}
 	dec1.Error = dec14
-	raw15, err := dvRequired(obj2, "started", at+"/started")
+	raw15, err := dvRequired(obj2, "recording_error", at+"/recording_error")
 	if err != nil {
 		return dvZero, err
 	}
-	num17, err := dvInteger(raw15, at+"/started", math.MinInt64, math.MaxInt64)
+	dec16, err := dvString(raw15, at+"/recording_error")
 	if err != nil {
 		return dvZero, err
 	}
-	dec16 := int64(num17)
-	dec1.Started = dec16
-	raw18, err := dvRequired(obj2, "ended", at+"/ended")
+	dec1.RecordingError = dec16
+	raw17, err := dvRequired(obj2, "started", at+"/started")
 	if err != nil {
 		return dvZero, err
 	}
-	num20, err := dvInteger(raw18, at+"/ended", math.MinInt64, math.MaxInt64)
+	num19, err := dvInteger(raw17, at+"/started", math.MinInt64, math.MaxInt64)
 	if err != nil {
 		return dvZero, err
 	}
-	dec19 := int64(num20)
-	dec1.Ended = dec19
-	raw21, ok22, err := dvPresent(obj2, "cancellation", at+"/cancellation")
+	dec18 := int64(num19)
+	dec1.Started = dec18
+	raw20, err := dvRequired(obj2, "ended", at+"/ended")
 	if err != nil {
 		return dvZero, err
 	}
-	if ok22 {
+	num22, err := dvInteger(raw20, at+"/ended", math.MinInt64, math.MaxInt64)
+	if err != nil {
+		return dvZero, err
+	}
+	dec21 := int64(num22)
+	dec1.Ended = dec21
+	raw23, ok24, err := dvPresent(obj2, "cancellation", at+"/cancellation")
+	if err != nil {
+		return dvZero, err
+	}
+	if ok24 {
 		dec1.Cancellation.Present = true
-		dec23, err := decCancellationState(raw21, at+"/cancellation")
+		dec25, err := decCancellationState(raw23, at+"/cancellation")
 		if err != nil {
 			return dvZero, err
 		}
-		dec1.Cancellation.Value = dec23
+		dec1.Cancellation.Value = dec25
 	}
 	return dec1, nil
 }

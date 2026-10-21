@@ -1,2 +1,3 @@
 correction: A failed browser integration is not proof of incompatibility. The first Lightpanda attempt omitted resource loading required by Vitest's iframe runner; explicitly enabling it allowed a component test to execute.
 correction: Tyler rejected treating a fixed SVG pixel-size assertion as a requirement. Judge assertions by useful behavior rather than preserving them automatically during browser migration.
+correction: Tyler rejected modifying Lightpanda to make the migration work. Qualify an official browser binary; do not turn browser adoption research into maintaining a browser fork or compiling its toolchains in CI. Closed PR #652 and cancelled its run; Chromium remains on Bob.

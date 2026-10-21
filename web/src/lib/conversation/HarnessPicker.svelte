@@ -16,6 +16,7 @@
   const shown = $derived(harnesses.find(item => item.id === choice.provider) ?? harnesses[0]);
   const models = $derived(!shown ? [] : shown.models.includes(choice.model) || shown.id !== choice.provider ? shown.models : [choice.model, ...shown.models]);
   const efforts = $derived(shown?.efforts?.find(item => item.model === choice.model)?.levels ?? []);
+  const signInUnchecked = $derived(states.some(item => item.id === choice.provider && item.state === 'unknown'));
 </script>
 
 <Popover.Root bind:open>
@@ -49,7 +50,7 @@
         {/each}
       </div>{:else}<p class="empty" role="status">No harness availability was reported by {machine}. Choose another environment or inspect Machines.</p>{/if}
     </div>
-    <footer><label>Effort <select aria-label="Effort" bind:value={() => choice.effort || '', (effort) => onpick({ ...choice, effort })} disabled={!efforts.length}><option value="">Default</option>{#if choice.effort && !efforts.includes(choice.effort)}<option value={choice.effort} disabled>{choice.effort} — unavailable for this model</option>{/if}{#each efforts as level (level)}<option value={level}>{level.charAt(0).toUpperCase() + level.slice(1)}</option>{/each}</select></label><p>{efforts.length ? 'Applies to every turn in this session.' : 'Effort follows this model.'}</p></footer>
+    <footer><label>Effort <select aria-label="Effort" bind:value={() => choice.effort || '', (effort) => onpick({ ...choice, effort })} disabled={!efforts.length}><option value="">Default</option>{#if choice.effort && !efforts.includes(choice.effort)}<option value={choice.effort} disabled>{choice.effort} — unavailable for this model</option>{/if}{#each efforts as level (level)}<option value={level}>{level.charAt(0).toUpperCase() + level.slice(1)}</option>{/each}</select></label><p>{efforts.length ? 'Applies to every turn in this session.' : 'Effort follows this model.'}</p>{#if signInUnchecked}<p>Sign-in has not been checked on {machine}. A request will report any sign-in error.</p>{/if}</footer>
   </Popover.Content>{/if}
 </Popover.Root>
 

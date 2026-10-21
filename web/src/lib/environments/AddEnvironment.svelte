@@ -16,6 +16,7 @@
   let inspectAt = $state<{ project: string; machine: string; directory: string }>();
   const inspection = $derived(inspectAt ? inspectEnvironment(inspectAt) : undefined);
   const finding = $derived(inspectAt?.machine === machine && inspectAt?.directory === path ? inspection?.current : undefined);
+  const checking = $derived(inspectAt?.machine === machine && inspectAt?.directory === path && !!inspection?.loading);
   const machineState = $derived(snapshot.machines.find(item => item.id === machine));
   const localOrigin = $derived(snapshot.environments.find(row => row.environment.project === project && row.environment.machine === 'local')?.directory.origin ?? '');
   let browse = $state(false);
@@ -40,7 +41,7 @@
       <div class="location-fields"><label>Machine<select bind:value={machine} disabled={!!form.pending}>{#each snapshot.machines as item (item.id)}<option value={item.id} disabled={item.state === 'unreachable' || item.state === 'error'}>{item.name}{item.state === 'not-started' ? ' · starts when needed' : ''}</option>{/each}</select></label>
       <label>Directory<input {...form.fields.directory.as('text', environment?.directory ?? '')} required placeholder="/srv/project" disabled={!!form.pending} /></label>
       </div>
-      <div class="tools"><button type="button" onclick={() => inspect()} disabled={!path || !!form.pending || !!inspection?.loading}>{inspection?.loading ? 'Checking…' : 'Check directory'}</button><button type="button" onclick={() => (browse = !browse)} disabled={!machineState?.capabilities.browse}>{browse ? 'Hide browser' : 'Browse directories'}</button></div>
+      <div class="tools"><button type="button" onclick={() => inspect()} disabled={!path || !!form.pending || checking}>{checking ? 'Checking…' : 'Check directory'}</button><button type="button" onclick={() => (browse = !browse)} disabled={!machineState?.capabilities.browse}>{browse ? 'Hide browser' : 'Browse directories'}</button></div>
       {#if browse}{#key machine}<DirectoryBrowser bind:this={browser} {project} {machine} path={path || '/'} onchoose={(next) => { form.fields.directory.set(next); void inspect(next); }} />{/key}{/if}
       {#if finding}
         <div class="finding" role="status">
@@ -50,7 +51,7 @@
           {#if finding.origin}<p>Origin: {finding.origin}. {localOrigin ? originIdentity(finding.origin) === originIdentity(localOrigin) ? 'This matches the project on This Mac.' : `This differs from the project on This Mac (${localOrigin}).` : 'No local origin is available for comparison.'}</p>{/if}
           {#if finding.fixed_workdir}<p>The daemon requires <strong>{finding.execution_directory || finding.fixed_workdir}</strong>. Other directories cannot be used by sessions.</p>{/if}
         </div>
-      {:else if inspectAt?.machine === machine && inspectAt?.directory === path && inspection?.error}<p class="error" role="alert">{errorMessage(inspection.error)}</p>{:else}<p role="status">{inspection?.loading && inspectAt?.directory === path ? 'Checking directory…' : 'Check the selected directory to see its Git and worktree options. This does not change files.'}</p>{/if}
+      {:else if inspectAt?.machine === machine && inspectAt?.directory === path && inspection?.error}<p class="error" role="alert">{errorMessage(inspection.error)}</p>{:else}<p role="status">{checking ? 'Checking directory…' : 'Check the selected directory to see its Git and worktree options. This does not change files.'}</p>{/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}{#each form.fields.allIssues() ?? [] as issue}<p class="error" role="alert">{issue.message}</p>{/each}
       <footer><button type="button" onclick={onclose} disabled={!!form.pending}>Cancel</button><button class="primary" disabled={!!form.pending || !finding?.exists || !id || (!!finding.fixed_workdir && finding.execution_directory !== finding.path)}>{form.pending ? 'Adding…' : environment ? 'Save environment' : 'Add environment'}</button></footer>
     </form>

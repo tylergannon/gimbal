@@ -22,10 +22,11 @@
   let touched = false;
   let defaults: Conversation[] = [];
   function pickEnvironment(id: string) {
+    const harness = choice;
     choose({});
     environment = id;
     const previous = defaults.find(item => (item.environment || 'local') === id);
-    if (!choices.has(id) && previous) choices.set(id, setupOf(previous));
+    choices.set(id, { ...(choices.get(id) ?? (previous ? setupOf(previous) : {})), harness });
   }
   const setupQuery = $derived(conversationSetup({ project, environment }));
   const inventory = $derived(environmentSnapshot(project));
@@ -111,7 +112,7 @@
     {/if}
   </form>
   {#if setupQuery.error}<p class="issue" role="alert">{errorMessage(setupQuery.error)} <button type="button" onclick={() => setupQuery.refresh()}>Retry setup</button></p>{/if}
-  {#if setup && !canStart}<p class="issue" role="status">{selectedHarness ? !modelAvailable ? 'The previous model is no longer offered here. Choose an available model from the harness picker.' : 'The selected effort is unavailable for this model. Choose another effort.' : `No usable harness is available on ${setup.machine}.`} {#if !selectedHarness}<button type="button" onclick={() => openMachines()}>Open Machines</button>{/if}</p>{/if}
+  {#if setup && !canStart}<p class="issue" role="status">{selectedHarness ? !modelAvailable ? 'The selected model is not offered here. Choose an available model from the harness picker.' : 'The selected effort is unavailable for this model. Choose another effort.' : usable.length ? `The selected harness is unavailable on ${setup.machine}. Choose another harness or environment.` : `No usable harness is available on ${setup.machine}.`} {#if !selectedHarness}<button type="button" onclick={() => openMachines()}>Open Machines</button>{/if}</p>{/if}
   {#if actionError}<p class="issue" role="alert">{actionError}</p>{/if}
   {#each form.fields.allIssues() ?? [] as issue (issue.message)}<p class="issue" role="alert">{issue.message}</p>{/each}
 </section>

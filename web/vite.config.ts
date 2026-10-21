@@ -1,7 +1,7 @@
 import { workflowSource } from "./dev/source-plugin.mjs";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, lazyPlugins } from "vite-plus";
-import { playwright } from "vite-plus/test/browser-playwright";
+import lightpanda from "./dev/lightpanda";
 import adapter from "@skgo/sveltekit-adapter";
 import { sveltekit } from "@sveltejs/kit/vite";
 
@@ -44,7 +44,8 @@ export default defineConfig(({ command }) => ({
             // Headless checks need the full viewport: the runner UI scales its
             // iframe and can intercept clicks on controls near its edges.
             ui: false,
-            provider: playwright(),
+            provider: lightpanda,
+            orchestratorScripts: [{ src: "./dev/lightpanda-viewport.js" }],
             viewport: { width: 1440, height: 900 },
             instances: [{ browser: "chromium", headless: true }],
           },

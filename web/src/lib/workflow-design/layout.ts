@@ -358,9 +358,10 @@ export async function layoutWorkflow(
     return { entry: first.entry, exit: hasContinuation ? merge.exit : undefined };
   }
   sequence(graph, page.body, "workflow");
-  const elk = await (engine ??= import("elkjs/lib/elk.bundled.js").then(
-    ({ default: ELK }) => new ELK(),
-  ));
+  // ELK runs after mount; keep its implementation out of the Goja SSR bundle.
+  const elk = await (engine ??= import.meta.env?.SSR
+    ? Promise.reject(new Error("Workflow layout requires a browser"))
+    : import("elkjs/lib/elk.bundled.js").then(({ default: ELK }) => new ELK()));
   const result = await elk.layout(graph);
   const nodes: WorkflowNode[] = [];
   const edges: WorkflowEdge[] = [];

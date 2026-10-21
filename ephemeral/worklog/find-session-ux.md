@@ -1,0 +1,2 @@
+decision: Find in Session searched only the first rendered p/code and scrolled its own controls away. Keep controls outside the transcript scroller; repeat Find advances matching passages, with visible feedback, Escape dismissal and focus restoration. Preserve transcript rendering and remote form drafts.
+decision: Native exploration belongs to the existing tester; request independent fix qualification through the parent after headless verification. Source/report owner owns issue filing and artifact uploads.

@@ -20,6 +20,11 @@ was closed and its CI compilation run was cancelled. None of that integration,
 browser patching, or test changes was merged. The source-check job remains on
 Bob with Chromium.
 
+The unchanged main-branch frontend was then checked inside Bob's
+`gimbal-actions-runner-1` container: the normal Playwright Chromium installation
+succeeded, and `vp run test` passed all 228 tests in 48 files in 12.96 seconds.
+The original Chromium download failure was not reproduced on Bob.
+
 ## Browser model
 
 Lightpanda is an independent browser implemented in Zig, using V8 for JavaScript

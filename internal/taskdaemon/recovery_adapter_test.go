@@ -3,6 +3,9 @@ package taskdaemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,6 +31,13 @@ func (h *countingHarness) RunTurn(ctx context.Context, native, prompt string, sc
 // session's adapter. Seam H audit: recovery is provider-specific and does not
 // cross HarnessAdapter.RunTurn, so substituting the adapter cannot change it.
 func TestRecoveredTurnDoesNotCrossSessionAdapter(t *testing.T) {
+	for _, evidence := range []bool{false, true} {
+		t.Run(fmt.Sprintf("evidence=%v", evidence), func(t *testing.T) { testRecoveredTurn(t, evidence) })
+	}
+}
+
+func testRecoveredTurn(t *testing.T, evidence bool) {
+	t.Helper()
 	root := t.TempDir()
 	d := New(root)
 	owner := effects.Owner{Run: "run", Task: "agent"}
@@ -36,6 +46,19 @@ func TestRecoveredTurnDoesNotCrossSessionAdapter(t *testing.T) {
 		t.Fatal(err)
 	}
 	turn := effects.Turn{ExecutionIdentity: backend.NewExecutionIdentity("turn"), Owner: effects.Owner{Run: "run", Task: "turn"}, Session: "agent", Prompt: "must not dispatch"}
+	if evidence {
+		dir := filepath.Join(root, turn.ExecutionIdentity.ExecutorOperation)
+		if err := os.MkdirAll(dir, 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := executor.Accept(dir, agentexecutor.Request{ID: executor.TurnID(turn.ExecutionIdentity.ExecutorOperation), Session: executor.NewSessionID(), Prompt: turn.Prompt}); err != nil {
+			t.Fatal(err)
+		}
+		descriptor := executor.Describe(dir, true)
+		if err := executor.Write(descriptor.Result, agentexecutor.Result{Output: []byte(`"recovered answer"`), Completed: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	input, _ := json.Marshal(turn)
 	if err := d.writeState("tasks", key("run", "turn"), savedTask{Owner: turn.Owner, Turn: &turn, Input: input}); err != nil {
 		t.Fatal(err)
@@ -61,7 +84,17 @@ func TestRecoveredTurnDoesNotCrossSessionAdapter(t *testing.T) {
 	if got := fake.turns.Load(); got != 0 {
 		t.Fatalf("recovery called the selected adapter's RunTurn %d times", got)
 	}
-	if result := restored.result(backend.Target{Run: "run", ID: "turn"}); !result.Done || !result.Unresolved {
+	result := restored.result(backend.Target{Run: "run", ID: "turn"})
+	if !result.Done || result.Unresolved == evidence {
 		t.Fatalf("recovered turn outcome %+v", result)
+	}
+	if evidence {
+		var output backend.TurnResult
+		if err := json.Unmarshal(result.Result, &output); err != nil {
+			t.Fatal(err)
+		}
+		if string(output.Output) != `"recovered answer"` || result.Error != "" {
+			t.Fatalf("recovered result %+v output %s", result, output.Output)
+		}
 	}
 }

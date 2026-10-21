@@ -83,6 +83,39 @@ func TestToolEventsAreProjected(t *testing.T) {
 	}
 }
 
+func TestNativeToolContentIsProjectedWithoutSerializingItsEnvelope(t *testing.T) {
+	// Even JSON shaped like a native envelope is genuine output when it occurs
+	// inside a text block. No JSON guessing or recursive unpacking is allowed.
+	printedJSON := `{"Content":[{"type":"text","text":"literal JSON"}]}`
+	for _, test := range []struct {
+		name   string
+		result any
+		want   string
+	}{
+		{"stdout", model.AgentToolResult{Content: model.ContentList{model.TextContent{Text: "one.swift\ntwo.swift\n"}}}, "one.swift\ntwo.swift\n"},
+		{"JSON stdout", model.AgentToolResult{Content: model.ContentList{model.TextContent{Text: printedJSON}}}, printedJSON},
+		{"plain string", printedJSON, printedJSON},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var event gimbal.AgentEvent
+			run := newTurn("s", "m", func(value gimbal.AgentEvent) error { event = value; return nil })
+			run.recordToolEnd(model.AgentEvent{ToolCallID: "call", ToolName: "bash", Result: test.result})
+			var payload struct {
+				Content []struct {
+					Type string `json:"type"`
+					Text string `json:"text"`
+				} `json:"content"`
+			}
+			if err := json.Unmarshal(event.Data, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.Content) != 1 || payload.Content[0].Type != "text" || payload.Content[0].Text != test.want {
+				t.Fatalf("projected content = %#v, want verbatim %q", payload.Content, test.want)
+			}
+		})
+	}
+}
+
 func TestAgentSettledRequiresFinalAssistantAndAcceptsDiagnosticEventGaps(t *testing.T) {
 	run := newTurn("s", "m", func(gimbal.AgentEvent) error { return fmt.Errorf("observer failed") })
 	mustRecord(t, run, messageUpdate(model.EventTextDelta, 0, "partial", nil))

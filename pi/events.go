@@ -130,9 +130,20 @@ func (t *turn) recordToolEnd(event model.AgentEvent) {
 		})
 		return
 	}
-	raw, _ := json.Marshal(event.Result)
+	// Native tool results already contain typed output blocks. Serializing the
+	// envelope as text leaks protocol fields and escapes the command's newlines.
+	var content any
+	switch result := event.Result.(type) {
+	case model.AgentToolResult:
+		content = result.Content
+	case string:
+		content = []map[string]string{{"type": "text", "text": result}}
+	default:
+		raw, _ := json.Marshal(result)
+		content = []map[string]string{{"type": "text", "text": string(raw)}}
+	}
 	t.emitEvent("session.tool.success", map[string]any{
-		"sessionID": t.session, "id": event.ToolCallID, "name": event.ToolName, "result": event.Result, "content": []map[string]string{{"type": "text", "text": string(raw)}},
+		"sessionID": t.session, "id": event.ToolCallID, "name": event.ToolName, "result": event.Result, "content": content,
 	})
 }
 

@@ -15,6 +15,8 @@ const remote = vi.hoisted(() => ({
   refresh: vi.fn(async () => {}),
   stop: vi.fn(async (_input: unknown) => ({})),
   cleanup: vi.fn(async () => true),
+  draft: "",
+  timestamp: vi.fn(),
 }));
 vi.mock("../../routes/conversation.remote", () => ({
   watchConversation: remote.watch,
@@ -54,13 +56,22 @@ vi.mock("../../routes/conversation.remote", () => ({
                 type,
                 ...(value === undefined ? {} : { value }),
               }),
-              value: () => "",
+              value: () => (name === "message" ? remote.draft : ""),
             },
           ]),
         ),
         allIssues: () => [],
       },
-      enhance: () => ({ onsubmit: (event: SubmitEvent) => event.preventDefault() }),
+      enhance: (callback: (form: unknown) => Promise<void>) => ({
+        onsubmit: async (event: SubmitEvent) => {
+          event.preventDefault();
+          await callback({
+            element: event.currentTarget,
+            fields: { created: { set: remote.timestamp } },
+            submit: () => ({ updates: async () => true }),
+          });
+        },
+      }),
     }),
   },
 }));
@@ -93,6 +104,23 @@ const record = (id: string): Conversation => ({
   contact: "connected",
   capabilities: { steer: true, fork: true, worktree: true, browse: true, clone: true },
   cleanup_pending: false,
+});
+test("a new turn timestamp begins at submission after an idle composer", async () => {
+  const now = vi.spyOn(Date, "now").mockReturnValue(1000);
+  remote.timestamp.mockClear();
+  remote.draft = "Next turn";
+  try {
+    const screen = await render(ConversationView, { project: "project", current: record("time") });
+    now.mockReturnValue(61000);
+    await screen.getByRole("button", { name: "Send message", exact: true }).click();
+    expect(remote.timestamp).toHaveBeenLastCalledWith(61000);
+    now.mockReturnValue(121000);
+    await screen.getByRole("button", { name: "Send message", exact: true }).click();
+    expect(remote.timestamp).toHaveBeenLastCalledWith(121000);
+  } finally {
+    remote.draft = "";
+    now.mockRestore();
+  }
 });
 test("eight retained chats add no live connections and Stop refreshes the shared owner inventory", async () => {
   remote.watch.mockClear();

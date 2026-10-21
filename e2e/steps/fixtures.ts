@@ -1,4 +1,4 @@
-import { type Page, type Route } from "@playwright/test";
+import { type Page, type ElementHandle } from "@playwright/test";
 import { createBdd, test as base } from "playwright-bdd";
 import { mkdirSync, readFileSync, readdirSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -6,12 +6,10 @@ import { join } from "node:path";
 
 export type BrowserState = {
   documents: number;
-  remoteMark: number;
-  remotes: string[];
   pageErrors: string[];
-  runsRequestSeen?: Promise<void>;
-  releaseRunsRequest?: () => void;
-  pendingNavigation?: Promise<void>;
+  runElement?: ElementHandle<HTMLElement | SVGElement>;
+  graphReady?: { revision: number; nodes: number; edges: number };
+  graphElement?: ElementHandle<HTMLElement | SVGElement>;
 };
 
 export const test = base.extend<{ browserState: BrowserState }>({
@@ -20,12 +18,9 @@ export const test = base.extend<{ browserState: BrowserState }>({
   },
   browserState: [
     async ({ page }, use) => {
-      const state: BrowserState = { documents: 0, remoteMark: 0, remotes: [], pageErrors: [] };
+      const state: BrowserState = { documents: 0, pageErrors: [] };
       page.on("request", (request) => {
         if (request.resourceType() === "document") state.documents++;
-        if (request.url().includes("/_app/remote/")) {
-          state.remotes.push(`${request.method()} ${new URL(request.url()).pathname}`);
-        }
       });
       page.on("pageerror", (error) => state.pageErrors.push(error.message));
       await use(state);
@@ -39,7 +34,7 @@ const { Before, AfterStep } = createBdd(test);
 const projectRuns = fileURLToPath(new URL("../fixtures/project/.gimbal/runs", import.meta.url));
 
 Before(() => {
-  if (!process.env.BASE_URL) setRunsFixture(true);
+  if (!process.env.BASE_URL) setRunsFixture(false);
 });
 
 AfterStep(async ({ page, $bddContext, $testInfo }) => {
@@ -137,7 +132,7 @@ export function setRunsFixture(populated: boolean): void {
     turn_usage: [],
     model_calls: [],
     commands: [],
-    interviews: [],
+    interactions: [],
   };
   for (const [table, rows] of Object.entries(tables)) {
     writeFileSync(join(runDir, `${table}.json`), JSON.stringify(rows));
@@ -156,25 +151,6 @@ export function updateFailedRunSummary(summary: string): void {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
-}
-
-export function delayNextRunsData(page: Page, state: BrowserState): void {
-  let markSeen!: () => void;
-  let release!: () => void;
-  state.runsRequestSeen = new Promise<void>((resolve) => (markSeen = resolve));
-  const held = new Promise<void>((resolve) => (release = resolve));
-  state.releaseRunsRequest = release;
-  let delayed = false;
-  void page.route("**/__data.json*", async (route: Route) => {
-    if (!new URL(route.request().url()).pathname.endsWith("/__data.json") || delayed) {
-      await route.continue();
-      return;
-    }
-    delayed = true;
-    markSeen();
-    await held;
-    await route.continue();
-  });
 }
 
 function slug(text: string): string {

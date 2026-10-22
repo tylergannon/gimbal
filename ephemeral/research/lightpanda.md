@@ -6,6 +6,16 @@ and Gimbal's Svelte component-test harness.
 
 ## What we learned
 
+The follow-up [capability and coverage assessment](lightpanda-capabilities.md)
+separates browser gaps from Vitest integration and records controlled tests
+with official binaries. Seven unchanged Gimbal component tests passed on
+official nightly with an adapted harness. That narrows the adoption question
+to specific coverage losses and integration costs; this is not a general
+inability to test application behavior. Chromium remains configured while
+that decision is explored. The assessment also records a controlled Bob
+performance comparison: a compatible DOM/form cycle was about 2.5 times faster
+with 6.7 times less peak browser memory on official nightly.
+
 **Keep Chromium and run source checks on Bob.** Official Lightpanda did not
 qualify as a replacement for this suite. Basic component execution and several
 interactions work, but ordinary functional tests exposed browser compatibility
@@ -147,6 +157,7 @@ dependencies. Compiling those during CI was the wrong deployment approach and
 maintaining those patches was the wrong scope for this migration. Installing
 an official binary alone would not supply those missing behaviors.
 
-Reconsider the replacement when an official build handles these functional
-cases. This conclusion concerns the tested Gimbal suite and versions above;
-it is not a claim that Lightpanda cannot serve other automation workloads.
+The official builds do not run the whole current suite as a drop-in
+replacement. Whether a narrower Lightpanda test lane is worthwhile depends
+on the coverage and adapter tradeoffs in the follow-up assessment. This
+research has not changed CI.

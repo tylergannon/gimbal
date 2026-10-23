@@ -17,7 +17,7 @@ concurrency:
 jobs:
   check:
     name: Check release source
-    runs-on: [self-hosted, Linux, X64, bob-gimbal]
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-24.04' || 'gimbal-managed-linux' }}
     outputs:
       release: ${{ steps.scope.outputs.release }}
     steps:

@@ -1,0 +1,1 @@
+decision: User requires current stable Go, starting with 1.27.3. setup-go selects stable rather than installing the go.mod minimum; protected runner tool storage preserves that installation between jobs and cleanup.

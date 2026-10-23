@@ -30,7 +30,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
           cache: false
       # Vite+ owns Node and package-manager setup; subsequent commands use vp.
       - uses: voidzero-dev/setup-vp@v1.21.2
@@ -83,7 +83,7 @@ jobs:
           path: dist
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
           check-latest: true
           cache: ${{ matrix.target != 'linux_amd64' }}
       - name: Ensure release automation runs without Python
@@ -138,7 +138,7 @@ jobs:
           path: dist
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
           check-latest: true
           cache: false
       - name: Ensure release automation runs without Python
@@ -199,7 +199,7 @@ jobs:
           path: dist
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
           check-latest: true
           # The persistent Mac already retains its local Go caches.
           cache: false

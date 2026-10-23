@@ -35,7 +35,7 @@ jobs:
           bash scripts/check-commit-message.sh "$message"
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
           check-latest: true
           cache: false
       - name: Ensure release automation runs without Python
@@ -131,7 +131,7 @@ jobs:
           ssh-key: ${{ steps.doppler.outputs.RELEASE_TAG_SSH_KEY }}
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: stable
       - name: Set release commit identity
         run: |
           git config user.name 'github-actions[bot]'

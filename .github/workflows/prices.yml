@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.27.1"
+          go-version: stable
       - uses: taiki-e/install-action@just
       - name: Fetch model catalog credential from Doppler
         id: doppler

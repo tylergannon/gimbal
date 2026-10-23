@@ -1,4 +1,4 @@
 self-hosted-runner:
   labels:
-    - gimbal-release
-    - bob-gimbal
+    - gimbal-managed-linux
+    - gimbal-managed-macos

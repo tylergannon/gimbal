@@ -183,7 +183,7 @@ jobs:
       GOMAXPROCS: 4
       GOFLAGS: -p=4
       GIMBAL_BUILD_JOBS: 4
-    if: (github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (!inputs.tag || inputs.tag == github.ref_name)) || (github.event_name == 'workflow_dispatch' && inputs.publish == false)
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (!inputs.tag || inputs.tag == github.ref_name)
     runs-on: [self-hosted, macOS, ARM64, gimbal-release]
     environment: release
     steps:

@@ -17,7 +17,7 @@ concurrency:
 jobs:
   check:
     name: Check release source
-    runs-on: [self-hosted, Linux, X64, bob-gimbal]
+    runs-on: gimbal-managed-linux
     outputs:
       release: ${{ steps.scope.outputs.release }}
     steps:

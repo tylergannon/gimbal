@@ -7,6 +7,10 @@ on:
         description: Existing release tag to build and publish
         required: true
         type: string
+      publish:
+        description: Publish release assets after building and signing
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -18,7 +22,7 @@ concurrency:
 jobs:
   prepare-inputs:
     name: Prepare shared release inputs
-    runs-on: [self-hosted, Linux, X64, bob-gimbal]
+    runs-on: gimbal-managed-linux
     steps:
       - uses: actions/checkout@v4
         with:
@@ -65,7 +69,7 @@ jobs:
       matrix:
         include:
           - target: linux_amd64
-            runner: [self-hosted, Linux, X64, bob-gimbal]
+            runner: gimbal-managed-linux
           - target: linux_arm64
             runner: ubuntu-24.04-arm
     steps:
@@ -122,7 +126,7 @@ jobs:
   qualify:
     name: Qualify release source
     needs: prepare-inputs
-    runs-on: [self-hosted, Linux, X64, bob-gimbal]
+    runs-on: gimbal-managed-linux
     steps:
       - uses: actions/checkout@v4
         with:
@@ -180,7 +184,7 @@ jobs:
       GOFLAGS: -p=4
       GIMBAL_BUILD_JOBS: 4
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v') && (!inputs.tag || inputs.tag == github.ref_name)
-    runs-on: [self-hosted, macOS, ARM64, gimbal-release]
+    runs-on: gimbal-managed-macos
     environment: release
     steps:
       - name: Keep native compiler outputs on this Mac
@@ -279,6 +283,7 @@ jobs:
 
   publish:
     name: Publish GitHub Release and Homebrew Casks
+    if: inputs.publish
     needs: [qualify, linux-cli, macos-release]
     runs-on: ubuntu-24.04
     environment: release

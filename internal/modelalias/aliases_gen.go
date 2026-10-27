@@ -31,4 +31,5 @@ var generatedFamilies = []familyVersion{
 	{family: "sonnet", provider: "anthropic", version: "5", native: "claude-sonnet-5"},
 	{family: "sonnet", provider: "anthropic", version: "5.5", native: "claude-sonnet-5-5"},
 	{family: "terra", provider: "openai", version: "5.6", native: "gpt-5.6-terra"},
+	{family: "terra", provider: "openai", version: "6.1", native: "gpt-6.1-terra"},
 }

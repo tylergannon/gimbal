@@ -25,9 +25,14 @@ func newWorkerCommand() *cobra.Command {
 		Use:   "gimbal-worker",
 		Short: "Serve native tasks in the foreground or as a Windows SCM service",
 		Long: `Run the existing Gimbal task HTTP protocol without hosting workflows or plugins.
-Pass this endpoint as --task-endpoint on the coordinator. Commands and agents
-use --workdir on this machine, overriding coordinator paths. Provision that
-workspace and provider CLIs/configuration for the account running this worker.
+This executable supplies native execution and service hosting. Its HTTP listener
+is a worker transport. For direct worker qualification, --task-endpoint on the
+coordinator selects this one worker for the run's tasks. That invocation does
+not provide distributed task placement across workers. Workflow requirements
+and deployment transport addresses are separate concerns.
+
+Commands and agents use --workdir on this machine, overriding coordinator paths.
+Provision that workspace and provider CLIs/configuration for the worker account.
 
 The default mode is a foreground console worker; stop with Ctrl+C. On Windows,
 --service connects to SCM as --service-name (default gimbal-worker). Install an

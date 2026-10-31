@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-10-31
+
+### Changed
+
+- docs: distinguish worker qualification from distributed placement
+- fix: load project run inventory from its live query
+- fix: register native workflow plugins once per registry
+- feat: run native Windows execution worker as an SCM service
+- ci: use current stable Go on managed runners (#657)
+- ci: move Gimbal builds to disposable managed workers (#655)
+- docs: assess Lightpanda coverage and performance tradeoffs (#654)
+- docs: conclude Lightpanda compatibility research (#653)
+- docs: record Lightpanda browser integration research (#651)
+- ci: provision GitHub CLI on Bob runners (#650)
+- ci: run source checks on Bob (#649)
+
 ## [0.19.4] - 2026-10-21
 
 ### Changed
@@ -576,7 +592,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.19.4...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.20.0...main
+[0.20.0]: https://github.com/tylergannon/gimbal/compare/v0.19.4...v0.20.0
 [0.19.4]: https://github.com/tylergannon/gimbal/compare/v0.19.3...v0.19.4
 [0.19.3]: https://github.com/tylergannon/gimbal/compare/v0.19.2...v0.19.3
 [0.19.2]: https://github.com/tylergannon/gimbal/compare/v0.19.1...v0.19.2

@@ -2,7 +2,7 @@
   import { navigateOnUnauthorized } from "#lib/auth/unauthorized";
   import { APP_NAME } from "#lib/app";
   import { errorMessage } from "#lib/errors";
-  import { onMount, untrack, tick, type Snippet } from 'svelte';
+  import { onMount, untrack, tick, type Snippet, type ComponentProps } from 'svelte';
   import { MediaQuery, SvelteMap, SvelteSet } from 'svelte/reactivity';
   import * as Dialog from '#lib/components/ui/dialog';
   import type { Conversation } from '#lib/skgo/conversation/types';
@@ -28,7 +28,7 @@
   import WorkflowGuide from './WorkflowGuide.svelte';
   import type { RunCardItem } from '#lib/run/RunsList.svelte';
   import RunPanel from './RunPanel.svelte';
-  import type { RunSnapshot, InteractiveRow } from '#lib/observation';
+  import type { RunSnapshot } from '#lib/observation';
   import { nativeMessage, recordingControl, recordingTime, type NativeStatus } from './native';
   import { conversationsForWorkspace, conversationNeedsUpdates, completedReply, conversationStatus } from './conversations';
   import { harnessName } from '#lib/conversation/names';
@@ -85,9 +85,10 @@
       status: conversationStatus(item), unseen: `${root}/conversations/${item.id}` !== active && conversationVersion(item) !== seen.get(`${root}/conversations/${item.id}`) })),
     ...files.map(file => ({ id: `${root}/files/${file.id}`, title: file.name, kind: 'file' as const })),
   ]);
-  // Both the Runs view and tab labels read the same live inventory.
+  // The workspace owns inventory for home, All runs, and the sidebar. Route
+  // data belongs to the selected view and may not contain an inventory at all.
   const runQuery = $derived(watchRuns(project));
-  const runData = $derived((runQuery.current ?? ((page.url.pathname === root || page.url.pathname === allRuns) ? page.data : undefined)) as { items: RunCardItem[]; attention: InteractiveRow[]; now: number } | undefined);
+  const runData = $derived(runQuery.current as ComponentProps<typeof ProjectRuns>['data']);
   const runVersion = (item: RunCardItem) => `${item.activity_at}:${item.run.status}:${item.run.error}:${runData?.attention.filter(question => question.run === item.run.id).map(question => `${question.question_id}:${question.status}`).join(',')}`;
   const runTabs = $derived<WorkspaceTab[]>(runData?.items.map(item => {
     const { run } = item; const id = `${root}/runs/${encodeURIComponent(run.id)}`;
@@ -317,6 +318,8 @@
     {:else}<div class="route-content">{@render children()}</div>{/if}
   {/snippet}
   {#snippet sidebarExtra()}
+    {#if runQuery.error}<p class="notice" role="alert">Could not read runs. <button onclick={() => runQuery.reconnect()}>Retry</button></p>
+    {:else if !runData}<p class="notice" role="status">Loading runs…</p>{/if}
     <details class="upload"><summary>Add project file</summary><form {...upload.enhance(async (submitted) => { try { if (await submitted.submit().updates(projectFiles(project)) && submitted.result) { documents.set([submitted.result, ...files.filter(file => file.id !== submitted.result!.id)]); select(`${root}/files/${submitted.result.id}`); } } catch (error) { if (!navigateOnUnauthorized(error)) actionError = errorMessage(error); } })}><input {...upload.fields.project.as('hidden', project)} /><input aria-label="Choose project file" {...upload.fields.file.as('file')} required /><button disabled={!!upload.pending}>{upload.pending ? 'Uploading…' : 'Upload'}</button>{#each upload.fields.allIssues() ?? [] as issue}<p role="alert">{issue.message}</p>{/each}</form></details>
     <div class="pager">{#if after}<button onclick={() => after = ''}>Newest</button>{/if}{#if history.next}<button onclick={() => after = history.next}>Older recordings</button>{/if}</div>
   {/snippet}

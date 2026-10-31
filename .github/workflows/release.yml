@@ -281,20 +281,31 @@ jobs:
         name: Remove macOS signing material
         run: scripts/ci-signing.sh cleanup
 
-  publish:
-    name: Publish GitHub Release and Homebrew Casks
-    if: inputs.publish
-    needs: [qualify, linux-cli, macos-release]
+  candidate:
+    name: Assemble fixed release candidate
+    needs: [linux-cli, macos-release]
     runs-on: ubuntu-24.04
-    environment: release
-    permissions:
-      contents: write
-      actions: read
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+      artifact-digest: ${{ steps.upload.outputs.artifact-digest }}
+      artifact-url: ${{ steps.upload.outputs.artifact-url }}
+      artifact-name: release-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+      run-attempt: ${{ steps.assemble.outputs.run-attempt }}
+    env:
+      CANDIDATE_REPOSITORY: ${{ github.repository }}
+      CANDIDATE_SOURCE_SHA: ${{ github.sha }}
+      CANDIDATE_TAG: ${{ inputs.tag || github.ref_name }}
+      CANDIDATE_RUN_ID: ${{ github.run_id }}
+      CANDIDATE_RUN_ATTEMPT: ${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      # These are inputs from this producing run, before the candidate exists.
       - uses: actions/download-artifact@v4
         with:
           pattern: cli-*
@@ -304,11 +315,73 @@ jobs:
         with:
           name: macos-release
           path: dist
-          merge-multiple: true
-      - name: Calculate final artifact checksums
+      - name: Assemble publication files and identity manifest
+        id: assemble
         run: |
-          cd dist
-          sha256sum -- ./*.tar.gz macos/*.zip macos/*.dmg > checksums.txt
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SOURCE_SHA"
+          test "$(git rev-parse "refs/tags/$CANDIDATE_TAG^{commit}")" = "$CANDIDATE_SOURCE_SHA"
+          go run ./internal/automation/release-assets assemble-candidate \
+            --input dist --output candidate \
+            --repository "$CANDIDATE_REPOSITORY" --source-sha "$CANDIDATE_SOURCE_SHA" \
+            --tag "$CANDIDATE_TAG" --run-id "$CANDIDATE_RUN_ID" --run-attempt "$CANDIDATE_RUN_ATTEMPT"
+          printf 'run-attempt=%s\n' "$CANDIDATE_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        id: upload
+        with:
+          name: release-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: candidate/
+          retention-days: 2
+          if-no-files-found: error
+      - name: Record immutable artifact identity
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          test -n "$ARTIFACT_ID" && test -n "$ARTIFACT_DIGEST"
+          {
+            printf '### Fixed release candidate\n\n'
+            printf 'Repository: %s\n\nSource: %s\n\nTag: %s\n\n' "$CANDIDATE_REPOSITORY" "$CANDIDATE_SOURCE_SHA" "$CANDIDATE_TAG"
+            printf 'Producing run: %s, attempt %s\n\n' "$CANDIDATE_RUN_ID" "$CANDIDATE_RUN_ATTEMPT"
+            printf 'Artifact: [release-candidate-%s-%s](%s)\n\nID: %s\n\nSHA256: %s\n\n' "$CANDIDATE_RUN_ID" "$CANDIDATE_RUN_ATTEMPT" "$ARTIFACT_URL" "$ARTIFACT_ID" "$ARTIFACT_DIGEST"
+            printf 'Contains publication bytes and identity metadata, without an acceptance verdict. Retention: 2 days.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish GitHub Release and Homebrew Casks
+    if: inputs.publish
+    needs: [qualify, candidate]
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          artifact-ids: ${{ needs.candidate.outputs.artifact-id }}
+          path: dist
+          merge-multiple: true
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Verify the fixed candidate before publication
+        env:
+          CANDIDATE_REPOSITORY: ${{ github.repository }}
+          CANDIDATE_SOURCE_SHA: ${{ github.sha }}
+          CANDIDATE_TAG: ${{ inputs.tag || github.ref_name }}
+          CANDIDATE_RUN_ID: ${{ github.run_id }}
+          # A failed publisher may be retried using an earlier successful
+          # assembly job. Verify its producing attempt, not this retry's.
+          CANDIDATE_RUN_ATTEMPT: ${{ needs.candidate.outputs.run-attempt }}
+        run: |
+          go run ./internal/automation/release-assets verify-candidate --input dist \
+            --repository "$CANDIDATE_REPOSITORY" --source-sha "$CANDIDATE_SOURCE_SHA" \
+            --tag "$CANDIDATE_TAG" --run-id "$CANDIDATE_RUN_ID" --run-attempt "$CANDIDATE_RUN_ATTEMPT"
       - name: Fetch Homebrew publisher from Doppler
         id: doppler
         uses: dopplerhq/secrets-fetch-action@451892f16195f9ac360e1a5bcbf0b5fd0e957534 # v2.0.0

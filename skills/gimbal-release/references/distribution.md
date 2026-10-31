@@ -192,6 +192,47 @@ artifact before creating the GitHub Release and updating the dedicated
 `tylergannon/homebrew-gimbal` tap. Signing qualification is needed when the distribution path changes; successful
 unchanged qualification is not repeated for every source merge.
 
+### Fixed candidate artifact
+
+Release assembles one final candidate even with `publish=false`. Its name is
+`release-candidate-<run_id>-<run_attempt>`. The `candidate` job exposes
+`artifact-id`, `artifact-digest`, `artifact-url`, `artifact-name` and the assembly's
+`run-attempt`; its workflow summary records those upload identifiers alongside
+repository, source SHA, tag and run identity. The artifact ID and digest belong
+outside the bundle because they are assigned after its upload. Consumers select
+that immutable artifact ID, rather than looking up a generic artifact name.
+
+The directory contains the three `gimbal_<version>_<platform>.tar.gz` files,
+`macos/Gimbal-<version>-macos-arm64.zip`, the matching DMG, `macos/appcast.xml`,
+`checksums.txt` and `candidate.json`. The manifest has `schema_version: 1`,
+`repository`, `source_sha`, `tag`, `run_id`, `run_attempt`, and a `files` array of
+`{name, sha256}` for the seven publication files. It excludes its own content
+and its upload identity. The checksum file retains the existing five-archive
+publication format. App payloads and the signed feed are copied unchanged.
+
+The existing `release-assets` helper offers `assemble-candidate --input DIR
+--output NEW_DIR` and `verify-candidate --input DIR`. Both require `--repository
+OWNER/REPO --source-sha FULL_SHA --tag v0.x.y --run-id ID --run-attempt N` and
+emit the manifest JSON on stdout after successful identity/content checks.
+Verification rejects changed, missing, extra or nonregular files, duplicate or
+unsafe names, mismatched identity, misleading checksums and a feed with a
+different version, repository, tag or ZIP size. It checks that the existing feed
+signature is present; it does not perform signature trust or native acceptance
+checks. Assembly refuses to overwrite an existing directory.
+
+The normal publisher still waits for source qualification and platform builds.
+It downloads the final artifact by ID and verifies its identities and hashes,
+then uploads those files without recomputing checksums or regenerating packages
+or appcast. A publisher retry retains the assembly's producing attempt. ID-based
+downloads use `merge-multiple: true` to place content directly in the destination
+([Actions download implementation](https://github.com/actions/download-artifact/blob/v4/src/download-artifact.ts)).
+
+Candidate metadata contains no acceptance verdict. Assembly depends on platform
+builds; an uploaded candidate alone does not establish source qualification or
+product acceptance. Artifacts retain the existing **two-day lifetime**, so this
+does not provide a durable handoff beyond that expiry. Observation, scheduling,
+candidate selection and authority to promote are separate follow-up work.
+
 Release credentials belong in Doppler `gimbal/stg`:
 
 - `DEVELOPER_ID_CERTIFICATE_P12_BASE64`: exported certificate and private key.

@@ -133,7 +133,7 @@ func TestWorkerStartupFailuresNeverReadyAndReleaseLease(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer listener.Close()
+	defer func() { _ = listener.Close() }()
 	for _, reason := range []string{"listener", "state", "environment", "relative service paths"} {
 		t.Run(reason, func(t *testing.T) {
 			state := t.TempDir()

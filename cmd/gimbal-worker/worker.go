@@ -69,7 +69,7 @@ func runWorker(ctx context.Context, config workerConfig, output io.Writer, ready
 	}
 	server := &http.Server{Handler: mux}
 	// Close only HTTP, never cancel the daemon's independent execution owners.
-	defer server.Close()
+	defer func() { _ = server.Close() }()
 	stopped := make(chan error, 1)
 	go func() { stopped <- server.Serve(listener) }()
 	if _, err := fmt.Fprintf(output, "Task worker listening on %s; workdir=%s; state=%s\n", listener.Addr(), workdir, stateDir); err != nil {

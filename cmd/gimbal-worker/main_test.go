@@ -35,7 +35,7 @@ func TestWorkerChild(t *testing.T) {
 	args := os.Args[index+1:]
 	switch args[0] {
 	case "environment":
-		fmt.Fprint(os.Stdout, os.Getenv("GIMBAL_WORKER_CHILD_VALUE"))
+		_, _ = fmt.Fprint(os.Stdout, os.Getenv("GIMBAL_WORKER_CHILD_VALUE"))
 	case "write":
 		if err := os.WriteFile("report.bin", artifactBytes, 0600); err != nil {
 			panic(err)
@@ -44,7 +44,7 @@ func TestWorkerChild(t *testing.T) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Fprint(os.Stdout, dir)
+		_, _ = fmt.Fprint(os.Stdout, dir)
 		fmt.Fprint(os.Stderr, "diagnostic")
 	case "read":
 		raw, err := os.ReadFile("report.bin")
@@ -53,7 +53,7 @@ func TestWorkerChild(t *testing.T) {
 		}
 		_, _ = os.Stdout.Write(raw)
 	case "fail":
-		fmt.Fprint(os.Stdout, "partial")
+		_, _ = fmt.Fprint(os.Stdout, "partial")
 		os.Exit(7)
 	case "wait":
 		if err := os.WriteFile("ready", nil, 0600); err != nil {
@@ -69,7 +69,7 @@ func TestWorkerChild(t *testing.T) {
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
-		fmt.Fprint(os.Stdout, "survived")
+		_, _ = fmt.Fprint(os.Stdout, "survived")
 	}
 	os.Exit(0)
 }
@@ -177,7 +177,7 @@ func readOutput(t *testing.T, client backend.HTTP, request backend.Process, name
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 	raw, err := io.ReadAll(reader)
 	if err != nil {
 		t.Fatal(err)

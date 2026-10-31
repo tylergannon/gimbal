@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"debug/buildinfo"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,6 +41,11 @@ func TestReleaseCLIPlugin(t *testing.T) {
 	}
 	cli := filepath.Join(work, "gimbal")
 	runReleaseCommand(t, work, "tar", "-xzf", archive, "-C", work, "gimbal")
+	host, err := buildinfo.ReadFile(cli)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("packaged host and external plugin toolchain: %s", host.GoVersion)
 	source, consumer := filepath.Join(work, "source"), filepath.Join(work, "consumer")
 	runReleaseCommand(t, repo, "git", "clone", "--shared", "--no-hardlinks", "--no-checkout", repo, source)
 	runReleaseCommand(t, repo, "git", "-C", source, "checkout", "--detach", "HEAD")
@@ -50,7 +56,7 @@ func TestReleaseCLIPlugin(t *testing.T) {
 	if err := os.MkdirAll(consumer, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(consumer, "go.mod"), []byte(fmt.Sprintf("module example.com/gimbal-release-plugin-fixture\n\ngo 1.27.2\n\nrequire github.com/tylergannon/gimbal %s\n", tag)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(consumer, "go.mod"), []byte(fmt.Sprintf("module example.com/gimbal-release-plugin-fixture\n\ngo %s\n\nrequire github.com/tylergannon/gimbal %s\n", strings.TrimPrefix(host.GoVersion, "go"), tag)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := os.ReadDir(filepath.Join(source, "plugins", "messaging-filesystem"))
@@ -70,7 +76,16 @@ func TestReleaseCLIPlugin(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	runReleaseCommand(t, work, "go", "work", "init", source, consumer)
+	// Workspace creation must use the host toolchain too: a newer ambient Go
+	// would otherwise raise go.work's requirement above the plugin compiler.
+	initCtx, initCancel := context.WithTimeout(t.Context(), 90*time.Second)
+	defer initCancel()
+	initWork := exec.CommandContext(initCtx, "go", "work", "init", source, consumer)
+	initWork.Dir = work
+	initWork.Env = releasePluginEnv("off", host.GoVersion)
+	if output, err := initWork.CombinedOutput(); err != nil {
+		t.Fatalf("initialize plugin workspace: %v\n%s", err, output)
+	}
 	workspace, pluginDir := filepath.Join(work, "go.work"), filepath.Join(work, "plugins")
 	if err := os.MkdirAll(pluginDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -79,7 +94,7 @@ func TestReleaseCLIPlugin(t *testing.T) {
 	defer cancel()
 	build := exec.CommandContext(ctx, "go", "build", "-trimpath", "-buildmode=plugin", "-o", filepath.Join(pluginDir, "filesystem.so"), ".")
 	build.Dir = consumer
-	build.Env = releasePluginEnv(workspace)
+	build.Env = releasePluginEnv(workspace, host.GoVersion)
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build external plugin: %v\n%s", err, output)
 	}
@@ -243,7 +258,7 @@ func runReleaseCommand(t *testing.T, dir, name string, args ...string) []byte {
 	return output
 }
 
-func releasePluginEnv(workspace string) []string {
+func releasePluginEnv(workspace, toolchain string) []string {
 	var env []string
 	for _, entry := range os.Environ() {
 		if strings.HasPrefix(entry, "GOTOOLCHAIN=") || strings.HasPrefix(entry, "CGO_ENABLED=") || strings.HasPrefix(entry, "GOWORK=") {
@@ -251,5 +266,5 @@ func releasePluginEnv(workspace string) []string {
 		}
 		env = append(env, entry)
 	}
-	return append(env, "GOTOOLCHAIN=go1.27.2", "CGO_ENABLED=1", "GOWORK="+workspace)
+	return append(env, "GOTOOLCHAIN="+toolchain, "CGO_ENABLED=1", "GOWORK="+workspace)
 }

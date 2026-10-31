@@ -14,8 +14,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/executor"
@@ -80,6 +78,9 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if err != nil {
 		return executor.Descriptor{}, err
 	}
+	if !filepath.IsAbs(req.Command) && (strings.ContainsRune(req.Command, '/') || strings.ContainsRune(req.Command, os.PathSeparator)) {
+		req.Command = filepath.Join(req.Workdir, req.Command)
+	}
 	if req.Reconstructing && !executor.Exists(filepath.Join(root, string(req.ID), "request.json")) {
 		return executor.Descriptor{}, &backend.DeliveryUncertain{RequestID: string(req.ID), Err: errors.New("accepted native command evidence is unavailable; refusing fresh execution")}
 	}
@@ -87,7 +88,7 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if err != nil {
 		return executor.Descriptor{}, err
 	}
-	sibling := filepath.Join(filepath.Dir(binary), "gimbal-command")
+	sibling := filepath.Join(filepath.Dir(binary), "gimbal-command"+executableSuffix())
 	if info, e := os.Stat(sibling); e == nil && info.Mode().IsRegular() {
 		binary = sibling
 	}
@@ -167,44 +168,8 @@ func Run(root string, req Request) error {
 	cmd.Env = req.Environment
 	cmd.Stdout = out
 	cmd.Stderr = stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	var forced atomic.Bool
-	cmd.Cancel = func() error {
-		signal := syscall.SIGKILL
-		if req.Grace > 0 {
-			signal = syscall.SIGINT
-		}
-		err := syscall.Kill(-cmd.Process.Pid, signal)
-		if errors.Is(err, syscall.ESRCH) {
-			return os.ErrProcessDone
-		}
-		if err != nil || req.Grace <= 0 {
-			return err
-		}
-		grace := time.NewTimer(req.Grace)
-		defer grace.Stop()
-		ticker := time.NewTicker(20 * time.Millisecond)
-		defer ticker.Stop()
-		for {
-			if errors.Is(syscall.Kill(-cmd.Process.Pid, 0), syscall.ESRCH) {
-				return nil
-			}
-			select {
-			case <-ticker.C:
-			case <-grace.C:
-				forced.Store(true)
-				return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-			}
-		}
-	}
-
-	err = cmd.Run()
-	// A command owns its process group. Its ordinary children cannot outlive
-	// terminal publication, including when the group leader exits first.
-	if cmd.Process != nil {
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-	}
-	result := Result{ExitCode: -1, Completed: time.Now(), NotFound: errors.Is(err, exec.ErrNotFound), Forced: forced.Load()}
+	forced, err := runCommandProcess(cmd, req.Grace)
+	result := Result{ExitCode: -1, Completed: time.Now(), NotFound: errors.Is(err, exec.ErrNotFound), Forced: forced}
 	if cmd.ProcessState != nil {
 		result.ExitCode = cmd.ProcessState.ExitCode()
 	}
@@ -219,7 +184,7 @@ func Run(root string, req Request) error {
 		}
 	}
 	if result.Forced {
-		result.Error = "process exceeded SIGINT cleanup grace; external resource cleanup unconfirmed"
+		result.Error = forcedStopError
 	}
 	if e := errors.Join(out.Sync(), stderr.Sync()); e != nil {
 		result.Error = errors.Join(err, e).Error()

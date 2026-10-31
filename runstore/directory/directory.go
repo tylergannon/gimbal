@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/runstore"
-	"golang.org/x/sys/unix"
 )
 
 const maxBatch = 1 << 20
@@ -186,11 +185,8 @@ func newRun(dir string, create bool) (*run, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+	if err = lockWriter(lock); err != nil {
 		_ = lock.Close()
-		if errors.Is(err, unix.EWOULDBLOCK) {
-			return nil, runstore.ErrBusy
-		}
 		return nil, err
 	}
 	return &run{dir: dir, lock: lock, nodes: map[runstore.NodeID]runstore.Node{}, slots: map[runstore.Slot]runstore.NodeID{}, ids: map[runstore.RecordID]location{}, unique: map[string]runstore.RecordID{}, stop: make(chan struct{}), progress: make(chan struct{})}, nil

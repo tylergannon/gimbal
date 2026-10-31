@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/executor"
 )
 
 func (d *Daemon) bytes(w http.ResponseWriter, r *http.Request) {
@@ -76,11 +77,7 @@ func (d *Daemon) writeBytes(v backend.Artifact, r io.Reader) error {
 	err = errors.Join(err, file.Sync())
 	err = errors.Join(err, file.Close())
 	if err == nil {
-		dir, e := os.Open(inputDir)
-		if e != nil {
-			return e
-		}
-		err = errors.Join(dir.Sync(), dir.Close())
+		err = executor.SyncDir(inputDir)
 	}
 	if err != nil {
 		_ = os.Remove(file.Name())

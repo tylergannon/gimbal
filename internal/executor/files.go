@@ -15,11 +15,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/oklog/ulid/v2"
-	"golang.org/x/sys/unix"
 )
 
 type CommandID string
@@ -70,12 +68,7 @@ func Write(path string, value any) error {
 	if err = os.Rename(f.Name(), path); err != nil {
 		return err
 	}
-	dir, err := os.Open(filepath.Dir(path))
-	if err != nil {
-		return err
-	}
-	err = dir.Sync()
-	return errors.Join(err, dir.Close())
+	return SyncDir(filepath.Dir(path))
 }
 func Read(path string, value any) error {
 	raw, err := os.ReadFile(path)
@@ -92,20 +85,20 @@ func Lock(dir string) (*Lease, error) {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(filepath.Join(dir, "owner.lock"), os.O_CREATE|os.O_RDWR, 0600)
+	f, err := openLockFile(filepath.Join(dir, "owner.lock"), true)
 	if err != nil {
 		return nil, err
 	}
-	if err = unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+	if err = lockFile(f); err != nil {
 		_ = f.Close()
-		if errors.Is(err, unix.EWOULDBLOCK) {
+		if lockBusy(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
 	return &Lease{f}, nil
 }
-func (l *Lease) Close() { _ = unix.Flock(int(l.file.Fd()), unix.LOCK_UN); _ = l.file.Close() }
+func (l *Lease) Close() { unlockFile(l.file); _ = l.file.Close() }
 
 // Accept is called only with the operation's lease held, before native work.
 func Accept(dir string, input any) error {
@@ -141,7 +134,7 @@ func AssertOwner(dir string) {
 	violation := func() {
 		panic(fmt.Sprintf("executor invariant violation: accepted operation %s has neither a live owner nor a terminal result", dir))
 	}
-	file, err := os.OpenFile(filepath.Join(dir, "owner.lock"), os.O_RDWR, 0)
+	file, err := openLockFile(filepath.Join(dir, "owner.lock"), false)
 	if os.IsNotExist(err) {
 		if Exists(request) && !Exists(result) {
 			violation()
@@ -152,8 +145,8 @@ func AssertOwner(dir string) {
 		panic(fmt.Sprintf("executor ownership check %s: %v", dir, err))
 	}
 	lease := &Lease{file}
-	err = unix.Flock(int(file.Fd()), unix.LOCK_EX|unix.LOCK_NB)
-	if errors.Is(err, unix.EWOULDBLOCK) {
+	err = lockFile(file)
+	if lockBusy(err) {
 		_ = file.Close()
 		return
 	}
@@ -225,20 +218,34 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 	cmd.Stdin = bytes.NewReader(raw)
 	cmd.Stdout = log
 	cmd.Stderr = log
-	cmd.ExtraFiles = []*os.File{write}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	closeStartup, err := prepareOwner(cmd, write)
+	if err != nil {
+		_ = write.Close()
+		return d, err
+	}
+	closeStartup = sync.OnceFunc(closeStartup)
+	defer closeStartup()
 	if err = cmd.Start(); err != nil {
 		_ = write.Close()
 		return d, err
 	}
+	closeStartup()
 	_ = write.Close()
 	go func() { _ = cmd.Wait() }()
-	_ = read.SetReadDeadline(time.Now().Add(2 * time.Minute))
+
 	var response struct {
 		Descriptor
 		Error string `json:"error,omitempty"`
 	}
-	err = json.NewDecoder(read).Decode(&response)
+	decoded := make(chan error, 1)
+	go func() { decoded <- json.NewDecoder(read).Decode(&response) }()
+	select {
+	case err = <-decoded:
+	case <-time.After(2 * time.Minute):
+		_ = read.Close()
+		<-decoded
+		err = errors.New("startup timed out")
+	}
 	d = response.Descriptor
 	if err == nil && response.Error != "" {
 		return d, errors.New(response.Error)
@@ -471,7 +478,7 @@ func Claim(dir string, input any) (*Lease, error) {
 	}
 }
 func Startup(d Descriptor) error {
-	f := os.NewFile(3, "startup")
+	f := startupFile()
 	if f == nil {
 		return errors.New("startup descriptor is missing")
 	}
@@ -482,7 +489,7 @@ func Startup(d Descriptor) error {
 // RejectStartup reports pre-acceptance failures on the private startup pipe.
 // The public CLI prints the error on stderr and emits no descriptor.
 func RejectStartup(err error) {
-	f := os.NewFile(3, "startup")
+	f := startupFile()
 	if f == nil {
 		return
 	}

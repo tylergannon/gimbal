@@ -72,7 +72,7 @@ func (d *Daemon) process(req effects.Process) error {
 		return nil
 	}
 	executable := req.Command
-	if strings.ContainsRune(executable, os.PathSeparator) && !filepath.IsAbs(executable) {
+	if (strings.ContainsRune(executable, os.PathSeparator) || strings.ContainsRune(executable, '/')) && !filepath.IsAbs(executable) {
 		executable = filepath.Join(d.workdir(req.Workdir), executable)
 	}
 	if _, err := exec.LookPath(executable); err != nil {
@@ -93,7 +93,7 @@ func (d *Daemon) process(req effects.Process) error {
 	if err != nil {
 		return err
 	}
-	request := commandexecutor.Request{ID: executor.CommandID(req.ExecutionIdentity.ExecutorOperation), Command: req.Command, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Deadline: req.Deadline, Grace: 10 * time.Second}
+	request := commandexecutor.Request{ID: executor.CommandID(req.ExecutionIdentity.ExecutorOperation), Command: executable, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Deadline: req.Deadline, Grace: 10 * time.Second}
 	// The bridge records host-local identity; it never sends these paths to callers.
 	if err = os.MkdirAll(filepath.Join(root, "submissions"), 0700); err != nil {
 		return err

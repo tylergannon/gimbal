@@ -94,6 +94,14 @@ func New(executorRoot string) *Daemon {
 
 	return d
 }
+
+// Ready restores task owners and reports any state-loading failure before a
+// native host advertises itself as ready to accept tasks.
+func (d *Daemon) Ready() error {
+	d.ensureRecovery()
+	return d.restoreErr
+}
+
 func key(run, id string) string { return run + "\x00" + id }
 func within(child, parent string) bool {
 	return parent == "" || child == parent || strings.HasPrefix(child, parent+"/")

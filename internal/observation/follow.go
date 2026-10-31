@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 
 	"github.com/tylergannon/gimbal/internal/runstate"
-	"golang.org/x/sys/unix"
 )
 
 // refresh follows only complete durable transactions; it never writes the
@@ -26,7 +25,7 @@ func (s *Store) refresh() error {
 		// lifetime lock permits settlement, while holding it against other readers.
 		lock, err := os.OpenFile(filepath.Join(s.dir, "runner.lock"), os.O_RDWR, 0)
 		if err == nil {
-			if unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB) == nil {
+			if lockRunner(lock) == nil {
 				err = RecordTerminated(s.dir, "run process exited before completing; session cleanup is unconfirmed")
 			}
 			_ = lock.Close()

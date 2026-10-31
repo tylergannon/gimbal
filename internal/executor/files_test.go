@@ -131,3 +131,16 @@ func TestIdentityPrefixes(t *testing.T) {
 		}
 	}
 }
+
+func TestWriteReplacesSavedState(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	for _, value := range []string{"accepted", "completed"} {
+		if err := Write(path, value); err != nil {
+			t.Fatal(err)
+		}
+		var got string
+		if err := Read(path, &got); err != nil || got != value {
+			t.Fatalf("state=%q err=%v", got, err)
+		}
+	}
+}

@@ -46,6 +46,8 @@ type Registry struct {
 	secrets       map[string]SecretsDefinition
 	providers     map[string]ProviderDefinition
 	users         map[string]UsersDefinition
+	pluginMu      sync.Mutex
+	plugins       map[*plugin.Plugin]bool
 	source        string
 }
 
@@ -127,7 +129,11 @@ func (r *Registry) Catalog() []WorkflowDescription {
 
 // LoadPlugins loads sorted native plugin paths. A failure aborts startup.
 // Plugins export Register(*gimbal.Registry) error and must match the host build.
+// Each successfully registered plugin is registered only once per Registry.
 func (r *Registry) LoadPlugins(dirs []string) error {
+	r.pluginMu.Lock()
+	defer r.pluginMu.Unlock()
+
 	var files []string
 	for _, dir := range dirs {
 		entries, err := os.ReadDir(dir)
@@ -150,6 +156,9 @@ func (r *Registry) LoadPlugins(dirs []string) error {
 		if err != nil {
 			return fmt.Errorf("plugin %s: %w", file, err)
 		}
+		if r.plugins[p] {
+			continue
+		}
 		symbol, err := p.Lookup("Register")
 		if err != nil {
 			return fmt.Errorf("plugin %s: %w", file, err)
@@ -158,12 +167,20 @@ func (r *Registry) LoadPlugins(dirs []string) error {
 		if !ok {
 			return fmt.Errorf("plugin %s: Register must be func(*gimbal.Registry) error", file)
 		}
+		r.mu.Lock()
 		r.source = file
+		r.mu.Unlock()
 		err = register(r)
+		r.mu.Lock()
 		r.source = ""
+		r.mu.Unlock()
 		if err != nil {
 			return fmt.Errorf("plugin %s: %w", file, err)
 		}
+		if r.plugins == nil {
+			r.plugins = make(map[*plugin.Plugin]bool)
+		}
+		r.plugins[p] = true
 	}
 	return nil
 }

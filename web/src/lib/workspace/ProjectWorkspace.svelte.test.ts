@@ -401,3 +401,93 @@ for (const route of ["", "/runs"])
     await expect.element(view.getByRole("alert")).toBeVisible();
     await expect.element(sidebar.getByRole("alert")).toBeVisible();
   });
+
+test("All runs renders pending and completed inventory and updates completion in place", async () => {
+  state.inventory = [];
+  state.navigate?.("/projects/project/runs");
+  const data = structuredClone(runInventory);
+  data.items[0].summary = "1 question waiting · research.1";
+  data.attention = [
+    {
+      run: "inventory-run",
+      question_id: "question-1",
+      name: "preferences",
+      scope: "research.1",
+      session: "researcher.1",
+      question: "Which cabin?",
+      status: "pending",
+      answer: "",
+      asked: 200,
+      answered: 0,
+      consumed: [],
+      ordinal: 1,
+      unresolved: "",
+      address: "research.1/preferences",
+      messages: [],
+      ended_by: "",
+    },
+  ];
+  const completed = structuredClone(data.items[0]);
+  Object.assign(completed.run, {
+    id: "completed-run",
+    name: "Release",
+    status: "completed",
+    ended: 200,
+  });
+  Object.assign(completed, { summary: "Completed", elapsed: "7m 30s", cost: "$0.32" });
+  data.items.push(completed);
+  state.setRuns(data);
+  const screen = await render(Workspace, props);
+  const view = screen.getByRole("region", { name: "Project runs" });
+  const pending = view.getByRole("button", { name: "Open Inventory workflow inventory-run" });
+  const ended = view.getByRole("button", { name: "Open Release completed-run" });
+  await expect.element(pending.getByTitle("Needs you", { exact: true })).toBeVisible();
+  await expect
+    .element(pending.getByText("1 question waiting · research.1", { exact: true }))
+    .toBeVisible();
+  await expect.element(ended.getByTitle("Completed", { exact: true })).toBeVisible();
+  await expect.element(ended.getByTitle("Elapsed", { exact: true })).toHaveTextContent("7m 30s");
+  await expect.element(ended.getByTitle("Total cost", { exact: true })).toHaveTextContent("$0.32");
+  await view.getByRole("button", { name: "Needs you", exact: true }).click();
+  await expect.element(pending).toBeVisible();
+  await expect.element(ended).not.toBeInTheDocument();
+  await view.getByRole("button", { name: "All", exact: true }).click();
+  (pending.element() as HTMLButtonElement).focus();
+  const row = pending.element();
+  const finished = structuredClone(data);
+  Object.assign(finished.items[0].run, { status: "completed", ended: 300 });
+  finished.items[0].summary = "Completed";
+  finished.attention = [];
+  state.setRuns(finished);
+  await expect.element(pending.getByTitle("Completed", { exact: true })).toBeVisible();
+  await expect
+    .element(pending.getByText("1 question waiting · research.1", { exact: true }))
+    .not.toBeInTheDocument();
+  await expect.element(view.getByTitle("Needs you", { exact: true })).not.toBeInTheDocument();
+  await expect.element(view.getByTitle("Running", { exact: true })).not.toBeInTheDocument();
+  await expect.element(view.getByRole("button", { name: /^Actions for/ })).not.toBeInTheDocument();
+  expect(pending.element()).toBe(row);
+  await expect.element(pending).toHaveFocus();
+  await expect.element(ended).toBeVisible();
+  const sidebar = screen.getByRole("complementary", { name: "Project sidebar" });
+  await expect.element(sidebar.getByRole("button", { name: /All runs 2/ })).toBeVisible();
+  await expect.element(sidebar.getByText(/1 needs you/)).not.toBeInTheDocument();
+});
+
+test("All runs renders an empty project only after the live inventory arrives", async () => {
+  state.inventory = [];
+  state.navigate?.("/projects/project/runs");
+  state.setRuns(undefined);
+  const screen = await render(Workspace, props);
+  const view = screen.getByRole("region", { name: "Project runs" });
+  await expect.element(view.getByRole("status")).toHaveTextContent("Loading runs…");
+  await expect.element(view.getByText("No runs yet", { exact: true })).not.toBeInTheDocument();
+  state.setRuns({ items: [], attention: [], now: 200 });
+  await expect.element(view.getByRole("heading", { name: "Empty project" })).toBeVisible();
+  await expect.element(view.getByRole("heading", { name: "No runs yet" })).toBeVisible();
+  await expect
+    .element(view.getByRole("button", { name: "Run a workflow", exact: true }))
+    .toBeVisible();
+  await expect.element(view.getByRole("status")).not.toBeInTheDocument();
+  await expect.element(view.getByRole("button", { name: /^Open / })).not.toBeInTheDocument();
+});

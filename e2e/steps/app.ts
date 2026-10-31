@@ -10,14 +10,55 @@ import {
 
 const { Given, When, Then } = createBdd(test);
 
-Given('I open the controlled project runs', async ({ page, browserState }) => {
-	managedFixtureOnly();
-	await page.goto('/');
-	await hydrated(page);
-	await page.locator('section.projects a').first().click();
-	await hydrated(page);
-	await page.getByRole('button', { name: /All runs/ }).click();
-	expect(browserState.documents).toBe(1);
+Given('I open the controlled project home', async ({ page }) => {
+  managedFixtureOnly();
+  await page.goto('/');
+  await hydrated(page);
+  await page.locator('section.projects a').first().click();
+  await hydrated(page);
+});
+
+Then('the project home offers an empty activity list', async ({ page }) => {
+  const home = page.getByRole('region', { name: 'Project home' });
+  await expect(home.getByText('No activity yet. Start a session or run a workflow.')).toBeVisible();
+  await expect(home.getByText('Loading runs…', { exact: true })).toHaveCount(0);
+});
+
+Then('the project home discovers the recorded run', async ({ page, browserState }) => {
+  const home = page.getByRole('region', { name: 'Project home' });
+  const row = home.getByRole('row').filter({ has: page.getByRole('link', { name: 'implement · failed run', exact: true }) });
+  await expect(row).toContainText('Failed');
+  await expect(home.getByText('Loading runs…', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('complementary', { name: 'Project sidebar' }).getByRole('button', { name: /All runs 1/ })).toBeVisible();
+  expect(browserState.pageErrors).toEqual([]);
+});
+
+When('I reload the project home', async ({ page, browserState }) => {
+  await page.reload();
+  await hydrated(page);
+  browserState.expectedDocuments++;
+});
+
+When('I open All runs', async ({ page }) => {
+  await page.getByRole('complementary', { name: 'Project sidebar' }).getByRole('button', { name: /All runs/ }).click();
+});
+
+Then('the project offers an empty Runs view', async ({ page }) => {
+  await expect(page.getByText('No runs yet', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Run a workflow', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Open implement / })).toHaveCount(0);
+});
+
+When('I return to project home', async ({ page }) => {
+  await page.getByRole('link', { name: 'Project home', exact: true }).click();
+});
+
+When('I open and reload All runs', async ({ page, browserState }) => {
+  await page.getByRole('complementary', { name: 'Project sidebar' }).getByRole('button', { name: /All runs/ }).click();
+  await expect(page).toHaveURL(/\/runs$/);
+  await page.reload();
+  await hydrated(page);
+  browserState.expectedDocuments++;
 });
 
 Then('the recorded run shows its identity, failure and cost', async ({ page, browserState }) => {
@@ -28,12 +69,6 @@ Then('the recorded run shows its identity, failure and cost', async ({ page, bro
   await expect(card.getByTitle('Elapsed', { exact: true })).toHaveText('1m 00s');
   await expect(card.getByTitle('Total cost', { exact: true })).toHaveText('$0.00');
   expect(browserState.pageErrors).toEqual([]);
-});
-
-Then('the project offers an empty Runs view', async ({ page }) => {
-  await expect(page.getByText('No runs yet', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Run a workflow', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: /^Open implement / })).toHaveCount(0);
 });
 
 When('a recorded run becomes available', () => {
@@ -77,7 +112,7 @@ Then('the live Runs list updates without replacing the focused row', async ({ pa
   expect(await card.evaluate((element, previous) => element === previous, browserState.runElement!)).toBe(true);
   await expect(card).toBeFocused();
   await expect(page.getByText('Loading runs…', { exact: true })).toHaveCount(0);
-  expect(browserState.documents).toBe(1);
+  expect(browserState.documents).toBe(browserState.expectedDocuments);
   expect(browserState.pageErrors).toEqual([]);
 });
 
@@ -90,7 +125,7 @@ When('I open the recorded fixture run', async ({ page }) => {
 Then('the recorded transcript is visible', async ({ page, browserState }) => {
   await expect(page.locator('.run-transcript')).toBeVisible();
   await expect(page.locator('.run-transcript .ended')).toHaveText('This run has ended.');
-  expect(browserState.documents).toBe(1);
+  expect(browserState.documents).toBe(browserState.expectedDocuments);
 });
 
 When('I open its workflow map and await the graph API', async ({ page, browserState }) => {
@@ -133,7 +168,7 @@ Then('the same graph and selection are retained without a document reload', asyn
   expect(ready).toEqual(browserState.graphReady);
   await expect(map.getByRole('button', { name: /^outcome,/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('aside.detail .placement')).toHaveText('outcome.1');
-  expect(browserState.documents).toBe(1);
+  expect(browserState.documents).toBe(browserState.expectedDocuments);
   expect(page.context().pages()).toHaveLength(1);
   expect(browserState.pageErrors).toEqual([]);
 });

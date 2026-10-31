@@ -6,6 +6,7 @@ import { join } from "node:path";
 
 export type BrowserState = {
   documents: number;
+  expectedDocuments: number;
   pageErrors: string[];
   runElement?: ElementHandle<HTMLElement | SVGElement>;
   graphReady?: { revision: number; nodes: number; edges: number };
@@ -18,7 +19,7 @@ export const test = base.extend<{ browserState: BrowserState }>({
   },
   browserState: [
     async ({ page }, use) => {
-      const state: BrowserState = { documents: 0, pageErrors: [] };
+      const state: BrowserState = { documents: 0, expectedDocuments: 1, pageErrors: [] };
       page.on("request", (request) => {
         if (request.resourceType() === "document") state.documents++;
       });

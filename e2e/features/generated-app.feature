@@ -3,10 +3,17 @@ Feature: The Gimbal application works through a browser
   These scenarios run against its development server and standalone production
   binary.
 
-  Scenario: A recorded run is reviewed through its graph in one browser session
-    Given I open the controlled project runs
+  Scenario: Live run inventory is discovered, reloaded, updated and opened through its graph
+    Given I open the controlled project home
+    Then the project home offers an empty activity list
+    When I open All runs
     Then the project offers an empty Runs view
+    When I return to project home
     When a recorded run becomes available
+    Then the project home discovers the recorded run
+    When I reload the project home
+    Then the project home discovers the recorded run
+    When I open and reload All runs
     Then the recorded run shows its identity, failure and cost
     Then the long failed summary keeps its run reachable at desktop and phone widths
     When the recorded run summary changes

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/tylergannon/gimbal/runstore"
 	"io"
 	"net/http"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"time"
 
 	"github.com/tylergannon/gimbal/internal/observation"
+	"github.com/tylergannon/gimbal/runstore"
+	"github.com/tylergannon/gimbal/web/runview"
 )
 
 func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
@@ -87,6 +88,11 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if err != nil || len(ids) != 0 {
 		t.Fatalf("unaccepted initialization listed: %v %v", ids, err)
 	}
+	next := watchTestRuns(t, instance, runtime.ID())
+	reserved := next(func(runview.RunsData) bool { return true })
+	if len(reserved.Items) != 0 {
+		t.Fatalf("unaccepted reservation published: %+v", reserved)
+	}
 	close(continueOpen)
 	store, err := <-opened, <-openErr
 	if err != nil {
@@ -95,12 +101,11 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if got, live := runtime.Registry().Live(id); !live || got != store {
 		t.Fatal("accepted observation was not the reserved store")
 	}
-	list := get("")
-	listBody, err := io.ReadAll(list.Body)
-	_ = list.Body.Close()
-	if err != nil || !strings.Contains(string(listBody), "publication") {
-		t.Fatalf("list during publication = %q, %v", listBody, err)
+	published := next(func(data runview.RunsData) bool { return len(data.Items) == 1 })
+	if published.Items[0].Run.ID != id || published.Items[0].Run.Name != "publication" || published.Items[0].Run.Status != observation.StatusRunning {
+		t.Fatalf("accepted publication inventory: %+v", published)
 	}
+
 	snapshotResponse := get("/api/runs/" + id)
 	var snapshot observation.RunSnapshot
 	if err := json.NewDecoder(snapshotResponse.Body).Decode(&snapshot); err != nil {
@@ -128,11 +133,11 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if err != nil || !strings.Contains(string(streamBody), `"status":"running"`) || !strings.Contains(string(streamBody), `"status":"completed"`) {
 		t.Fatalf("stream across completion = %q, %v", streamBody, err)
 	}
-	completedList := get("")
-	completedBody, err := io.ReadAll(completedList.Body)
-	_ = completedList.Body.Close()
-	if err != nil || !strings.Contains(string(completedBody), "publication") || !strings.Contains(string(completedBody), "Ended") {
-		t.Fatalf("list after completion = %q, %v", completedBody, err)
+	completed := next(func(data runview.RunsData) bool {
+		return len(data.Items) == 1 && data.Items[0].Run.Status == observation.StatusCompleted
+	})
+	if completed.Items[0].Run.ID != id || completed.Items[0].Summary != "Completed" {
+		t.Fatalf("completed publication inventory: %+v", completed)
 	}
 
 	// A real hosted run uses that publication path and remains readable on
@@ -176,11 +181,9 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if snapshot.Run.Status != observation.StatusRunning {
 		t.Fatalf("hosted snapshot during body = %+v", snapshot.Run)
 	}
-	page := get("")
-	pageBody, _ := io.ReadAll(page.Body)
-	_ = page.Body.Close()
-	if !strings.Contains(string(pageBody), hostedID) {
-		t.Fatal("project list omitted the hosted run")
+	hostedInventory := next(func(data runview.RunsData) bool { return len(data.Items) == 2 })
+	if hostedInventory.Items[0].Run.ID != hostedID || hostedInventory.Items[0].Run.Name != "hosted" || hostedInventory.Items[0].Run.Status != observation.StatusRunning {
+		t.Fatalf("hosted inventory during body: %+v", hostedInventory)
 	}
 	hostedStream := get("/api/runs/" + hostedID + "/events")
 	close(finish)
@@ -200,11 +203,14 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if snapshot.Run.Status != observation.StatusCompleted {
 		t.Fatalf("hosted snapshot after completion = %+v", snapshot.Run)
 	}
+	next(func(data runview.RunsData) bool {
+		return len(data.Items) == 2 && data.Items[0].Run.Status == observation.StatusCompleted && data.Items[1].Run.Status == observation.StatusCompleted
+	})
 	cancel()
 	<-instance.done
 	restartCtx, stop := context.WithCancel(t.Context())
 	defer stop()
-	restarted, err := NewInstance(restartCtx, instanceDir, nil, WithNoWeb())
+	restarted, err := NewInstance(restartCtx, instanceDir, nil, WithPort(0))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,10 +218,17 @@ func TestHostedRunPublicationBeforeDirectoryIsReadable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { restarted.cancel(nil); restarted.Wait() })
 	for _, runID := range []string{id, hostedID} {
 		saved, err := reopened.Registry().Snapshot(runID)
 		if err != nil || saved.Run.Status != observation.StatusCompleted {
 			t.Fatalf("reopened %s = %+v, %v", runID, saved.Run, err)
+		}
+	}
+	reopenedInventory := watchTestRuns(t, restarted, reopened.ID())(func(data runview.RunsData) bool { return len(data.Items) == 2 })
+	for _, item := range reopenedInventory.Items {
+		if item.Run.Status != observation.StatusCompleted || item.Run.ID != id && item.Run.ID != hostedID {
+			t.Fatalf("reopened inventory: %+v", reopenedInventory)
 		}
 	}
 }

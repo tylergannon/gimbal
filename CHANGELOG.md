@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.1] - 2026-10-31
+
+### Changed
+
+- fix: qualify Windows worker lint and packaged plugin toolchains
+
 ## [0.20.0] - 2026-10-31
 
 ### Changed
@@ -592,7 +598,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.20.0...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.20.1...main
+[0.20.1]: https://github.com/tylergannon/gimbal/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/tylergannon/gimbal/compare/v0.19.4...v0.20.0
 [0.19.4]: https://github.com/tylergannon/gimbal/compare/v0.19.3...v0.19.4
 [0.19.3]: https://github.com/tylergannon/gimbal/compare/v0.19.2...v0.19.3

@@ -8,6 +8,10 @@ Feature: The Gimbal application works through a browser
     Then the project home offers an empty activity list
     When I open All runs
     Then the project offers an empty Runs view
+    When pending and completed run records become available
+    Then the live inventory shows the pending question and completed run
+    When the foreign pending run completes
+    Then its live inventory row completes without stale running state
     When I return to project home
     When a recorded run becomes available
     Then the project home discovers the recorded run

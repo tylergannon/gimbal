@@ -3,7 +3,9 @@ import type { WorkflowMapElement } from '../../web/src/lib/run/graphReadiness.js
 import { createBdd } from 'playwright-bdd';
 import {
 	hydrated,
-	setRunsFixture,
+	publishFailedRunFixture,
+	publishInventoryFixture,
+	completeInventoryFixture,
 	test,
 	updateFailedRunSummary
 } from './fixtures.js';
@@ -29,7 +31,7 @@ Then('the project home discovers the recorded run', async ({ page, browserState 
   const row = home.getByRole('row').filter({ has: page.getByRole('link', { name: 'implement · failed run', exact: true }) });
   await expect(row).toContainText('Failed');
   await expect(home.getByText('Loading runs…', { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('complementary', { name: 'Project sidebar' }).getByRole('button', { name: /All runs 1/ })).toBeVisible();
+  await expect(page.getByRole('complementary', { name: 'Project sidebar' }).getByRole('button', { name: /All runs 3/ })).toBeVisible();
   expect(browserState.pageErrors).toEqual([]);
 });
 
@@ -71,8 +73,55 @@ Then('the recorded run shows its identity, failure and cost', async ({ page, bro
   expect(browserState.pageErrors).toEqual([]);
 });
 
+When('pending and completed run records become available', () => {
+  publishInventoryFixture();
+});
+
+Then('the live inventory shows the pending question and completed run', async ({ page, browserState }) => {
+  const view = page.getByRole('region', { name: 'Project runs' });
+  const pending = view.getByRole('button', { name: 'Open plan-trip foreign-pending', exact: true });
+  const completed = view.getByRole('button', { name: 'Open release completed-release', exact: true });
+  await expect(pending.getByTitle('Needs you', { exact: true })).toBeVisible();
+  await expect(pending).toContainText('1 question waiting');
+  await expect(completed.getByTitle('Completed', { exact: true })).toBeVisible();
+  await expect(completed.getByTitle('Elapsed', { exact: true })).toHaveText('7m 30s');
+  await view.getByRole('button', { name: 'Needs you', exact: true }).click();
+  await expect(pending).toBeVisible();
+  await expect(completed).toHaveCount(0);
+  await view.getByRole('button', { name: 'All', exact: true }).click();
+  await expect(completed).toBeVisible();
+  await pending.focus();
+  browserState.runElement = await pending.elementHandle() ?? undefined;
+  expect(browserState.documents).toBe(browserState.expectedDocuments);
+  expect(browserState.pageErrors).toEqual([]);
+});
+
+When('the foreign pending run completes', () => {
+  completeInventoryFixture();
+});
+
+Then('its live inventory row completes without stale running state', async ({ page, browserState }) => {
+  const view = page.getByRole('region', { name: 'Project runs' });
+  const completed = view.getByRole('button', { name: 'Open plan-trip foreign-pending', exact: true });
+  await expect(completed.getByTitle('Completed', { exact: true })).toBeVisible();
+  await expect(completed.getByTitle('Elapsed', { exact: true })).toHaveText('1m 00s');
+  await expect(completed).not.toContainText('question waiting');
+  await expect(view.getByTitle('Needs you', { exact: true })).toHaveCount(0);
+  await expect(view.getByTitle('Running', { exact: true })).toHaveCount(0);
+  await expect(view.getByRole('button', { name: /^Actions for/ })).toHaveCount(0);
+  await expect(completed).toBeFocused();
+  expect(await completed.evaluate((element, previous) => element === previous, browserState.runElement!)).toBe(true);
+  await view.getByRole('button', { name: 'Live', exact: true }).click();
+  await expect(view.getByRole('status')).toHaveText('No runs match this filter or search.');
+  await view.getByRole('button', { name: 'Ended', exact: true }).click();
+  await expect(completed).toBeVisible();
+  await expect(view.getByRole('button', { name: 'Open release completed-release', exact: true })).toBeVisible();
+  expect(browserState.documents).toBe(browserState.expectedDocuments);
+  expect(browserState.pageErrors).toEqual([]);
+});
+
 When('a recorded run becomes available', () => {
-  setRunsFixture(true);
+  publishFailedRunFixture();
 });
 
 Then('the long failed summary keeps its run reachable at desktop and phone widths', async ({ page }) => {

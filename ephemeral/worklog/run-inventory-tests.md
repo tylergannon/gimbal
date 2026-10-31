@@ -11,3 +11,7 @@ correction: Reuse a read-only snapshot of the root checkout's test repair in thi
 friction: Multiple browser scenarios that delete and reuse one admitted project's records interfere with the registry's retained observations. Extend the existing single application journey for home/reload coverage instead of resetting a live project's history between scenarios.
 
 friction: The independent-review CLI's Claude runner failed before review with an expired OAuth session. Use an independent review agent in this chat as the fallback; do not retry authentication failures unchanged or disturb another tester's app.
+
+decision: Tyler's ownership decision traced the root edits to the completed Gimbal implementation run 01M69TKFPD0NPXKM82HTEJC3K4; adopt the completed repair while preserving the root checkout and untracked .gimbal. Prior coder, QA and fresh independent Safari evidence are recorded in gimbal-view/ephemeral/windows-worker/release-web-repair-worklog.md. Reuse that evidence only for unchanged source and assertions.
+
+decision: Retain the prior durable foreign-writer browser fixture and pending/completed/filter assertions, then continue the same journey through home discovery, direct reloads, summary updates and transcript/map navigation. Separate reset from publishing a failed run so the journey accumulates inventory without deleting already-observed records.

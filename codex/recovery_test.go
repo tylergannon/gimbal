@@ -502,7 +502,7 @@ func TestRecoveredFinalAnswerIsNotReplacedByCommentary(t *testing.T) {
 // leave the conversation unresolved.
 func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
 	shortenControlTimeout(t)
-	ad, d := newRecoveryDaemon(t, "default")
+	ad, _ := newRecoveryDaemon(t, "default")
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "stalled", "", t.TempDir())
@@ -516,13 +516,24 @@ func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
 		result <- err
 	}()
 	for {
-		d.mu.Lock()
-		started := d.starts
-		d.mu.Unlock()
-		if started == 1 {
+		s, err := ad.session(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		acknowledged := false
+		if active := s.getActive(); active != nil {
+			active.mu.Lock()
+			acknowledged = active.turnID != ""
+			active.mu.Unlock()
+		}
+		if acknowledged {
 			break
 		}
-		time.Sleep(time.Millisecond)
+		select {
+		case <-ctx.Done():
+			t.Fatal("turn/start was not acknowledged")
+		case <-time.After(time.Millisecond):
+		}
 	}
 	stop()
 	err = <-result

@@ -23,3 +23,5 @@ implementation correction: A late reader of a terminal transport must still rece
 review correction: Cancellation flags previously replaced a joined release failure with bare context cancellation at two worker result boundaries. Preserve the ordinary final error text and context identity together, including confirmed-stop plus failed unsubscribe. The subprocess and outer adapter regressions exercise both boundaries.
 
 validation friction: Running the whole repository concurrently with package race review exhausted unchanged one-second root test deadlines and the ten-second parallel Codex recovery deadline. Keep deadlines unchanged; rerun with serial package scheduling to separate resource contention from correctness failures. No race-detector warning accompanied those deadline failures.
+
+test correction: The confirmed-stop-history test waited for the fake daemon's received request count, then could cancel before the adapter learned its turn ID. Wait for acknowledged active.turnID instead; a lost acknowledgement correctly reports uncertainty and is a separate scenario. Preserve the original timeout.

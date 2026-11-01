@@ -61,8 +61,8 @@ func TestTerminalRPCReadClosesSocketReaderAndPendingCalls(t *testing.T) {
 				}
 			}
 			conn.finishRead(errors.New("second retirement"))
-			if ch := conn.registerThread("late parent"); ch != nil {
-				t.Fatal("terminal transport admitted a new route")
+			if _, err := conn.next(ctx, conn.registerThread("late parent")); !isTransportError(err) {
+				t.Fatalf("late reader lost terminal transport error: %v", err)
 			}
 			conn.routeThread("late child", make(chan rpcMessage, 1))
 			if len(conn.pending) != 0 || len(conn.threads) != 0 || len(conn.queues) != 0 {

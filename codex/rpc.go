@@ -194,7 +194,9 @@ func (c *connection) registerThread(threadID string) chan rpcMessage {
 	c.threadsMu.Lock()
 	defer c.threadsMu.Unlock()
 	if c.dead() {
-		return nil
+		// Readers still observe the transport error through readDone. Keep this
+		// channel unregistered so terminal routing cannot be restored.
+		return make(chan rpcMessage)
 	}
 	if ch, ok := c.threads[threadID]; ok {
 		return ch

@@ -18,6 +18,8 @@ limitation: Aggregate cross-session capacity and accepted-startup identity recon
 
 review correction: An ending active turn could register its route again after Close removed it; a second live session prevented idle retirement from masking that retention. Gate all session route admission on the same closing lock, and reject routing on terminal transports. Cover the two-session case explicitly.
 
+implementation correction: A late reader of a terminal transport must still receive the transport error, rather than treating rejected route registration as session cancellation. Return an unregistered channel for that dead connection and let its readDone signal report the original failure; retain no routing state.
+
 review correction: Cancellation flags previously replaced a joined release failure with bare context cancellation at two worker result boundaries. Preserve the ordinary final error text and context identity together, including confirmed-stop plus failed unsubscribe. The subprocess and outer adapter regressions exercise both boundaries.
 
 validation friction: Running the whole repository concurrently with package race review exhausted unchanged one-second root test deadlines and the ten-second parallel Codex recovery deadline. Keep deadlines unchanged; rerun with serial package scheduling to separate resource contention from correctness failures. No race-detector warning accompanied those deadline failures.

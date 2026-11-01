@@ -164,7 +164,12 @@ func (a *adapter) recoverTurn(ctx context.Context, s *session, id, prompt string
 				// Seed the reader from authoritative items without replaying transcript
 				// events, tools or usage that were already observed.
 				seed, final := nativeAnswer(current)
-				answer, readErr := readTurnFrom(ctx, conn, conn.registerThread(id), id, turn, active.emit, seed, final)
+				ch := s.registerThread(conn, id)
+				if ch == nil {
+					batchCancel()
+					return "", context.Canceled
+				}
+				answer, readErr := readTurnFrom(ctx, conn, ch, id, turn, active.emit, seed, final)
 				if !isTransportError(readErr) {
 					batchCancel()
 					return answer, readErr
@@ -194,7 +199,11 @@ func (a *adapter) recoverTurn(ctx context.Context, s *session, id, prompt string
 					active.emit = newProjector(id, turn, s.model, active.emit.emit)
 					if startErr == nil {
 						batchCancel()
-						answer, nextErr := readTurn(ctx, conn, conn.registerThread(id), id, turn, active.emit)
+						ch := s.registerThread(conn, id)
+						if ch == nil {
+							return "", context.Canceled
+						}
+						answer, nextErr := readTurn(ctx, conn, ch, id, turn, active.emit)
 						if !isTransportError(nextErr) {
 							return answer, nextErr
 						}

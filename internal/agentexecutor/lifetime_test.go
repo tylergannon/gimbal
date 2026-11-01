@@ -40,7 +40,7 @@ func (a *lifetimeNative) DetachSession(ctx context.Context, _ string) error {
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("local release inherited cancellation: %w", err)
 	}
-	if a.mode == "detach-fail" || a.mode == "fork-detach-fail" {
+	if a.mode == "detach-fail" || a.mode == "fork-detach-fail" || a.mode == "cancel-detach-fail" {
 		return errors.New("unsubscribe rejected")
 	}
 	return nil
@@ -56,8 +56,11 @@ func (a *lifetimeNative) Close(ctx context.Context, _ string) error {
 	return errors.New("archive rejected") // never becomes successful on retry
 }
 func (a *lifetimeNative) RunTurn(ctx context.Context, _, _ string, _ json.RawMessage, _ func(gimbal.AgentEvent) error) (gimbal.TurnResult, error) {
-	if a.mode == "cancel" || a.mode == "cancel-race" {
+	if a.mode == "cancel" || a.mode == "cancel-race" || a.mode == "cancel-detach-fail" {
 		<-ctx.Done()
+		if a.mode == "cancel-detach-fail" {
+			return gimbal.TurnResult{}, ctx.Err()
+		}
 		if a.mode == "cancel" {
 			return gimbal.TurnResult{}, &backend.DeliveryUncertain{RequestID: "native-turn", Accepted: true, Err: errors.Join(ctx.Err(), errors.New("native cessation remains unknown"))}
 		}
@@ -95,7 +98,7 @@ func TestAgentLifetimeWorkerFixture(t *testing.T) {
 }
 
 func TestNativeOwnerReturnsAfterNormalCancelAndErrorWithoutCleanupRetry(t *testing.T) {
-	for _, mode := range []string{"normal", "cancel", "cancel-race", "error", "detach-fail", "archive-fail", "fork-detach-fail"} {
+	for _, mode := range []string{"normal", "cancel", "cancel-race", "cancel-detach-fail", "error", "detach-fail", "archive-fail", "fork-detach-fail"} {
 		t.Run(mode, func(t *testing.T) {
 			root := t.TempDir()
 			t.Setenv("GIMBAL_TEST_AGENT_LIFETIME_ROOT", root)
@@ -115,7 +118,7 @@ func TestNativeOwnerReturnsAfterNormalCancelAndErrorWithoutCleanupRetry(t *testi
 			}
 			req := Request{ID: executor.NewTurnID(), Session: sid, Prompt: mode}
 			req.Fork = mode == "fork-detach-fail"
-			if mode == "cancel" || mode == "cancel-race" {
+			if mode == "cancel" || mode == "cancel-race" || mode == "cancel-detach-fail" {
 				req.Timeout = 20 * time.Millisecond
 			}
 			checkpoint := filepath.Join(sessionDir(root, sid), "native.json")
@@ -149,6 +152,9 @@ func TestNativeOwnerReturnsAfterNormalCancelAndErrorWithoutCleanupRetry(t *testi
 				if !ok || uncertain.RequestID != "native-turn" || !uncertain.Accepted || !errors.Is(resultErr, context.DeadlineExceeded) || !strings.Contains(resultErr.Error(), "cessation remains unknown") {
 					t.Fatalf("native uncertainty lost at worker boundary: %v", resultErr)
 				}
+			}
+			if mode == "cancel-detach-fail" && (!errors.Is(resultErr, context.DeadlineExceeded) || !strings.Contains(resultErr.Error(), "unsubscribe rejected")) {
+				t.Fatalf("cancelled result hid release failure: %v", resultErr)
 			}
 			var observed lifetimeNative
 			for {

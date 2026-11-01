@@ -15,3 +15,9 @@ decision: Use the existing HarnessAdapter scope contract: release local session 
 decision: A detached human session retains its checkpoint; uncertainty crosses the native worker boundary in the ordinary final result instead of being overwritten by cancellation. A completed native result can win the cancellation race. Propagate the previously ignored fork-parent detach error and release its child on failed admission.
 
 limitation: Aggregate cross-session capacity and accepted-startup identity reconciliation remain distinct ownership-policy questions. Preserve the existing per-operation/session leases and one-active-turn-per-native-session admission, without inventing a machine-wide cap or claiming vendor descendants have unloaded.
+
+review correction: An ending active turn could register its route again after Close removed it; a second live session prevented idle retirement from masking that retention. Gate all session route admission on the same closing lock, and reject routing on terminal transports. Cover the two-session case explicitly.
+
+review correction: Cancellation flags previously replaced a joined release failure with bare context cancellation at two worker result boundaries. Preserve the ordinary final error text and context identity together, including confirmed-stop plus failed unsubscribe. The subprocess and outer adapter regressions exercise both boundaries.
+
+validation friction: Running the whole repository concurrently with package race review exhausted unchanged one-second root test deadlines and the ten-second parallel Codex recovery deadline. Keep deadlines unchanged; rerun with serial package scheduling to separate resource contention from correctness failures. No race-detector warning accompanied those deadline failures.

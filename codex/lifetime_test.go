@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -60,6 +61,10 @@ func TestTerminalRPCReadClosesSocketReaderAndPendingCalls(t *testing.T) {
 				}
 			}
 			conn.finishRead(errors.New("second retirement"))
+			if ch := conn.registerThread("late parent"); ch != nil {
+				t.Fatal("terminal transport admitted a new route")
+			}
+			conn.routeThread("late child", make(chan rpcMessage, 1))
 			if len(conn.pending) != 0 || len(conn.threads) != 0 || len(conn.queues) != 0 {
 				t.Fatal("terminal connection retained request or session routing")
 			}
@@ -67,6 +72,72 @@ func TestTerminalRPCReadClosesSocketReaderAndPendingCalls(t *testing.T) {
 				t.Fatalf("reader retained its debug descriptor: %v", err)
 			}
 		})
+	}
+}
+
+func TestClosedActiveSessionDoesNotRestoreRoutesWhileAnotherSessionLives(t *testing.T) {
+	previous := runtime.GOMAXPROCS(1)
+	defer runtime.GOMAXPROCS(previous)
+	shortenControlTimeout(t)
+	ad, _ := newRecoveryDaemon(t, "default")
+	id, err := ad.CreateSession(t.Context(), "stalled", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := ad.CreateSession(t.Context(), "simple", "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := ad.DetachSession(t.Context(), other); err != nil {
+			t.Error(err)
+		}
+	}()
+	conn := ad.current()
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := ad.RunTurn(ctx, id, "one assignment", nil, func(gimbal.AgentEvent) error { return nil })
+		done <- err
+	}()
+	for {
+		s, _ := ad.session(id)
+		active := s.getActive()
+		started := false
+		if active != nil {
+			active.mu.Lock()
+			started = active.turnID != ""
+			active.mu.Unlock()
+		}
+		if started {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("turn never started")
+		case <-time.After(time.Millisecond):
+		}
+	}
+	closing, stop := context.WithCancel(t.Context())
+	stop()
+	if err := ad.Close(closing, id); err == nil {
+		t.Fatal("expected cancelled archive")
+	}
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("scope cancellation lost: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("local turn retained")
+	}
+	conn.threadsMu.Lock()
+	_, retained := conn.threads[id]
+	routes, queues := len(conn.threads), len(conn.queues)
+	conn.threadsMu.Unlock()
+	if retained || routes != 1 || queues != 1 || conn.dead() {
+		t.Fatalf("ended scope restored routing or disrupted other session: retained=%t routes=%d queues=%d", retained, routes, queues)
 	}
 }
 

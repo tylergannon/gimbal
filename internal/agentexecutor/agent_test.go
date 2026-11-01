@@ -228,6 +228,15 @@ func TestReconstructionWithoutAcceptedTurnEvidenceDoesNotDispatch(t *testing.T) 
 // A cancel ACK establishes delivery, not native cessation. An accepted operation
 // with no final result remains unresolved; the reader must not invent success.
 func TestCancelDeadlineWithoutFinalResultRemainsUncertain(t *testing.T) {
+	testCancelledFinalResult(t, false)
+}
+
+func TestCancelledFinalResultPreservesReleaseFailure(t *testing.T) {
+	testCancelledFinalResult(t, true)
+}
+
+func testCancelledFinalResult(t *testing.T, publish bool) {
+	t.Helper()
 	root := t.TempDir()
 	sid := executor.NewSessionID()
 	identity := backend.NewExecutionIdentity("turn")
@@ -245,6 +254,12 @@ func TestCancelDeadlineWithoutFinalResultRemainsUncertain(t *testing.T) {
 	canceled := make(chan struct{}, 1)
 	server, err := executor.Listen(dir, func(c executor.Control) executor.Reply {
 		if c.Op == "cancel" {
+			if publish {
+				result := Result{Cancelled: true, Error: "context canceled\nunsubscribe rejected", Completed: time.Now()}
+				if err := executor.Write(filepath.Join(dir, "result.json"), result); err != nil {
+					return executor.Reply{Error: err.Error()}
+				}
+			}
 			select {
 			case canceled <- struct{}{}:
 			default:
@@ -278,6 +293,12 @@ func TestCancelDeadlineWithoutFinalResultRemainsUncertain(t *testing.T) {
 	}
 	select {
 	case err := <-done:
+		if publish {
+			if !errors.Is(err, context.Canceled) || !strings.Contains(err.Error(), "unsubscribe rejected") {
+				t.Fatalf("ordinary final release error lost: %v", err)
+			}
+			return
+		}
 		var uncertain *backend.DeliveryUncertain
 		if !errors.As(err, &uncertain) {
 			t.Fatalf("still-owned stop reported as terminal: %v", err)

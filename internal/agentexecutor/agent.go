@@ -489,10 +489,10 @@ func Wait(ctx context.Context, d executor.Descriptor, onEvent func(gimbal.AgentE
 				return out, fmt.Errorf("%w: %s", gimbal.ErrInvalidOutput, result.Error)
 			}
 			if result.TimedOut {
-				return out, context.DeadlineExceeded
+				return out, errors.Join(context.DeadlineExceeded, errors.New(result.Error))
 			}
 			if result.Cancelled {
-				return out, context.Canceled
+				return out, errors.Join(context.Canceled, errors.New(result.Error))
 			}
 			if result.Error != "" {
 				return out, errors.New(result.Error)
@@ -581,7 +581,7 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 		if !executor.Exists(d.Result) || (waitErr != nil && !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded)) {
 			return result, &backend.DeliveryUncertain{RequestID: identity.RequestID, Err: errors.Join(ctx.Err(), controlErr, waitErr)}
 		}
-		return result, ctx.Err()
+		return completed, waitErr
 	}
 	return result, err
 }

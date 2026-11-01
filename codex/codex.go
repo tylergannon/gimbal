@@ -169,13 +169,9 @@ func (a *adapter) resumeThreads(ctx context.Context, conn *connection) error {
 	maps.Copy(sessions, a.sessions)
 	a.mu.Unlock()
 	for id, s := range sessions {
-		s.mu.Lock()
-		closing := s.closing
-		s.mu.Unlock()
-		if closing {
+		if s.registerThread(conn, id) == nil {
 			continue
 		} // cleanup only needs archive, never resume
-		conn.registerThread(id) // subscribe locally before the resume response can emit notifications
 		result, err := callThread(ctx, conn, "thread/resume", map[string]any{
 			"threadId":              id,
 			"cwd":                   s.workdir,
@@ -194,7 +190,6 @@ func (a *adapter) resumeThreads(ctx context.Context, conn *connection) error {
 		if resumed != id {
 			return fmt.Errorf("codex: resume thread %s: daemon returned a different thread id %s", id, resumed)
 		}
-		conn.registerThread(id)
 	}
 	return nil
 }
@@ -336,7 +331,10 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if err != nil {
 		return gimbal.TurnResult{}, err
 	}
-	ch := conn.registerThread(sessionID)
+	ch := s.registerThread(conn, sessionID)
+	if ch == nil {
+		return gimbal.TurnResult{}, context.Canceled
+	}
 
 	params := map[string]any{
 		"threadId":       sessionID,
@@ -412,7 +410,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		// cessation. Report uncertainty separately from local scope release.
 		confirmed := errors.Is(err, errTurnInterrupted)
 		if !confirmed && turn != "" {
-			confirmed = stopConfirmed(current, sessionID, turn, active.emit)
+			confirmed = stopConfirmed(current, s, sessionID, turn, active.emit)
 		}
 		if !confirmed {
 			return gimbal.TurnResult{}, &backend.DeliveryUncertain{RequestID: turn, Accepted: turn != "", Err: errors.Join(ctx.Err(), errors.New("codex has not confirmed the stop; the native turn may still be running"))}
@@ -600,16 +598,31 @@ func (s *session) getActive() *activeTurn {
 	return s.active
 }
 
+// Registration and closure share the session lock so an ending turn cannot
+// restore routes after releaseSession has removed them.
+func (s *session) registerThread(conn *connection, id string) chan rpcMessage {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closing {
+		return nil
+	}
+	return conn.registerThread(id)
+}
+
 // stopConfirmed interrupts a native turn and reports whether Codex then
 // recorded a terminal outcome, by notification or by its thread history.
-func stopConfirmed(conn *connection, threadID, turnID string, emit *projector) bool {
+func stopConfirmed(conn *connection, s *session, threadID, turnID string, emit *projector) bool {
 	interrupt(conn, threadID, turnID)
 	if conn.dead() {
 		return false
 	}
+	ch := s.registerThread(conn, threadID)
+	if ch == nil {
+		return false
+	}
 	drainCtx, drainCancel := context.WithTimeout(context.Background(), controlTimeout)
 	defer drainCancel()
-	_, err := readTurn(drainCtx, conn, conn.registerThread(threadID), threadID, turnID, emit)
+	_, err := readTurn(drainCtx, conn, ch, threadID, turnID, emit)
 	if err == nil || errors.Is(err, errTurnInterrupted) {
 		return true
 	}

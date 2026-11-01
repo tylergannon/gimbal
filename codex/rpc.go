@@ -193,6 +193,9 @@ func runCodex(ctx context.Context, args ...string) ([]byte, error) {
 func (c *connection) registerThread(threadID string) chan rpcMessage {
 	c.threadsMu.Lock()
 	defer c.threadsMu.Unlock()
+	if c.dead() {
+		return nil
+	}
 	if ch, ok := c.threads[threadID]; ok {
 		return ch
 	}
@@ -209,6 +212,10 @@ func (c *connection) registerThread(threadID string) chan rpcMessage {
 // channel. Child threads are owned by Codex's collab tool, not Gimbal sessions.
 func (c *connection) routeThread(threadID string, ch chan rpcMessage) {
 	c.threadsMu.Lock()
+	if c.dead() {
+		c.threadsMu.Unlock()
+		return
+	}
 	c.threads[threadID] = ch
 	c.threadsMu.Unlock()
 }

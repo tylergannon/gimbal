@@ -3,9 +3,10 @@
 // daemon, starting it on first use if none is running. It never launches a
 // private app-server process, and it never stops or restarts the daemon,
 // because other clients (Codex Desktop included) share it. A thread lives
-// in the daemon until the session's scope ends, when Close archives it: an
-// archived thread is unloaded, and its MCP child processes and file
-// descriptors are released from the shared daemon. An archived thread
+// in the daemon until the session's scope ends, when Close requests archive
+// and releases local routing. DetachSession preserves a human-owned thread.
+// The last session/operation releases the adapter's socket and reader; neither
+// local release nor an archive reply proves tool-descendant cessation. An archived thread
 // cannot be used again through the adapter; see callThread for why.
 //
 // Set GIMBAL_CODEX_DEBUG_DIR to a local directory to record every received
@@ -53,6 +54,7 @@ var busyPoll = time.Second
 type adapter struct {
 	connMu        sync.Mutex
 	sharedConn    *connection
+	users         int // in-flight operations, including concurrent admissions
 	recoveryDelay time.Duration
 	dial          func(context.Context, bool) (*connection, error) // tests supply an isolated daemon
 
@@ -70,9 +72,10 @@ type session struct {
 	effort  string
 	workdir string
 
-	mu      sync.Mutex
-	active  *activeTurn
-	closing bool
+	mu         sync.Mutex
+	active     *activeTurn
+	closing    bool
+	turnCancel context.CancelFunc
 }
 
 type activeTurn struct {
@@ -90,6 +93,31 @@ type activeTurn struct {
 // is not already running.
 func New() gimbal.HarnessAdapter {
 	return &adapter{sessions: make(map[string]*session), recoveryDelay: 10 * time.Second}
+}
+
+// use keeps the shared connection alive while an operation admits, uses or
+// releases a session. The last operation with no remaining owned sessions
+// releases this client, without stopping the borrowed daemon.
+func (a *adapter) use() func() {
+	a.connMu.Lock()
+	a.users++
+	a.connMu.Unlock()
+	return func() {
+		a.connMu.Lock()
+		defer a.connMu.Unlock()
+		a.users--
+		a.mu.Lock()
+		empty := len(a.sessions) == 0
+		a.mu.Unlock()
+		if a.users == 0 && empty && a.sharedConn != nil {
+			conn := a.sharedConn
+			a.sharedConn = nil
+			conn.finishRead(errors.New("codex: adapter has no owned sessions"))
+			if conn.readerDone != nil {
+				<-conn.readerDone
+			}
+		}
+	}
 }
 
 // conn returns the shared connection, dialing it if there is none yet or
@@ -123,7 +151,7 @@ func (a *adapter) connection(ctx context.Context, startDaemon bool) (*connection
 		// The connection is initialized and its reader is running; drop
 		// it so a failed redial does not leave a subscribed client and a
 		// goroutine behind. The daemon itself is untouched.
-		_ = conn.ws.CloseNow()
+		conn.finishRead(err)
 		return nil, err
 	}
 	a.sharedConn = conn
@@ -256,6 +284,7 @@ func (a *adapter) Fork(ctx context.Context, sessionID string) (string, error) {
 // thread calls a method that makes a thread and registers the returned
 // thread id for notification routing before returning it.
 func (a *adapter) thread(ctx context.Context, method string, params map[string]any, s *session) (string, error) {
+	defer a.use()()
 	conn, err := a.conn(ctx)
 	if err != nil {
 		return "", err
@@ -279,6 +308,7 @@ func (a *adapter) thread(ctx context.Context, method string, params map[string]a
 // carries no usage: Codex states no cost and no per-model turn report beyond
 // the steps, so the session accounts for the turn from its step events.
 func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema json.RawMessage, onEvent func(gimbal.AgentEvent) error) (resultOut gimbal.TurnResult, resultErr error) {
+	defer a.use()()
 	defer func() {
 		if resultErr == nil {
 			resultErr = gimbal.ValidateTurnResult(schema, resultOut)
@@ -288,6 +318,20 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if err != nil {
 		return gimbal.TurnResult{}, err
 	}
+	s.mu.Lock()
+	if s.closing || s.turnCancel != nil {
+		s.mu.Unlock()
+		return gimbal.TurnResult{}, errors.New("codex: session is closing or already has an active turn")
+	}
+	ctx, cancelTurn := context.WithCancel(ctx)
+	s.turnCancel = cancelTurn
+	s.mu.Unlock()
+	defer func() {
+		cancelTurn()
+		s.mu.Lock()
+		s.turnCancel = nil
+		s.mu.Unlock()
+	}()
 	conn, err := a.conn(ctx)
 	if err != nil {
 		return gimbal.TurnResult{}, err
@@ -365,7 +409,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 		current, turn := active.conn, active.turnID
 		active.mu.Unlock()
 		// Cancellation is local intent. Only a terminal native outcome confirms
-		// cessation; Close retains ownership when delivery/reconciliation fails.
+		// cessation. Report uncertainty separately from local scope release.
 		confirmed := errors.Is(err, errTurnInterrupted)
 		if !confirmed && turn != "" {
 			confirmed = stopConfirmed(current, sessionID, turn, active.emit)
@@ -389,6 +433,7 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 // It subscribes the adapter's connection to the existing thread and rebuilds
 // only local routing state; workflow sessions do not use this lifecycle.
 func (a *adapter) ResumeSession(ctx context.Context, sessionID, model, effort, workdir string) error {
+	defer a.use()()
 	if strings.TrimSpace(sessionID) == "" {
 		return errors.New("codex: resume session id is blank")
 	}
@@ -424,31 +469,7 @@ func (a *adapter) ResumeSession(ctx context.Context, sessionID, model, effort, w
 // conversation without archiving its stored thread. If this was the last
 // subscriber, app-server unloads the thread after its inactivity grace period.
 func (a *adapter) DetachSession(ctx context.Context, sessionID string) error {
-	a.mu.Lock()
-	_, known := a.sessions[sessionID]
-	delete(a.sessions, sessionID)
-	a.mu.Unlock()
-	if !known {
-		return nil
-	}
-	a.connMu.Lock()
-	if a.sharedConn != nil {
-		a.sharedConn.unregisterThread(sessionID)
-	}
-	a.connMu.Unlock()
-	conn, err := a.connection(ctx, false)
-	if errors.Is(err, errDaemonNotRunning) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("codex: detach thread %s: %w", sessionID, err)
-	}
-	callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-	if _, err := conn.call(callCtx, "thread/unsubscribe", map[string]any{"threadId": sessionID}); err != nil {
-		return fmt.Errorf("codex: detach thread %s: %w", sessionID, err)
-	}
-	return nil
+	return a.releaseSession(ctx, sessionID, "thread/unsubscribe")
 }
 
 // Steer sends message into the thread's running turn and reports whether
@@ -457,6 +478,7 @@ func (a *adapter) DetachSession(ctx context.Context, sessionID string) error {
 // and no error. A turn/steer failure on a turn that is still running is the
 // error it is.
 func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, error) {
+	defer a.use()()
 	s, err := a.session(sessionID)
 	if err != nil {
 		return false, err
@@ -497,10 +519,15 @@ func (a *adapter) Steer(ctx context.Context, sessionID, message string) (bool, e
 	return true, nil
 }
 
-// Close archives the owned thread before forgetting it. A failed archive
-// retains ownership so a later stop/Close can retry without false success.
-// Cleanup never starts or restarts the shared daemon.
+// Close requests archive and releases local scope ownership even on failure.
+// An error reports the uncertain remote outcome; no cleanup retry is retained.
+// Local release never starts, stops or restarts the shared daemon.
 func (a *adapter) Close(ctx context.Context, sessionID string) error {
+	return a.releaseSession(ctx, sessionID, "thread/archive")
+}
+
+func (a *adapter) releaseSession(ctx context.Context, sessionID, method string) error {
+	defer a.use()()
 	a.mu.Lock()
 	s, known := a.sessions[sessionID]
 	a.mu.Unlock()
@@ -508,32 +535,39 @@ func (a *adapter) Close(ctx context.Context, sessionID string) error {
 		return nil
 	}
 	s.mu.Lock()
+	if s.closing {
+		s.mu.Unlock()
+		return fmt.Errorf("codex: session %s is already closing", sessionID)
+	}
 	s.closing = true
+	cancelTurn := s.turnCancel
 	s.mu.Unlock()
+	if cancelTurn != nil {
+		cancelTurn()
+	}
+	defer func() {
+		a.connMu.Lock()
+		defer a.connMu.Unlock()
+		a.mu.Lock()
+		delete(a.sessions, sessionID)
+		a.mu.Unlock()
+		if a.sharedConn != nil {
+			a.sharedConn.unregisterThread(sessionID)
+		}
+	}()
 	conn, err := a.connection(ctx, false)
 	if err != nil && !errors.Is(err, errDaemonNotRunning) {
-		return fmt.Errorf("codex: archive thread %s pending (ownership retained): %w", sessionID, err)
+		return fmt.Errorf("codex: %s %s unconfirmed; local scope released: %w", method, sessionID, err)
 	}
 	if conn != nil {
 		callCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 		defer cancel()
-		_, err = conn.call(callCtx, "thread/archive", map[string]any{"threadId": sessionID})
+		_, err = conn.call(callCtx, method, map[string]any{"threadId": sessionID})
 		if err != nil && !strings.Contains(err.Error(), "no rollout found") {
-			return fmt.Errorf("codex: archive thread %s pending (ownership retained): %w", sessionID, err)
+			return fmt.Errorf("codex: %s %s unconfirmed; local scope released: %w", method, sessionID, err)
 		}
 	}
-	a.mu.Lock()
-	delete(a.sessions, sessionID)
-	a.mu.Unlock()
-	if conn == nil {
-		a.connMu.Lock()
-		conn = a.sharedConn
-		a.connMu.Unlock()
-	}
-	if conn != nil {
-		conn.unregisterThread(sessionID)
-	}
-	if a.onArchive != nil {
+	if method == "thread/archive" && a.onArchive != nil {
 		a.onArchive(sessionID)
 	}
 	return nil
@@ -547,7 +581,7 @@ func (a *adapter) session(id string) (*session, error) {
 		closing := s.closing
 		s.mu.Unlock()
 		if closing {
-			return nil, fmt.Errorf("codex: session %s has pending cleanup", id)
+			return nil, fmt.Errorf("codex: session %s is closing", id)
 		}
 		return s, nil
 	}

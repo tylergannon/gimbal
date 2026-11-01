@@ -33,8 +33,9 @@ type HarnessAdapter interface {
 	// to onEvent as it arrives and returns the turn's output and the
 	// harness's own report of what the turn spent. Cancelling ctx interrupts
 	// the native turn and returns ctx.Err(). Recovery never converts cancellation
-	// into another assignment. Unverified remote cessation remains owned and
-	// retryable through Close; a local error does not prove the worker stopped.
+	// into another assignment. Report unverified remote cessation honestly;
+	// ending a scope still releases local resources, without retaining a
+	// cleanup-retry lifecycle. Local release does not prove remote cessation.
 	// Native adapters must call ValidateTurnResult once before successful return
 	// and return the unchanged result with ErrInvalidOutput on invalid answers.
 	// Forwarding adapters preserve that classification without validating again.

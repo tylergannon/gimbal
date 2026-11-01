@@ -211,9 +211,8 @@ func (a *adapter) current() *connection {
 
 // TestCloseArchivesThreadsWithoutTouchingTheDaemon proves commit 2's
 // contract live: HarnessAdapter.Close on the Codex adapter deregisters a
-// session's routing and archives its thread, which unloads the thread from
-// the shared daemon and releases the MCP children and descriptors it held
-// there, but never stops or restarts the daemon. It creates a session,
+// session's routing and requests archive, without stopping the shared daemon.
+// Loaded-thread observations alone do not prove descendant/FD cleanup. It creates a session,
 // runs one short turn, forks it without ever running a turn on the fork
 // (proving Close also releases a session whose only allocation was
 // thread/fork, not thread/start), and lets gimbal.Run's root scope end.
@@ -272,15 +271,8 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 		t.Fatalf("adapter session map after Run = %d entries, want 0", remainingSessions)
 	}
 
-	conn := ad.current()
-	if conn == nil {
-		t.Fatal("adapter has no connection after the run")
-	}
-	conn.threadsMu.Lock()
-	remainingThreads := len(conn.threads)
-	conn.threadsMu.Unlock()
-	if remainingThreads != 0 {
-		t.Fatalf("connection thread map after Run = %d entries, want 0", remainingThreads)
+	if ad.current() != nil {
+		t.Fatal("idle adapter retained its connection after the run")
 	}
 
 	mu.Lock()
@@ -293,10 +285,13 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 		t.Fatalf("archived threads = %v, want 2 (the session and its fork)", archivedIDs)
 	}
 
-	// The adapter's connection is still alive (Close never touches it), so
-	// thread/loaded/list is queried straight over it: this is the daemon's
-	// own answer, not a guess from process state. An archived thread is
-	// unloaded, which is the whole reason Close archives.
+	// The adapter released its client. Use a separately owned, read-only probe
+	// of the existing daemon; this never starts one and makes no model turn.
+	conn, err := connect(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.finishRead(errors.New("live probe ended"))
 	callCtx, cancelCall := context.WithTimeout(context.Background(), requestTimeout)
 	loadedRaw, err := conn.call(callCtx, "thread/loaded/list", map[string]any{})
 	cancelCall()
@@ -374,10 +369,14 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 	if len(archivedIDs) != 1 {
 		t.Fatalf("archived threads = %v, want exactly the one session", archivedIDs)
 	}
-	conn := ad.current()
-	if conn == nil || conn == dead {
-		t.Fatal("Close did not redial: no live connection after the run")
+	if ad.current() != nil {
+		t.Fatal("idle adapter retained its redialed connection")
 	}
+	conn, err := connect(ctx, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.finishRead(errors.New("live probe ended"))
 	callCtx, cancelCall := context.WithTimeout(context.Background(), requestTimeout)
 	loadedRaw, err := conn.call(callCtx, "thread/loaded/list", map[string]any{})
 	cancelCall()

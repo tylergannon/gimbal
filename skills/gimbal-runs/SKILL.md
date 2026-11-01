@@ -311,8 +311,9 @@ This is an adapter recovery control when that Codex session is paused; it does
 not establish native delivery or task completion. The adapter checks history
 again before reattaching or starting a same-thread continuation. It never replays
 accepted outcomes. Cancel instead with `gimbal cancel RUN_ID --work-dir /abs/project`.
-That command also retries pending remote cleanup of a terminal run. Failed cleanup
-retains stop control in the owning instance; it does not prove the worker stopped.
+Ending a scope releases local session ownership even when remote release fails;
+that error does not establish provider or tool-descendant cessation. Terminal
+runs do not retain native workers to retry cleanup or accept further Stop calls.
 An instance restart re-enters saved unfinished workflows under their existing
 run IDs. Completed library calls reuse recorded results, and pending Interactive
 calls continue with their saved input and native session. A direct Run caller

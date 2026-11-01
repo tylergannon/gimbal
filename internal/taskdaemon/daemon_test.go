@@ -51,7 +51,7 @@ func (h *testHarness) Close(context.Context, string) error {
 	return nil
 }
 
-func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
+func TestHarnessResultsAndFailedCloseReleaseTheLocalScope(t *testing.T) {
 	d := New(t.TempDir())
 	native := &testHarness{}
 	d.adapter = func(string) (gimbal.HarnessAdapter, error) { return native, nil }
@@ -77,8 +77,8 @@ func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
 	if err := effects.Cleanup(ctx, server.URL, "run", "child.1", backend.NewExecutionIdentity("control").RequestID); err == nil {
 		t.Fatal("false cleanup success")
 	}
-	if d.state(effects.Scope{Run: "run"}).Pending != 2 {
-		t.Fatal("lost failed sessions")
+	if d.state(effects.Scope{Run: "run"}).Pending != 0 {
+		t.Fatal("failed close retained local sessions")
 	}
 	if _, err := h.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "model", "", "/"); err == nil {
 		t.Fatal("admitted work after cleanup")
@@ -92,6 +92,9 @@ func TestHarnessResultsNativeEventsAndRetryableScopeCleanup(t *testing.T) {
 	}
 	if d.state(effects.Scope{Run: "run"}).Pending != 0 {
 		t.Fatal("cleanup remains pending")
+	}
+	if native.closes.Load() != 2 {
+		t.Fatalf("scope close was retried: %d", native.closes.Load())
 	}
 }
 

@@ -18,7 +18,8 @@ bounded, observable, responsible best-effort completion of each requested turn.
 Do not add workflow retries around connection loss: a lost reply does not prove
 an operation never happened. Workflows own task policy and independent validation;
 adapter recovery must retain session identity, avoid duplicate work, preserve
-cancellation, and keep unverified remote cleanup retryable.
+cancellation, and report unverified remote outcomes. Scope release must not
+retain a cleanup-retry lifecycle or produce cancellation-confirmation journals.
 
 Use Godoc for the current API. For an existing command, use
 [Use Gimbal](../gimbal-runs/SKILL.md); for building and installing the application,

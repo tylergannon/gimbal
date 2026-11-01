@@ -159,34 +159,6 @@ func TestIdleSessionCanSteerAndCloseAfterTurnVacuum(t *testing.T) {
 	}
 }
 
-type pendingNativeClose struct {
-	nativeAdapter
-	calls int
-	t     *testing.T
-}
-
-func (a *pendingNativeClose) Close(ctx context.Context, _ string) error {
-	a.calls++
-	if ctx.Err() != nil {
-		a.t.Error("native cleanup inherited cancellation")
-	}
-	if a.calls == 1 {
-		return errors.New("native stop not yet confirmed")
-	}
-	return nil
-}
-func TestUnconfirmedNativeStopRemainsOwnedUntilCleanupConfirms(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	cancel()
-	native := &pendingNativeClose{t: t}
-	if err := finishInterruption(ctx, native, "native-session", t.TempDir()); !errors.Is(err, context.Canceled) {
-		t.Fatalf("%v", err)
-	}
-	if native.calls != 2 {
-		t.Fatalf("cleanup attempts=%d", native.calls)
-	}
-}
-
 func TestProgrammaticAgentOperationHasNoImplicitDeadline(t *testing.T) {
 	root := t.TempDir()
 	id := executor.NewSessionID()
@@ -234,8 +206,7 @@ func TestRepeatedCLICloseUsesSessionReceiptAfterOperationVacuum(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			// No dependency on a particular close turn remains, including closure
-			// established while settling an interrupted native turn.
+			// Local explicit closure has no dependency on a particular turn.
 			_ = os.Remove(filepath.Join(sessionDir(root, id), "close.json"))
 		}
 	}
@@ -254,10 +225,9 @@ func TestReconstructionWithoutAcceptedTurnEvidenceDoesNotDispatch(t *testing.T) 
 	}
 }
 
-// Cancel ACK means the owner received a stop, not that the native process has
-// stopped. A still-owned operation without a terminal receipt cannot release
-// the session for a follow-up turn, even when the cleanup deadline expires.
-func TestCancelDeadlineWithoutTerminalReceiptRemainsUncertain(t *testing.T) {
+// A cancel ACK establishes delivery, not native cessation. An accepted operation
+// with no final result remains unresolved; the reader must not invent success.
+func TestCancelDeadlineWithoutFinalResultRemainsUncertain(t *testing.T) {
 	root := t.TempDir()
 	sid := executor.NewSessionID()
 	identity := backend.NewExecutionIdentity("turn")

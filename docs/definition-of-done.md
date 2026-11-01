@@ -46,9 +46,13 @@ response is not evidence that an operation never happened. Recovery preserves
 session identity and completed work, avoids blind replay or concurrent replacement,
 and respects cancellation. If automatic continuation is unsafe or its budget
 expires, retain an explicit recoverable state or return an actionable error.
-Unverified remote cleanup remains owned and retryable; local termination does
-not establish remote cessation. Workflows own task policy and independent
-validation, rather than transport repair.
+Cancellation is requested through messaging and applied by the executing owner.
+Ending a scope releases its local resources and collects ordinary final results;
+an uncertain remote outcome remains an honest error, not a retained cleanup
+retry loop, cancellation-completeness journal or cleanup receipt. Local release
+does not establish provider or tool-descendant cessation. Durable human sessions
+retain their native identity for resumption. Workflows own task policy and
+independent validation, rather than transport repair.
 
 Execution still fails when its authority says it failed: the harness cannot be
 started or reached, the provider returns failure, the caller cancels, no

@@ -66,6 +66,9 @@ type Result struct {
 	Usage               map[string]gimbal.Usage `json:"usage,omitempty"`
 	Error               string                  `json:"error,omitempty"`
 	ObservationError    string                  `json:"observation_error,omitempty"`
+	Unresolved          bool                    `json:"unresolved,omitempty"`
+	NativeRequestID     string                  `json:"native_request_id,omitempty"`
+	NativeAccepted      bool                    `json:"native_accepted,omitempty"`
 	InvalidOutput       bool                    `json:"invalid_output"`
 	Cancelled           bool                    `json:"cancelled"`
 	TimedOut            bool                    `json:"timed_out"`
@@ -172,6 +175,10 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	return d, err
 }
 func Run(root string, req Request) error {
+	return run(root, req, native)
+}
+
+func run(root string, req Request, openNative func(string) (nativeAdapter, error)) error {
 	if err := executor.Validate(string(req.ID), "turn_"); err != nil {
 		return err
 	}
@@ -224,7 +231,7 @@ func Run(root string, req Request) error {
 		}
 	}
 	defer cancel()
-	a, err := native(config.Harness)
+	a, err := openNative(config.Harness)
 	if err != nil {
 		return err
 	}
@@ -307,8 +314,11 @@ func Run(root string, req Request) error {
 			if err != nil {
 				return "", err
 			}
-			defer func() { _ = a.DetachSession(context.Background(), parent) }()
-			return a.Fork(ctx, parent)
+			id, forkErr := a.Fork(ctx, parent)
+			detachCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
+			detachErr := a.DetachSession(detachCtx, parent)
+			stop()
+			return id, errors.Join(forkErr, detachErr)
 		}
 		return a.CreateSession(ctx, config.Model, config.Effort, config.Workdir)
 	}()
@@ -356,14 +366,7 @@ func Run(root string, req Request) error {
 			return nil
 		})
 	}
-	released := false
-	if _, unconfirmed := errors.AsType[*backend.DeliveryUncertain](turnErr); unconfirmed {
-		// A native adapter's unconfirmed stop is not a terminal cancellation.
-		// Retain this owner and retry native cleanup, never the model assignment.
-		turnErr = finishInterruption(ctx, a, id, dir)
-		released = true
-	}
-	if id != "" && !released {
+	if id != "" {
 		if req.Close || !executor.Exists(checkpoint) {
 			cleanupCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 			turnErr = errors.Join(turnErr, a.Close(cleanupCtx, id))
@@ -376,28 +379,29 @@ func Run(root string, req Request) error {
 		}
 	}
 	closedReason := ""
-	if (req.Close && turnErr == nil) || released {
+	if req.Close {
 		closedReason = "explicit close"
-		if released {
-			closedReason = "native session had to close to confirm an interrupted turn stopped"
+		closed := Result{Completed: time.Now(), SessionClosedReason: closedReason}
+		if turnErr != nil {
+			closed.Error = turnErr.Error()
 		}
-		receipt := Result{Completed: time.Now(), SessionClosedReason: closedReason}
 		empty, err := os.OpenFile(filepath.Join(sdir, "closed-events.jsonl"), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 		if err == nil {
 			err = empty.Close()
 		}
 		if err == nil {
-			err = executor.Write(filepath.Join(sdir, "closed.json"), receipt)
+			err = executor.Write(filepath.Join(sdir, "closed.json"), closed)
 		}
 		turnErr = errors.Join(turnErr, err)
 	}
 
-	saved := Result{SessionClosedReason: closedReason, Output: result.Output, Usage: result.Usage, Completed: time.Now(), InvalidOutput: errors.Is(turnErr, gimbal.ErrInvalidOutput), Cancelled: errors.Is(ctx.Err(), context.Canceled), TimedOut: errors.Is(ctx.Err(), context.DeadlineExceeded)}
+	saved := Result{SessionClosedReason: closedReason, Output: result.Output, Usage: result.Usage, Completed: time.Now(), InvalidOutput: errors.Is(turnErr, gimbal.ErrInvalidOutput), Cancelled: turnErr != nil && errors.Is(ctx.Err(), context.Canceled), TimedOut: turnErr != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)}
 	if turnErr != nil {
 		saved.Error = turnErr.Error()
 	}
-	if ctx.Err() != nil {
-		saved.Error = ctx.Err().Error()
+	if uncertain, ok := errors.AsType[*backend.DeliveryUncertain](turnErr); ok {
+		saved.Unresolved = true
+		saved.NativeRequestID, saved.NativeAccepted = uncertain.RequestID, uncertain.Accepted
 	}
 	observationMu.Lock()
 	observationErr = errors.Join(observationErr, events.Sync())
@@ -472,6 +476,15 @@ func Wait(ctx context.Context, d executor.Descriptor, onEvent func(gimbal.AgentE
 				return gimbal.TurnResult{}, err
 			}
 			out := gimbal.TurnResult{Output: result.Output, Usage: result.Usage}
+			if result.Unresolved {
+				cause := errors.New(result.Error)
+				if result.Cancelled {
+					cause = errors.Join(cause, context.Canceled)
+				} else if result.TimedOut {
+					cause = errors.Join(cause, context.DeadlineExceeded)
+				}
+				return out, &backend.DeliveryUncertain{RequestID: result.NativeRequestID, Accepted: result.NativeAccepted, Err: cause}
+			}
 			if result.InvalidOutput {
 				return out, fmt.Errorf("%w: %s", gimbal.ErrInvalidOutput, result.Error)
 			}
@@ -557,9 +570,14 @@ func (a *Adapter) RunTurn(ctx context.Context, id, prompt string, schema json.Ra
 		if controlErr != nil {
 			executor.AssertOwner(filepath.Dir(d.Result))
 		}
-		_, waitErr := Wait(stopCtx, d, nil)
-		// An acknowledged cancel and an expired reader deadline do not release
-		// the native owner. Only its terminal receipt permits another turn.
+		completed, waitErr := Wait(stopCtx, d, nil)
+		if waitErr == nil {
+			return completed, nil // an authoritative result can win the cancel race
+		}
+		if _, uncertain := errors.AsType[*backend.DeliveryUncertain](waitErr); uncertain {
+			return completed, waitErr
+		}
+		// A cancel acknowledgement is delivery, not evidence of native cessation.
 		if !executor.Exists(d.Result) || (waitErr != nil && !errors.Is(waitErr, context.Canceled) && !errors.Is(waitErr, context.DeadlineExceeded)) {
 			return result, &backend.DeliveryUncertain{RequestID: identity.RequestID, Err: errors.Join(ctx.Err(), controlErr, waitErr)}
 		}
@@ -635,6 +653,13 @@ func (a *Adapter) Close(ctx context.Context, id string) error {
 	}
 	sdir := sessionDir(root, sid)
 	if executor.Exists(filepath.Join(sdir, "closed.json")) {
+		var closed Result
+		if err := executor.Read(filepath.Join(sdir, "closed.json"), &closed); err != nil {
+			return err
+		}
+		if closed.Error != "" {
+			return errors.New(closed.Error)
+		}
 		return nil
 	}
 	var turn executor.TurnID
@@ -668,42 +693,6 @@ func (a *Adapter) Close(ctx context.Context, id string) error {
 	}
 	_, err = Wait(ctx, d, nil)
 	return err
-}
-
-// finishInterruption keeps the accepted turn owned until native Close confirms
-// cessation. A reader may leave; only the native owner can settle this stop.
-func finishInterruption(ctx context.Context, a nativeAdapter, id, dir string) error {
-	attempt := 0
-	reported := false
-	for {
-		cleanupCtx, stop := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-		err := a.Close(cleanupCtx, id)
-		stop()
-		attempt++
-		status := struct {
-			State   string    `json:"state"`
-			Attempt int       `json:"attempt"`
-			At      time.Time `json:"at"`
-			Error   string    `json:"error,omitempty"`
-		}{State: "stopping", Attempt: attempt, At: time.Now()}
-		if err == nil {
-			status.State = "stopped"
-		} else {
-			status.Error = err.Error()
-		}
-		_ = executor.Write(filepath.Join(dir, "cleanup.json"), status)
-		if err == nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			return context.Canceled
-		}
-		if !reported {
-			fmt.Fprintf(os.Stderr, "agent executor: native stop %s is unconfirmed; retaining ownership and retrying cleanup: %v\n", id, err)
-			reported = true
-		}
-		time.Sleep(time.Second)
-	}
 }
 
 // ConfigureSession changes only later turns on an idle executor-owned thread.

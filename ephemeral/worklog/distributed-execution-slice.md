@@ -124,3 +124,31 @@ All three affected tests passed against the private database, and lint passed
 with CI's pinned golangci-lint v2.14.0. The installed v2.15.0 reports additional
 channel-receive checks not enabled by the pinned project gate; no unrelated
 source changes were made. Native model checks were not repeated for this repair.
+
+
+## Source stage independently accepted, November 2, 00:22
+
+Sonnet round 8 assessed the complete source through 1006a81d and returned ready
+with no material findings. Gimbal run 01M6D7FRS1SZ1W0AY18G4R1KPC completed
+successfully. The retained review is
+`ephemeral/reviews/conversation-source-sonnet-01M6D7FRS1SZ1W0AY18G4R1KPC-round-08.md`.
+This accepts the source-stage outcome, not remote C1 or D6–D10.
+
+The review records one native host-test deadline under concurrent frontend and
+generation work whose filtered output was not retained, leaving its cause
+unknown. About fourteen later host-test runs passed, including under the same
+load. An additional count=8 aggregate run exceeded its cumulative 590-second
+package budget while an individual host case had run 27 seconds; that aggregate
+budget exhaustion is separate from the unexplained earlier individual deadline.
+Future validation must retain complete failure output before filtering, and
+avoid escalating unchanged passing repetitions without a concrete unresolved
+question and an adequate cumulative budget. Do not erase either failed attempt
+or misstate the repeated successful observations as universal reliability.
+
+The review's remaining checkout/helper cleanup and capability-reporting notes
+are nonblocking for this source checkpoint; this is still not main-merge-ready.
+The latest CI run for the test-cleanup repair was in progress at acceptance.
+Remote C1 and the mixed workflow/restart/reconnect/attestation stages remain
+unimplemented or unproved as stated in the parent plan. The Amrita host-access
+question has not been answered, so no permission change or remote task launch
+has been inferred.

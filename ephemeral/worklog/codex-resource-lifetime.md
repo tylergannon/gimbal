@@ -25,3 +25,9 @@ review correction: Cancellation flags previously replaced a joined release failu
 validation friction: Running the whole repository concurrently with package race review exhausted unchanged one-second root test deadlines and the ten-second parallel Codex recovery deadline. Keep deadlines unchanged; rerun with serial package scheduling to separate resource contention from correctness failures. No race-detector warning accompanied those deadline failures.
 
 test correction: The confirmed-stop-history test waited for the fake daemon's received request count, then could cancel before the adapter learned its turn ID. Wait for acknowledged active.turnID instead; a lost acknowledgement correctly reports uncertainty and is a separate scenario. Preserve the original timeout.
+
+decision: On 2026-11-01 Tyler accepted proof-first completion: demonstrate that repaired Gimbal does not accumulate attributable resources, investigating the historical roughly 30-process buildup if growth recurs. The new acceptance plan is ephemeral/plans/resource-lifetime-acceptance.md. Written-plan approval is still pending; the earlier no-runtime restriction remains in force until then.
+
+decision: Existing task worktree and remote PR #665 both remain at cd4ed425 at planning intake. Reuse this implementation rather than duplicating the repair. Preserve the separate Locked Use investigation and inspect concrete service ownership before future runtime operations.
+
+review correction: Acceptance round 1 found the proof plan did not identify the actual production topology: native Codex adapters live in per-turn worker processes, while the Gimbal instance and native daemon persist. Observe worker exit/reap and daemon-side connections/descendants across repeated work; a disposable run-prompt process exiting cannot establish per-scope stabilization. Add small concurrent admission/cold-start cases and verify private daemon isolation before fault injection.

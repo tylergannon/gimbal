@@ -268,8 +268,15 @@ func restore(root, archive string) error {
 	})
 }
 func main() {
+	if len(os.Args) >= 2 && (os.Args[1] == "assemble-candidate" || os.Args[1] == "verify-candidate") {
+		if err := candidateCommand(os.Args[1], os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) != 3 {
-		fmt.Fprintln(os.Stderr, "usage: release-assets pack|restore ARCHIVE")
+		fmt.Fprintln(os.Stderr, "usage: release-assets pack|restore ARCHIVE; assemble-candidate|verify-candidate --input DIR [--output DIR] --repository OWNER/REPO --source-sha SHA --tag TAG --run-id ID --run-attempt N")
 		os.Exit(1)
 	}
 	root, err := os.Getwd()

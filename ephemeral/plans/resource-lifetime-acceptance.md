@@ -1,10 +1,12 @@
 # Resource-lifetime repair: task definition and acceptance
 
-Status: approved for execution. After independent review reached only nitpicks,
-Tyler instructed this chat to execute if it recommends approval as written;
-the task owner recommends the reviewed plan and is executing it. The separate
-release integration-window hold forbids main merges, version preparation,
-release dispatch and stable-tag changes during this qualification.
+Status: qualification completed within the accepted scope; see PR #665 for
+the observed proof and validation report, and independent validation round 4
+under ephemeral/reviews/. Tyler authorized execution on the task owner's
+recommendation after independent plan review. Coordination holds were released
+without this task merging main, preparing a version, dispatching a release or
+changing a stable tag. Startup exclusion and resource observations remain
+separate claims; historical process-growth causation is unestablished.
 
 ## Goal and established scope
 

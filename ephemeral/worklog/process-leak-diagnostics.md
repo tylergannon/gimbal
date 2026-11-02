@@ -13,3 +13,7 @@ friction: A new worktree has no generated frontend manifest. Prepare it with jus
 review correction: Shared-daemon first-census children are a timestamped baseline, not evidence of pre-work existence or task ownership; later first-seen children remain uncertain candidates. Record discovery delay so early work hidden in the baseline is visible as an observation limitation. Normal service stop initiation is neutral, with qualified warnings reserved for survivors at the later grace samples.
 
 test correction: Repeated in-process tests cannot reuse a sync.Once logger pointed at a deleted t.TempDir. Run real observer fixtures in isolated subprocesses and verify the complete sampling path, not only classification helpers. Capture tool process exit codes explicitly; absence of FAIL text alone is not an exit-status assertion.
+
+review correction: A parent worker's reap signal must not be logged as the sampled shared daemon's reap. Shared observation end is distinct from daemon ownership end/death; keep the signal only for the missing-result diagnostic boundary and label ages as observation ages.
+
+proof correction: Absence of a sampled shell process is not proof no tool ran. The owned native session record for run 01M6D7ZPETD7489TY54HBD0Z98 contains executed cat/sleep and read-only inspection commands. Assess execution from that native evidence, and ancestry capture separately from the process sampler; the diagnostic log intentionally excludes command arguments and tool contents.

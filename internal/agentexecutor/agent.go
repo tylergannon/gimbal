@@ -164,7 +164,7 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if err != nil {
 		return executor.Descriptor{}, err
 	}
-	d, err := executor.Launch(binary, []string{"--gimbal-agent-worker", root}, req, filepath.Join(root, string(req.ID)))
+	d, err := executor.Launch(binary, []string{"--gimbal-agent-worker", root}, req, filepath.Join(root, string(req.ID)), string(req.Session), "")
 	if err != nil {
 		dir := filepath.Join(root, string(req.ID))
 		if executor.Match(dir, req) == nil {

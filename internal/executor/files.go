@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tylergannon/gimbal/internal/processdebug"
 	"io"
 	"net"
 	"os"
@@ -194,7 +195,7 @@ func SocketPath(dir string) string {
 
 // Launch starts an independent owner. The startup pipe has one descriptor and
 // closes before native execution. No caller context or inherited stdio owns it.
-func Launch(binary string, args []string, input any, root string) (Descriptor, error) {
+func Launch(binary string, args []string, input any, root, session, run string) (Descriptor, error) {
 	var d Descriptor
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return d, err
@@ -225,13 +226,23 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 	}
 	closeStartup = sync.OnceFunc(closeStartup)
 	defer closeStartup()
+	var prior os.FileInfo
+	var priorErr error
+	if os.Getenv("GIMBAL_DEBUG_PROCESSES") == "1" {
+		prior, priorErr = os.Stat(filepath.Join(root, "result.json"))
+	}
 	if err = cmd.Start(); err != nil {
 		_ = write.Close()
 		return d, err
 	}
+	observation := processdebug.Executor(filepath.Base(root), session, run, cmd.Process.Pid, filepath.Join(root, "result.json"), prior, priorErr)
+	var candidates *processdebug.Owner
+	if len(args) > 0 && args[0] == "--gimbal-agent-worker" {
+		candidates = processdebug.ExecutorCandidates(filepath.Base(root), session, run, filepath.Join(root, "result.json"), prior, priorErr)
+	}
 	closeStartup()
 	_ = write.Close()
-	go func() { _ = cmd.Wait() }()
+	go func() { _ = cmd.Wait(); observation.Reaped(); candidates.Reaped() }()
 
 	var response struct {
 		Descriptor
@@ -243,7 +254,7 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 	case err = <-decoded:
 	case <-time.After(2 * time.Minute):
 		_ = read.Close()
-		<-decoded
+		<-decoded //nolint:errcheck // The timeout remains the authoritative startup error.
 		err = errors.New("startup timed out")
 	}
 	d = response.Descriptor

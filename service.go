@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/tylergannon/gimbal/internal/processdebug"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -133,7 +134,7 @@ func Service(ctx context.Context, name, workdir, command string) (result error) 
 	service := &ownedService{
 		scope: scope, ctx: scope.ctx, id: id, name: name, cmd: cmd,
 		out: out, errOut: errOut, ended: ended, startedAt: start, cleanup: cleanup,
-		done: make(chan struct{}),
+		done: make(chan struct{}), observation: processdebug.Service(id, filepath.Base(scope.run.dir), cmd.Process.Pid),
 	}
 	startedNative = true
 	if err := scope.adoptService(service); err != nil {
@@ -181,14 +182,15 @@ func endServiceStartFailure(scope *scope, start time.Time, ended CommandEnded, s
 }
 
 type ownedService struct {
-	scope  *scope
-	ctx    context.Context
-	id     string
-	name   string
-	cmd    *exec.Cmd
-	out    *commandCapture
-	errOut *commandCapture
-	ended  CommandEnded
+	observation *processdebug.Owner
+	scope       *scope
+	ctx         context.Context
+	id          string
+	name        string
+	cmd         *exec.Cmd
+	out         *commandCapture
+	errOut      *commandCapture
+	ended       CommandEnded
 
 	startedAt    time.Time
 	done         chan struct{}
@@ -204,6 +206,7 @@ type ownedService struct {
 }
 
 func (s *ownedService) beginStop() {
+	s.observation.StopRequested()
 	s.mu.Lock()
 	s.stopping = true
 	s.mu.Unlock()
@@ -212,6 +215,7 @@ func (s *ownedService) beginStop() {
 func (s *ownedService) wait() {
 	defer s.cleanup()
 	waitErr := s.cmd.Wait()
+	s.observation.Reaped()
 	captureErr := errors.Join(s.out.close(), s.errOut.close())
 	stdout, stdoutErr := s.out.result(s.scope.run.dir, s.ended.StdoutFile)
 	stderr, stderrErr := s.errOut.result(s.scope.run.dir, s.ended.StderrFile)
@@ -264,6 +268,7 @@ func (s *ownedService) wait() {
 		s.scope.run.recordFailure("record service end "+s.id, err)
 	}
 	logf("%s: service ended after %s: exit %d: %v", s.id, ended.Duration.Round(time.Millisecond), ended.ExitCode, orNone(serviceErr))
+	s.observation.End()
 	close(s.done)
 }
 

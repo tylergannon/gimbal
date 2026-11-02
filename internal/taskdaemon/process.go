@@ -93,7 +93,7 @@ func (d *Daemon) process(req effects.Process) error {
 	if err != nil {
 		return err
 	}
-	request := commandexecutor.Request{ID: executor.CommandID(req.ExecutionIdentity.ExecutorOperation), Command: executable, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Deadline: req.Deadline, Grace: 10 * time.Second}
+	request := commandexecutor.Request{DiagnosticRun: req.Run, ID: executor.CommandID(req.ExecutionIdentity.ExecutorOperation), Command: executable, Args: req.Args, Workdir: d.workdir(req.Workdir), Environment: environment, Deadline: req.Deadline, Grace: 10 * time.Second}
 	// The bridge records host-local identity; it never sends these paths to callers.
 	if err = os.MkdirAll(filepath.Join(root, "submissions"), 0700); err != nil {
 		return err

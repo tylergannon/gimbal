@@ -133,7 +133,7 @@ func TestNativeOwnerReturnsAfterNormalCancelAndErrorWithoutCleanupRetry(t *testi
 				t.Fatal(err)
 			}
 			dir := filepath.Join(root, string(req.ID))
-			descriptor, err := executor.Launch(binary, []string{"-test.run=^TestAgentLifetimeWorkerFixture$"}, req, dir)
+			descriptor, err := executor.Launch(binary, []string{"-test.run=^TestAgentLifetimeWorkerFixture$"}, req, dir, "", "")
 			if err != nil {
 				t.Fatal(err)
 			}

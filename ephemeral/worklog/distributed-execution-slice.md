@@ -115,3 +115,12 @@ restart B using its stale candidate: after host access is resolved, copy the
 matching latest CLI/plugin pair before resuming C1. Keep the shared qualification
 central, Desktop, Codex daemon, network/privacy settings and installed Gimbal
 untouched. No main merge or release has occurred.
+
+
+CI run 41398634306 exposed three unchecked deferred Close results in the new
+lease, conversation and authority-loss tests. A separate Gimbal-owned Terra 6.1
+turn repaired those three test cleanup calls without changing product source.
+All three affected tests passed against the private database, and lint passed
+with CI's pinned golangci-lint v2.14.0. The installed v2.15.0 reports additional
+channel-receive checks not enabled by the pinned project gate; no unrelated
+source changes were made. Native model checks were not repeated for this repair.

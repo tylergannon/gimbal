@@ -41,7 +41,7 @@ func TestConfiguredLocalNamespaceKeepsBusAcrossReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer service.Close()
+	defer func() { _ = service.Close() }()
 	if err := service.RegisterProject("project", project); err != nil {
 		t.Fatal(err)
 	}

@@ -99,7 +99,7 @@ func TestMessageWorkerStateLeaseSurvivesLostDatabaseAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal("cannot connect to disposable database")
 	}
-	defer admin.Close(context.Background())
+	defer func() { _ = admin.Close(context.Background()) }()
 	defer func() {
 		_, _ = admin.Exec(context.Background(), "DELETE FROM gimbal_message_bindings WHERE namespace=$1", queue)
 	}()

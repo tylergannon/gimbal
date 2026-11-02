@@ -990,7 +990,7 @@ func TestPostgresWorkerStopsAdmissionWhenAuthorityRecoveryExhausts(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer blocker.Close(context.Background())
+	defer func() { _ = blocker.Close(context.Background()) }()
 	blockerPID := blocker.PgConn().PID()
 	acquired := make(chan error, 1)
 	go func() {

@@ -22,7 +22,7 @@ examples:
 go doc -all github.com/tylergannon/gimbal
 ```
 
-Adapters own connection maintenance and reconnection. They make bounded, observable, responsible best-effort attempts to finish each requested turn, reconciling native state before continuing so a lost response does not duplicate work. Cancellation remains cancellation, and failed remote cleanup retains stop control. The workflow owns task policy and independent validation.
+Adapters own connection maintenance and reconnection. They make bounded, observable, responsible best-effort attempts to finish each requested turn, reconciling native state before continuing so a lost response does not duplicate work. Cancellation remains cancellation; ending a scope releases local resources and reports remote uncertainty without retaining a cleanup-retry lifecycle. The workflow owns task policy and independent validation.
 
 The persistent instance starts the SvelteKit web application automatically.
 It listens on loopback port 8080 by default; `web.WithPort`, `web.WithUDS`, and
@@ -301,19 +301,19 @@ Rejected setup directories have the same retention. This is also the operation
 deduplication lifetime. Each operation owns its own diagnostics file.
 `gimbal agent-executor --vacuum` runs the same maintenance on demand. Active
 operations and native session continuation state are never vacuumed. Repeated
-session close returns a retained session receipt even after its turn is vacuumed.
+session close returns the saved local closure result even after its turn is vacuumed.
 Command cancellation stops the owned process group; deliberately daemonizing descendants
 are outside that boundary. The task-host bridge continues to use its existing
 execution and artifact routes, so callers do not need shared paths. An accepted
 operation with neither an owner nor a saved terminal result is an invariant
 violation: lookup panics with the operation directory. Preserve that directory
 and the diagnostics for investigation; Gimbal never automatically resubmits it.
-If the native harness cannot confirm interruption, the executor keeps ownership
-and reports its cleanup attempts in `cleanup.json`. Each native cleanup call has
-a fifteen-second limit, with one second between attempts. Only confirmed native
-cessation publishes a terminal cancellation; the model assignment is never
-resubmitted. If cessation requires closing the native session, later turns are
-rejected with that reason.
+If the native harness cannot confirm interruption, the executor reports that
+uncertainty in its ordinary final result and releases local ownership. It does
+not retain a cleanup-retry worker or cancellation-confirmation journal. Durable
+human checkpoints remain available for resumption; local release does not prove
+that native work or tool descendants have stopped. The model assignment is
+never blindly resubmitted.
 
 ## Lint workflows
 

@@ -1,0 +1,15 @@
+# Codex resource lifetime review — round 3
+
+Target: `350f56110a6193c7cedcd1fd348e47d093a26378` plus the current confirmed-stop-history test/worklog correction, considering the complete resource-lifetime change from `a3ee508b`. Scope and operating constraints remain those in `ephemeral/worklog/codex-resource-lifetime.md`, `ephemeral/plans/codex-resource-lifetime-proof.md`, and repository instructions. Reassessed the current implementation, surrounding routing/recovery and worker-result paths, supporting tests, contract wording and available proof, including the round-1 fixes rather than treating the latest diff as the whole review.
+
+The late-reader repair preserves the distinction between an ended session and a failed transport. A dead connection returns an unregistered channel; its closed readDone supplies the original transport error to next, allowing ordinary recovery without restoring terminal routing state. The session-closing guard still rejects admission separately. Socket/reader/debug-descriptor retirement, operation/session accounting, the two-session scope-release fix, native uncertainty and ordinary final release-error propagation remain consistent with the requested ownership direction.
+
+The confirmed-stop-history test now waits for the adapter's acknowledged active turn ID, under its existing locks and context bound, before cancelling. The old fake-daemon received counter could precede acknowledgement and accidentally exercise the separate unknown-start case. The revised precondition makes its confirmed-history assertion legitimate without relaxing the deadline or changing production semantics.
+
+Independent focused checks with `GIMBAL_LIVE=0` and the race detector passed: terminal transport/late-reader handling, closed-active-session routing with another live session, failed release with preserved unrelated work, concurrent admission, active closure and native completion versus Stop (Codex 1.620s, `/tmp/gimbal-resource-review-round03.log`); revised confirmed-stop-history test (1.740s, `/tmp/gimbal-resource-review-round03-history.log`). No race-detector warning was emitted. Inspected the completed serial repository Go-test log at `/tmp/gimbal-resource-all-go-tests-serial.log`; did not start another whole-repository invocation or treat that earlier source run as a substitute for the focused changed-input checks.
+
+Findings: none. Both material round-1 defects remain resolved; no new material defect was found.
+
+No real Codex app-server, Gimbal daemon, provider/model turn, GUI, existing-service lifecycle or credentials action was performed. The implementation/proof still does not establish actual native descendant or FD stabilization, the cause of historical process growth, aggregate cross-session capacity, or startup-identity reconciliation. Those limitations and the bounded future product-observation plan remain explicit; this is a draft local-ownership repair review, not product acceptance or confirmation of remote cessation.
+
+Outcome: no findings.

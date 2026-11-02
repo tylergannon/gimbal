@@ -24,15 +24,12 @@ func TestCloseIsIdempotentForAnUnknownSession(t *testing.T) {
 	}
 }
 
-// TestCloseOnADeadConnectionRetainsOwnership: when the shared
-// connection's reader has already failed and archive cannot be delivered,
-// Close reports the failure and retains the session and routing ownership.
-// A later cleanup attempt must still reach the exact native thread.
-func TestCloseOnADeadConnectionRetainsOwnership(t *testing.T) {
+// Remote failure remains an error, but the ending scope releases local state.
+func TestCloseOnADeadConnectionReleasesLocalOwnership(t *testing.T) {
 	ad := New().(*adapter)
 	conn := &connection{threads: make(map[string]chan rpcMessage), readDone: make(chan struct{})}
 	conn.registerThread("thread-1")
-	close(conn.readDone) // the reader has failed: conn.dead() is true
+	conn.finishRead(context.Canceled)
 	ad.sharedConn = conn
 	ad.sessions["thread-1"] = &session{}
 
@@ -41,14 +38,14 @@ func TestCloseOnADeadConnectionRetainsOwnership(t *testing.T) {
 	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), "thread-1"); err == nil {
 		t.Fatal("Close = nil, want an error: the archive could not run on a cancelled cleanup context")
 	}
-	if n := len(ad.sessions); n != 1 {
-		t.Fatalf("sessions after failed Close = %d, want retained ownership", n)
+	if n := len(ad.sessions); n != 0 {
+		t.Fatalf("sessions after failed Close = %d, want local release", n)
 	}
 	conn.threadsMu.Lock()
 	n := len(conn.threads)
 	conn.threadsMu.Unlock()
-	if n != 1 {
-		t.Fatalf("connection threads after failed Close = %d, want 1", n)
+	if n != 0 {
+		t.Fatalf("connection threads after failed Close = %d, want 0", n)
 	}
 }
 
@@ -71,7 +68,7 @@ func TestCloseNeverStartsAStoppedDaemon(t *testing.T) {
 	ad := New().(*adapter)
 	conn := &connection{threads: make(map[string]chan rpcMessage), readDone: make(chan struct{})}
 	conn.registerThread("thread-1")
-	close(conn.readDone)
+	conn.finishRead(context.Canceled)
 	ad.sharedConn = conn
 	ad.sessions["thread-1"] = &session{}
 
@@ -103,7 +100,7 @@ func TestDetachNeverStartsAStoppedDaemon(t *testing.T) {
 	ad := New().(*adapter)
 	conn := &connection{threads: make(map[string]chan rpcMessage), readDone: make(chan struct{})}
 	conn.registerThread("thread-1")
-	close(conn.readDone)
+	conn.finishRead(context.Canceled)
 	ad.sharedConn = conn
 	ad.sessions["thread-1"] = &session{}
 

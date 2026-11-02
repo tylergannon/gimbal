@@ -38,6 +38,9 @@ type recoveryDaemon struct {
 	injected                                                        bool
 	ignoreInterrupt, completeStalled                                bool
 	interrupts                                                      int
+	rejectMethods                                                   map[string]bool
+	calls                                                           map[string]int
+	startEntered, startContinue                                     chan struct{}
 }
 type fakeThread struct {
 	model  string
@@ -48,7 +51,7 @@ type fakeThread struct {
 
 func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 	t.Helper()
-	d := &recoveryDaemon{threads: make(map[string]*fakeThread), mode: mode, effectFile: filepath.Join(t.TempDir(), "effects")}
+	d := &recoveryDaemon{threads: make(map[string]*fakeThread), mode: mode, effectFile: filepath.Join(t.TempDir(), "effects"), calls: make(map[string]int)}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ws, err := websocket.Accept(w, r, nil)
 		if err != nil {
@@ -76,6 +79,13 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 			var result any = map[string]any{}
 			disconnect, finish := false, false
 			d.mu.Lock()
+			d.calls[message.Method]++
+			if d.rejectMethods[message.Method] {
+				d.mu.Unlock()
+				_ = fakeSend(ws, map[string]any{"id": message.ID, "error": map[string]any{"code": -32600, "message": "injected native release failure"}})
+				continue
+			}
+			entered, proceed := d.startEntered, d.startContinue
 			thread := d.threads[id]
 			if thread != nil && thread.status == "broken" && (message.Method == "thread/read" || message.Method == "thread/resume") {
 				d.mu.Unlock()
@@ -173,6 +183,17 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 			}
 			mode := d.mode
 			d.mu.Unlock()
+			if message.Method == "thread/start" && proceed != nil {
+				close(entered)
+				go func() {
+					select {
+					case <-proceed:
+						_ = fakeSend(ws, map[string]any{"id": message.ID, "result": result})
+					case <-r.Context().Done():
+					}
+				}()
+				continue
+			}
 			if !disconnect || mode != "ack" {
 				if err := fakeSend(ws, map[string]any{"id": message.ID, "result": result}); err != nil {
 					return
@@ -213,7 +234,7 @@ func newRecoveryDaemon(t *testing.T, mode string) (*adapter, *recoveryDaemon) {
 		if err != nil {
 			return nil, err
 		}
-		conn := &connection{ws: ws, pending: make(map[int64]chan rpcMessage), threads: make(map[string]chan rpcMessage), readDone: make(chan struct{})}
+		conn := &connection{ws: ws, pending: make(map[int64]chan rpcMessage), threads: make(map[string]chan rpcMessage), readDone: make(chan struct{}), readerDone: make(chan struct{})}
 		go conn.read()
 		_, err = conn.call(ctx, "initialize", map[string]any{})
 		if err != nil {
@@ -349,7 +370,7 @@ func waitPaused(t *testing.T, ctx context.Context, ad *adapter) string {
 	}
 }
 
-func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing.T) {
+func TestPersistentOutageStopsRetryingAndCloseReleasesLocalOwnership(t *testing.T) {
 	ad, d := newRecoveryDaemon(t, "cancel")
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
 	defer cancel()
@@ -391,8 +412,8 @@ func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing
 	ad.mu.Lock()
 	_, retained := ad.sessions[id]
 	ad.mu.Unlock()
-	if !retained {
-		t.Fatal("lost owned session")
+	if retained || ad.current() != nil {
+		t.Fatal("failed close retained local ownership")
 	}
 	d.mu.Lock()
 	d.outage = false
@@ -406,7 +427,7 @@ func TestPersistentOutageStopsRetryingAndCancellationRetainsOwnership(t *testing
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.archives != 1 || d.coding != coding {
+	if d.archives != 0 || d.coding != coding {
 		t.Fatalf("archives=%d coding=%d", d.archives, d.coding)
 	}
 }
@@ -442,7 +463,7 @@ func TestClosingUnresumableSessionDoesNotBlockHealthyRedial(t *testing.T) {
 	cancelled, cancel := context.WithCancel(t.Context())
 	cancel()
 	if err := ad.Close(effects.WithExecutionIdentity(cancelled, backend.NewExecutionIdentity("close")), bad); err == nil {
-		t.Fatal("expected retained cleanup failure")
+		t.Fatal("expected an honest archive failure")
 	}
 	d.mu.Lock()
 	d.threads[bad].status = "broken"
@@ -481,7 +502,7 @@ func TestRecoveredFinalAnswerIsNotReplacedByCommentary(t *testing.T) {
 // leave the conversation unresolved.
 func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
 	shortenControlTimeout(t)
-	ad, d := newRecoveryDaemon(t, "default")
+	ad, _ := newRecoveryDaemon(t, "default")
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 	defer cancel()
 	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "stalled", "", t.TempDir())
@@ -495,13 +516,24 @@ func TestStopConfirmedByNativeHistoryWithoutTerminalNotification(t *testing.T) {
 		result <- err
 	}()
 	for {
-		d.mu.Lock()
-		started := d.starts
-		d.mu.Unlock()
-		if started == 1 {
+		s, err := ad.session(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		acknowledged := false
+		if active := s.getActive(); active != nil {
+			active.mu.Lock()
+			acknowledged = active.turnID != ""
+			active.mu.Unlock()
+		}
+		if acknowledged {
 			break
 		}
-		time.Sleep(time.Millisecond)
+		select {
+		case <-ctx.Done():
+			t.Fatal("turn/start was not acknowledged")
+		case <-time.After(time.Millisecond):
+		}
 	}
 	stop()
 	err = <-result

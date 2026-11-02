@@ -28,8 +28,10 @@ signal readiness by atomically writing ENV_FILE, even when it is empty. Finite
 producers publish after successful exit.
 
 Scope cleanup closes owned sessions and stops owned commands and services,
-preserving enclosing scopes and other runs. Failed cleanup remains visible and
-retryable with `gimbal cancel RUN_ID` or the console's **Retry cleanup** control.
+preserving enclosing scopes and other runs. Remote failures remain visible;
+ending a local session releases its indexes even when archive/unsubscribe fails,
+without retaining a native cleanup-retry owner. Local release does not establish
+provider or tool-descendant cessation.
 The daemon retains session/task indexes and reuses the executor's recorded
 operations after restart. Unavailable native outcomes are reported without
 blind redispatch. This does not establish SERVICE restoration or restore the

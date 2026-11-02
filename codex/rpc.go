@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/coder/websocket"
 )
@@ -40,9 +39,10 @@ type connection struct {
 	threads   map[string]chan rpcMessage
 	queues    map[chan rpcMessage]*threadQueue
 
-	readDone chan struct{}
-	readOnce sync.Once
-	readErr  error
+	readDone   chan struct{}
+	readerDone chan struct{}
+	readOnce   sync.Once
+	readErr    error
 }
 
 // One reader and a bounded FIFO shared by native parent/child routes. The
@@ -94,30 +94,9 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 		if !startDaemon {
 			return nil, errDaemonNotRunning
 		}
-		// Raise this process's own descriptor limit so the daemon we are
-		// about to start inherits it, not the login shell's default; see
-		// raiseFileDescriptorLimit's doc.
-		raiseFileDescriptorLimit()
-		if _, err := runCodex(ctx, "app-server", "daemon", "start"); err != nil {
-			return nil, fmt.Errorf("codex: start app-server daemon: %w", err)
-		}
-		deadline := time.Now().Add(10 * time.Second)
-		for {
-			socketPath, running, err = daemonStatus(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if running {
-				break
-			}
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("codex: app-server daemon did not come up within 10s")
-			}
-			select {
-			case <-time.After(100 * time.Millisecond):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
+		socketPath, err = startDaemonLocked(ctx, socketPath)
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -133,11 +112,12 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 	ws.SetReadLimit(readLimit)
 
 	c := &connection{
-		ws:       ws,
-		debug:    openRawRecorder(),
-		pending:  make(map[int64]chan rpcMessage),
-		threads:  make(map[string]chan rpcMessage),
-		readDone: make(chan struct{}),
+		ws:         ws,
+		debug:      openRawRecorder(),
+		pending:    make(map[int64]chan rpcMessage),
+		threads:    make(map[string]chan rpcMessage),
+		readDone:   make(chan struct{}),
+		readerDone: make(chan struct{}),
 	}
 	go c.read()
 
@@ -151,7 +131,7 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 		err = c.send(map[string]any{"method": "initialized", "params": map[string]any{}})
 	}
 	if err != nil {
-		_ = ws.CloseNow()
+		c.finishRead(err)
 		return nil, err
 	}
 	return c, nil
@@ -191,6 +171,11 @@ func runCodex(ctx context.Context, args ...string) ([]byte, error) {
 func (c *connection) registerThread(threadID string) chan rpcMessage {
 	c.threadsMu.Lock()
 	defer c.threadsMu.Unlock()
+	if c.dead() {
+		// Readers still observe the transport error through readDone. Keep this
+		// channel unregistered so terminal routing cannot be restored.
+		return make(chan rpcMessage)
+	}
 	if ch, ok := c.threads[threadID]; ok {
 		return ch
 	}
@@ -207,6 +192,10 @@ func (c *connection) registerThread(threadID string) chan rpcMessage {
 // channel. Child threads are owned by Codex's collab tool, not Gimbal sessions.
 func (c *connection) routeThread(threadID string, ch chan rpcMessage) {
 	c.threadsMu.Lock()
+	if c.dead() {
+		c.threadsMu.Unlock()
+		return
+	}
 	c.threads[threadID] = ch
 	c.threadsMu.Unlock()
 }
@@ -229,7 +218,12 @@ func (c *connection) unregisterThread(threadID string) {
 }
 
 func (c *connection) read() {
-	defer c.debug.close()
+	defer func() {
+		c.debug.close()
+		if c.readerDone != nil {
+			close(c.readerDone)
+		}
+	}()
 	for {
 		_, data, err := c.ws.Read(context.Background())
 		if err != nil {
@@ -250,6 +244,18 @@ func (c *connection) finishRead(err error) {
 	c.readOnce.Do(func() {
 		c.readErr = err
 		close(c.readDone)
+		// Every terminal transport path retires the socket, including malformed
+		// input. Closing only the reader leaves a subscribed client behind.
+		if c.ws != nil {
+			_ = c.ws.CloseNow()
+		}
+		c.pendMu.Lock()
+		clear(c.pending)
+		c.pendMu.Unlock()
+		c.threadsMu.Lock()
+		clear(c.threads)
+		clear(c.queues)
+		c.threadsMu.Unlock()
 	})
 }
 
@@ -264,7 +270,13 @@ func (c *connection) dispatch(message rpcMessage) {
 			response := c.pending[id]
 			c.pendMu.Unlock()
 			if response != nil {
-				response <- message
+				// A duplicate response must not trap the shared reader after a
+				// caller has already received its one answer or left.
+				select {
+				case response <- message:
+				case <-c.readDone:
+				default:
+				}
 				return
 			}
 		}
@@ -301,9 +313,6 @@ func (c *connection) dispatch(message rpcMessage) {
 	// one display frame, preserving the FIFO order of every retained message.
 	if queue == nil {
 		c.finishRead(errors.New("codex: unrouted notification backlog"))
-		if c.ws != nil {
-			_ = c.ws.CloseNow()
-		}
 		return
 	}
 	buffered := make([]rpcMessage, 0, cap(ch))
@@ -328,9 +337,6 @@ func (c *connection) dispatch(message rpcMessage) {
 		// A queue containing only answers, terminal signals and interactive
 		// requests cannot be discarded safely. Recover from native history.
 		c.finishRead(errors.New("codex: control notification backlog; reconnect and reconcile"))
-		if c.ws != nil {
-			_ = c.ws.CloseNow()
-		}
 	}
 }
 
@@ -416,11 +422,13 @@ func (c *connection) sendContext(ctx context.Context, value any) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	if c.dead() {
+		return c.exitError()
+	}
 	writeCtx, cancel := context.WithTimeout(context.Background(), controlTimeout)
 	defer cancel()
 	if err := c.ws.Write(writeCtx, websocket.MessageText, encoded); err != nil {
 		c.finishRead(err)
-		_ = c.ws.CloseNow()
 		return c.exitError()
 	}
 	return nil

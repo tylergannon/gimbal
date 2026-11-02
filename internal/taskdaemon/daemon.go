@@ -374,17 +374,16 @@ func (d *Daemon) closeSession(ctx context.Context, req effects.Target) error {
 	}
 	s.closeMu.Lock()
 	defer s.closeMu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		delete(d.sessions, key(req.Run, req.ID))
+		_ = os.Remove(d.statePath("sessions", key(req.Run, req.ID)))
+		d.mu.Unlock()
+	}()
 	if s.native == "" {
 		return nil
 	}
-	if err := s.adapter.Close(ctx, s.native); err != nil {
-		return err
-	}
-	d.mu.Lock()
-	delete(d.sessions, key(req.Run, req.ID))
-	_ = os.Remove(d.statePath("sessions", key(req.Run, req.ID)))
-	d.mu.Unlock()
-	return nil
+	return s.adapter.Close(ctx, s.native)
 }
 func (d *Daemon) cleanup(ctx context.Context, req effects.Scope) error {
 	if err := d.cleanupNative(ctx, req); err != nil {

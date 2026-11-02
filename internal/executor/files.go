@@ -195,7 +195,7 @@ func SocketPath(dir string) string {
 
 // Launch starts an independent owner. The startup pipe has one descriptor and
 // closes before native execution. No caller context or inherited stdio owns it.
-func Launch(binary string, args []string, input any, root string) (Descriptor, error) {
+func Launch(binary string, args []string, input any, root, session string) (Descriptor, error) {
 	var d Descriptor
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return d, err
@@ -230,10 +230,10 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 		_ = write.Close()
 		return d, err
 	}
-	observation := processdebug.Executor(filepath.Base(root), cmd.Process.Pid, filepath.Join(root, "result.json"))
+	observation := processdebug.Executor(filepath.Base(root), session, cmd.Process.Pid, filepath.Join(root, "result.json"))
 	var candidates *processdebug.Owner
 	if len(args) > 0 && args[0] == "--gimbal-agent-worker" {
-		candidates = processdebug.ExecutorCandidates(filepath.Base(root), filepath.Join(root, "result.json"))
+		candidates = processdebug.ExecutorCandidates(filepath.Base(root), session, filepath.Join(root, "result.json"))
 	}
 	closeStartup()
 	_ = write.Close()

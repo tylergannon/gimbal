@@ -95,9 +95,10 @@ func TestSurvivingOwnedChild(t *testing.T) {
 	}
 	defer func() { _ = worker.Process.Kill(); _ = worker.Wait() }()
 	result := dir + "/result.json"
-	observer := Executor("live-worker", worker.Process.Pid, result)
+	observer := Executor("live-worker", "session_abc", worker.Process.Pid, result)
 	defer observer.End()
 	waitLog(t, `"event":"owned","owner":"live-worker"`)
+	waitLog(t, `"session":"session_abc"`)
 	if err := os.WriteFile(result, []byte("{}"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -159,5 +160,26 @@ func TestLogRotationAndRetention(t *testing.T) {
 	}
 	if len(entries) > 30 {
 		t.Fatalf("retained %d files", len(entries))
+	}
+}
+
+func TestCorrelationAndWarnings(t *testing.T) {
+	for _, id := range []string{"server.1", "lap.3/bakeoff.1/server.1", "session_abc"} {
+		if safeID(id) != id {
+			t.Errorf("lost identity %q", id)
+		}
+	}
+	for _, id := range []string{"/private/path", "../path", "lap//server", "prompt with spaces"} {
+		if safeID(id) != "unavailable" {
+			t.Errorf("accepted %q", id)
+		}
+	}
+	owned := survivorWarning("server.1", 2, 10, false)
+	if !strings.Contains(owned, "known-owned") || !strings.Contains(owned, "suspects, not confirmed leaks") {
+		t.Fatal(owned)
+	}
+	shared := survivorWarning("turn_1", 1, 10, true)
+	if !strings.Contains(shared, "candidates") || !strings.Contains(shared, "ownership is unknown") {
+		t.Fatal(shared)
 	}
 }

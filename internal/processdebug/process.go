@@ -30,6 +30,8 @@ type event struct {
 	Event      string    `json:"event"`
 	Owner      string    `json:"owner,omitempty"`
 	Kind       string    `json:"kind,omitempty"`
+	Run        string    `json:"run,omitempty"`
+	Session    string    `json:"session,omitempty"`
 	PID        int       `json:"pid,omitempty"`
 	Process    *process  `json:"process,omitempty"`
 	AgeSeconds int       `json:"owner_end_age_seconds,omitempty"`
@@ -151,20 +153,23 @@ type Owner struct {
 }
 
 func Start(kind, id string, pid int) *Owner {
-	return start(kind, id, pid, false, "")
+	return start(kind, id, pid, false, "", "", "")
 }
 
 // Candidates observes the selected shared Codex daemon without attributing its children to a turn.
-func Candidates(sessionID string) *Owner { return start("codex_shared_daemon", sessionID, 0, true, "") }
-
-func Executor(id string, pid int, result string) *Owner {
-	return start("executor", id, pid, false, result)
-}
-func ExecutorCandidates(id, result string) *Owner {
-	return start("codex_shared_daemon", id, 0, true, result)
+func Candidates(sessionID string) *Owner {
+	return start("codex_shared_daemon", sessionID, 0, true, "", "", sessionID)
 }
 
-func start(kind, id string, pid int, shared bool, result string) *Owner {
+func Service(id, run string, pid int) *Owner { return start("service", id, pid, false, "", run, "") }
+func Executor(id, session string, pid int, result string) *Owner {
+	return start("executor", id, pid, false, result, "", session)
+}
+func ExecutorCandidates(id, session, result string) *Owner {
+	return start("codex_shared_daemon", id, 0, true, result, "", session)
+}
+
+func start(kind, id string, pid int, shared bool, result, run, session string) *Owner {
 	if os.Getenv("GIMBAL_DEBUG_PROCESSES") != "1" || (pid <= 0 && !shared) {
 		return nil
 	}
@@ -179,7 +184,7 @@ func start(kind, id string, pid int, shared bool, result string) *Owner {
 		anchor, _ = initialIdentity(pid)
 	}
 	o := &Owner{end: make(chan struct{}), reap: make(chan struct{})}
-	go func() { defer func() { <-slots }(); observe(o, kind, id, pid, shared, result, anchor) }()
+	go func() { defer func() { <-slots }(); observe(o, kind, id, pid, shared, result, run, session, anchor) }()
 	return o
 }
 func (o *Owner) Reaped() {
@@ -193,7 +198,7 @@ func (o *Owner) End() {
 	}
 }
 
-func observe(o *Owner, kind, id string, pid int, shared bool, result string, anchor process) {
+func observe(o *Owner, kind, id string, pid int, shared bool, result, run, session string, anchor process) {
 	l := getLogger()
 	if l == nil {
 		return
@@ -201,7 +206,9 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string, anc
 	// IDs are existing opaque operation identifiers; do not emit paths or inputs.
 	id = safeID(id)
 	kind = safeID(kind)
-	l.write(event{Event: "start", Owner: id, Kind: kind, PID: pid, Detail: "session and turn correlation unavailable unless encoded in owner; sampled ancestry may be incomplete"})
+	run = safeID(run)
+	session = safeID(session)
+	l.write(event{Event: "start", Owner: id, Kind: kind, Run: run, Session: session, PID: pid, Detail: "missing run or session correlation is unavailable; sampled ancestry may be incomplete"})
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		l.write(event{Event: "unavailable", Owner: id, Detail: "process enumeration unsupported on this platform"})
 		return
@@ -223,11 +230,12 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string, anc
 	end := o.end
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-	sample := func() {
+	sample := func() int {
+		count := 0
 		snapshot, err := snapshot()
 		if err != nil {
 			l.write(event{Event: "unavailable", Owner: id, Detail: "process enumeration failed"})
-			return
+			return -1
 		}
 		if !rootAttempted {
 			rootAttempted = true
@@ -236,7 +244,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string, anc
 				snapshot, err = snapshotFresh()
 				if err != nil {
 					l.write(event{Event: "unavailable", Owner: id, Detail: "process enumeration failed"})
-					return
+					return -1
 				}
 				p, ok = snapshot[pid]
 			}
@@ -293,7 +301,6 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string, anc
 			}
 		}
 		if !ended.IsZero() {
-			count := 0
 			for n, p := range known {
 				if cur, ok := snapshot[n]; ok && sameProcess(cur, p) && (!shared || n != pid) {
 					count++
@@ -313,6 +320,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string, anc
 			}
 			l.write(event{Event: label, Owner: id, Count: count, AgeSeconds: int(time.Since(ended).Seconds()), Detail: fmt.Sprintf("dropped=%d; %s", l.dropped.Load()+droppedOwners.Load(), detail)})
 		}
+		return count
 	}
 	sample()
 	var grace <-chan time.Time
@@ -349,7 +357,11 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string, anc
 				}
 			}
 		case <-grace:
-			sample()
+			_, _ = snapshotFresh()
+			count := sample()
+			if count > 0 {
+				fmt.Fprintln(os.Stderr, survivorWarning(id, count, int(time.Since(ended).Seconds()), shared))
+			}
 			if stage == 0 {
 				stage++
 				timer.Reset(50 * time.Second)
@@ -390,17 +402,25 @@ func snapshotFresh() (map[int]process, error) {
 
 func sameProcess(a, b process) bool { return a.PID == b.PID && a.Birth != "" && a.Birth == b.Birth }
 
-func safeID(s string) string {
-	if len(s) > 128 {
-		s = s[:128]
+func survivorWarning(owner string, count, age int, shared bool) string {
+	if shared {
+		return fmt.Sprintf("gimbal process diagnostics: %d shared-daemon candidates remain %ds after owner %s ended; task ownership is unknown", count, age, owner)
 	}
-	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_') {
+	return fmt.Sprintf("gimbal process diagnostics: %d known-owned processes remain %ds after owner %s ended; these are suspects, not confirmed leaks", count, age, owner)
+}
+func safeID(s string) string {
+	if len(s) > 128 || s == "" {
+		return "unavailable"
+	}
+	for _, part := range strings.Split(s, "/") {
+		if part == "" || part == "." || part == ".." {
 			return "unavailable"
 		}
-	}
-	if s == "" {
-		return "unavailable"
+		for _, r := range part {
+			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.') {
+				return "unavailable"
+			}
+		}
 	}
 	return s
 }

@@ -134,7 +134,7 @@ func Service(ctx context.Context, name, workdir, command string) (result error) 
 	service := &ownedService{
 		scope: scope, ctx: scope.ctx, id: id, name: name, cmd: cmd,
 		out: out, errOut: errOut, ended: ended, startedAt: start, cleanup: cleanup,
-		done: make(chan struct{}), observation: processdebug.Start("service", id, cmd.Process.Pid),
+		done: make(chan struct{}), observation: processdebug.Service(id, filepath.Base(scope.run.dir), cmd.Process.Pid),
 	}
 	startedNative = true
 	if err := scope.adoptService(service); err != nil {

@@ -92,7 +92,7 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if info, e := os.Stat(sibling); e == nil && info.Mode().IsRegular() {
 		binary = sibling
 	}
-	d, err := executor.Launch(binary, []string{workerArg, root}, req, filepath.Join(root, string(req.ID)))
+	d, err := executor.Launch(binary, []string{workerArg, root}, req, filepath.Join(root, string(req.ID)), "")
 	if err != nil {
 		dir := filepath.Join(root, string(req.ID))
 		if executor.Match(dir, acceptedCommand(req)) == nil {

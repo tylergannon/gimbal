@@ -806,10 +806,19 @@ func TestTerminalConnectionFailureLive(t *testing.T) {
 	}()
 	effect := filepath.Join(dir, "effect")
 	conn := ad.current()
-	ad.dial = func(context.Context, bool) (*connection, error) { return nil, errors.New("test-owned redial rejected") }
+	redial := make(chan struct{}, 1)
+	ad.dial = func(context.Context, bool) (*connection, error) {
+		select {
+		case redial <- struct{}{}:
+		default:
+		}
+		return nil, errors.New("test-owned redial rejected")
+	}
+	turnCtx, cancelTurn := context.WithCancel(ctx)
+	defer cancelTurn()
 	done := make(chan error, 1)
 	go func() {
-		_, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "Run one shell command that appends one line EFFECT to the file named effect in the working directory and then sleeps 8 seconds. Do not repeat it.", nil, func(gimbal.AgentEvent) error { return nil })
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(turnCtx, backend.NewExecutionIdentity("turn")), id, "Run one shell command that appends one line EFFECT to the file named effect in the working directory and then sleeps 8 seconds. Do not repeat it.", nil, func(gimbal.AgentEvent) error { return nil })
 		done <- err
 	}()
 	for {
@@ -827,10 +836,25 @@ func TestTerminalConnectionFailureLive(t *testing.T) {
 	if err := conn.ws.CloseNow(); err != nil {
 		t.Fatal(err)
 	}
-	if err := <-done; err == nil {
-		t.Fatal("terminal connection loss reported success")
-	} else {
-		t.Logf("turn failure: %v", err)
+	select {
+	case <-redial:
+	case <-ctx.Done():
+		t.Fatalf("recovery did not attempt redial: %v", ctx.Err())
+	}
+	// End this owner deliberately after observing recovery attempt the rejected
+	// redial. Keep ctx alive for the separate release and cleanup assertions.
+	cancelTurn()
+	select {
+	case err := <-done:
+		var uncertain *backend.DeliveryUncertain
+		if !errors.As(err, &uncertain) || !uncertain.Accepted {
+			t.Fatalf("cancelled disconnected turn = %v, want accepted delivery uncertainty", err)
+		}
+		t.Logf("cancelled disconnected turn: %v", err)
+	case <-time.After(30 * time.Second):
+		t.Fatal("cancelled disconnected turn did not return")
+	case <-ctx.Done():
+		t.Fatalf("cancelled disconnected turn: %v", ctx.Err())
 	}
 	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), id); err == nil {
 		t.Fatal("release unexpectedly succeeded after rejecting redial")

@@ -1,10 +1,11 @@
 # Distributed execution: first vertical slice
 
-Status: DRAFT — task definition under review; not approved for implementation.
+Status: APPROVED — Tyler: “the job is yours. get it done.” following the
+conversation-first sequence proposed in this chat. Implementation authorized.
 Owner: this chat, `01a19a10-29da-7a23-9998-634a063f0a57`.
 Product worktree: `/Users/tyler/.codex/worktrees/1430/gimbal`.
-Inspected production baseline: `a3ee508b8e7a1582971ce03170e5695fadedf118`.
-Later task-definition commits change only notes/reviews, not that production source.
+Initial reviewed production baseline: `a3ee508b8e7a1582971ce03170e5695fadedf118`.
+Implementation base: `bc9e158d` (includes merged #664 and #665). Rebased before coding.
 
 ## Goal and authority
 
@@ -39,16 +40,13 @@ documents. Their remaining whole-application merge gate is not silently waived.
 This bounded milestone can be demonstrated on its isolated branch without claiming
 the complete migration or permission to merge a partial repair.
 
-Proposed checkpoint boundary, pending Tyler's approval: manually started workers
-on A and B; no conversation-placement migration or orchestrator-provisioning
-migration. This is an unmerged implementation milestone of the full proposal,
-not a release candidate. Existing unrelated routing code remains only where not
-replaced by this slice; it supplies no operation in this specimen. No compatibility
-shim is added to preserve a replaced River schema or protocol. Legacy conversation
-routes are not certified here and cannot use the new namespace-based River
-composition until their later migration; reject that unsupported composition
-explicitly rather than silently losing their selected placement. Approval of this
-task includes this intermediate limitation, not a waiver for eventual publication.
+Approved sequence: migrate conversation placement first as a non-mergeable
+prerequisite subtask, including the minimum shared logical-addressing/retained-owner
+transport contract it needs. Then integrate that work into one distributed task:
+a midpoint checkpoint demonstrates the real A/B happy path, and the same task
+continues through the complete DoD. No intermediate checkpoint authorizes merge.
+No compatibility shim is added for replaced paths. The applicable whole-application
+merge gate remains in force; no network-denial test is part of it.
 
 ## Requirements
 
@@ -60,6 +58,13 @@ Physical addresses and connection details belong to plugin configuration.
 R2. The registered definition/graph describes every referenced environment without
 running the workflow body. Pure preparation and configuration validation reject
 missing/indeterminate names before workflow effects. No implicit local fallback.
+Declarations may be constant logical names or direct string workflow-input fields
+identified by catalog metadata. Pure validated preparation resolves input-dependent
+names against the same configured namespace before effects. Arbitrary computed or
+indeterminate selectors are rejected. Conversation placement uses this declared
+input form because the human selects its environment at runtime; it is not exempt
+from preflight. The host supplies the selected logical name to the registered
+conversation workflow, rather than attaching a physical task route as placement.
 
 R3. Configuration selects one messaging implementation and opaque plugin payload.
 The plugin owns parsing, schema, defaults, validation and namespace interpretation.
@@ -110,12 +115,14 @@ sole placement authority. Do not construct `environmentMessaging`, call
 `EnvironmentRouting`, or launch a local worker as a fallback for it. Do not add a
 dummy orchestrator, a new native protocol or a task-only replacement bus.
 
-`EnvironmentRouting`, `environment_messaging.go`, `Route.Environment` and the local
-orchestrator remain unchanged for existing out-of-slice compositions. Their global
-removal is a subsequent migration milestone, including the conversation workflow's
-runtime-selected placement. Nothing in this checkpoint certifies those existing
-paths. The final proposal still requires their replacement; the bounded branch
-checkpoint does not turn them into approved exceptions to the final architecture.
+Conversation launch, preparation and continued session use migrate onto that
+namespace/retained-owner path. Its UI-selected environment is a logical input;
+existing-owned directories suffice for the first live specimen. Explicit clone/
+copy/preparation tasks use the selected boundary, never application SSH/peer RPC.
+Remove replaced conversation-specific physical-route and recovery paths. Retain
+unrelated old routing only where this task does not replace it; it cannot supply
+missing operations in either the migrated conversation or distributed specimen.
+Global orchestrator/other-transport migration remains subject to the full gate.
 
 R5. A local command produces a fresh nonsecret value. The workflow stores it with
 the existing ordinary context API. A real remote native session consumes it and
@@ -267,13 +274,14 @@ Each claim is mandatory for this milestone, with its required observation.
 | D3 | Cell-local / transport | Duplicate active registration is rejected, including a concurrent instance with the same identity. Lost authority stops new admissions despite a healthy data pool; reacquisition restores admission only under confirmed authority, and exhausted recovery stops consumption. After its predecessor's database authority is released, the restarted worker re-registers with its original identity and retained sessions without stale-row cleanup; an unresolved predecessor cannot be replaced. Requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. After transient connection loss the listener delivers the original completion from retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
 | D4 | Cell-local / native dispatch | The original native identity governs acceptance and outcome; uncertain replies reconcile that identity and never authorize replacement work. |
 | D5 | Cell-local / context | Visible inherited/shadowed context and complete-value artifact bytes retain existing semantics at the task-input boundary. |
-| D5a | Cell-local / bootstrap | Prestarted registered workers can receive named work without an orchestrator. A second daemon cannot open the same native state directory even after database authority is released. Mixed-in legacy destination/provisioning settings reject before effects. An authoritative no-owner result at submission is definite rejection before publication; inability to determine delivery/ownership remains explicit uncertainty, never another route. Out-of-slice conversation composition using namespace-based River fails explicitly, preserving the selected environment rather than falling back. |
+| D5a | Cell-local / bootstrap | Prestarted registered workers can receive named work without an orchestrator. A second daemon cannot open the same native state directory even after database authority is released. Mixed-in legacy destination/provisioning settings reject before effects. An authoritative no-owner result at submission is definite rejection before publication; inability to determine delivery/ownership remains explicit uncertainty, never another route. |
 | D5b | Cell-local / observation | Recorded task/session placement projects into the same rows after live delivery and retained replay; rebinding cannot rewrite admitted placement. |
 | D6 | Integration / all | One registered workflow on A runs a real local command, then a real session on B consumes its fresh context, reads complete transferred context and returns the derived result; a follow-up uses the same session. Show actual machine and native-session identities. |
 | D7 | Integration / transport, native, context | Worker restart after native completion but before return to A recovers that result under its original identity, with one native execution; absent native evidence remains explicit unresolved. |
 | D8 | Integration / transport, native, context | Observation disconnect/reconnect recovers recorded facts and new activity while work continues; final outcomes and referenced bytes are retrieved through the intermediary. |
 | D9 | Integration / all | Independent source/configuration/connection review attests no circumvention in the exercised composition, or refuses acceptance and identifies the gap. No enforced network denial. |
 | D10 | Integration / native, context, observation | On the running application page, a person can identify the actual environments of A's command and B's session; mixed placement is truthful and remains so after observation reconnect. Inspect actual pixels and report what was seen. |
+| C1 | Integration / declaration, transport, native, bootstrap, observation | The actual conversation UI/manager passes a declared, validated logical-environment input to its registered workflow; a real remote native session receives successive human turns and controls at its admitted owner, with truthful placement. Preparation uses that boundary or an explicitly supplied existing owned directory. Invalid selection rejects before effects. A physical TaskRoute or SSH preparation cannot provide the missing path. This prerequisite remains unmerged; it does not prove D6–D10. |
 
 Compilation, focused/race tests and affected application checks supplement these
 claims. They do not replace D6–D10. Proof is running the real application and
@@ -283,10 +291,17 @@ code and review/spec notes remain under `ephemeral/`.
 
 ## Staged plan and gates
 
-1. Task-definition stage: reconcile current source and these requirements, settle
-   remaining user decisions, mechanically review this draft, obtain independent
-   adversarial consensus, then request explicit Tyler approval of task and DoD.
-2. Implementation checkpoint: Terra 6.1 implements declared placement, selected
+1. Task definition: original task reached independent consensus in round 06.
+   Tyler then selected the conversation-first sequence and authorized completion.
+   The input-dependent declaration amendment above implements that decision.
+   Independently review seam amendments and actual code while executing; do not
+   reopen the already granted implementation approval for routine derivable choices.
+2. Conversation prerequisite: Terra 6.1 implements the minimum shared contract and
+   its real conversation consumer in this product worktree, as a distinct subtask.
+   Demonstrate C1 and retain an unmerged checkpoint before the mixed workflow.
+   Independent Sonnet validation assesses what actually ran. Source/unit success
+   alone is an implementation checkpoint, not satisfaction of live C1.
+3. Distributed midpoint: Terra 6.1 implements declared placement, selected
    River delivery and retained ownership in this product worktree. Put repeatable
    checks beside their owning code, including an opt-in integration test in the
    package that checks registered invocation/task dispatch. That test registers an
@@ -294,17 +309,17 @@ code and review/spec notes remain under `ephemeral/`.
    and the actual River plugin/database for live claims; mocks cannot satisfy D6–D10.
    Do not commit a standalone specimen/proof program or relabel it as an example.
    Run focused checks and D1–D5b.
-3. Live checkpoint: reserve two real computers and one isolated Compose database
+4. Live checkpoint: reserve two real computers and one isolated Compose database
    with their owners, then demonstrate D6–D8 using that opt-in integration test
    and D10 in the running page for its actual run.
    Start a message-worker on A for its local tasks and a message-worker on B for
    remote tasks. The test/workflow process remains on A; the observer is independently
    reconnectable and does not own task execution. Use unversioned `luna` for Codex live
    specimen sessions (or `haiku` if Claude is selected); report actual model.
-4. Independent Sonnet validation examines application behavior and D1–D10; retain
+5. Independent Sonnet validation examines application behavior and C1/D1–D10; retain
    fresh review artifacts and the reviewer session for consensus. Failure needing
    source repair returns to Terra, then re-review the complete candidate.
-5. Report proved revision/claims and unmet full-migration requirements. Do not
+6. Report proved revision/claims and unmet full-migration requirements. Do not
    merge/publish until the remaining applicable whole-application gate is met or
    Tyler explicitly approves changing it. This milestone alone is not that gate.
 
@@ -323,26 +338,24 @@ coordinating chat. Gimbal-owned agents operate in this product worktree.
 - Data retention/expiration policy, quota management or cleanup framework.
 - Completing every transport's migration, independently deploying console/engine/
   runner, or claiming the broad architecture gate passes from this slice alone.
-- Migrating runtime-selected conversation placement, deleting global legacy routing,
-  or migrating the local orchestrator. Their eventual migration remains required
+- Deleting all global legacy routing or migrating the local orchestrator. Their eventual migration remains required
   before the complete architecture repair can be certified/merged.
 - Confidential scoped-value transport in the specimen unless Tyler adds it;
   ordinary context is the current proposed reading of his request.
 
-## Remaining approval decisions / deferred tripwires
+## Authorized surfaces and deferred tripwires
 
-Before implementation approval:
+Authorized by Tyler's instruction to complete the revised task:
 
-- Confirm ordinary `Set`/`SetJSON` context is sufficient for this specimen;
+- Ordinary `Set`/`SetJSON` context is sufficient for this specimen;
   confidential stores are a different capability.
-- Proposed single authoring addition for Tyler's explicit approval by name:
+- Single authoring addition proposed by name and authorized in this task:
   `gimbal.WithEnvironment(ctx, "logical-name")` returns a decorated context, using
   the semantics already present internally. The workflow decorates its root
-  context with a constant default and decorates a child context for other work;
+  context with a declared default and decorates a child context for other work;
   ordinary Scope/NewSession/RunCommand remain the composition. No helper workflow
-  wrapper. All environment names must be statically enumerable. The authoring
-  change plus required graph/catalog/configuration fields must be approved before
-  implementation; no additional exported function names are authorized.
+  wrapper. Environment selections are enumerable from constants and declared
+  string-input fields before effects. No unrelated exported function names are authorized.
 - Explicit public contract amendments included in this approval request:
   `MessagingDefinition` exposes plugin-owned schema/namespace interpretation and
   registration/retained-owner addressing. Existing connection/dependency data

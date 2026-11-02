@@ -72,8 +72,9 @@ func serve(project, workdir, purpose, model string, port int) error {
 	}
 	if id == "" {
 		input, err := json.Marshal(struct {
-			Purpose string `json:"purpose"`
-		}{purpose})
+			Purpose     string `json:"purpose"`
+			Environment string `json:"environment"`
+		}{purpose, "local"})
 		if err != nil {
 			return err
 		}

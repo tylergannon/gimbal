@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tylergannon/gimbal/workflow"
 	"golang.org/x/tools/go/types/typeutil"
 )
 
@@ -144,6 +145,48 @@ func takesContext(t types.Type) bool {
 		}
 	}
 	return false
+}
+
+// auditEnvironments walks reachable local bodies even when the shape walker
+// skips their enclosing syntax. Missing selectors and indeterminate calls must
+// not turn an incomplete inventory into an apparently empty one.
+func (e *extractor) auditEnvironments(node ast.Node, visited map[*types.Func]bool) {
+	if node == nil {
+		return
+	}
+	ast.Inspect(node, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if name, ok := e.gimbalCall(call); ok {
+			if name == "WithEnvironment" {
+				source := e.at(call.Pos())
+				if !slices.ContainsFunc(e.environments, func(d workflow.EnvironmentDeclaration) bool { return d.Source == source }) {
+					e.environments = append(e.environments, workflow.EnvironmentDeclaration{Source: source})
+				}
+			}
+			return true
+		}
+		callee := typeutil.StaticCallee(e.pkg.TypesInfo, call)
+		if callee != nil && callee.Pkg() == e.pkg.Types {
+			if !visited[callee] {
+				visited[callee] = true
+				decl := e.declFor(callee)
+				if decl != nil && decl.Body != nil {
+					e.auditEnvironments(decl.Body, visited)
+				} else if takesContext(e.pkg.TypesInfo.TypeOf(call.Fun)) {
+					e.unreadEnvironment(call.Pos(), "environment selection in an unavailable helper cannot be determined")
+				}
+			}
+		} else if (callee == nil && takesContext(e.pkg.TypesInfo.TypeOf(call.Fun))) || (callee != nil && e.importsGimbal(callee.Pkg())) {
+			source := e.at(call.Pos())
+			if !slices.ContainsFunc(e.diagnostics, func(d workflow.Diagnostic) bool { return d.Source == source && d.EnvironmentIncomplete }) {
+				e.unreadEnvironment(call.Pos(), "environment selection in an unread call cannot be determined")
+			}
+		}
+		return true
+	})
 }
 
 // importsGimbal reports whether another package of this module imports

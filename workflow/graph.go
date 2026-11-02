@@ -225,6 +225,8 @@ type Branch struct {
 type Diagnostic struct {
 	Source  Source `json:"source"`
 	Message string `json:"message"`
+	// EnvironmentIncomplete marks unread source that may select an environment.
+	EnvironmentIncomplete bool `json:"environment_incomplete"`
 }
 
 func (Session) operation()     {}

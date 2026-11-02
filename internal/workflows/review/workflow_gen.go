@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of Review.
 var Graph = workflow.Graph{
-	Name:     "review",
-	Source:   workflow.Source{File: "internal/workflows/review/review.go", Line: 43},
-	Services: []workflow.Service{},
+	Name:         "review",
+	Source:       workflow.Source{File: "internal/workflows/review/review.go", Line: 43},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 44}, Key: "goal"},
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/review/review.go", Line: 45}, Name: "code-review", From: ""},

@@ -214,8 +214,11 @@ as lifecycle facts so replay builds the same task/session placement rows.
 ## Cells, contracts and implementation volume tripwires
 
 These are responsibility boundaries in existing code, not new framework packages.
-File ownership below covers known required work; adding an owning production file requires
-updating the map before implementation. Changes crossing it are review signals.
+File ownership below covers the named responsibilities and their necessary direct
+callers. Updating an omitted caller or splitting a file within the same cell is a
+derivable layout choice, not a new seam or reason to stop implementation. Record
+the map/count update; stop for an actual budget breach or new responsibility.
+Changes crossing responsibility boundaries are review signals.
 Tests and generated code are excluded from production-volume counts. Count all
 physical lines with `wc -l` in each cell's listed production files plus any approved
 new owning production files; deletion removes a file from the count. Budgets are
@@ -226,10 +229,10 @@ Directory patterns below cover direct children only; exclude `*_test.go` and
 | Cell | Responsibility and seam contract | Initial production files | Baseline / maximum lines |
 | --- | --- | --- | --- |
 | Declaration/admission | Produce a complete environment inventory and validate effective selections before effects; pass logical placement into task dispatch. | `env.go`, `registry.go`, `workflow/*.go`, `internal/generate/{declarations,expr,stmt,graph,definition,source,inspect}.go` | 3,262 / 3,900 |
-| Transport | Resolve logical destinations and retained owners; durably store requests/facts/bytes; atomically accept registrations/ownership; provide replay/live delivery and bounded reconnect through selected River connection. Own database details, never native outcome interpretation. | `messaging_registration.go`, `backend/messaging.go`, `backend/backend.go`, `backend/messagefiles/store.go`, `plugins/messaging-river/main.go`, `plugins/messaging-filesystem/main.go`, `plugins/messaging-http/main.go` | 1,343 / 2,250 |
+| Transport | Resolve logical destinations and retained owners; durably store requests/facts/bytes; atomically accept registrations/ownership; provide replay/live delivery and bounded reconnect through selected River connection. Own database details, never native outcome interpretation. | `messaging_registration.go`, `backend/messaging.go`, `backend/backend.go`, `backend/messagefiles/store.go`, `plugins/messaging-river/*.go`, `plugins/messaging-filesystem/main.go`, `plugins/messaging-http/main.go` | 1,343 / 2,250 |
 | Native dispatch | Admit commands/session operations under stable identities, reconcile original native outcomes, republish recovered completion and retain session owner; report uncertainty honestly. Native harness remains outcome authority. | `internal/effects/*.go`, `internal/taskdaemon/*.go` | 2,606 / 3,300 |
-| Workflow context/results | Preserve ordinary scope semantics and explicit bytes; submit selected commands/session operations and return outcomes to local Go control flow. | `session.go`, `task_files.go`, `command.go`, `scope.go`, `artifact.go`, `remote_execution.go` | 2,729 / 3,100 |
-| Participant bootstrap | Propagate selected transport/bootstrap to manually started workers and registered invocation; reject legacy routing/provisioning mixed into this composition. | `resource_registration.go`, `backend/orchestration.go`, `internal/invocation/invocation.go`, `internal/runner/runner.go`, `cmd/gimbal/messaging.go`, `cmd/gimbal/workflows.go` | 910 / 1,300 |
+| Workflow context/results | Preserve ordinary scope semantics and explicit bytes; submit selected commands/session operations and return outcomes to local Go control flow. | `session.go`, `task_files.go`, `command.go`, `service.go`, `scope.go`, `artifact.go`, `remote_execution.go` | 3,074 / 3,500 |
+| Participant bootstrap | Propagate selected transport/bootstrap to manually started workers and registered invocation; reject legacy routing/provisioning mixed into this composition. | `resource_registration.go`, `backend/orchestration.go`, `internal/invocation/invocation.go`, `internal/runner/runner.go`, `cmd/gimbal/messaging.go`, `cmd/gimbal/workflows.go`, `cmd/examples/interactive/main.go` | 1,001 / 1,400 |
 | Observation/display | Project retained per-task placement truthfully and show it in existing command/session details and mixed-run summary; observation remains distinct from native execution outcome. | `events.go`, `internal/observation/{rows,store,snapshot,registry}.go`, `web/src/lib/run/{RunHeader,RunTranscript,SessionTimeline}.svelte`, `web/src/lib/workspace/projectHome.ts` | 2,044 / 2,400 |
 
 The registered catalog, dispatch envelopes, native admission state and retained
@@ -238,8 +241,9 @@ and input validation; delivery/storage; native execution; workflow context use;
 participant bootstrap; observation/display. Bootstrap changes with deployment,
 not task outcome semantics; presentation changes do not authorize native work.
 Transport cannot decide native success. Workflow context cannot open peer routes.
-Any required production change outside this map is a spec-defect intake before
-coding, not an exemption. Filesystem/HTTP changes here adapt shared contracts;
+Any required production responsibility outside these cells is a spec-defect
+intake; an ordinary caller/file-layout correction within them is not an exemption
+or a reason to defer the rest of the feature. Filesystem/HTTP changes here adapt shared contracts;
 their adaptation does not certify their full distributed lifecycle.
 
 ## Central semantics (language-neutral)

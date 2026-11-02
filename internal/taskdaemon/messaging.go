@@ -16,6 +16,30 @@ import (
 	"github.com/tylergannon/gimbal/internal/executor"
 )
 
+// RecoverMessages reconciles retained admissions without relying on queue
+// redelivery. The handler preserves each completion's original event identity.
+func (d *Daemon) RecoverMessages(ctx context.Context, bus backend.Messaging) error {
+	d.ensureRecovery()
+	d.messageMu.Lock()
+	if d.restoreErr != nil {
+		err := d.restoreErr
+		d.messageMu.Unlock()
+		return err
+	}
+	requests := make([]backend.MessageRequest, 0, len(d.messages))
+	for _, saved := range d.messages {
+		requests = append(requests, saved.Request)
+	}
+	d.messageMu.Unlock()
+	handle := d.Messages(bus)
+	for _, request := range requests {
+		if err := handle(ctx, request); err != nil {
+			return fmt.Errorf("reconcile request %s: %w", request.ID, err)
+		}
+	}
+	return nil
+}
+
 // Messages uses this daemon's existing native owner. Duplicate admission IDs
 // and returned outcomes survive worker restart in its executor state directory.
 func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
@@ -39,7 +63,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 				return errors.New("request identity conflicts with accepted inputs")
 			}
 			if saved.Result != nil {
-				event := backend.MessageEvent{ID: saved.EventID, RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: saved.Result}
+				event := backend.MessageEvent{ID: saved.EventID, RequestID: r.ID, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: saved.Result}
 				d.messageMu.Unlock()
 				return bus.PublishEvent(ctx, event)
 			}
@@ -58,7 +82,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 		d.activeMessages[r.ID] = true
 		d.messageMu.Unlock()
 		publish := func(kind string, result *backend.MessageResult, activity json.RawMessage) error {
-			return bus.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result, Activity: activity})
+			return bus.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result, Activity: activity})
 		}
 		if err := publish("accepted", nil, nil); err != nil {
 			d.messageMu.Lock()
@@ -104,7 +128,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if saveErr != nil {
 				return saveErr
 			}
-			return bus.PublishEvent(ctx, backend.MessageEvent{ID: completed.EventID, RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: &result})
+			return bus.PublishEvent(ctx, backend.MessageEvent{ID: completed.EventID, RequestID: r.ID, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: &result})
 		}
 		if restored {
 			if r.Process != nil && r.Process.Service {

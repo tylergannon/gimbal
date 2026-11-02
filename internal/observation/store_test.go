@@ -801,3 +801,27 @@ func TestSessionFactsKeepRecordedPlacementAndSteerDelivery(t *testing.T) {
 		t.Fatalf("snapshot shares steer records: %q", got)
 	}
 }
+
+func TestTaskPlacementReplayPreservesAdmittedWorkers(t *testing.T) {
+	records := []json.RawMessage{
+		sessionCreated("", "agent.1", "luna"),
+		json.RawMessage(`{"seq":2,"time":"2026-09-13T00:00:01Z","scope":"","event":{"kind":"task_placement","id":"agent.1","session":"agent.1","environment":"notes","worker_id":"worker-a","event_id":"event-a"}}`),
+		json.RawMessage(`{"seq":3,"time":"2026-09-13T00:00:02Z","scope":"","event":{"kind":"task_placement","id":"agent.1/turn.1","session":"agent.1","environment":"notes","worker_id":"worker-b","event_id":"event-b"}}`),
+		json.RawMessage(`{"seq":4,"time":"2026-09-13T00:00:03Z","scope":"","event":{"kind":"command_started","id":"build.1","name":"build","command":"true","args":[],"workdir":"/w"}}`),
+		json.RawMessage(`{"seq":5,"time":"2026-09-13T00:00:04Z","scope":"","event":{"kind":"task_placement","id":"build.1","session":"","environment":"build","worker_id":"worker-b","event_id":"event-c"}}`),
+	}
+	a, b := openStore(t), openStore(t)
+	fold(t, a, records...)
+	fold(t, b, records...)
+	first, replayed := a.Snapshot(), b.Snapshot()
+	if !reflect.DeepEqual(first.Sessions, replayed.Sessions) || !reflect.DeepEqual(first.Commands, replayed.Commands) {
+		t.Fatal("replay changed admitted placement")
+	}
+	if first.Sessions["agent.1"].WorkerID != "worker-a" || first.Commands["build.1"].WorkerID != "worker-b" {
+		t.Fatalf("wrong placement: %+v %+v", first.Sessions, first.Commands)
+	}
+	registry := &Registry{Placement: func(string) (string, string) { return "local", "local" }}
+	if got := registry.decorate("run-1", first).Run.TaskEnvironment; got != "mixed" {
+		t.Fatalf("mixed placement: %q", got)
+	}
+}

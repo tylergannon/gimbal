@@ -33,7 +33,7 @@
   const plannerScopes = $derived(layout?.sheets.filter(sheet => sheet.kind === 'loop' && sheet.scope.status === 'running' && layout?.loops.some(item => item.loop.name === sheet.scope.name && item.loop.planner === chosen?.name)) ?? []);
   const plannerScope = $derived(live && !running && plannerScopes.length === 1 ? plannerScopes[0].scope : undefined);
   const inventory = $derived(environmentSnapshot(project));
-  const target = $derived(inventory.current?.environments.find(item => item.environment.id === (snapshot.run.task_environment || 'local')));
+  const target = $derived(inventory.current?.environments.find(item => item.environment.id === (chosen?.environment || snapshot.run.task_environment || 'local')));
   const canSteer = $derived(target?.capabilities.steer === true);
   const steerReason = $derived(!live ? 'This run has ended.' : !running ? 'Waiting for the next turn. Steering opens when this session starts working.' : inventory.error ? 'Could not check steering availability.' : !inventory.current ? 'Checking steering availability…' : !canSteer ? 'This environment cannot be steered.' : 'Read at the next model call in the running turn. Dropped if the turn ends first.');
   const invocation = $derived(snapshot.scopes['']);
@@ -77,7 +77,7 @@
     <div class="switcher" aria-label="Sessions in this run">
       {#each sessions as session (session.id)}{@const count = Object.values(snapshot.turns).filter(row => row.session === session.id).length}<button aria-pressed={chosen?.id === session.id} class={{ selected: chosen?.id === session.id }} onclick={() => { picked = session.id; }}><Pip state={stateFor(session.id)} />{sessionLabel(session)}<span class="quiet">· {count} {count === 1 ? 'turn' : 'turns'}</span></button>{/each}
     </div>
-    {#if chosen}<div class="identities"><span>{harnessName(chosen.adapter.replace(/^\*/, '').replace(/\.adapter$/i, ''))}</span><span>{chosen.model}</span>{#if chosen.effort}<span>{chosen.effort}</span>{/if}{#if chosen.workdir}<span class="workdir" title={chosen.workdir}>{chosen.workdir}</span>{/if}</div>{/if}
+    {#if chosen}<div class="identities"><span>{harnessName(chosen.adapter.replace(/^\*/, '').replace(/\.adapter$/i, ''))}</span><span>{chosen.model}</span>{#if chosen.effort}<span>{chosen.effort}</span>{/if}{#if chosen.worker_id}<span>{chosen.environment} · {chosen.worker_id}</span>{/if}{#if chosen.workdir}<span class="workdir" title={chosen.workdir}>{chosen.workdir}</span>{/if}</div>{/if}
   </div>
   <div class="scroll" bind:this={scroller} onscroll={() => { readerScrolled = true; if (scroller) follow = scroller.scrollHeight-scroller.scrollTop-scroller.clientHeight < 48; }}>
     <div class="transcript measure">
@@ -90,7 +90,7 @@
       {#each timeline as item (item.id)}
         {#if item.kind === 'turn'}<RunTurn turn={item.turn} ordinal={turns.findIndex(row => row.id === item.turn.id)+1} {snapshot} {observation} {revision} />
         {:else if item.kind === 'steer'}<article class="steer"><div class="turn-head">Steer{item.steer.source ? ` · ${item.steer.source}` : ''} · {time(item.at)} · {item.steer.landed ? 'Landed' : 'Dropped'}</div><p class="bubble">{item.steer.message}</p></article>
-        {:else if item.kind === 'command'}<details class="run-event"><summary><Pip state={!item.command.ended ? 'running' : item.command.exit_code && !item.command.interrupted ? 'failed' : 'ended'} /><b>{item.command.name}</b><span>{item.command.ended ? `exit ${item.command.exit_code}` : 'running'}</span><span class="line"></span><span>{time(item.at)}</span></summary><Payload label="command" text={`${item.command.command} ${item.command.args.join(' ')}\n${item.command.stderr || item.command.stdout}`} /></details>
+        {:else if item.kind === 'command'}<details class="run-event"><summary><Pip state={!item.command.ended ? 'running' : item.command.exit_code && !item.command.interrupted ? 'failed' : 'ended'} /><b>{item.command.name}</b>{#if item.command.worker_id}<span>{item.command.environment} · {item.command.worker_id}</span>{/if}<span>{item.command.ended ? `exit ${item.command.exit_code}` : 'running'}</span><span class="line"></span><span>{time(item.at)}</span></summary><Payload label="command" text={`${item.command.command} ${item.command.args.join(' ')}\n${item.command.stderr || item.command.stdout}`} /></details>
         {:else if item.kind === 'scope'}<div class="run-event"><Pip state={item.scope.error ? 'failed' : item.scope.status === 'running' ? 'running' : 'ended'} /><b>{item.scope.name || item.scope.key}</b><span>{item.scope.status}</span><span class="line"></span><span>{time(item.at)}</span></div>
         {:else if item.kind === 'interactive'}<section class={['interactive', { answered: item.question.status === 'answered' }]}><div class="ih"><Pip state={item.question.status === 'pending' ? 'needs-you' : 'ended'} />{item.question.status === 'pending' ? 'Needs you' : 'Answered'}<span class="quiet">· {item.question.name} · asked {time(item.at)}</span></div>{#each item.question.messages as message,index (`${item.question.question_id}-${index}`)}<p class:answer={message.role==='user'}>{message.message}</p>{/each}{#if item.question.unresolved}<p role="alert">{item.question.unresolved}</p>{/if}{#if item.question.status === 'answered'}<p class="answer">{item.question.answer || 'Interactive ended.'}</p>{/if}</section>{/if}
       {/each}

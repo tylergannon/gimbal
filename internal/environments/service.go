@@ -344,6 +344,42 @@ func (s *Service) Resolve(ctx context.Context, project, id string) (Target, erro
 	return Target{}, fmt.Errorf("environment is not available for this project")
 }
 
+// NamespaceRoute selects a configured messaging namespace without connecting.
+// Local directories may use a separately configured namespace worker.
+func (s *Service) NamespaceRoute(target Target, name string) (backend.Route, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.refreshLocked(); err != nil {
+		return backend.Route{}, false, err
+	}
+	candidates := []backend.Route{}
+	if target.Machine.Kind == KindRoute {
+		candidates = append(candidates, target.Route)
+	} else if target.Machine.ID == Local || target.Machine.ID == "" {
+		for _, machine := range s.config.Machines {
+			if machine.Kind == KindRoute && machine.Route != nil {
+				candidates = append(candidates, *machine.Route)
+			}
+		}
+	}
+	var selected backend.Route
+	found := false
+	for _, route := range candidates {
+		definition, ok := s.registry.Messaging(route.Name)
+		if !ok || definition.ValidateEnvironment == nil || definition.ValidateEnvironment(route.Configuration, name) != nil {
+			continue
+		}
+		if route.Environment != "" || route.Backends != nil && route.Backends.Orchestrator.Name != "" {
+			return backend.Route{}, false, fmt.Errorf("namespace route cannot select a physical destination or orchestrator")
+		}
+		if found {
+			return backend.Route{}, false, fmt.Errorf("environment %q is configured in multiple messaging namespaces", name)
+		}
+		selected, found = route, true
+	}
+	return selected, found, nil
+}
+
 // ResolveDirectory identifies a prospective directory on a validated machine.
 // It neither saves an environment nor acquires resources or starts a harness.
 // Using the same cache as Resolve isolates invalid configuration siblings and

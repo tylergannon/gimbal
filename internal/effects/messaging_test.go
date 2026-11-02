@@ -52,3 +52,49 @@ func TestCallerBudgetPreservesAcceptanceUncertainty(t *testing.T) {
 		t.Fatalf("wrong uncertainty: %v", err)
 	}
 }
+
+type namedTestMessages struct {
+	silentMessages
+	got []backend.MessageRequest
+	err error
+}
+
+func (*namedTestMessages) NamedEnvironments() bool { return true }
+func (b *namedTestMessages) PublishRequest(_ context.Context, r backend.MessageRequest) error {
+	b.got = append(b.got, r)
+	return b.err
+}
+
+type testOrchestrator struct{}
+
+func (testOrchestrator) AcquireEnvironment(context.Context, backend.Owner, string) (backend.Environment, error) {
+	panic("unexpected capacity")
+}
+func (testOrchestrator) Release(context.Context, backend.Scope) error { return nil }
+
+func TestNamedSubmitRejectsLegacyRoutingAndPreservesUncertainty(t *testing.T) {
+	bus := &namedTestMessages{}
+	owner := backend.Owner{Run: "run", Task: "process"}
+	id := backend.NewExecutionIdentity("process")
+	r := Request(id.RequestID, "identified-process", owner)
+	r.ExecutionIdentity = id
+	r.Process = &backend.Process{Owner: owner, ExecutionIdentity: id, Command: "true"}
+	ctx := WithConnection(t.Context(), backend.Connection{Messages: bus})
+	if err := Submit(ctx, r); err == nil || len(bus.got) != 0 {
+		t.Fatalf("empty name admitted: %v", err)
+	}
+	ctx = WithEnvironment(ctx, "selected")
+	if err := Submit(WithEndpoint(ctx, "http://legacy"), r); err == nil || len(bus.got) != 0 {
+		t.Fatalf("legacy endpoint admitted: %v", err)
+	}
+	if err := Submit(WithConnection(ctx, backend.Connection{Messages: bus, Orchestrator: testOrchestrator{}}), r); err == nil || len(bus.got) != 0 {
+		t.Fatalf("orchestrator admitted: %v", err)
+	}
+	failure := errors.New("connection lost")
+	bus.err = failure
+	err := Submit(ctx, r)
+	var uncertain *backend.DeliveryUncertain
+	if !errors.As(err, &uncertain) || !errors.Is(err, failure) || uncertain.RequestID != r.ID || len(bus.got) != 1 || bus.got[0].Environment != "selected" {
+		t.Fatalf("publication result: %v, %+v", err, bus.got)
+	}
+}

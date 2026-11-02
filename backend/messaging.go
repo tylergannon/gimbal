@@ -9,11 +9,13 @@ import (
 )
 
 // MessageRequest identifies one admission, independently of the conversation.
-// Exactly one payload corresponding to Kind is present. Destinations belong to
-// plugin configuration, never the action vocabulary.
+// Exactly one payload corresponding to Kind is present. Environment is a
+// logical destination; physical connection details belong to plugin configuration.
 type MessageRequest struct {
-	ID      string
-	Created time.Time
+	ID          string
+	Created     time.Time
+	Environment string `json:",omitempty"`
+	WorkerID    string `json:",omitempty"`
 	Owner
 	SessionID         string `json:",omitempty"`
 	ExecutionIdentity ExecutionIdentity
@@ -55,6 +57,8 @@ type MessageResult struct {
 type MessageEvent struct {
 	ID, RequestID string
 	Created       time.Time
+	Environment   string `json:",omitempty"`
+	WorkerID      string `json:",omitempty"`
 	Owner
 	SessionID string `json:",omitempty"`
 	Kind      string
@@ -81,6 +85,11 @@ type Messaging interface {
 	PublishRequest(context.Context, MessageRequest) error
 	PublishEvent(context.Context, MessageEvent) error
 	ListenEvents(context.Context, MessageSelection, time.Time, func(MessageEvent) error) error
+}
+
+// NamedMessaging reports whether this connection owns logical placement.
+type NamedMessaging interface {
+	NamedEnvironments() bool
 }
 
 // MessageHandler admits native work and arranges completion publication without

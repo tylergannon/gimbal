@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of ServiceCheck.
 var Graph = workflow.Graph{
-	Name:     "service-check",
-	Source:   workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 37},
-	Services: []workflow.Service{},
+	Name:         "service-check",
+	Source:       workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 37},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Session{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 38}, Name: "devops-tasks", From: ""},
 		workflow.Scope{Source: workflow.Source{File: "internal/workflows/servicecheck/servicecheck.go", Line: 39}, Name: "services", Services: []workflow.Service{

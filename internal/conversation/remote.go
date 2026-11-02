@@ -39,6 +39,39 @@ func localCapabilities() environments.Capabilities {
 	return environments.Capabilities{Steer: true, Fork: true, Worktree: true, Browse: true, Clone: true}
 }
 
+func (m *Manager) createNamespace(in NewConversation, provider, model string, target environments.Target, route backend.Route) (Conversation, error) {
+	if !in.SharedCheckout || in.Branch != "" || in.Base != "" {
+		return Conversation{}, errors.New("conversation: namespace execution currently requires an existing shared directory")
+	}
+	if strings.TrimSpace(target.Directory) == "" {
+		return Conversation{}, errors.New("conversation: namespace directory is required")
+	}
+	id, err := randomID()
+	if err != nil {
+		return Conversation{}, err
+	}
+	title := strings.TrimSpace(in.Title)
+	if title == "" {
+		title = providerLabel(provider) + " conversation"
+	}
+	now := time.Now().UnixMilli()
+	item := &Conversation{ID: id, Title: title, Provider: provider, Model: model, Effort: in.Effort, SharedCheckout: true, Worktree: target.Directory, Environment: in.Environment, Live: true, Status: StatusIdle, Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{}, Contact: "unknown", Capabilities: environments.Capabilities{Steer: true}, Placement: polytype.Nullable[Placement]{Present: true, Value: Placement{Machine: PlacementMachine{Name: "Pending worker", Kind: "pending"}, Environment: environments.DescribeEnvironment(target.Environment), Directory: target.Directory}}}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closing {
+		return Conversation{}, errors.New("conversation: runtime is shutting down")
+	}
+	m.namespaceRoutes[id] = route
+	if err := m.save(item); err != nil {
+		delete(m.namespaceRoutes, id)
+		return Conversation{}, err
+	}
+	m.items[id] = item
+	m.active[id] = &activeConversation{}
+	m.projections[id] = sessionstate.New(sessionstate.NewProjectionState())
+	return clone(item), nil
+}
+
 // SetEnvironments attaches the instance-owned placement service without making
 // network calls under the host's project-admission lock.
 func (m *Manager) SetEnvironments(service *environments.Service, projectID string) {

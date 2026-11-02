@@ -74,7 +74,9 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 	}
 	snapshot := clone(item)
 	route := backend.Route{}
-	if start && remotePlacement(item) {
+	if selected, ok := m.namespaceRoutes[id]; start && ok {
+		route = selected
+	} else if start && remotePlacement(item) {
 		if state := m.remoteStates[id]; state != nil {
 			route = state.Target.Route
 		}

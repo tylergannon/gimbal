@@ -135,16 +135,17 @@ type Manager struct {
 	project         string
 	registry        *observation.Registry
 
-	mu            sync.RWMutex
-	items         map[string]*Conversation
-	active        map[string]*activeConversation
-	projections   map[string]*sessionstate.Projection
-	closing       bool
-	closed        chan struct{}
-	environments  *environments.Service
-	projectID     string
-	remoteStates  map[string]*remoteState
-	remoteReaders sync.WaitGroup
+	mu              sync.RWMutex
+	items           map[string]*Conversation
+	active          map[string]*activeConversation
+	projections     map[string]*sessionstate.Projection
+	closing         bool
+	closed          chan struct{}
+	environments    *environments.Service
+	projectID       string
+	remoteStates    map[string]*remoteState
+	namespaceRoutes map[string]backend.Route
+	remoteReaders   sync.WaitGroup
 }
 
 type managerKey struct{}
@@ -178,7 +179,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	}
 	manager := &Manager{
 		ctx: ctx, projectDir: projectDir, factory: factory, cli: cli, instanceDir: instanceDir, project: project, registry: registry,
-		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}), remoteStates: make(map[string]*remoteState),
+		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}), remoteStates: make(map[string]*remoteState), namespaceRoutes: make(map[string]backend.Route),
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -219,6 +220,9 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 			}
 			manager.remoteStates[item.ID] = &remote
 		}
+		if record.NamespaceRoute != nil {
+			manager.namespaceRoutes[item.ID] = *record.NamespaceRoute
+		}
 		copy := item
 		manager.items[item.ID] = &copy
 		var state sessionstate.ProjectionState
@@ -242,6 +246,30 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		return Conversation{}, err
 	}
 	in.Model, in.Effort = model, strings.TrimSpace(in.Effort)
+	if in.Environment != "" && m.pendingRemotePreparation(in, provider, model) == "" {
+		m.mu.RLock()
+		service, projectID := m.environments, m.projectID
+		m.mu.RUnlock()
+		if service != nil {
+			target, resolveErr := service.Resolve(ctx, projectID, in.Environment)
+			if resolveErr != nil {
+				return Conversation{}, resolveErr
+			}
+			route, named, routeErr := service.NamespaceRoute(target, in.Environment)
+			if routeErr != nil {
+				return Conversation{}, routeErr
+			}
+			if named {
+				if m.WorkflowPrepare == nil {
+					return Conversation{}, errors.New("conversation: workflow preflight unavailable")
+				}
+				if err := m.WorkflowPrepare(ctx, in.Environment, route); err != nil {
+					return Conversation{}, err
+				}
+				return m.createNamespace(in, provider, model, target, route)
+			}
+		}
+	}
 	// The host validates the selected namespace before setup can connect or provision.
 	if m.WorkflowPrepare != nil {
 		environment := in.Environment
@@ -350,13 +378,14 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{},
 		Environment: environments.Local, Contact: "connected", Capabilities: localCapabilities(),
 	}
-	if err := m.save(item); err != nil {
-		return Conversation{}, err
-	}
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
 		return Conversation{}, errors.New("conversation: runtime is shutting down")
+	}
+	if err := m.save(item); err != nil {
+		m.mu.Unlock()
+		return Conversation{}, err
 	}
 	m.items[id] = item
 	m.active[id] = &activeConversation{}
@@ -553,6 +582,19 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 		// admitted prompt; one that cannot be read leaves a transcript already shown.
 		run, err := m.registry.Snapshot(item.WorkflowRun)
 		if err == nil || errors.Is(err, observation.ErrNoRun) || errors.Is(err, runstore.ErrIncomplete) {
+			if err == nil {
+				if _, named := m.namespaceRoutes[item.ID]; named {
+					for _, session := range run.Sessions {
+						if session.WorkerID != "" && item.Placement.Value.Machine.ID == "" {
+							item.Placement.Value.Machine = PlacementMachine{ID: session.WorkerID, Name: session.WorkerID, Kind: "worker"}
+							item.Contact = "connected"
+							item.Revision++
+							_ = m.save(item)
+							break
+						}
+					}
+				}
+			}
 			if changed, err := projectTranscript(item, run, err == nil); err == nil && changed {
 				item.Revision++
 				_ = m.save(item)
@@ -676,7 +718,8 @@ func (m *Manager) Close() {
 
 type conversationRecord struct {
 	Conversation
-	Transport json.RawMessage `json:"transport,omitempty"`
+	Transport      json.RawMessage `json:"transport,omitempty"`
+	NamespaceRoute *backend.Route  `json:"namespace_route,omitempty"`
 }
 
 func (m *Manager) save(item *Conversation) error {
@@ -688,7 +731,11 @@ func (m *Manager) save(item *Conversation) error {
 			return err
 		}
 	}
-	data, err := json.MarshalIndent(conversationRecord{Conversation: *item, Transport: raw}, "", "  ")
+	var namespaceRoute *backend.Route
+	if route, ok := m.namespaceRoutes[item.ID]; ok {
+		namespaceRoute = &route
+	}
+	data, err := json.MarshalIndent(conversationRecord{Conversation: *item, Transport: raw, NamespaceRoute: namespaceRoute}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("conversation: encode %s: %w", item.ID, err)
 	}

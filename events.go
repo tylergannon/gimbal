@@ -293,3 +293,14 @@ type ResourceReady struct {
 }
 
 func (ResourceReady) lifecycleEvent() {}
+
+// taskPlacement records the worker that admitted a named task.
+type taskPlacement struct {
+	ID          string `json:"id"`
+	Session     string `json:"session"`
+	Environment string `json:"environment"`
+	WorkerID    string `json:"worker_id"`
+	EventID     string `json:"event_id"`
+}
+
+func (taskPlacement) lifecycleEvent() {}

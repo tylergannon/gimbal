@@ -139,26 +139,9 @@ func extractLoaded(pkg *packages.Package, imports map[string]bool, entry, name s
 	services := []workflow.Service{}
 	e.services = &services
 	e.block(decl.Body.List, &body, scopeEnv{blockTail: true, callTail: true})
-	// A call inside syntax the graph walker could not follow must not disappear
-	// from the inventory and become a silently executable selection.
-	ast.Inspect(decl.Body, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok {
-			return true
-		}
-		name, ok := e.gimbalCall(call)
-		if !ok || name != "WithEnvironment" {
-			return true
-		}
-		source := e.at(call.Pos())
-		for _, d := range e.environments {
-			if d.Source == source {
-				return true
-			}
-		}
-		e.environments = append(e.environments, workflow.EnvironmentDeclaration{Source: source})
-		return true
-	})
+	// Audit the reachable source independently of the graph walker. Unread
+	// syntax can contain a helper or function value, not only a direct selector.
+	e.auditEnvironments(decl.Body, map[*types.Func]bool{})
 	return workflow.Graph{
 		Name:         name,
 		Environments: e.environments,
@@ -246,6 +229,11 @@ func (e *extractor) diag(pos token.Pos, format string, args ...any) {
 		Source:  e.at(pos),
 		Message: fmt.Sprintf(format, args...),
 	})
+}
+
+func (e *extractor) unreadEnvironment(pos token.Pos, format string, args ...any) {
+	e.diag(pos, format, args...)
+	e.diagnostics[len(e.diagnostics)-1].EnvironmentIncomplete = true
 }
 
 // emit places one operation in a body and records that every helper the walk

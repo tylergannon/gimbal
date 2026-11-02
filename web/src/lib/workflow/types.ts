@@ -522,4 +522,8 @@ export type Set = {
 export type Diagnostic = {
   source: Source;
   message: string;
+  /**
+   * EnvironmentIncomplete marks unread source that may select an environment.
+   */
+  environment_incomplete: boolean;
 };

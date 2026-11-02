@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of Implement.
 var Graph = workflow.Graph{
-	Name:     "implement",
-	Source:   workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 63},
-	Services: []workflow.Service{},
+	Name:         "implement",
+	Source:       workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 63},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 71}, Name: "read-outcomes"},
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementation/implementation.go", Line: 88}, Key: "outcomes file"},

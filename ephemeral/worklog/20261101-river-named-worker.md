@@ -1,0 +1,1 @@
+friction: The declaration checkpoint allows River namespace preflight, but the existing River implementation delivers to one shared queue and effects still require an orchestrator. Namespace configurations must fail closed until addressed delivery and database fencing are implemented; a passing preflight alone is not proof of worker routing.

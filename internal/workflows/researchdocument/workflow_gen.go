@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of ResearchDocument.
 var Graph = workflow.Graph{
-	Name:     "research-document",
-	Source:   workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 119},
-	Services: []workflow.Service{},
+	Name:         "research-document",
+	Source:       workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 119},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 164}, Name: "resolve-executable"},
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/researchdocument/researchdocument.go", Line: 757}, Name: "create-directory"},

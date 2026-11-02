@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/runstore"
 )
@@ -75,7 +76,10 @@ func Service(ctx context.Context, name, workdir, command string) (result error) 
 		identity.ExecutorOperation = ""
 	}
 	ctx = effects.WithExecutionIdentity(effectContext(ctx, scope, id), identity)
-	dir, _ := filepath.Abs(workdir)
+	dir := workdir
+	if named, ok := effects.Messages(ctx).(backend.NamedMessaging); !ok || !named.NamedEnvironments() {
+		dir, _ = filepath.Abs(workdir)
+	}
 	if err := scope.run.prepareAction(ctx, scope.node, "", node, "service", map[string]any{"command": command, "workdir": dir, "requires": effects.Requirements(ctx)}, identity); err != nil {
 		return err
 	}

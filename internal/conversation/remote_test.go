@@ -325,3 +325,71 @@ func TestConversationPreflightRejectsBeforeRemotePreparation(t *testing.T) {
 		t.Fatalf("remote effects before preflight: processes=%d sessions=%d", processes, sessions)
 	}
 }
+
+func TestConfiguredLocalNamespaceKeepsBusAcrossReload(t *testing.T) {
+	project, selected, instance := t.TempDir(), t.TempDir(), t.TempDir()
+	selected, _ = filepath.EvalSymlinks(selected)
+	registry := &gimbal.Registry{}
+	err := registry.RegisterMessaging(gimbal.MessagingDefinition{Name: "local-namespace-test", ValidateConfiguration: func(json.RawMessage) error { return nil }, ValidateEnvironment: func(_ json.RawMessage, name string) error {
+		if name != "local-notes" {
+			return errors.New("unknown")
+		}
+		return nil
+	}, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+		t.Fatal("namespace selection connected")
+		return nil, nil
+	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	route := backend.Route{Name: "local-namespace-test", Configuration: json.RawMessage(`{"selected":true}`)}
+	cfg := environments.Config{Version: 1, Machines: []environments.Machine{{ID: "bus", Name: "bus", Kind: environments.KindRoute, Route: &route}}, Environments: []environments.Environment{{ID: "local-notes", Project: "project", Machine: environments.Local, Directory: selected}}}
+	raw, _ := json.Marshal(cfg)
+	if err := os.WriteFile(filepath.Join(instance, "environments.json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	service, err := environments.New(t.Context(), environments.Options{InstanceDir: instance, Registry: registry})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	if err := service.RegisterProject("project", project); err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(project, ".gimbal")
+	create := func() *Manager {
+		m, err := New(t.Context(), dir, func(string) (gimbal.HarnessAdapter, error) { t.Fatal("namespace used local adapter"); return nil, nil }, "", instance, project, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		m.SetEnvironments(service, "project")
+		return m
+	}
+	m := create()
+	prepared := false
+	m.WorkflowPrepare = func(_ context.Context, env string, got backend.Route) error {
+		prepared = env == "local-notes" && got.Name == route.Name && string(got.Configuration) == string(route.Configuration)
+		return nil
+	}
+	item, err := m.Create(t.Context(), NewConversation{Provider: "claude", Environment: "local-notes", SharedCheckout: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prepared || item.Worktree != selected {
+		t.Fatalf("incorrect preflight or directory: %+v", item)
+	}
+	m.Close()
+	m = create()
+	defer m.Close()
+	m.WorkflowStart = func(_ context.Context, got Conversation, selectedRoute backend.Route) error {
+		var payload map[string]bool
+		if err := json.Unmarshal(selectedRoute.Configuration, &payload); err != nil || got.Environment != "local-notes" || selectedRoute.Name != route.Name || !payload["selected"] {
+			t.Errorf("lost namespace: %+v %+v", got, selectedRoute)
+		}
+		return nil
+	}
+	m.WorkflowInput = func(string, string, string) error { return nil }
+	if _, err := m.Submit(item.ID, Request{ID: "first", Kind: "prompt", Message: "hello"}); err != nil {
+		t.Fatal(err)
+	}
+}

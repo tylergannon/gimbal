@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of ValidateProduct.
 var Graph = workflow.Graph{
-	Name:     "validate-product",
-	Source:   workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 80},
-	Services: []workflow.Service{},
+	Name:         "validate-product",
+	Source:       workflow.Source{File: "internal/workflows/validateproduct/validateproduct.go", Line: 80},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/validateproduct/config.go", Line: 39}, Name: "read-suite"},
 		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/validateproduct/config.go", Line: 76}, Cond: "i := range suite.Workloads", Body: []workflow.Operation{

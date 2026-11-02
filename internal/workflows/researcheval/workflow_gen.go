@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of ResearchEval.
 var Graph = workflow.Graph{
-	Name:     "research-eval",
-	Source:   workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 135},
-	Services: []workflow.Service{},
+	Name:         "research-eval",
+	Source:       workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 135},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 153}, Name: "prepare-evaluation"},
 		workflow.Scope{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 164}, Name: "evaluation", Services: []workflow.Service{}, Body: []workflow.Operation{
@@ -204,6 +205,6 @@ var Graph = workflow.Graph{
 		}},
 	},
 	Diagnostics: []workflow.Diagnostic{
-		{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 170}, Message: "a Gimbal call nested in an else-if header is not read"},
+		{Source: workflow.Source{File: "internal/workflows/researcheval/researcheval.go", Line: 170}, Message: "a Gimbal call nested in an else-if header is not read", EnvironmentIncomplete: false},
 	},
 }

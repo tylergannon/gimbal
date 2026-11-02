@@ -438,7 +438,9 @@ func (p *Project) Start(request invocation.Request) (string, error) {
 	if request.WorkDir == "" {
 		request.WorkDir = p.project
 	}
-	if !filepath.IsAbs(request.WorkDir) {
+	definition, namedRoute := gimbal.DefaultRegistry.Messaging(request.TaskRoute.Name)
+	namedRoute = namedRoute && definition.ValidateEnvironment != nil
+	if !namedRoute && !filepath.IsAbs(request.WorkDir) {
 		return "", errors.New("work_dir must be absolute")
 	}
 	if (request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local") && (request.TaskRoute.Name == "" || request.TaskRoute.Name == "local") && request.TaskEndpoint == "" {

@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of ImplementInterview.
 var Graph = workflow.Graph{
-	Name:     "implement-interview",
-	Source:   workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 44},
-	Services: []workflow.Service{},
+	Name:         "implement-interview",
+	Source:       workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 44},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 51}, Name: "check-inputs"},
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/implementinterview/implementinterview.go", Line: 55}, Key: "requirements-file"},

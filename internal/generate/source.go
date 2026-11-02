@@ -328,7 +328,7 @@ func literal(entry string, graph workflow.Graph) string {
 	if len(graph.Diagnostics) > 0 {
 		b.WriteString("Diagnostics: []workflow.Diagnostic{\n")
 		for _, d := range graph.Diagnostics {
-			fmt.Fprintf(&b, "{Source: %s, Message: %s},\n", position(d.Source), strconv.Quote(d.Message))
+			fmt.Fprintf(&b, "{Source: %s, Message: %s, EnvironmentIncomplete: %t},\n", position(d.Source), strconv.Quote(d.Message), d.EnvironmentIncomplete)
 		}
 		b.WriteString("},\n")
 	}

@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of PyramidSummary.
 var Graph = workflow.Graph{
-	Name:     "pyramid-summary",
-	Source:   workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 90},
-	Services: []workflow.Service{},
+	Name:         "pyramid-summary",
+	Source:       workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 90},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 538}, Name: "check-file"},
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/pyramidsummary/pyramidsummary.go", Line: 538}, Name: "check-file"},

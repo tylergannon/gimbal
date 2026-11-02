@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/commandexecutor"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/executor"
@@ -193,7 +194,10 @@ func runCommand(ctx context.Context, s *scope, name, workdir, command string, ar
 	ctx, cancelAccepted := s.run.acceptedContext(ctx, node)
 	defer cancelAccepted()
 	ctx = effects.WithExecutionIdentity(effectContext(ctx, s, id), identity)
-	dir, _ := filepath.Abs(workdir)
+	dir := workdir
+	if named, ok := effects.Messages(ctx).(backend.NamedMessaging); !ok || !named.NamedEnvironments() {
+		dir, _ = filepath.Abs(workdir)
+	}
 	started := CommandStarted{ID: id, Name: name, Command: command, Args: args, Workdir: dir}
 	var accepted struct {
 		Input struct {

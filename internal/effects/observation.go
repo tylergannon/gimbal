@@ -8,10 +8,18 @@ import (
 
 type observationKey struct{}
 type observationOptions struct {
-	detach  bool
-	cursor  int
-	task    func(int, json.RawMessage)
-	message func(backend.MessageEvent)
+	detach    bool
+	cursor    int
+	task      func(int, json.RawMessage)
+	message   func(backend.MessageEvent)
+	placement func(backend.MessageEvent)
+}
+
+// ObservePlacement records admitted placement from transport facts.
+func ObservePlacement(ctx context.Context, apply func(backend.MessageEvent)) context.Context {
+	o, _ := ctx.Value(observationKey{}).(observationOptions)
+	o.placement = apply
+	return context.WithValue(ctx, observationKey{}, o)
 }
 
 // ObserveDetached makes cancellation release a reader, never native work. A

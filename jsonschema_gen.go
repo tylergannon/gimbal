@@ -180,7 +180,7 @@ func (l LifecycleRecord) MarshalJSON() ([]byte, error) {
 	wrapper := Wrapper{Alias: Alias(l)}
 	var err error
 
-	if wrapper.Event, err = __jsonMarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(l.Event); err != nil {
+	if wrapper.Event, err = __jsonMarshal__gimbal__LifecycleEvent__fb514ce249a99578eb9f9db6263fb7e2ef58ae702020c26d46975b54e2a4a1ae(l.Event); err != nil {
 		return nil, fmt.Errorf("field event: %w", err)
 	}
 
@@ -202,7 +202,7 @@ func (l *LifecycleRecord) UnmarshalJSON(data []byte) (err error) {
 	__next := LifecycleRecord(wrapper.Alias)
 
 	var __decoded0 LifecycleEvent
-	if __decoded0, err = __jsonUnmarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(wrapper.Event); err != nil {
+	if __decoded0, err = __jsonUnmarshal__gimbal__LifecycleEvent__fb514ce249a99578eb9f9db6263fb7e2ef58ae702020c26d46975b54e2a4a1ae(wrapper.Event); err != nil {
 		return err
 	}
 	__next.Event = __decoded0
@@ -253,7 +253,7 @@ func (i *interactiveOutput) UnmarshalJSON(data []byte) (err error) {
 	return nil
 }
 
-func __jsonMarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(value LifecycleEvent) (json.RawMessage, error) {
+func __jsonMarshal__gimbal__LifecycleEvent__fb514ce249a99578eb9f9db6263fb7e2ef58ae702020c26d46975b54e2a4a1ae(value LifecycleEvent) (json.RawMessage, error) {
 	if value == nil {
 		return nil, fmt.Errorf("cannot marshal nil registered interface LifecycleEvent")
 	}
@@ -320,6 +320,9 @@ func __jsonMarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad886
 	case ValueSet:
 		discriminator = "value_set"
 		data, err = __polytype_marshal(&object)
+	case taskPlacement:
+		discriminator = "task_placement"
+		data, err = __polytype_marshal(&object)
 	default:
 		return nil, fmt.Errorf("unregistered dynamic implementation %T for LifecycleEvent", value)
 	}
@@ -332,7 +335,7 @@ func __jsonMarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad886
 	)
 }
 
-func __jsonUnmarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad88673804a436506d1fa98a98d6054eb(data []byte) (LifecycleEvent, error) {
+func __jsonUnmarshal__gimbal__LifecycleEvent__fb514ce249a99578eb9f9db6263fb7e2ef58ae702020c26d46975b54e2a4a1ae(data []byte) (LifecycleEvent, error) {
 	var (
 		temp          map[string]json.RawMessage
 		discriminator string
@@ -458,6 +461,12 @@ func __jsonUnmarshal__gimbal__LifecycleEvent__f9e42ffcd48b2fc11889acb1a457feaad8
 		return obj, nil
 	case "value_set":
 		var obj ValueSet
+		if err = json.Unmarshal(data, &obj); err != nil {
+			return nil, err
+		}
+		return obj, nil
+	case "task_placement":
+		var obj taskPlacement
 		if err = json.Unmarshal(data, &obj); err != nil {
 			return nil, err
 		}

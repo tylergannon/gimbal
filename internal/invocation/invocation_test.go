@@ -104,3 +104,30 @@ func TestIndeterminateEnvironmentRejectsBeforeWorkflow(t *testing.T) {
 		t.Fatal("workflow ran during preflight")
 	}
 }
+
+func TestUnreadCallsRejectBeforeWorkflow(t *testing.T) {
+	for i, message := range []string{
+		"a call through a function value is not read",
+		"a call into example.com/helper, which imports Gimbal, is not followed",
+		"helper calls itself, and a recursive helper is not read",
+	} {
+		name := fmt.Sprintf("unread-environment-test-%d", i)
+		ran := false
+		definition := gimbal.WorkflowDefinition{
+			WorkflowDescription: gimbal.WorkflowDescription{Name: name, InputSchema: json.RawMessage(`{"type":"object"}`)},
+			Graph:               workflow.Graph{Name: name, Diagnostics: []workflow.Diagnostic{{Message: message, EnvironmentIncomplete: true}}},
+			Prepare: func(json.RawMessage) (gimbal.Invocation, error) {
+				return func(context.Context, gimbal.Env) error { ran = true; return nil }, nil
+			},
+		}
+		if err := gimbal.DefaultRegistry.RegisterWorkflow(definition); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := Prepare(Request{Workflow: name, Input: json.RawMessage(`{}`)}); err == nil {
+			t.Fatalf("accepted %s", message)
+		}
+		if ran {
+			t.Fatal("workflow ran during preflight")
+		}
+	}
+}

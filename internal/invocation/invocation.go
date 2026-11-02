@@ -77,6 +77,13 @@ func PrepareContext(ctx context.Context, r Request) (map[gimbal.WorkflowRole]gim
 		return nil, nil, err
 	}
 	graph, _ := gimbal.RegisteredGraph(r.Workflow)
+	// An unread call can hide an environment selection even when the graph has
+	// no declarations at all. Do not treat an incomplete inventory as empty.
+	for _, diagnostic := range graph.Diagnostics {
+		if diagnostic.EnvironmentIncomplete {
+			return nil, nil, fmt.Errorf("environment inventory incomplete at %s:%d: %s", diagnostic.Source.File, diagnostic.Source.Line, diagnostic.Message)
+		}
+	}
 	if len(graph.Environments) > 0 {
 		if r.TaskRoute.Environment != "" || r.TaskEndpoint != "" || (r.TaskRoute.Backends != nil && r.TaskRoute.Backends.Orchestrator.Name != "") {
 			return nil, nil, fmt.Errorf("workflow environment declarations cannot use a physical task destination")

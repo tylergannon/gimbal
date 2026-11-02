@@ -252,7 +252,7 @@ func TestConversationHostPassesSelectedBusAndInputToPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item := conversation.Conversation{ID: "conversation", WorkflowRun: "test-run", Worktree: dir, Provider: "codex", Model: "luna", Environment: "bob"}
+	item := conversation.Conversation{ID: "conversation", WorkflowRun: "test-run", Worktree: `C:\owned\project`, Provider: "codex", Model: "luna", Environment: "bob"}
 	route := backend.Route{Name: "conversation-bus-test", Configuration: json.RawMessage(`{"namespace":"selected"}`)}
 	err = project.conversations.WorkflowStart(ctx, item, route)
 	if err == nil || !strings.Contains(err.Error(), "namespace probe rejected") || !seen {

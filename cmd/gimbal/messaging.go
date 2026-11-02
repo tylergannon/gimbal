@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/executor"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/taskdaemon"
 )
@@ -41,6 +43,18 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		if err = d.ValidateConfiguration(route.Configuration); err != nil {
 			return err
 		}
+		state, err := executor.Root(executorRoot)
+		if err != nil {
+			return err
+		}
+		lease, err := executor.Lock(filepath.Join(state, "taskdaemon"))
+		if err != nil {
+			return err
+		}
+		if lease == nil {
+			return fmt.Errorf("executor state directory already owned: %s", state)
+		}
+		defer lease.Close()
 		if secretsStdin {
 			if route.Backends != nil {
 				return fmt.Errorf("worker route must not also select backends when using secrets bootstrap")
@@ -66,8 +80,16 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		}
 
 		dependencies := backend.Dependencies{Orchestrator: connection.Orchestrator, Secrets: daemon.Secrets}
+		dependencies.Ready = func() error {
+			if err := daemon.RecoverMessages(ctx, connection.Messages); err != nil {
+				return err
+			}
+			if readyFile != "" {
+				return os.WriteFile(readyFile, []byte("ready\n"), 0600)
+			}
+			return nil
+		}
 		if readyFile != "" {
-			dependencies.Ready = func() error { return os.WriteFile(readyFile, []byte("ready\n"), 0600) }
 			defer func() { _ = os.Remove(readyFile) }()
 		}
 		err = d.Worker(ctx, route.Configuration, dependencies, daemon.Messages(connection.Messages))

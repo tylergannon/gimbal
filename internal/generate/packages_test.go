@@ -56,7 +56,7 @@ func Touch(ctx context.Context) { gimbal.Set(ctx,"helper","value") }
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(graph.Diagnostics) != 1 || !strings.Contains(graph.Diagnostics[0].Message, "example.com/diagnostic/helper, which imports Gimbal, is not followed") {
+	if len(graph.Diagnostics) != 1 || !graph.Diagnostics[0].EnvironmentIncomplete || !strings.Contains(graph.Diagnostics[0].Message, "example.com/diagnostic/helper, which imports Gimbal, is not followed") {
 		t.Fatalf("body-only helper diagnostic: %+v", graph.Diagnostics)
 	}
 	load := loadSourceTypes

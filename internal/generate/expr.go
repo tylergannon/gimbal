@@ -19,7 +19,7 @@ func (e *extractor) exprs(node ast.Node, out *[]workflow.Operation, en scopeEnv)
 		switch n := n.(type) {
 		case *ast.FuncLit:
 			if e.holdsOperation(n.Body) {
-				e.diag(n.Pos(), "a function literal that is not a Scope or Go callback holding a Gimbal call is not read")
+				e.unreadEnvironment(n.Pos(), "a function literal that is not a Scope or Go callback holding a Gimbal call is not read")
 			}
 			return false
 		case *ast.CallExpr:
@@ -58,7 +58,7 @@ func (e *extractor) call(call *ast.CallExpr, targets []ast.Expr, out *[]workflow
 	callee := typeutil.StaticCallee(e.pkg.TypesInfo, call)
 	if callee == nil {
 		if takesContext(e.pkg.TypesInfo.TypeOf(call.Fun)) {
-			e.diag(call.Pos(), "a call through a function value is not read")
+			e.unreadEnvironment(call.Pos(), "a call through a function value is not read")
 		}
 		return true
 	}
@@ -66,7 +66,7 @@ func (e *extractor) call(call *ast.CallExpr, targets []ast.Expr, out *[]workflow
 		return e.inline(callee, call, out, en)
 	}
 	if e.importsGimbal(callee.Pkg()) {
-		e.diag(call.Pos(), "a call into %s, which imports Gimbal, is not followed", callee.Pkg().Path())
+		e.unreadEnvironment(call.Pos(), "a call into %s, which imports Gimbal, is not followed", callee.Pkg().Path())
 	}
 	return true
 }
@@ -79,7 +79,7 @@ func (e *extractor) inline(callee *types.Func, call *ast.CallExpr, out *[]workfl
 		return true
 	}
 	if slices.Contains(e.stack, callee) {
-		e.diag(call.Pos(), "%s calls itself, and a recursive helper is not read", callee.Name())
+		e.unreadEnvironment(call.Pos(), "%s calls itself, and a recursive helper is not read", callee.Name())
 		return true
 	}
 	e.exprs(call.Fun, out, en)
@@ -396,12 +396,12 @@ func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operatio
 	default:
 		callee, _ := e.pkg.TypesInfo.Uses[identOf(fn)].(*types.Func)
 		if callee == nil || callee.Pkg() != e.pkg.Types {
-			e.diag(call.Args[index].Pos(), "the body is not a function literal or a function of this package, so it is not read")
+			e.unreadEnvironment(call.Args[index].Pos(), "the body is not a function literal or a function of this package, so it is not read")
 			return body, services
 		}
 		decl := e.declFor(callee)
 		if decl == nil || decl.Body == nil {
-			e.diag(call.Args[index].Pos(), "the body is not a function of this package with a body, so it is not read")
+			e.unreadEnvironment(call.Args[index].Pos(), "the body is not a function of this package with a body, so it is not read")
 			return body, services
 		}
 		e.declarations[e.contextParameter(decl.Type)] = inherited
@@ -409,7 +409,7 @@ func (e *extractor) callback(call *ast.CallExpr, index int) ([]workflow.Operatio
 			e.inspectionContext = e.contextParameter(decl.Type)
 		}
 		if slices.Contains(e.stack, callee) {
-			e.diag(call.Args[index].Pos(), "%s calls itself, and a recursive body is not read", callee.Name())
+			e.unreadEnvironment(call.Args[index].Pos(), "%s calls itself, and a recursive body is not read", callee.Name())
 			return body, services
 		}
 		e.stack = append(e.stack, callee)

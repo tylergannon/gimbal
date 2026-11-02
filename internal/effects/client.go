@@ -78,7 +78,17 @@ func Cleanup(ctx context.Context, endpoint, run, scope, requestID string) error 
 	if Messages(ctx) != nil {
 		r := Request(requestID, "cleanup", Owner{Run: run, Scope: scope})
 		r.ScopeTarget = &Scope{Run: run, Scope: scope}
-		if _, err := MessageCall(ctx, r); err != nil {
+		if named, ok := Messages(ctx).(backend.NamedMessaging); ok && named.NamedEnvironments() {
+			cleanup, ok := Messages(ctx).(interface {
+				CleanupScope(context.Context, backend.MessageRequest) error
+			})
+			if !ok {
+				return fmt.Errorf("named messaging does not support scope cleanup")
+			}
+			if err := cleanup.CleanupScope(ctx, r); err != nil {
+				return err
+			}
+		} else if _, err := MessageCall(ctx, r); err != nil {
 			return err
 		}
 		// All assigned daemons have stopped native dependents before a shared

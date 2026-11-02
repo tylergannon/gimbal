@@ -83,6 +83,18 @@ or promise immediate restart. No application heartbeat/lease-expiry scheme is
 required. A distinct worker identity cannot claim an already-bound logical name
 without an explicit configuration rebind; rebinding preserves old session owners.
 
+Loss or uncertainty of registration authority stops new admissions by that serving
+instance. Admission commits validate that authority, so a separate healthy pool
+cannot keep admitting merely because the authority connection failed. The worker
+may reacquire authority within the R8 reconnect budget; it resumes admission only
+after ownership is confirmed. On exhaustion it stops consuming and exits with an
+actionable error. It does not cancel already-admitted native owners: their results
+are retained and published when a connection is usable, or reconciled/published
+by the next same-identity restart if this worker exits. Participant bootstrap also
+holds the existing executor state-directory lock for its daemon lifetime, as the
+HTTP worker already does, preventing concurrent daemons over one native state root
+regardless of database connectivity. No new cancellation/liveness ledger is added.
+
 R4. Local and remote command/session tasks in this specimen cross the same selected
 messaging contract. No task-endpoint fallback, per-peer connection construction,
 shared network filesystem or SSH tunnel supplies missing participant operations.
@@ -252,10 +264,10 @@ Each claim is mandatory for this milestone, with its required observation.
 | --- | --- | --- |
 | D1 | Cell-local / declaration | Metadata includes both logical environments; invalid or absent names reject before any workflow/native effect. Exercise registered preparation/admission, not a separate invented preflight utility. |
 | D2 | Cell-local / declaration | Overlay semantics, strict plugin validation and namespace interpretation agree; invalid selection produces an explicit error without fallback or capacity startup. |
-| D3 | Cell-local / transport | Duplicate active registration is rejected, including a concurrent instance with the same identity. After its predecessor's database authority is released, the restarted worker re-registers with its original identity and retained sessions without stale-row cleanup; an unresolved predecessor cannot be replaced. Requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. After transient connection loss the listener delivers the original completion from retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
+| D3 | Cell-local / transport | Duplicate active registration is rejected, including a concurrent instance with the same identity. Lost authority stops new admissions despite a healthy data pool; reacquisition restores admission only under confirmed authority, and exhausted recovery stops consumption. After its predecessor's database authority is released, the restarted worker re-registers with its original identity and retained sessions without stale-row cleanup; an unresolved predecessor cannot be replaced. Requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. After transient connection loss the listener delivers the original completion from retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
 | D4 | Cell-local / native dispatch | The original native identity governs acceptance and outcome; uncertain replies reconcile that identity and never authorize replacement work. |
 | D5 | Cell-local / context | Visible inherited/shadowed context and complete-value artifact bytes retain existing semantics at the task-input boundary. |
-| D5a | Cell-local / bootstrap | Prestarted registered workers can receive named work without an orchestrator. Mixed-in legacy destination/provisioning settings reject before effects; missing/failed registration fails at use without another route. Out-of-slice conversation composition using namespace-based River fails explicitly, preserving the selected environment rather than falling back. |
+| D5a | Cell-local / bootstrap | Prestarted registered workers can receive named work without an orchestrator. A second daemon cannot open the same native state directory even after database authority is released. Mixed-in legacy destination/provisioning settings reject before effects. An authoritative no-owner result at submission is definite rejection before publication; inability to determine delivery/ownership remains explicit uncertainty, never another route. Out-of-slice conversation composition using namespace-based River fails explicitly, preserving the selected environment rather than falling back. |
 | D5b | Cell-local / observation | Recorded task/session placement projects into the same rows after live delivery and retained replay; rebinding cannot rewrite admitted placement. |
 | D6 | Integration / all | One registered workflow on A runs a real local command, then a real session on B consumes its fresh context, reads complete transferred context and returns the derived result; a follow-up uses the same session. Show actual machine and native-session identities. |
 | D7 | Integration / transport, native, context | Worker restart after native completion but before return to A recovers that result under its original identity, with one native execution; absent native evidence remains explicit unresolved. |
@@ -355,6 +367,11 @@ Before implementation approval:
 Before live work: assign A/B/database location, OS choice and owned processes;
 confirm credentials/build tools without exposing secrets. Two computers are
 required; Windows qualification is not silently mandatory for this first slice.
+The required restart is worker-process loss with retained local state, not hard
+machine/power loss. After abrupt machine or network loss, PostgreSQL may retain
+the old authority session until its own connection-failure detection; waiting or
+operator closure of that isolated stale session is an accepted availability limit,
+not permission for a second worker to assume authority. No partition test is added.
 
 Integration constraints: #665 owns resource-lifetime repair; do not modify its
 branch or shared runtime services. If shared interfaces change, identify exact

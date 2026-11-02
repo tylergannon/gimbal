@@ -19,7 +19,8 @@ The workflow body does not move when it places a task.
 Tyler selected this scope in this chat on November 1, 2026. He explicitly removed
 enforced network denial from final acceptance, permanently. Independent review
 must instead attest to absence of circumvention using source, configuration and
-observed connection evidence. Peer addresses are not supplied to participants.
+observed connection evidence. Peer task/runner addresses are not supplied to participants;
+the configured database service address is allowed even if its host also runs A or B.
 Unsuccessful direct connection attempts also count as circumvention.
 
 Design inputs, all local files:
@@ -37,6 +38,17 @@ Current user instructions override older network-isolation requirements in those
 documents. Their remaining whole-application merge gate is not silently waived.
 This bounded milestone can be demonstrated on its isolated branch without claiming
 the complete migration or permission to merge a partial repair.
+
+Proposed checkpoint boundary, pending Tyler's approval: manually started workers
+on A and B; no conversation-placement migration or orchestrator-provisioning
+migration. This is an unmerged implementation milestone of the full proposal,
+not a release candidate. Existing unrelated routing code remains only where not
+replaced by this slice; it supplies no operation in this specimen. No compatibility
+shim is added to preserve a replaced River schema or protocol. Legacy conversation
+routes are not certified here and cannot use the new namespace-based River
+composition until their later migration; reject that unsupported composition
+explicitly rather than silently losing their selected placement. Approval of this
+task includes this intermediate limitation, not a waiver for eventual publication.
 
 ## Requirements
 
@@ -63,24 +75,21 @@ shared network filesystem or SSH tunnel supplies missing participant operations.
 Provider/repository connections used by ordinary tasks are separately classified
 external services, not permitted alternative participant channels.
 
-Named addressing moves into the selected transport. Remove `EnvironmentRouting`
-and `environment_messaging.go` rather than extending their per-destination
-connections. Manually started workers are valid: named task admission does not
-require an orchestrator. If an orchestrator is selected, it retains provisioning/
-use/release responsibility and receives the selected transport's narrow worker
-bootstrap/readiness capability. Its ready result must correspond to registration
-in that namespace. Migrate the existing local provisioner to this arrangement;
-remove its route-returning methods and route configuration. It cannot construct
-a second transport. Do not add a dummy orchestrator for prestarted workers.
-Remove run-wide `Route.Environment`: workflow declarations are the sole task
-placement authority. Update its host/CLI display/help readers and runner bootstrap;
-do not retain a compatibility field or silently override workflow placement.
-Migrate `internal/environments` callers of the deleted routing interface to the
-selected transport's logical namespace/retained-owner operations. Its selected
-provisioning setup may bootstrap capacity, but application SSH tunnels/direct
-worker routes cannot carry task operations for this slice. Do not add a parallel
-native protocol. Any required owning-capability decision beyond that migration
-returns through spec-defect intake rather than being exempted as setup code.
+For the new River composition, named addressing belongs to the selected transport.
+Manually started workers register in its namespace; no orchestrator is required
+or selected. Reject this composition if it also supplies an orchestrator,
+`Route.Environment`, a task endpoint or another legacy destination/routing source,
+before constructing capacity or executing work. Workflow declarations are its
+sole placement authority. Do not construct `environmentMessaging`, call
+`EnvironmentRouting`, or launch a local worker as a fallback for it. Do not add a
+dummy orchestrator, a new native protocol or a task-only replacement bus.
+
+`EnvironmentRouting`, `environment_messaging.go`, `Route.Environment` and the local
+orchestrator remain unchanged for existing out-of-slice compositions. Their global
+removal is a subsequent migration milestone, including the conversation workflow's
+runtime-selected placement. Nothing in this checkpoint certifies those existing
+paths. The final proposal still requires their replacement; the bounded branch
+checkpoint does not turn them into approved exceptions to the final architecture.
 
 R5. A local command produces a fresh nonsecret value. The workflow stores it with
 the existing ordinary context API. A real remote native session consumes it and
@@ -155,6 +164,13 @@ names exact source/build/plugin identities, inspected paths, exercised operation
 allowed external services and evidence gaps. It cannot certify unexercised product
 paths. No firewall/partition experiment is required now or later by this task.
 
+R10. Recorded logical environment and admitted worker/machine identity are visible
+for each command and session on the run page. Mixed placement must not be labelled
+as one local/run-wide destination. Reconnect and logical-name rebinding preserve
+the recorded placement of admitted work. This is a bounded addition to existing
+command/session details, not a page redesign. Inspect actual rendered pixels before
+claiming human legibility. Existing out-of-slice run-wide display is not removed.
+
 ## Cells, contracts and implementation volume tripwires
 
 These are responsibility boundaries in existing code, not new framework packages.
@@ -170,15 +186,17 @@ Directory patterns below cover direct children only; exclude `*_test.go` and
 | Cell | Responsibility and seam contract | Initial production files | Baseline / maximum lines |
 | --- | --- | --- | --- |
 | Declaration/admission | Produce a complete environment inventory and validate effective selections before effects; pass logical placement into task dispatch. | `env.go`, `registry.go`, `workflow/*.go`, `internal/generate/{declarations,expr,stmt,graph,definition,source,inspect}.go` | 3,262 / 3,900 |
-| Transport | Resolve logical destinations and retained owners; durably store requests/facts/bytes; atomically accept registrations/ownership; provide replay/live delivery and bounded reconnect through selected River connection. Own database details, never native outcome interpretation. | `messaging_registration.go`, `backend/messaging.go`, `backend/backend.go`, `backend/messagefiles/store.go`, `environment_messaging.go` (delete), `plugins/messaging-river/main.go`, `plugins/messaging-filesystem/main.go`, `plugins/messaging-http/main.go` | 1,535 / 2,450 |
+| Transport | Resolve logical destinations and retained owners; durably store requests/facts/bytes; atomically accept registrations/ownership; provide replay/live delivery and bounded reconnect through selected River connection. Own database details, never native outcome interpretation. | `messaging_registration.go`, `backend/messaging.go`, `backend/backend.go`, `backend/messagefiles/store.go`, `plugins/messaging-river/main.go`, `plugins/messaging-filesystem/main.go`, `plugins/messaging-http/main.go` | 1,343 / 2,250 |
 | Native dispatch | Admit commands/session operations under stable identities, reconcile original native outcomes, republish recovered completion and retain session owner; report uncertainty honestly. Native harness remains outcome authority. | `internal/effects/*.go`, `internal/taskdaemon/*.go` | 2,606 / 3,300 |
 | Workflow context/results | Preserve ordinary scope semantics and explicit bytes; submit selected commands/session operations and return outcomes to local Go control flow. | `session.go`, `task_files.go`, `command.go`, `scope.go`, `artifact.go`, `remote_execution.go` | 2,729 / 3,100 |
-| Provision/bootstrap | Keep provisioning distinct from named addressing; propagate selected transport/bootstrap to manually started or provisioned workers and connect normal registered invocation; migrate existing environment callers from deleted routing contracts. | `resource_registration.go`, `backend/orchestration.go`, `backend/localorchestrator/*.go`, `internal/invocation/invocation.go`, `internal/invocation/backends.go`, `internal/runner/runner.go`, `cmd/gimbal/messaging.go`, `cmd/gimbal/workflows.go`, `internal/host/routes.go`, `internal/environments/*.go` | 4,316 / 4,800 |
+| Participant bootstrap | Propagate selected transport/bootstrap to manually started workers and registered invocation; reject legacy routing/provisioning mixed into this composition. | `resource_registration.go`, `backend/orchestration.go`, `internal/invocation/invocation.go`, `internal/runner/runner.go`, `cmd/gimbal/messaging.go`, `cmd/gimbal/workflows.go` | 910 / 1,300 |
+| Observation/display | Project retained per-task placement truthfully and show it in existing command/session details and mixed-run summary; observation remains distinct from native execution outcome. | `events.go`, `internal/observation/{rows,store,snapshot,registry}.go`, `web/src/lib/run/{RunHeader,RunTranscript,SessionTimeline}.svelte`, `web/src/lib/workspace/projectHome.ts` | 2,044 / 2,400 |
 
 The registered catalog, dispatch envelopes, native admission state and retained
 record/byte references are the seams. Their reason to change differs: authoring
 and input validation; delivery/storage; native execution; workflow context use;
-capacity/bootstrap. Provisioning changes with deployment, not task outcome semantics.
+participant bootstrap; observation/display. Bootstrap changes with deployment,
+not task outcome semantics; presentation changes do not authorize native work.
 Transport cannot decide native success. Workflow context cannot open peer routes.
 Any required production change outside this map is a spec-defect intake before
 coding, not an exemption. Filesystem/HTTP changes here adapt shared contracts;
@@ -216,14 +234,16 @@ Each claim is mandatory for this milestone, with its required observation.
 | D3 | Cell-local / transport | Duplicate active registration is rejected; requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. After transient connection loss the listener delivers the original completion from retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
 | D4 | Cell-local / native dispatch | The original native identity governs acceptance and outcome; uncertain replies reconcile that identity and never authorize replacement work. |
 | D5 | Cell-local / context | Visible inherited/shadowed context and complete-value artifact bytes retain existing semantics at the task-input boundary. |
-| D5a | Cell-local / provision | Prestarted registered workers can receive named work without an orchestrator; selected provisioning receives the same transport bootstrap and cannot return ready before registration. Missing or failed registration fails at use without another route. |
+| D5a | Cell-local / bootstrap | Prestarted registered workers can receive named work without an orchestrator. Mixed-in legacy destination/provisioning settings reject before effects; missing/failed registration fails at use without another route. Out-of-slice conversation composition using namespace-based River fails explicitly, preserving the selected environment rather than falling back. |
+| D5b | Cell-local / observation | Recorded task/session placement projects into the same rows after live delivery and retained replay; rebinding cannot rewrite admitted placement. |
 | D6 | Integration / all | One registered workflow on A runs a real local command, then a real session on B consumes its fresh context, reads complete transferred context and returns the derived result; a follow-up uses the same session. Show actual machine and native-session identities. |
 | D7 | Integration / transport, native, context | Worker restart after native completion but before return to A recovers that result under its original identity, with one native execution; absent native evidence remains explicit unresolved. |
 | D8 | Integration / transport, native, context | Observation disconnect/reconnect recovers recorded facts and new activity while work continues; final outcomes and referenced bytes are retrieved through the intermediary. |
 | D9 | Integration / all | Independent source/configuration/connection review attests no circumvention in the exercised composition, or refuses acceptance and identifies the gap. No enforced network denial. |
+| D10 | Integration / native, context, observation | On the running application page, a person can identify the actual environments of A's command and B's session; mixed placement is truthful and remains so after observation reconnect. Inspect actual pixels and report what was seen. |
 
 Compilation, focused/race tests and affected application checks supplement these
-claims. They do not replace D6–D9. Proof is running the real application and
+claims. They do not replace D6–D10. Proof is running the real application and
 reporting what was seen in this chat and the PR. Repository instructions prohibit
 committing proof programs, screenshots, logs or run dumps; tests live beside the
 code and review/spec notes remain under `ephemeral/`.
@@ -237,17 +257,18 @@ code and review/spec notes remain under `ephemeral/`.
    River delivery and retained ownership in this product worktree. Put repeatable
    checks beside their owning code, including an opt-in integration test in the
    package that checks registered invocation/task dispatch. That test registers an
-   ordinary workflow and uses real separately started message-worker participants
-   and the actual River plugin/database for live claims; mocks cannot satisfy D6–D9.
+  ordinary workflow and uses real separately started message-worker participants
+   and the actual River plugin/database for live claims; mocks cannot satisfy D6–D10.
    Do not commit a standalone specimen/proof program or relabel it as an example.
-   Run focused checks and D1–D5a.
+   Run focused checks and D1–D5b.
 3. Live checkpoint: reserve two real computers and one isolated Compose database
-   with their owners, then demonstrate D6–D8 using that opt-in integration test.
+   with their owners, then demonstrate D6–D8 using that opt-in integration test
+   and D10 in the running page for its actual run.
    Start a message-worker on A for its local tasks and a message-worker on B for
    remote tasks. The test/workflow process remains on A; the observer is independently
    reconnectable and does not own task execution. Use unversioned `luna` for Codex live
    specimen sessions (or `haiku` if Claude is selected); report actual model.
-4. Independent Sonnet validation examines application behavior and D1–D9; retain
+4. Independent Sonnet validation examines application behavior and D1–D10; retain
    fresh review artifacts and the reviewer session for consensus. Failure needing
    source repair returns to Terra, then re-review the complete candidate.
 5. Report proved revision/claims and unmet full-migration requirements. Do not
@@ -269,6 +290,9 @@ coordinating chat. Gimbal-owned agents operate in this product worktree.
 - Data retention/expiration policy, quota management or cleanup framework.
 - Completing every transport's migration, independently deploying console/engine/
   runner, or claiming the broad architecture gate passes from this slice alone.
+- Migrating runtime-selected conversation placement, deleting global legacy routing,
+  or migrating the local orchestrator. Their eventual migration remains required
+  before the complete architecture repair can be certified/merged.
 - Confidential scoped-value transport in the specimen unless Tyler adds it;
   ordinary context is the current proposed reading of his request.
 
@@ -287,17 +311,22 @@ Before implementation approval:
   change plus required graph/catalog/configuration fields must be approved before
   implementation; no additional exported function names are authorized.
 - Explicit public contract amendments included in this approval request:
-  `OrchestratorDefinition.Construct` receives the selected transport's narrow
-  registration/bootstrap capability; `backend.Dependencies` carries it to workers;
   `MessagingDefinition` exposes plugin-owned schema/namespace interpretation and
-  registration/retained-owner addressing. Remove `EnvironmentRouting` and
-  `Route.Environment`. Extend existing message record/selection contracts with
+  registration/retained-owner addressing. Existing connection/dependency data
+  carries the selected namespace capability to dispatch; no orchestrator signature
+  migration is part of this checkpoint. Extend existing message record/selection contracts with
   logical-environment/retained-owner request addressing, stable source
-  sequence/identity and selected-boundary byte delivery as required
+  sequence/identity and selected-boundary byte delivery. Extend lifecycle records
+  and observation rows with admitted per-task placement as required
   above. Exact internal layout is derivable; no untyped generic RPC or new public
   workflow function beyond `WithEnvironment` is approved.
 - Configuration uses the existing Route envelope (`Name`, `Configuration`) and
-  plugin-owned logical-name/worker-identity bindings. Concrete serialization and
+  plugin-owned logical-name/worker-identity bindings. `--task-route @file` accepts
+  one Route object or an ordered array of Route objects; normalize a single object
+  to a one-element composition, then apply the same R3 overlay rule in order.
+  This is the sole overlay mechanism, not separate full/partial modes. The final
+  effective Route is passed through registered invocation, and the plugin receives
+  only its validated payload. Concrete payload serialization and
   private credential references are derivable implementation details, except any
   materially new public contract must return for approval. Namespace addressing
   and native outcome ownership remain as specified above.
@@ -309,9 +338,7 @@ required; Windows qualification is not silently mandatory for this first slice.
 Integration constraints: #665 owns resource-lifetime repair; do not modify its
 branch or shared runtime services. If shared interfaces change, identify exact
 base revisions and merge dependencies with that owner before integration.
-Parent chat A initially released the #664 proof hold, then reserved a new short
-main-merge/version-preparation hold for integrating #664. Main merges, version
-preparation, stable-tag changes and release dispatch are held until A releases
-that window. No shared-runner or
+Parent chat A has released both #664 integration holds following candidate proof
+and merge. That grants no new merge/publication permission. No shared-runner or
 native-control experiment is currently reserved by this task. No production or
 qualification installation is to be changed for this milestone.

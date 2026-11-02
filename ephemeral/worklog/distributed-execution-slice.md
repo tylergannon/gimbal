@@ -90,3 +90,28 @@ loadCommandSecrets at startup for the central and message-worker; the fixed
 endpoint is in cmd/gimbal/secrets.go. This is startup secret retrieval, not an
 alternate participant task channel. Final independent attestation still must
 inspect the full actual composition and classify its other external services.
+
+
+## Source checkpoint and remaining host dependency, November 2
+
+Pushed source checkpoint 88b9314e and opened draft PR #668 via authenticated gh
+because the connected GitHub integration returned 403 for PR creation. The draft
+explicitly retains C1/D6–D10 and the mixed integration test as incomplete, and is
+not merge-ready. The candidate's workflow lint also passed. Source code remains
+unchanged since the candidate build and the checkpoint; root's later edits are
+worklog notes only. Sonnet round 8 remains active. It has passed the repaired
+native setup/bytes tests repeatedly, but subsequently launched another unchanged
+native matrix with count=8. Further repetition without a new failure or source
+change is unnecessary. Do not confuse the temporary source-loop's incorrect
+ready-and-empty-findings predicate with the reviewer's readiness verdict: it
+mistakenly treats positive evidence/nonblocking notes in Findings as rejection.
+The temporary runner source is corrected for future use, without touching the
+running process or product source.
+
+Amrita's network/Local Network inspection remains pending from Tyler. A's owned
+private application and worker remain available; the local browser run is fully
+completed, with no active user conversation. B has accepted no task. Do not
+restart B using its stale candidate: after host access is resolved, copy the
+matching latest CLI/plugin pair before resuming C1. Keep the shared qualification
+central, Desktop, Codex daemon, network/privacy settings and installed Gimbal
+untouched. No main merge or release has occurred.

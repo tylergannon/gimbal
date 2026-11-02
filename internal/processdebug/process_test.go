@@ -341,7 +341,12 @@ func TestSharedDaemonStandin(t *testing.T) {
 	t.Setenv("HOME", dir)
 	t.Setenv("XDG_CACHE_HOME", dir)
 	t.Setenv("GIMBAL_DEBUG_PROCESSES", "1")
-	parent := exec.Command("sh", "-c", "sleep 30 & echo $!; read ignored; sleep 30 & echo $!; wait")
+	warnings, err := os.Create(dir + "/shared-warnings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = warnings
+	parent := exec.Command("sh", "-c", "sleep 30 & echo $!; read ignored; sleep 30 & echo $!; read ignored; sleep 30 & echo $!; wait")
 	input, err := parent.StdinPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -393,6 +398,19 @@ func TestSharedDaemonStandin(t *testing.T) {
 	waitEvent(t, "shared-session", "observation_end", 0, 0, 5*time.Second)
 	waitEvent(t, "shared-session", "candidate_survivor", laterPID, 0, 5*time.Second)
 	waitEvent(t, "shared-session", "candidate_count", 0, 0, 5*time.Second)
+	// Only this later child starts after the observation has actually ended.
+	if _, err = input.Write([]byte("continue\n")); err != nil {
+		t.Fatal(err)
+	}
+	if !scanner.Scan() {
+		t.Fatal("missing post-end child")
+	}
+	postPID, err := strconv.Atoi(scanner.Text())
+	if err != nil {
+		t.Fatal(err)
+	}
+	postChild, _ := os.FindProcess(postPID)
+	defer func() { _ = postChild.Kill() }()
 	events := readEvents(t)
 	var baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned, daemonReaped, correctEnd bool
 	for _, e := range events {
@@ -429,6 +447,47 @@ func TestSharedDaemonStandin(t *testing.T) {
 	}
 	if !baselineSeen || baselineSurvivor || !timing || !rootSeen || !baselineCount || !candidateCount || owned || daemonReaped || !correctEnd {
 		t.Fatalf("baseline=%v reported_candidate=%v timing=%v root=%v baseline_count=%v candidate_count=%v owned=%v reaped=%v end=%v", baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned, daemonReaped, correctEnd)
+	}
+	if os.Getenv("GIMBAL_PROCESSDEBUG_LONG_TEST") == "1" {
+		// Eliminate the pre-end candidate so only the post-end child remains.
+		if err := laterChild.Kill(); err != nil {
+			t.Fatal(err)
+		}
+		waitEvent(t, "shared-session", "candidate_count", 0, 10, 15*time.Second)
+		// Let the observer finish its warning write after publishing the count.
+		time.Sleep(250 * time.Millisecond)
+		for _, e := range readEvents(t) {
+			if e.Owner != "shared-session" {
+				continue
+			}
+			if e.Process != nil && e.Process.PID == postPID && (e.Event == "candidate" || e.Event == "candidate_survivor") {
+				t.Fatal("post-end child joined frozen cohort")
+			}
+			if e.Event == "candidate_count" && e.ObservationAgeSeconds >= 10 && e.Count != 0 {
+				t.Fatalf("post-end activity inflated count: %d", e.Count)
+			}
+		}
+		b, err := os.ReadFile(dir + "/shared-warnings")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(b), "shared-daemon candidates remain") {
+			t.Fatal("post-end activity triggered a survivor warning")
+		}
+	}
+
+	// An observation ending during discovery cannot invent a baseline.
+	early := Candidates("early-end")
+	early.End()
+	waitEvent(t, "early-end", "baseline_count", 0, 0, 5*time.Second)
+	gap := false
+	for _, e := range readEvents(t) {
+		if e.Owner == "early-end" && e.Event == "unavailable" && strings.Contains(e.Detail, "before its first census") {
+			gap = true
+		}
+	}
+	if !gap {
+		t.Fatal("missing baseline-unavailable observation")
 	}
 	// The reap signal still terminates a result-missing worker observation.
 	missing := ExecutorCandidates("missing-result", "session_1", "", dir+"/never-published", nil, os.ErrNotExist)

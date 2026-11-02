@@ -155,6 +155,7 @@ type Owner struct {
 	reap                        chan struct{}
 	stop                        chan struct{}
 	endOnce, reapOnce, stopOnce sync.Once
+	endRequested                atomic.Bool
 }
 
 func Start(kind, id string, pid int) *Owner {
@@ -210,7 +211,7 @@ func (o *Owner) StopRequested() {
 }
 func (o *Owner) End() {
 	if o != nil {
-		o.endOnce.Do(func() { close(o.end) })
+		o.endOnce.Do(func() { o.endRequested.Store(true); close(o.end) })
 	}
 }
 
@@ -303,18 +304,30 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 				l.write(event{Event: "unavailable", Owner: id, Detail: "launch identity not observed; descendants cannot be attributed"})
 			}
 		}
-		added, dropped := discover(known, snapshot)
-		if dropped > 0 && !processCapacityReported {
-			processCapacityReported = true
-			l.dropped.Add(uint64(dropped))
-			l.write(event{Event: "dropped_process", Owner: id, Count: dropped, Detail: "process attribution capacity reached"})
+		// Shared candidates are a sampled cohort observed before the end signal
+		// or result publication. Never add daemon activity during the grace period.
+		canDiscover := !shared || (ended.IsZero() && !o.endRequested.Load() && !resultPublished(result, prior, priorErr))
+		if shared && firstSample && !canDiscover {
+			l.write(event{Event: "unavailable", Owner: id, Detail: "observation ended before its first census; baseline and pre-end cohort unavailable"})
 		}
-		for _, item := range classify(added, shared, firstSample, baseline) {
-			p := item.process
-			l.write(event{Event: item.label, Owner: id, Process: &p})
+		if canDiscover {
+			added, dropped := discover(known, snapshot)
+			if dropped > 0 && !processCapacityReported {
+				processCapacityReported = true
+				l.dropped.Add(uint64(dropped))
+				l.write(event{Event: "dropped_process", Owner: id, Count: dropped, Detail: "process attribution capacity reached"})
+			}
+			for _, item := range classify(added, shared, firstSample, baseline) {
+				p := item.process
+				l.write(event{Event: item.label, Owner: id, Process: &p})
+			}
 		}
 		if firstSample && shared {
-			l.write(event{Event: "baseline_count", Owner: id, Count: len(baseline), Detail: "first census may include work begun before or during discovery; missed ancestry remains unknown"})
+			detail := "first census may include work begun before or during discovery; missed ancestry remains unknown"
+			if !canDiscover {
+				detail = "baseline unavailable because observation ended before its first census"
+			}
+			l.write(event{Event: "baseline_count", Owner: id, Count: len(baseline), Detail: detail})
 		}
 		firstSample = false
 
@@ -353,7 +366,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			detail := "missed ancestry unknown"
 			if shared {
 				label = "candidate_count"
-				detail = "first seen after baseline, not proven new; other clients and missed ancestry remain possible"
+				detail = "cohort first seen after baseline and before observation end; sampling may miss ancestry and other clients remain possible"
 				l.write(event{Event: "baseline_alive_count", Owner: id, Count: baselineCount, Detail: "baseline processes are not candidates"})
 			}
 			e := event{Event: label, Owner: id, Count: count, Detail: fmt.Sprintf("dropped=%d; %s", l.dropped.Load()+droppedOwners.Load(), detail)}
@@ -418,11 +431,11 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 				lastDrops = n
 			}
 			if ended.IsZero() {
-				sample()
-				if result != "" {
-					if info, err := os.Stat(result); err == nil && resultChanged(prior, priorErr, info) {
-						finish("owner_end")
-					} else if !reapedAt.IsZero() && time.Since(reapedAt) > 2*time.Second {
+				if result != "" && resultPublished(result, prior, priorErr) {
+					finish("owner_end")
+				} else {
+					sample()
+					if result != "" && !reapedAt.IsZero() && time.Since(reapedAt) > 2*time.Second {
 						l.write(event{Event: "unavailable", Owner: id, Detail: "worker reaped without observed result; logical owner end unknown"})
 						return
 					}
@@ -442,6 +455,14 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			}
 		}
 	}
+}
+
+func resultPublished(path string, prior os.FileInfo, priorErr error) bool {
+	if path == "" {
+		return false
+	}
+	info, err := os.Stat(path)
+	return err == nil && resultChanged(prior, priorErr, info)
 }
 
 // A pre-existing result must change before it can mark this launch complete.

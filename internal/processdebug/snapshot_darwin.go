@@ -22,7 +22,7 @@ func snapshotSystem() (map[int]process, error) {
 		if pid <= 0 {
 			continue
 		}
-		out[pid] = process{PID: pid, Parent: int(p.Eproc.Ppid), Group: int(p.Eproc.Pgid), Birth: fmt.Sprintf("%d.%06d", p.Proc.P_starttime.Sec, p.Proc.P_starttime.Usec), Executable: strings.TrimRight(string(p.Proc.P_comm[:]), "\x00")}
+		out[pid] = process{PID: pid, Parent: int(p.Eproc.Ppid), Group: int(p.Eproc.Pgid), Birth: fmt.Sprintf("%d.%06d", p.Proc.P_starttime.Sec, p.Proc.P_starttime.Usec), Executable: cString(p.Proc.P_comm[:])}
 	}
 	return out, nil
 }
@@ -38,3 +38,5 @@ func initialIdentity(pid int) (process, error) {
 	}
 	return process{PID: int(p.Proc.P_pid), Birth: fmt.Sprintf("%d.%06d", p.Proc.P_starttime.Sec, p.Proc.P_starttime.Usec)}, nil
 }
+
+func cString(b []byte) string { s, _, _ := strings.Cut(string(b), "\x00"); return s }

@@ -9,3 +9,7 @@ constraint: Root checkout has unrelated user edits and could not fast-forward sa
 implementation correction: Logical owner completion and OS reap are distinct diagnostic events. End observations from existing result publication/service stop boundaries so a still-alive worker can be reported; ending only after Wait can detect descendants but can never identify the root worker surviving completion. Anchor birth identity before the wait goroutine may reap, and fail unknown identity as an observation gap.
 
 friction: A new worktree has no generated frontend manifest. Prepare it with just build before broad Go tests; failures from absent assets do not justify product-code changes.
+
+review correction: Shared-daemon first-census children are a timestamped baseline, not evidence of pre-work existence or task ownership; later first-seen children remain uncertain candidates. Record discovery delay so early work hidden in the baseline is visible as an observation limitation. Normal service stop initiation is neutral, with qualified warnings reserved for survivors at the later grace samples.
+
+test correction: Repeated in-process tests cannot reuse a sync.Once logger pointed at a deleted t.TempDir. Run real observer fixtures in isolated subprocesses and verify the complete sampling path, not only classification helpers. Capture tool process exit codes explicitly; absence of FAIL text alone is not an exit-status assertion.

@@ -1,7 +1,10 @@
 # Resource-lifetime repair: task definition and acceptance
 
-Status: draft for independent review and Tyler's approval. No runtime experiment
-or implementation is authorized by this document until that approval.
+Status: approved for execution. After independent review reached only nitpicks,
+Tyler instructed this chat to execute if it recommends approval as written;
+the task owner recommends the reviewed plan and is executing it. The separate
+release integration-window hold forbids main merges, version preparation,
+release dispatch and stable-tag changes during this qualification.
 
 ## Goal and established scope
 
@@ -60,9 +63,10 @@ tool processes, native workers or server-side loaded threads have unloaded.
    to external resource observations; do not infer invisible internals from a
    process count alone. Resource behavior that cannot be attributed or observed
    leaves the relevant claim unmet.
-   Include one two-session concurrent Group lifetime and one two-worker
-   concurrent cold start against a verified private daemon. Sequential-only
-   observations cannot satisfy the full stabilization claim.
+   Include one two-session concurrent Group lifetime using an already-running
+   daemon. Sequential-only observations cannot satisfy the full stabilization
+   claim. A separate interprocess startup-lock claim below does not establish
+   resource stabilization.
 3. Integration, executor/adapter/native daemon: a retained human session resumes
    with the same native identity and can do another real turn after detach.
    A separate disposable client sharing the endpoint remains usable across
@@ -79,6 +83,13 @@ tool processes, native workers or server-side loaded threads have unloaded.
    Integration, workflow/executor/OS: observed private workers and identifiable
    tool children exit and are reaped after their owner lifetimes; no retained
    retry worker or cleanup journal is used to manufacture convergence.
+6. Cell-local, adapter/startup: an OS-managed interprocess file lock serializes
+   Gimbal workers targeting the same daemon across the recheck/start/readiness
+   critical section. A waiting worker checks status again under the lock before
+   deciding whether to start. Process exit releases the OS lock; a cancelled
+   waiter can leave. Demonstrate exclusion and release with real subprocess
+   package tests. This closes the specific concurrent-start vulnerability; it
+   neither attributes the historical incident nor proves a process leak fixed.
 
 Done requires all integration claims on the actual candidate and independent
 validation of their evidence, plus applicable checks. State claims separately;
@@ -113,7 +124,7 @@ A completed result winning the race counts as a normal lifetime. Re-attempt
 with a larger read-only fixture, at most three attempts per required cancellation
 observation, then report the cancellation observation as unobtained.
 
-The two-session Group, concurrent private cold-start and terminal real-failure
+The two-session Group and terminal real-failure
 cases are repeatable integration tests in their owning package, using ordinary
 Gimbal Run/Group and the actual native executor/daemon, with no fake provider.
 They may be added after approval. The Group case covers real concurrent worker
@@ -134,24 +145,8 @@ and focused regressions; external counts alone never establish their release.
 The opt-in debug descriptor is covered by the focused package test; live raw
 protocol recording is unnecessary and remains disabled.
 
-For claim 4, the first-choice failure target is a disposable instance and native
-daemon isolated under its own CODEX_HOME, inherited by its workers. Establish
-from local installed CLI documentation/configuration whether home selection
-actually isolates its daemon endpoint. After approval, verify a distinct
-socket/PID and ownership before any stop or cold-start action; CODEX_HOME alone
-is not proof of isolation. Reuse existing authentication through a supported
-configuration without exposing secrets. Never copy auth.json or other credentials
-by default; if supported separate-home authentication is unavailable, the
-private vehicle is unavailable. Destructive private-daemon tests require
-GIMBAL_LIVE plus an explicit opt-in naming the test-owned home, and an in-test
-isolation guard that fails closed if the resolved socket equals the default
-home's socket or ownership cannot be established. On that
-verified private daemon, interrupt its connection/service during an acknowledged
-active tool turn; assert honest failure/uncertainty and local release. Also
-exercise the two-worker cold start after stopping only this private daemon.
-
-If a private daemon is unavailable, the second-choice failure target is the
-test-owned adapter connection to the existing daemon: use the live test's
+For claim 4, use the test-owned adapter connection to the existing daemon and
+the live test's
 `ad.current().ws.CloseNow()` technique without touching the daemon listener or
 another client. The package test's adapter.dial hook rejects only this adapter's
 redial after connection loss, inducing a local connection failure on the real
@@ -159,9 +154,16 @@ session without substituting a provider. Extend the owning live test to exercise
 not only successful reconnect. The existing
 `TestActiveTurnReconnectPreservesToolEffectLive` supports the exactly-once
 tool-effect/reconciliation observation but its recovered success alone does not
-satisfy the terminal failure claim. If neither vehicle safely exercises the
-required failure, leave claim 4 unmet. An unavailable private cold-start case
-also leaves that part of claim 2 unmet; disclose it rather than waiving it.
+satisfy the terminal failure claim. Report what each test establishes: forced
+redial rejection demonstrates failure/release; successful real redial with an
+exactly-once tool effect demonstrates recovery without blind replay. Neither
+observation alone establishes the other behavior. If a required observation
+cannot safely be obtained, leave the relevant claim unmet.
+
+Tyler explicitly replaced the authenticated private cold-start experiment with
+the startup-lock implementation and subprocess proof in claim 6. No additional
+login or credential copying is needed. The accepted requirement is exclusion of
+Gimbal's competing starts, not proof that the historical startup race occurred.
 
 ### Observation sequence
 
@@ -185,8 +187,8 @@ is not a Gimbal leak; a vendor-created resource caused by our work is in scope.
 
 Use up to two warmup lifetimes followed by three sequential repetitions of each
 normal/cancel/error case, sampling the same persistent owners at each boundary.
-Add the bounded two-session Group and private concurrent cold start described
-above. Also exercise human-session resumption and a second disposable shared client.
+Add the bounded two-session Group described above. Also exercise human-session
+resumption and a second disposable shared client.
 Use unversioned luna for Codex observation turns and report the resolved model.
 Keep concurrency at two sessions/workers for these observations.
 

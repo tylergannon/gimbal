@@ -19,6 +19,7 @@ import (
 
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/internal/modelalias"
 	"github.com/tylergannon/gimbal/runstore"
 )
 
@@ -26,7 +27,7 @@ import (
 // the adapter's current WebSocket out from under it must not orphan a turn
 // on a session that already exists. It talks to the machine's real shared
 // `codex app-server` daemon (never restarting it) using the cheap model
-// gpt-5.6-luna, so it only runs when explicitly requested:
+// luna, so it only runs when explicitly requested:
 //
 //	GIMBAL_LIVE=1 go test ./codex -run TestRunTurnAfterRedialResumesThread -v
 //
@@ -55,7 +56,7 @@ func TestRunTurnAfterRedialResumesThread(t *testing.T) {
 	defer cancel()
 	ctx = gimbal.Project(ctx, dir)
 
-	err := gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: liveLuna(t)}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 
 		first, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: one.")
@@ -217,7 +218,7 @@ func (a *adapter) current() *connection {
 // (proving Close also releases a session whose only allocation was
 // thread/fork, not thread/start), and lets gimbal.Run's root scope end.
 // It talks to the machine's real shared `codex app-server` daemon, using
-// the cheap model gpt-5.6-luna, so it only runs when explicitly requested:
+// the cheap model luna, so it only runs when explicitly requested:
 //
 //	GIMBAL_LIVE=1 go test ./codex -run TestCloseArchivesThreadsWithoutTouchingTheDaemon -v
 func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
@@ -247,7 +248,7 @@ func TestCloseArchivesThreadsWithoutTouchingTheDaemon(t *testing.T) {
 	defer cancel()
 	ctx = gimbal.Project(ctx, dir)
 
-	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: liveLuna(t)}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
@@ -349,7 +350,7 @@ func TestCloseArchivesThroughARedialedConnection(t *testing.T) {
 	ctx = gimbal.Project(ctx, dir)
 
 	var dead *connection
-	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-redial-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-close-redial-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: liveLuna(t)}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: proof."); err != nil {
 			return err
@@ -412,7 +413,7 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 	defer cancel()
 
 	first := New().(*adapter)
-	thread, err := first.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), "gpt-5.6-luna", "low", workdir)
+	thread, err := first.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), liveLuna(t), "low", workdir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,7 +430,7 @@ func TestDetachedConversationResumesTheSameNativeThread(t *testing.T) {
 	}
 
 	second := New().(*adapter)
-	if err := second.ResumeSession(ctx, thread, "gpt-5.6-luna", "low", workdir); err != nil {
+	if err := second.ResumeSession(ctx, thread, liveLuna(t), "low", workdir); err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
@@ -498,7 +499,7 @@ func TestForkOfAnArchivedParentFailsWithoutAGhost(t *testing.T) {
 	loadedBefore := loadedSet(t, probe)
 
 	var parent string
-	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-fork-archived-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err = gimbal.Run(ctx, string(runstore.NewRunID()), "daemon-fork-archived-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"live": {Adapter: ad, Model: liveLuna(t)}}, func(ctx context.Context) error {
 		session := gimbal.NewSession(ctx, "live", dir)
 		if _, err := session.Generate[gimbal.Text](ctx, "Reply with exactly one word: parent."); err != nil {
 			return err
@@ -598,31 +599,44 @@ func decodeThreadEntry(entry json.RawMessage) (string, bool) {
 	return "", false
 }
 
-// managedDaemonPID returns the pid of the machine's managed app-server
-// daemon: the process started by `codex app-server daemon start`,
-// listening on its control socket. `pgrep -fl 'app-server --listen unix'`
-// also matches the shell wrapper that launched it (its command line embeds
-// the same text), so this keeps only the pid whose command actually starts
-// with `codex `.
+// managedDaemonPID identifies the process listening on the selected daemon socket.
 func managedDaemonPID() (string, error) {
-	out, err := exec.Command("pgrep", "-fl", "app-server --listen unix").Output()
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
+	socket, running, err := daemonStatus(ctx)
+	if err != nil || !running {
+		return "", fmt.Errorf("selected daemon status: running=%t: %w", running, err)
+	}
+	resolved, err := filepath.EvalSymlinks(socket)
 	if err != nil {
-		return "", fmt.Errorf("pgrep: %w", err)
+		return "", fmt.Errorf("resolve daemon socket %s: %w", socket, err)
 	}
-	for line := range strings.SplitSeq(strings.TrimSpace(string(out)), "\n") {
-		fields := strings.SplitN(strings.TrimSpace(line), " ", 2)
-		if len(fields) == 2 && strings.HasPrefix(fields[1], "codex ") {
-			return fields[0], nil
-		}
+	out, err := exec.CommandContext(ctx, "lsof", "-t", "--", resolved).Output()
+	if err != nil {
+		return "", fmt.Errorf("identify listener for %s: %w", socket, err)
 	}
-	return "", fmt.Errorf("no managed daemon process found in:\n%s", out)
+	pids := strings.Fields(string(out))
+	if len(pids) != 1 {
+		return "", fmt.Errorf("socket %s has %d owners: %v", socket, len(pids), pids)
+	}
+	return pids[0], nil
+}
+
+func liveLuna(t *testing.T) string {
+	t.Helper()
+	resolved, err := modelalias.Resolve(modelalias.Selection{Name: "luna"})
+	if err != nil || resolved.Harness != "codex" {
+		t.Fatalf("resolve luna: %+v, %v", resolved, err)
+	}
+	t.Logf("luna resolves to %s", resolved.Model)
+	return resolved.Model
 }
 
 // Socket loss during an active tool uses the shared daemon without stopping or
 // restarting it. The file effect precedes loss and must occur exactly once.
 func TestActiveTurnReconnectPreservesToolEffectLive(t *testing.T) {
 	if os.Getenv("GIMBAL_LIVE") != "1" {
-		t.Skip("set GIMBAL_LIVE=1; uses gpt-5.6-luna")
+		t.Skip("set GIMBAL_LIVE=1; uses luna")
 	}
 	ad := New().(*adapter)
 	dir := t.TempDir()
@@ -651,7 +665,7 @@ func TestActiveTurnReconnectPreservesToolEffectLive(t *testing.T) {
 		}
 	}()
 	validations := 0
-	err := gimbal.Run(gimbal.Project(ctx, dir), string(runstore.NewRunID()), "active-reconnect-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coding": {Adapter: ad, Model: "gpt-5.6-luna"}, "qa": {Adapter: ad, Model: "gpt-5.6-luna"}}, func(ctx context.Context) error {
+	err := gimbal.Run(gimbal.Project(ctx, dir), string(runstore.NewRunID()), "active-reconnect-live", map[gimbal.WorkflowRole]gimbal.ModelBinding{"coding": {Adapter: ad, Model: liveLuna(t)}, "qa": {Adapter: ad, Model: liveLuna(t)}}, func(ctx context.Context) error {
 		for taskCtx, stage := range gimbal.Iterate(ctx, "outcome", []string{"first", "second", "third"}) {
 			gimbal.Set(taskCtx, "stage", stage)
 			gimbal.Set(taskCtx, "effect file", effect)
@@ -688,5 +702,160 @@ func TestActiveTurnReconnectPreservesToolEffectLive(t *testing.T) {
 	if validations != 3 {
 		t.Fatalf("validations=%d", validations)
 	}
-	t.Log("gpt-5.6-luna: active tool socket loss recovered; effect occurred once; each of three outcomes independently validated once")
+	t.Log("luna: active tool socket loss recovered; effect occurred once; each of three outcomes independently validated once")
+}
+
+// TestSharedSessionsReleaseLive checks one connection survives one session's release.
+func TestSharedSessionsReleaseLive(t *testing.T) {
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	ad := New().(*adapter)
+	workdir, model := t.TempDir(), liveLuna(t)
+	ids := make([]string, 2)
+	for i := range ids {
+		var err error
+		ids[i], err = ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), model, "low", workdir)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	defer func() {
+		for _, id := range ids {
+			if id != "" {
+				_ = ad.Close(effects.WithExecutionIdentity(context.Background(), backend.NewExecutionIdentity("close")), id)
+			}
+		}
+	}()
+	conn := ad.current()
+	errs := make(chan error, 2)
+	for _, id := range ids {
+		go func(id string) {
+			_, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "Reply briefly without tools.", nil, func(gimbal.AgentEvent) error { return nil })
+			errs <- err
+		}(id)
+	}
+	for range ids {
+		if err := <-errs; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if ad.current() != conn {
+		t.Fatal("sessions did not share the connection")
+	}
+	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), ids[0]); err != nil {
+		t.Fatal(err)
+	}
+	ids[0] = ""
+	if ad.current() != conn {
+		t.Fatal("release interrupted remaining session")
+	}
+	if _, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), ids[1], "Reply briefly without tools.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), ids[1]); err != nil {
+		t.Fatal(err)
+	}
+	ids[1] = ""
+	if ad.current() != nil {
+		t.Fatal("last release retained connection")
+	}
+	select {
+	case <-conn.readerDone:
+	case <-ctx.Done():
+		t.Fatalf("connection reader did not stop: %v", ctx.Err())
+	}
+	conn.threadsMu.Lock()
+	routes := len(conn.threads)
+	conn.threadsMu.Unlock()
+	if routes != 0 {
+		t.Fatalf("retained %d routes", routes)
+	}
+}
+
+// TestTerminalConnectionFailureLive disconnects only this adapter during a real tool turn.
+func TestTerminalConnectionFailureLive(t *testing.T) {
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	ad := New().(*adapter)
+	ad.recoveryDelay = 10 * time.Millisecond
+	dir := t.TempDir()
+	id, err := ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), liveLuna(t), "low", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The induced release failure cannot archive; clean up only this test thread
+	// using a separately owned connection after the assertions.
+	defer func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+		defer cancel()
+		probe, err := connect(cleanupCtx, false)
+		if err != nil {
+			t.Errorf("connect for test thread cleanup: %v", err)
+			return
+		}
+		defer probe.finishRead(errors.New("test cleanup ended"))
+		if _, err := probe.call(cleanupCtx, "thread/archive", map[string]any{"threadId": id}); err != nil {
+			t.Errorf("archive test thread: %v", err)
+		}
+	}()
+	effect := filepath.Join(dir, "effect")
+	conn := ad.current()
+	ad.dial = func(context.Context, bool) (*connection, error) { return nil, errors.New("test-owned redial rejected") }
+	done := make(chan error, 1)
+	go func() {
+		_, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), id, "Run one shell command that appends one line EFFECT to the file named effect in the working directory and then sleeps 8 seconds. Do not repeat it.", nil, func(gimbal.AgentEvent) error { return nil })
+		done <- err
+	}()
+	for {
+		if raw, err := os.ReadFile(effect); err == nil && len(raw) > 0 {
+			break
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("turn ended before tool effect: %v", err)
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		case <-time.After(20 * time.Millisecond):
+		}
+	}
+	if err := conn.ws.CloseNow(); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err == nil {
+		t.Fatal("terminal connection loss reported success")
+	} else {
+		t.Logf("turn failure: %v", err)
+	}
+	if err := ad.Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), id); err == nil {
+		t.Fatal("release unexpectedly succeeded after rejecting redial")
+	} else {
+		t.Logf("release failure: %v", err)
+	}
+	if ad.current() != nil {
+		t.Fatal("failed release retained connection")
+	}
+	select {
+	case <-conn.readerDone:
+	case <-ctx.Done():
+		t.Fatalf("connection reader did not stop: %v", ctx.Err())
+	}
+	ad.mu.Lock()
+	sessions := len(ad.sessions)
+	ad.mu.Unlock()
+	conn.threadsMu.Lock()
+	routes := len(conn.threads)
+	conn.threadsMu.Unlock()
+	if sessions != 0 || routes != 0 {
+		t.Fatalf("retained sessions=%d routes=%d", sessions, routes)
+	}
+	raw, err := os.ReadFile(effect)
+	if err != nil || string(raw) != "EFFECT\n" {
+		t.Fatalf("effect=%q: %v", raw, err)
+	}
 }

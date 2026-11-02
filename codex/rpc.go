@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/coder/websocket"
 )
@@ -95,30 +94,9 @@ func connect(ctx context.Context, startDaemon bool) (*connection, error) {
 		if !startDaemon {
 			return nil, errDaemonNotRunning
 		}
-		// Raise this process's own descriptor limit so the daemon we are
-		// about to start inherits it, not the login shell's default; see
-		// raiseFileDescriptorLimit's doc.
-		raiseFileDescriptorLimit()
-		if _, err := runCodex(ctx, "app-server", "daemon", "start"); err != nil {
-			return nil, fmt.Errorf("codex: start app-server daemon: %w", err)
-		}
-		deadline := time.Now().Add(10 * time.Second)
-		for {
-			socketPath, running, err = daemonStatus(ctx)
-			if err != nil {
-				return nil, err
-			}
-			if running {
-				break
-			}
-			if time.Now().After(deadline) {
-				return nil, fmt.Errorf("codex: app-server daemon did not come up within 10s")
-			}
-			select {
-			case <-time.After(100 * time.Millisecond):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
+		socketPath, err = startDaemonLocked(ctx, socketPath)
+		if err != nil {
+			return nil, err
 		}
 	}
 

@@ -1,0 +1,10 @@
+# Distributed-execution task definition
+
+decision: Tyler chose a real two-computer first slice: workflow/local tasks on A, remote session on B, fresh workflow context consumed remotely through an intermediary. Favor the happy path and modest restart reconciliation.
+correction: Tyler explicitly removed enforced network denial from final acceptance, not merely from an initial checkpoint. Source/configuration/observed-connection attestation replaces it. Older distributed proposal and architecture-gate wording must not reintroduce a partition experiment.
+decision: User explicitly requested registering and pursuing the goal; goal is active in this chat. Existing explicit task/DoD approval gate remains before implementation or consequential experiments/publication.
+decision: #664 owner reserved release integration; main merges, version preparation, release dispatch and stable-tag changes are held. Acknowledged to parent A; no runtime/runner conflict is active here.
+discovery: Current worktree is a3ee508b; changes since proposal baseline 2f67be83 concern inventory tests/release notes, not distributed runtime repair. River plugin uses MaxAttempts=1 and explicitly does not resume native execution after worker loss; queue delivery cannot be presented as restart recovery.
+discovery: Ordinary Set/SetJSON context and confidential scoped stores have separate existing contracts. Draft defaults to ordinary context pending Tyler's answer, including complete-value artifact transfer.
+correction: The River plugin's header understates native daemon recovery: internal/taskdaemon/persistence.go restores native mappings, and Messages reconciles repeated original identities/results. The remaining River reconnect/redelivery/publication behavior requires inspection and live proof; do not describe all native recovery as missing based on the plugin comment.
+decision: Independent task-definition reviewer session is b0717a8e-4ad5-4238-9167-addc6015bc52; round 01 artifact is ephemeral/reviews/distributed-execution-task-round-01.md. This is task review, not implementation validation or proof.

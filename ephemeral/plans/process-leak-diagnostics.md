@@ -30,6 +30,9 @@ workflow and native cancellation/recovery semantics remain authoritative.
   active services have their own owner lifetimes. Process names alone never
   determine legitimacy. Shared-daemon descendants without established task
   ownership are labelled candidates, distinct from known-owned survivors.
+- Shared survivor checks use the cohort observed before that observation ends.
+  Later shared-daemon activity is not retroactively attributed to the closed
+  cohort. Known-owned ancestry and its later descendants remain a separate case.
 - Reports support inspection of survivor ages and count trends across completed
   owners, without conflating unrelated Desktop clients with Gimbal work.
 - Emit bounded, rotating private local diagnostics and warnings with a discoverable

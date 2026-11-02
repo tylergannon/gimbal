@@ -1,5 +1,9 @@
 # Temporary process-leak diagnostics
 
+Status: implemented by Terra, independently validated by Sonnet, and reviewed
+by the task owner. PR #667 is ready for review and remains unmerged. Final
+assessment: ../reviews/process-diagnostics-owner-review.md.
+
 Tyler approved implementation of the process-diagnostics proposal in this chat
 and assigned Terra implementation, Sonnet validation, and the task owner's
 review. This is a new task after merged resource repair #665; its startup-lock

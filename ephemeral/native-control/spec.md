@@ -1,7 +1,8 @@
 # Gimbal native Mac control: proposed contract and feasibility gate
 
-**Draft for Tyler's explicit approval. Not approved for installation,
-implementation or runtime experiments.** November 1, 2026.
+**Approved by Tyler, November 1, 2026:** the written spec and bounded feasibility
+gate, including scoped installation and one fresh execution-owner chat if needed.
+Amrita runtime use must first be coordinated with A. The release hold remains.
 
 ## Overview and goals
 

@@ -1,6 +1,7 @@
 # Implementation and validation plan
 
-Draft; governed by `spec.md`, awaiting explicit written-spec approval from Tyler.
+Governed by `spec.md`; Tyler explicitly approved the written spec and bounded
+feasibility gate on November 1, 2026. Remote execution awaits A's host window.
 
 1. Sol completes and independently reviews the read-only interface audit before
    choosing an experiment. Review artifacts are separate, numbered rounds.

@@ -1,6 +1,7 @@
 # Approval brief: native Mac control feasibility
 
-**Awaiting Tyler's explicit approval. No installation or native experiment has run.**
+**Approved by Tyler, November 1, 2026.** No installation or native experiment has
+run yet. Amrita runtime use awaits A's confirmed window; the release hold remains.
 
 Goal: Gimbal initiates native control on Amrita while Locked Use remains enabled,
 without manual unlock. A Desktop-dependent worker is acceptable. One Desktop

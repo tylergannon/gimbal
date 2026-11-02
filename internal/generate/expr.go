@@ -148,6 +148,17 @@ func (e *extractor) gimbalOperation(name string, call *ast.CallExpr, targets []a
 	e.nested(call.Pos(), "a Gimbal call's arguments", plainArguments(name, call)...)
 	declarations := e.callDeclarations(call)
 	switch name {
+	case "WithEnvironment":
+		d := workflow.EnvironmentDeclaration{Source: e.at(call.Pos())}
+		if value, ok := e.constant(call, 1); ok {
+			d.Name = value
+		} else if len(call.Args) > 1 {
+			if selector, ok := unparen(call.Args[1]).(*ast.SelectorExpr); ok && !e.inputMutated && e.object(selector.X) == e.input {
+				d.Input = e.inputFields[selector.Sel.Name]
+			}
+		}
+		e.environments = append(e.environments, d)
+		return true
 	case "NewSession":
 		role, ok := e.constant(call, 1)
 		if !ok {

@@ -6,6 +6,7 @@ const runID = "01M2SERVICES00000000000000";
 const started = 1_800_000_000_000;
 
 export const serviceOwnershipGraph: Graph = {
+  environments: [],
   name: "service-ownership",
   source: { file: workflowFile, line: 10 },
   services: [{ requirements: [], yields: [], file: workflowFile, line: 11, name: "root-db" }],

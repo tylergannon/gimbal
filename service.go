@@ -47,6 +47,9 @@ func Service(ctx context.Context, name, workdir, command string) (result error) 
 	if err := ctx.Err(); err != nil {
 		return fmt.Errorf("gimbal: service %q: %w", name, err)
 	}
+	if selected, ok := effects.EnvironmentSelected(ctx); ok && (strings.TrimSpace(selected) == "" || (effects.Messages(ctx) == nil && (selected != "local" || effects.Endpoint(ctx) != ""))) {
+		return fmt.Errorf("gimbal: environment %q has no configured messaging namespace", selected)
+	}
 
 	id, node := scope.nextNode(runstore.Service, name)
 	var admitted struct {

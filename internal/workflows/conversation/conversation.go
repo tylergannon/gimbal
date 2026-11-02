@@ -11,10 +11,13 @@ import (
 type Params struct {
 	// Purpose describes what the conversation should help the human accomplish.
 	Purpose string `json:"purpose"`
+	// Environment is the selected logical execution environment.
+	Environment string `json:"environment"`
 }
 
 // Conversation remains available until the human finishes it.
 func Conversation(ctx context.Context, env gimbal.Env, params Params) error {
+	ctx = gimbal.WithEnvironment(ctx, params.Environment)
 	gimbal.Set(ctx, "purpose", params.Purpose)
 	agent := gimbal.NewSession(ctx, gimbal.RoleAgenticDialogues, env.WorkDir)
 	for {

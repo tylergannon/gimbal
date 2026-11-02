@@ -61,3 +61,28 @@ func TestServiceCheckGraphValueDeclarations(t *testing.T) {
 		t.Fatalf("web requirements: %+v", scope.Services[1].Requirements)
 	}
 }
+
+func TestEnvironmentDeclarations(t *testing.T) {
+	graph, err := generate.Extract("testdata/fixture", "EnvironmentShape", "environment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph.Environments) != 3 {
+		t.Fatalf("declarations: %+v", graph.Environments)
+	}
+	if graph.Environments[0].Name != "alpha" || graph.Environments[1].Input != "environment" || graph.Environments[2].Name != "" || graph.Environments[2].Input != "" {
+		t.Fatalf("declarations: %+v", graph.Environments)
+	}
+}
+
+func TestMutatedEnvironmentInputIsIndeterminate(t *testing.T) {
+	for _, entry := range []string{"MutatedEnvironmentShape", "MethodMutatedEnvironmentShape"} {
+		graph, err := generate.Extract("testdata/fixture", entry, "environment")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(graph.Environments) != 1 || graph.Environments[0].Input != "" || graph.Environments[0].Name != "" {
+			t.Fatalf("%s: mutated input treated as declared: %+v", entry, graph.Environments)
+		}
+	}
+}

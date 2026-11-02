@@ -123,6 +123,7 @@ type activeConversation struct {
 // conversation sessions may persist their native identity with the transcript.
 type Manager struct {
 	workflowMu      sync.Mutex
+	WorkflowPrepare func(context.Context, string, backend.Route) error
 	WorkflowStart   func(context.Context, Conversation, backend.Route) error
 	WorkflowInput   func(string, string, string) error
 	WorkflowObserve func(string) (gimbal.InteractiveTranscript, string, []string, error)
@@ -241,6 +242,37 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		return Conversation{}, err
 	}
 	in.Model, in.Effort = model, strings.TrimSpace(in.Effort)
+	// The host validates the selected namespace before setup can connect or provision.
+	if m.WorkflowPrepare != nil {
+		environment := in.Environment
+		if environment == "" {
+			environment = environments.Local
+		}
+		route := backend.Route{}
+		if environment != environments.Local {
+			m.mu.RLock()
+			service, projectID := m.environments, m.projectID
+			m.mu.RUnlock()
+			if service == nil {
+				return Conversation{}, errors.New("conversation: environment service unavailable")
+			}
+			target, err := service.Resolve(ctx, projectID, environment)
+			if err != nil {
+				return Conversation{}, err
+			}
+			route = target.Route
+			if id := m.pendingRemotePreparation(in, provider, model); id != "" {
+				m.mu.RLock()
+				if state := m.remoteStates[id]; state != nil {
+					route = state.Target.Route
+				}
+				m.mu.RUnlock()
+			}
+		}
+		if err := m.WorkflowPrepare(ctx, environment, route); err != nil {
+			return Conversation{}, err
+		}
+	}
 	m.mu.RLock()
 	observedEnvironment := m.environments != nil
 	m.mu.RUnlock()

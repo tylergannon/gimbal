@@ -10,16 +10,19 @@ import (
 
 // Graph is the shape of this workflow, read from the source of Conversation.
 var Graph = workflow.Graph{
-	Name:     "conversation",
-	Source:   workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 17},
+	Name:   "conversation",
+	Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 19},
+	Environments: []workflow.EnvironmentDeclaration{
+		{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 20}, Name: "", Input: "environment"},
+	},
 	Services: []workflow.Service{},
 	Body: []workflow.Operation{
-		workflow.Set{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 18}, Key: "purpose"},
-		workflow.Session{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 19}, Name: "agentic-dialogues", From: ""},
-		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 20}, Cond: "", Body: []workflow.Operation{
-			workflow.Interactive{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 21}, Name: "conversation", Session: "agentic-dialogues"},
-			workflow.Condition{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 25}, Branches: []workflow.Branch{
-				{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 25}, Case: "transcript.EndedBy == \"human\"", Exits: true, Body: []workflow.Operation{}},
+		workflow.Set{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 21}, Key: "purpose"},
+		workflow.Session{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 22}, Name: "agentic-dialogues", From: ""},
+		workflow.Repeat{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 23}, Cond: "", Body: []workflow.Operation{
+			workflow.Interactive{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 24}, Name: "conversation", Session: "agentic-dialogues"},
+			workflow.Condition{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 28}, Branches: []workflow.Branch{
+				{Source: workflow.Source{File: "internal/workflows/conversation/conversation.go", Line: 28}, Case: "transcript.EndedBy == \"human\"", Exits: true, Body: []workflow.Operation{}},
 			}},
 		}},
 	},

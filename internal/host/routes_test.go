@@ -8,14 +8,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
-	"testing"
-	"time"
 
+	"github.com/tylergannon/gimbal/internal/conversation"
+	"testing"
+
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/invocation"
 	"github.com/tylergannon/gimbal/internal/observation"
-	"github.com/tylergannon/gimbal/internal/runner"
 )
 
 func TestRemoteRoutesRestoreControlWithoutSharedRunFiles(t *testing.T) {
@@ -154,13 +156,9 @@ func TestRejectedWorkflowAdmissionIsKnownFailed(t *testing.T) {
 	}
 }
 
-func TestLocalWorkflowRetainsRemoteTaskDirectoryAndRoute(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/tasks/cleanup" {
-			t.Errorf("unexpected native dispatch %s", r.URL.Path)
-		}
-		_ = json.NewEncoder(w).Encode(backend.Reply{})
-	}))
+func TestConversationRejectsPhysicalTaskRouteBeforeDispatch(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }))
 	defer server.Close()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -171,58 +169,9 @@ func TestLocalWorkflowRetainsRemoteTaskDirectoryAndRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	configuration, _ := json.Marshal(map[string]string{"endpoint": server.URL})
-	route := backend.Route{Name: "http", Configuration: configuration, Label: "Separate daemon"}
-	id, err := project.Start(invocation.Request{Workflow: "conversation", Input: json.RawMessage(`{"purpose":"Remote placement."}`), WorkDir: "/only-on-remote-daemon/repository", TaskRoute: route})
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := os.ReadFile(filepath.Join(project.Dir(), "invocations", id+".json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var saved invocation.Request
-	if err := json.Unmarshal(raw, &saved); err != nil {
-		t.Fatal(err)
-	}
-	if saved.WorkDir != "/only-on-remote-daemon/repository" || saved.TaskRoute.Name != "http" || string(saved.TaskRoute.Configuration) != string(configuration) {
-		t.Fatalf("saved placement=%+v", saved)
-	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		control, err := project.Runs().InProgress(id)
-		if err == nil {
-			err = control.SubmitInteractive("conversation", `{"id":"finish","finish":true}`)
-		}
-		if err == nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal(err)
-		}
-		time.Sleep(time.Millisecond)
-	}
-	for {
-		snapshot, err := project.Registry().Snapshot(id)
-		if err == nil && snapshot.Run.Status == observation.StatusCompleted {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("completion=%+v %v", snapshot.Run, err)
-		}
-		time.Sleep(time.Millisecond)
-	}
-	// The completed observation precedes the independent runner's final writes.
-	// Retain its project until invocation cleanup and controller shutdown finish.
-	for {
-		_, invocationErr := os.Stat(filepath.Join(project.Dir(), "invocations", id+".json"))
-		_, controllerErr := runner.Connect(project.Dir(), id)
-		if os.IsNotExist(invocationErr) && controllerErr != nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("completed workflow host did not finish teardown")
-		}
-		time.Sleep(time.Millisecond)
+	_, err = project.Start(invocation.Request{Workflow: "conversation", Input: json.RawMessage(`{"purpose":"Remote placement.","environment":"remote"}`), WorkDir: "/only-on-remote-daemon/repository", TaskRoute: backend.Route{Name: "http", Configuration: configuration}})
+	if err == nil || calls.Load() != 0 {
+		t.Fatalf("physical route admitted: err=%v calls=%d", err, calls.Load())
 	}
 }
 
@@ -256,5 +205,57 @@ func TestFailedStartOutcomeFollowsAdmissionRecord(t *testing.T) {
 		if ok != tc.uncertain || !errors.Is(got, cause) || (ok && uncertain.RequestID != tc.run) {
 			t.Errorf("%s: %v", tc.name, got)
 		}
+	}
+}
+
+func TestConversationHostPassesSelectedEnvironmentToPreflight(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	owner := New(ctx, t.TempDir())
+	defer owner.Close()
+	dir := t.TempDir()
+	project, err := owner.AdmitProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := conversation.Conversation{ID: "conversation", WorkflowRun: "test-run", Worktree: dir, Provider: "codex", Model: "luna", Environment: "unknown-machine"}
+	err = project.conversations.WorkflowStart(ctx, item, backend.Route{})
+	if err == nil || !strings.Contains(err.Error(), `environment "unknown-machine" is not configured`) {
+		t.Fatalf("selection did not reach preflight: %v", err)
+	}
+}
+
+func TestConversationHostPassesSelectedBusAndInputToPreflight(t *testing.T) {
+	seen := false
+	err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{
+		Name: "conversation-bus-test", ExecutionIdentity: true,
+		ValidateConfiguration: func(json.RawMessage) error { t.Fatal("bootstrap validated during preflight"); return nil },
+		ValidateEnvironment: func(raw json.RawMessage, name string) error {
+			seen = string(raw) == `{"namespace":"selected"}` && name == "bob"
+			return errors.New("namespace probe rejected")
+		},
+		Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+			t.Fatal("preflight connected")
+			return nil, nil
+		},
+		Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	owner := New(ctx, t.TempDir())
+	defer owner.Close()
+	dir := t.TempDir()
+	project, err := owner.AdmitProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := conversation.Conversation{ID: "conversation", WorkflowRun: "test-run", Worktree: dir, Provider: "codex", Model: "luna", Environment: "bob"}
+	route := backend.Route{Name: "conversation-bus-test", Configuration: json.RawMessage(`{"namespace":"selected"}`)}
+	err = project.conversations.WorkflowStart(ctx, item, route)
+	if err == nil || !strings.Contains(err.Error(), "namespace probe rejected") || !seen {
+		t.Fatalf("selection and bus did not reach preflight: seen=%v err=%v", seen, err)
 	}
 }

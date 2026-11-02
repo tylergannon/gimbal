@@ -52,8 +52,8 @@ func Submit(ctx context.Context, r backend.MessageRequest) error {
 
 var errEventReached = errors.New("requested messaging fact received")
 
-// Await keeps acceptance uncertainty separate from execution outcome. The
-// original creation bound is retained for every new subscription.
+// Await keeps acceptance uncertainty separate from execution outcome. Replay
+// the whole request: the worker's clock need not agree with the caller's.
 func Await(ctx context.Context, r backend.MessageRequest, until string, onActivity func(json.RawMessage)) (backend.MessageEvent, error) {
 
 	var got backend.MessageEvent
@@ -66,7 +66,7 @@ func Await(ctx context.Context, r backend.MessageRequest, until string, onActivi
 			}
 		}
 	}
-	err := Messages(ctx).ListenEvents(ctx, backend.MessageSelection{RequestID: r.ID}, r.Created, func(e backend.MessageEvent) error {
+	err := Messages(ctx).ListenEvents(ctx, backend.MessageSelection{RequestID: r.ID}, time.Time{}, func(e backend.MessageEvent) error {
 		if e.Resource != nil {
 			observeResource(*e.Resource)
 		}

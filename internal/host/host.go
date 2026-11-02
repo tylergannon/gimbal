@@ -157,8 +157,13 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
+	conversations.WorkflowPrepare = func(_ context.Context, environment string, route backend.Route) error {
+		input, _ := json.Marshal(map[string]string{"purpose": "conversation", "environment": environment})
+		_, _, err := invocation.Prepare(invocation.Request{Workflow: "conversation", Input: input, TaskRoute: route})
+		return err
+	}
 	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation, route backend.Route) error {
-		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item)})
+		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item), "environment": item.Environment})
 		spec, err := conversation.RoleSpec(item)
 		if err != nil {
 			return err

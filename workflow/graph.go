@@ -21,6 +21,8 @@ package workflow
 type Graph struct {
 	// Name is the workflow's name, which is also the run's name.
 	Name string `json:"name"`
+	// Environments lists every statically declared environment selector.
+	Environments []EnvironmentDeclaration `json:"environments"`
 	// Source anchors the entry function.
 	Source Source `json:"source"`
 	// Services are the long-lived commands the root scope owns, in source
@@ -31,6 +33,14 @@ type Graph struct {
 	// Diagnostics records what the extractor could not read. A graph with
 	// diagnostics has honest holes; it is never completed by a guess.
 	Diagnostics []Diagnostic `json:"diagnostics"`
+}
+
+// EnvironmentDeclaration selects a literal name or a direct workflow input field.
+// An empty Name and Input denotes a selector that could not be determined.
+type EnvironmentDeclaration struct {
+	Source Source `json:"source"`
+	Name   string `json:"name"`
+	Input  string `json:"input"`
 }
 
 // Source is where an operation is written, so a reader can go look at it.

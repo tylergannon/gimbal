@@ -72,7 +72,9 @@ func (s MessageSelection) Matches(e MessageEvent) bool {
 // Messaging retains published events for the configured store lifetime.
 // ListenEvents includes matching events since the inclusive lower bound,
 // including events published before listening, then continues live. Consumers
-// are independent. It returns callback errors unchanged and stops on ctx.
+// are independent. The since bound is diagnostic; execution waits must replay
+// the complete matching request because publisher clocks may differ. It returns
+// callback errors unchanged and stops on ctx.
 // Closing a listener never cancels native work. Publication errors describe
 // delivery uncertainty and must not be interpreted as native execution failure.
 type Messaging interface {

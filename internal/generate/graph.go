@@ -90,16 +90,82 @@ func extractLoaded(pkg *packages.Package, imports map[string]bool, entry, name s
 		e.inspectDiagramComments()
 		e.inspectionContext = e.contextParameter(decl.Type)
 	}
+
+	// The entry parameter object identifies direct selectors, never aliases or expressions.
+	if fn, ok := pkg.TypesInfo.Defs[decl.Name].(*types.Func); ok {
+		params := fn.Type().(*types.Signature).Params()
+		if params.Len() == 3 {
+			e.input = params.At(2)
+			if details, err := describe(pkg, decl); err == nil {
+				e.inputFields = make(map[string]string)
+				for _, f := range details.fields {
+					if f.kind == "string" && !f.optional {
+						e.inputFields[f.name] = f.json
+					}
+				}
+			}
+		}
+	}
+
+	if e.input != nil {
+		ast.Inspect(decl.Body, func(n ast.Node) bool {
+			var targets []ast.Expr
+			switch x := n.(type) {
+			case *ast.AssignStmt:
+				targets = x.Lhs
+			case *ast.IncDecStmt:
+				targets = []ast.Expr{x.X}
+			case *ast.CallExpr:
+				if selector, ok := unparen(x.Fun).(*ast.SelectorExpr); ok && e.object(selector.X) == e.input {
+					e.inputMutated = true
+				}
+			case *ast.UnaryExpr:
+				if x.Op == token.AND {
+					targets = []ast.Expr{x.X}
+				}
+			}
+			for _, target := range targets {
+				if selector, ok := unparen(target).(*ast.SelectorExpr); ok {
+					target = selector.X
+				}
+				if e.object(target) == e.input {
+					e.inputMutated = true
+				}
+			}
+			return true
+		})
+	}
 	body := []workflow.Operation{}
 	services := []workflow.Service{}
 	e.services = &services
 	e.block(decl.Body.List, &body, scopeEnv{blockTail: true, callTail: true})
+	// A call inside syntax the graph walker could not follow must not disappear
+	// from the inventory and become a silently executable selection.
+	ast.Inspect(decl.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		name, ok := e.gimbalCall(call)
+		if !ok || name != "WithEnvironment" {
+			return true
+		}
+		source := e.at(call.Pos())
+		for _, d := range e.environments {
+			if d.Source == source {
+				return true
+			}
+		}
+		e.environments = append(e.environments, workflow.EnvironmentDeclaration{Source: source})
+		return true
+	})
 	return workflow.Graph{
-		Name:        name,
-		Source:      e.at(decl.Pos()),
-		Services:    services,
-		Body:        body,
-		Diagnostics: e.diagnostics,
+		Name:         name,
+		Environments: e.environments,
+		Source:       e.at(decl.Pos()),
+		Services:     services,
+		Body:         body,
+		Diagnostics:  e.diagnostics,
 	}, info, nil
 }
 
@@ -127,6 +193,10 @@ type scopeEnv struct {
 type helperState struct{ emitted bool }
 
 type extractor struct {
+	input             types.Object
+	inputFields       map[string]string
+	inputMutated      bool
+	environments      []workflow.EnvironmentDeclaration
 	sourceImports     map[string]bool
 	declarations      map[types.Object]valueDeclarations
 	inspection        *inspectionData

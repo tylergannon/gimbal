@@ -266,7 +266,7 @@ func TestRemoteConversationPassesItsRetainedTaskRouteToWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if admitted.WorkflowRun == "" || admitted.Worktree != "/remote/project" || taskRoute.Name != "http" {
+	if admitted.WorkflowRun == "" || admitted.Worktree != "/remote/project" || admitted.Environment != "remote-project" || taskRoute.Name != "http" {
 		t.Fatalf("admission=%+v route=%+v", admitted, taskRoute)
 	}
 	m.mu.RLock()
@@ -276,5 +276,52 @@ func TestRemoteConversationPassesItsRetainedTaskRouteToWorkflow(t *testing.T) {
 	wantRaw, _ := json.Marshal(expected)
 	if string(gotRaw) != string(wantRaw) {
 		t.Fatalf("route changed: got %s want %s", gotRaw, wantRaw)
+	}
+}
+
+func TestConversationPassesSelectedNamespaceBusSeparately(t *testing.T) {
+	m, _, _ := remoteManager(t, &remoteFixture{})
+	item, err := m.Create(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bus := backend.Route{Name: "selected-bus", Configuration: json.RawMessage(`{"namespace":"configured"}`)}
+	m.mu.Lock()
+	m.remoteStates[item.ID].Target.Route = bus
+	m.active[item.ID].remote.Target.Route = bus
+	m.mu.Unlock()
+	var got Conversation
+	var route backend.Route
+	m.WorkflowStart = func(_ context.Context, item Conversation, selected backend.Route) error {
+		got, route = item, selected
+		return nil
+	}
+	m.WorkflowInput = func(string, string, string) error { return nil }
+	_, err = m.Submit(item.ID, Request{ID: "first", Kind: "prompt", Message: "hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Environment != "remote-project" || route.Name != bus.Name || string(route.Configuration) != string(bus.Configuration) || route.Environment != "" {
+		t.Fatalf("input=%+v route=%+v", got, route)
+	}
+}
+
+func TestConversationPreflightRejectsBeforeRemotePreparation(t *testing.T) {
+	fixture := &remoteFixture{}
+	m, _, _ := remoteManager(t, fixture)
+	called := false
+	m.WorkflowPrepare = func(_ context.Context, environment string, route backend.Route) error {
+		called = environment == "remote-project" && route.Name == "http"
+		return errors.New("preflight rejected")
+	}
+	_, err := m.Create(t.Context(), NewConversation{Provider: "claude", Environment: "remote-project", SharedCheckout: true})
+	if err == nil || !strings.Contains(err.Error(), "preflight rejected") || !called {
+		t.Fatalf("preflight: called=%v err=%v", called, err)
+	}
+	fixture.mu.Lock()
+	processes, sessions := fixture.processAdmissions, fixture.sessions
+	fixture.mu.Unlock()
+	if processes != 0 || sessions != 0 {
+		t.Fatalf("remote effects before preflight: processes=%d sessions=%d", processes, sessions)
 	}
 }

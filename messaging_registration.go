@@ -15,6 +15,10 @@ import (
 // Its context bounds establishment only; resource-owning transports implement
 // io.Closer and are closed by their caller after all cleanup operations.
 type MessagingDefinition struct {
+	// ValidateEnvironment checks a logical name against namespace metadata in the supplied
+	// configuration. It must be pure: do not connect, start capacity, or read
+	// private bootstrap material. A nil callback cannot admit declared environments.
+	ValidateEnvironment   func(json.RawMessage, string) error
 	ExecutionIdentity     bool
 	Name                  string
 	ValidateConfiguration func(json.RawMessage) error

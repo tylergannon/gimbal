@@ -11,6 +11,10 @@ export type Graph = {
    */
   name: string;
   /**
+   * Environments lists every statically declared environment selector.
+   */
+  environments: Array<EnvironmentDeclaration>;
+  /**
    * Source anchors the entry function.
    */
   source: Source;
@@ -60,6 +64,15 @@ export type Graph = {
    * Diagnostics records what the extractor could not read. A graph with diagnostics has honest holes; it is never completed by a guess.
    */
   diagnostics: Array<Diagnostic>;
+};
+
+/**
+ * EnvironmentDeclaration selects a literal name or a direct workflow input field. An empty Name and Input denotes a selector that could not be determined.
+ */
+export type EnvironmentDeclaration = {
+  source: Source;
+  name: string;
+  input: string;
 };
 
 /**

@@ -39,7 +39,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 				return errors.New("request identity conflicts with accepted inputs")
 			}
 			if saved.Result != nil {
-				event := backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: saved.Result}
+				event := backend.MessageEvent{ID: saved.EventID, RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: saved.Result}
 				d.messageMu.Unlock()
 				return bus.PublishEvent(ctx, event)
 			}

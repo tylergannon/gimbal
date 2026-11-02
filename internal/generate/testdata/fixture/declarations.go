@@ -33,3 +33,33 @@ func DeclarationShape(ctx context.Context, _ gimbal.Env) error {
 func declarationHelper(ctx context.Context) {
 	_, _, _, _ = gimbal.RunCommand(ctx, "helper", ".", "true")
 }
+
+// EnvironmentShape declares constant and direct-input placements.
+type EnvironmentParams struct {
+	Environment string `json:"environment"`
+}
+
+func EnvironmentShape(ctx context.Context, env gimbal.Env, params EnvironmentParams) error {
+	first := gimbal.WithEnvironment(ctx, "alpha")
+	gimbal.RunCommand(first, "one", env.WorkDir, "true")
+	second := gimbal.WithEnvironment(ctx, params.Environment)
+	gimbal.RunCommand(second, "two", env.WorkDir, "true")
+	computed := gimbal.WithEnvironment(ctx, params.Environment+"-extra")
+	gimbal.RunCommand(computed, "three", env.WorkDir, "true")
+	return nil
+}
+
+func MutatedEnvironmentShape(ctx context.Context, env gimbal.Env, params EnvironmentParams) error {
+	params.Environment += "-computed"
+	ctx = gimbal.WithEnvironment(ctx, params.Environment)
+	_, _, _, err := gimbal.RunCommand(ctx, "work", env.WorkDir, "true")
+	return err
+}
+
+func (p *EnvironmentParams) changeEnvironment() { p.Environment = "other" }
+func MethodMutatedEnvironmentShape(ctx context.Context, env gimbal.Env, params EnvironmentParams) error {
+	params.changeEnvironment()
+	ctx = gimbal.WithEnvironment(ctx, params.Environment)
+	_, _, _, err := gimbal.RunCommand(ctx, "work", env.WorkDir, "true")
+	return err
+}

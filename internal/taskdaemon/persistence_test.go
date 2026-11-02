@@ -169,7 +169,8 @@ func TestAcceptedOnlySteerNeverResends(t *testing.T) {
 func TestMessagingCompletedOutcomeRepublishesAfterRestart(t *testing.T) {
 	root := t.TempDir()
 	d := New(root)
-	store, err := messagefiles.Open(t.TempDir())
+	eventsDir := t.TempDir()
+	store, err := messagefiles.Open(eventsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,6 +194,13 @@ func TestMessagingCompletedOutcomeRepublishesAfterRestart(t *testing.T) {
 	saved := restored.messages[req.ID]
 	if saved.Result == nil || !saved.Result.Value || native.calls != 1 {
 		t.Fatalf("lost or repeated outcome %+v", saved)
+	}
+	entries, err := os.ReadDir(eventsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected one acceptance and one completion, got %d records", len(entries))
 	}
 }
 

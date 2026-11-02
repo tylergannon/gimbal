@@ -21,3 +21,9 @@ decision: Unchanged-revision retry and repaired-source dispatch are distinct. Ne
 decision: Tyler delegated the retention choice ("whatever IDK"). Keep the existing two-day lifetime and complete verification before expiry; no new retention policy in this foundation.
 
 correction: Tyler says to execute if the owner recommends approval; ask questions only for decisions actually requiring him. This approves the recommended bounded task, necessary repairs, and coordinated build-only tag/dispatch/cleanup. Do not request repeated approval for routine revision/tag selection within that scope. Merge/publication remain excluded.
+
+decision: Terra found no necessary source changes. The previously unexercised boundary was actual Actions artifact transport, not another implementation. Keep the existing implementation and PR rather than inventing repairs.
+
+decision: Independent Sonnet proof review reached only-nitpicks in fixed-candidate-completion-proof-round-01.md. Its earlier CLI shell permission denials were resolved for the authorized validation invocation; this final round actually executed independent local checks and GitHub API reads.
+
+decision: Owned temporary tag was removed locally and remotely after verification, and A received explicit window release. Native GUI acceptance and actual publisher-job/retry behavior remain outside the proved foundation; do not reuse this build-only result as their qualification.

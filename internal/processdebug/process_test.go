@@ -388,17 +388,25 @@ func TestSharedDaemonStandin(t *testing.T) {
 	laterChild, _ := os.FindProcess(laterPID)
 	defer func() { _ = laterChild.Kill() }()
 	waitEvent(t, "shared-session", "candidate", laterPID, 0, 5*time.Second)
+	owner.Reaped() // Simulates the independent launching worker being reaped.
 	owner.End()
+	waitEvent(t, "shared-session", "observation_end", 0, 0, 5*time.Second)
 	waitEvent(t, "shared-session", "candidate_survivor", laterPID, 0, 5*time.Second)
 	waitEvent(t, "shared-session", "candidate_count", 0, 0, 5*time.Second)
 	events := readEvents(t)
-	var baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned bool
+	var baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned, daemonReaped, correctEnd bool
 	for _, e := range events {
 		if e.Owner != "shared-session" {
 			continue
 		}
 		if e.Event == "shared_daemon" && e.Process != nil && e.Process.PID == parent.Process.Pid {
 			rootSeen = true
+		}
+		if e.Event == "reaped" || e.Event == "owner_end" {
+			daemonReaped = true
+		}
+		if e.Event == "observation_end" && e.PID == 0 && strings.Contains(e.Detail, "daemon lifetime is independent") {
+			correctEnd = true
 		}
 		if e.Event == "owned" {
 			owned = true
@@ -419,9 +427,24 @@ func TestSharedDaemonStandin(t *testing.T) {
 			timing = true
 		}
 	}
-	if !baselineSeen || baselineSurvivor || !timing || !rootSeen || !baselineCount || !candidateCount || owned {
-		t.Fatalf("baseline=%v reported_candidate=%v timing=%v root=%v baseline_count=%v candidate_count=%v owned=%v", baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned)
+	if !baselineSeen || baselineSurvivor || !timing || !rootSeen || !baselineCount || !candidateCount || owned || daemonReaped || !correctEnd {
+		t.Fatalf("baseline=%v reported_candidate=%v timing=%v root=%v baseline_count=%v candidate_count=%v owned=%v reaped=%v end=%v", baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned, daemonReaped, correctEnd)
 	}
+	// The reap signal still terminates a result-missing worker observation.
+	missing := ExecutorCandidates("missing-result", "session_1", "", dir+"/never-published", nil, os.ErrNotExist)
+	waitEvent(t, "missing-result", "shared_daemon", parent.Process.Pid, 0, 5*time.Second)
+	missing.Reaped()
+	waitEvent(t, "missing-result", "unavailable", 0, 0, 5*time.Second)
+	for _, e := range readEvents(t) {
+		if e.Owner == "missing-result" && e.Event == "reaped" {
+			t.Fatal("shared daemon incorrectly reported reaped")
+		}
+	}
+	current, err := initialIdentity(parent.Process.Pid)
+	if err != nil || !sameProcess(anchor, current) {
+		t.Fatalf("shared stand-in did not remain alive: %v", err)
+	}
+
 }
 
 func readEvents(t *testing.T) []event {
@@ -444,7 +467,7 @@ func waitEvent(t *testing.T, owner, kind string, pid, age int, timeout time.Dura
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		for _, e := range readEvents(t) {
-			if e.Owner == owner && e.Event == kind && e.AgeSeconds >= age && (pid == 0 || e.Process != nil && e.Process.PID == pid) {
+			if e.Owner == owner && e.Event == kind && (e.AgeSeconds >= age || e.ObservationAgeSeconds >= age) && (pid == 0 || e.Process != nil && e.Process.PID == pid) {
 				return
 			}
 		}

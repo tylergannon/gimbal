@@ -26,20 +26,21 @@ type process struct {
 	Executable string `json:"executable"`
 }
 type event struct {
-	Time             time.Time `json:"time"`
-	Event            string    `json:"event"`
-	Owner            string    `json:"owner,omitempty"`
-	Kind             string    `json:"kind,omitempty"`
-	Run              string    `json:"run,omitempty"`
-	Session          string    `json:"session,omitempty"`
-	PID              int       `json:"pid,omitempty"`
-	Process          *process  `json:"process,omitempty"`
-	AgeSeconds       int       `json:"owner_end_age_seconds,omitempty"`
-	Count            int       `json:"count,omitempty"`
-	RequestedAt      time.Time `json:"requested_at,omitzero"`
-	CensusAt         time.Time `json:"census_at,omitzero"`
-	DiscoveryDelayMS *int64    `json:"discovery_delay_ms,omitempty"`
-	Detail           string    `json:"detail,omitempty"`
+	Time                  time.Time `json:"time"`
+	Event                 string    `json:"event"`
+	Owner                 string    `json:"owner,omitempty"`
+	Kind                  string    `json:"kind,omitempty"`
+	Run                   string    `json:"run,omitempty"`
+	Session               string    `json:"session,omitempty"`
+	PID                   int       `json:"pid,omitempty"`
+	Process               *process  `json:"process,omitempty"`
+	AgeSeconds            int       `json:"owner_end_age_seconds,omitempty"`
+	ObservationAgeSeconds int       `json:"observation_end_age_seconds,omitempty"`
+	Count                 int       `json:"count,omitempty"`
+	RequestedAt           time.Time `json:"requested_at,omitzero"`
+	CensusAt              time.Time `json:"census_at,omitzero"`
+	DiscoveryDelayMS      *int64    `json:"discovery_delay_ms,omitempty"`
+	Detail                string    `json:"detail,omitempty"`
 }
 type logger struct {
 	mu      sync.Mutex
@@ -336,7 +337,13 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 					if shared {
 						label = "candidate_survivor"
 					}
-					l.write(event{Event: label, Owner: id, Process: &q, AgeSeconds: int(time.Since(ended).Seconds())})
+					e := event{Event: label, Owner: id, Process: &q}
+					if shared {
+						e.ObservationAgeSeconds = int(time.Since(ended).Seconds())
+					} else {
+						e.AgeSeconds = int(time.Since(ended).Seconds())
+					}
+					l.write(e)
 				}
 			}
 			label := "survivor_count"
@@ -349,7 +356,13 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 				detail = "first seen after baseline, not proven new; other clients and missed ancestry remain possible"
 				l.write(event{Event: "baseline_alive_count", Owner: id, Count: baselineCount, Detail: "baseline processes are not candidates"})
 			}
-			l.write(event{Event: label, Owner: id, Count: count, AgeSeconds: int(time.Since(ended).Seconds()), Detail: fmt.Sprintf("dropped=%d; %s", l.dropped.Load()+droppedOwners.Load(), detail)})
+			e := event{Event: label, Owner: id, Count: count, Detail: fmt.Sprintf("dropped=%d; %s", l.dropped.Load()+droppedOwners.Load(), detail)}
+			if shared {
+				e.ObservationAgeSeconds = int(time.Since(ended).Seconds())
+			} else {
+				e.AgeSeconds = int(time.Since(ended).Seconds())
+			}
+			l.write(e)
 		}
 		return count
 	}
@@ -361,7 +374,13 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 	finish := func(label string) {
 		ended = time.Now()
 		stopping = label == "stop_requested"
-		l.write(event{Event: label, Owner: id, PID: pid})
+		e := event{Event: label, Owner: id, PID: pid}
+		if shared {
+			e.Event = "observation_end"
+			e.PID = 0
+			e.Detail = "shared daemon observation ended; daemon lifetime is independent"
+		}
+		l.write(e)
 		_, _, _ = snapshotFresh()
 		neutralStopSample = stopping
 		sample()
@@ -372,7 +391,9 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 	for {
 		select {
 		case <-reap:
-			l.write(event{Event: "reaped", Owner: id, PID: pid})
+			if !shared {
+				l.write(event{Event: "reaped", Owner: id, PID: pid})
+			}
 			reap = nil
 			reapedAt = time.Now()
 		case <-stop:
@@ -385,7 +406,11 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			if ended.IsZero() {
 				finish("owner_end")
 			} else {
-				l.write(event{Event: "owner_end", Owner: id, PID: pid})
+				if shared {
+					l.write(event{Event: "observation_end", Owner: id, Detail: "shared daemon observation ended; daemon lifetime is independent"})
+				} else {
+					l.write(event{Event: "owner_end", Owner: id, PID: pid})
+				}
 			}
 		case <-ticker.C:
 			if n := droppedOwners.Load(); n > lastDrops {
@@ -515,7 +540,7 @@ func sameProcess(a, b process) bool { return a.PID == b.PID && a.Birth != "" && 
 
 func survivorWarning(owner string, count, age int, shared bool) string {
 	if shared {
-		return fmt.Sprintf("gimbal process diagnostics: %d shared-daemon candidates remain %ds after owner %s ended; task ownership is unknown", count, age, owner)
+		return fmt.Sprintf("gimbal process diagnostics: %d shared-daemon candidates remain %ds after observation %s ended; task ownership is unknown", count, age, owner)
 	}
 	return fmt.Sprintf("gimbal process diagnostics: %d known-owned processes remain %ds after owner %s ended; these are suspects, not confirmed leaks", count, age, owner)
 }

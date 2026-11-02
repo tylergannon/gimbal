@@ -13,9 +13,11 @@ import (
 )
 
 func TestDisabledDoesNotStartObserver(t *testing.T) {
-	t.Setenv("GIMBAL_DEBUG_PROCESSES", "0")
-	if got := Start("test", "test", os.Getpid()); got != nil {
-		t.Fatal("disabled observer started")
+	for _, flag := range []string{"", "0", "true"} {
+		t.Setenv("GIMBAL_DEBUG_PROCESSES", flag)
+		if Start("test", "test", os.Getpid()) != nil || Candidates("session") != nil || Executor("id", "", os.Getpid(), "") != nil || ExecutorCandidates("id", "", "") != nil {
+			t.Fatalf("observer started for %q", flag)
+		}
 	}
 }
 
@@ -23,8 +25,17 @@ func TestSurvivingOwnedChild(t *testing.T) {
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		t.Skip("ps enumeration unsupported")
 	}
+	if os.Getenv("GIMBAL_PROCESSDEBUG_TEST_CHILD") != "1" {
+		dir := t.TempDir()
+		cmd := exec.Command(os.Args[0], "-test.run=^TestSurvivingOwnedChild$")
+		cmd.Env = append(os.Environ(), "GIMBAL_PROCESSDEBUG_TEST_CHILD=1", "GIMBAL_PROCESSDEBUG_TEST_DIR="+dir)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("fixture: %v\n%s", err, out)
+		}
+		return
+	}
 	t.Setenv("GIMBAL_DEBUG_PROCESSES", "1")
-	dir := t.TempDir()
+	dir := os.Getenv("GIMBAL_PROCESSDEBUG_TEST_DIR")
 	t.Setenv("XDG_CACHE_HOME", dir)
 	t.Setenv("HOME", dir)
 	unrelated := exec.Command("sleep", "30")
@@ -103,12 +114,62 @@ func TestSurvivingOwnedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitLog(t, `"event":"suspect_survivor","owner":"live-worker"`)
+	data, err = os.ReadFile(output.path)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if strings.Contains(string(data), fmt.Sprintf(`"pid":%d`, unrelated.Process.Pid)) {
 		t.Fatal("unrelated service was attributed to owner")
 	}
 	if !strings.Contains(string(data), fmt.Sprintf(`"pid":%d`, childPID)) {
 		t.Fatal("missing child")
 	}
+	// A stop request observes a live service without calling it a suspect.
+	svc := Service("scope.1/server.1", "run_1", unrelated.Process.Pid)
+	if svc == nil {
+		t.Fatal("missing service observer")
+	}
+	defer svc.End()
+	waitLog(t, `"event":"owned","owner":"scope.1/server.1"`)
+	svc.StopRequested()
+	waitLog(t, `"event":"stop_observation","owner":"scope.1/server.1"`)
+	b, _ := os.ReadFile(output.path)
+	if strings.Contains(string(b), `"event":"suspect_survivor","owner":"scope.1/server.1"`) {
+		t.Fatal("normal stop marked suspect immediately")
+	}
+	// Existing observers report dropped capacity even while none has ended.
+	held := 0
+	for {
+		select {
+		case slots <- struct{}{}:
+			held++
+		default:
+			goto full
+		}
+	}
+full:
+	defer func() {
+		for i := 0; i < held; i++ {
+			<-slots
+		}
+	}()
+	before := droppedOwners.Load()
+	if Start("test", "overflow", os.Getpid()) != nil || droppedOwners.Load() != before+1 {
+		t.Fatal("owner capacity not enforced")
+	}
+	waitLog(t, `"event":"dropped_owner"`)
+	missing := Start("test", "missing-root", 2000000000)
+	if missing == nil { // release one slot for the missing-root gap fixture
+		<-slots
+		held--
+		missing = Start("test", "missing-root", 2000000000)
+	}
+	if missing == nil {
+		t.Fatal("could not start missing-root fixture")
+	}
+	defer missing.End()
+	waitLog(t, `"event":"unavailable","owner":"missing-root"`)
+
 }
 func waitLog(t *testing.T, want string) {
 	t.Helper()
@@ -181,5 +242,59 @@ func TestCorrelationAndWarnings(t *testing.T) {
 	shared := survivorWarning("turn_1", 1, 10, true)
 	if !strings.Contains(shared, "candidates") || !strings.Contains(shared, "ownership is unknown") {
 		t.Fatal(shared)
+	}
+}
+
+func TestAttributionAcrossCensusAndPIDReuse(t *testing.T) {
+	root := process{PID: 10, Birth: "root"}
+	old := process{PID: 11, Parent: 10, Birth: "old"}
+	known := map[int]process{10: root}
+	baseline := map[int]process{}
+	first := map[int]process{10: root, 11: old}
+	added, dropped := discover(known, first)
+	labels := classify(added, true, true, baseline)
+	if dropped != 0 || len(labels) != 1 || labels[0].label != "baseline" {
+		t.Fatalf("baseline: %+v, %d", labels, dropped)
+	}
+	fresh := process{PID: 12, Parent: 10, Birth: "new"}
+	second := map[int]process{10: root, 11: old, 12: fresh}
+	added, _ = discover(known, second)
+	labels = classify(added, true, false, baseline)
+	if len(labels) != 1 || labels[0].label != "candidate" || labels[0].process.PID != 12 {
+		t.Fatalf("candidate: %+v", labels)
+	}
+	// A reused parent's PID cannot confer ownership on its new child.
+	reused := process{PID: 11, Parent: 10, Birth: "replacement"}
+	orphan := process{PID: 13, Parent: 11, Birth: "orphan"}
+	added, _ = discover(known, map[int]process{10: root, 11: reused, 13: orphan})
+	if len(added) != 0 {
+		t.Fatalf("attached through stale parent: %+v", added)
+	}
+	if sameProcess(known[11], reused) {
+		t.Fatal("reused PID remained owned")
+	}
+	// A child whose parent was missed cannot be attributed.
+	missing := process{PID: 14, Parent: 99, Birth: "missing"}
+	added, _ = discover(known, map[int]process{10: root, 14: missing})
+	if len(added) != 0 {
+		t.Fatalf("invented missing ancestry: %+v", added)
+	}
+}
+
+func TestAttributionCapacityAndWriteFailure(t *testing.T) {
+	known := map[int]process{}
+	for i := 1; i <= maxProcesses; i++ {
+		known[i] = process{PID: i, Birth: "b"}
+	}
+	root := known[1]
+	child := process{PID: maxProcesses + 1, Parent: 1, Birth: "child"}
+	added, dropped := discover(known, map[int]process{1: root, child.PID: child})
+	if len(added) != 0 || dropped == 0 || len(known) != maxProcesses {
+		t.Fatal("process bound not enforced")
+	}
+	l := &logger{path: t.TempDir() + "/missing/log"}
+	l.write(event{Event: "test"})
+	if l.dropped.Load() != 1 {
+		t.Fatal("write failure was not exposed")
 	}
 }

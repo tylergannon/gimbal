@@ -147,9 +147,10 @@ func (l *logger) write(e event) {
 // Owner observes a directly launched process and the descendants seen while it
 // runs. Its calls never wait for enumeration or disk I/O.
 type Owner struct {
-	end               chan struct{}
-	reap              chan struct{}
-	endOnce, reapOnce sync.Once
+	end                         chan struct{}
+	reap                        chan struct{}
+	stop                        chan struct{}
+	endOnce, reapOnce, stopOnce sync.Once
 }
 
 func Start(kind, id string, pid int) *Owner {
@@ -183,13 +184,18 @@ func start(kind, id string, pid int, shared bool, result, run, session string) *
 	if !shared {
 		anchor, _ = initialIdentity(pid)
 	}
-	o := &Owner{end: make(chan struct{}), reap: make(chan struct{})}
+	o := &Owner{end: make(chan struct{}), reap: make(chan struct{}), stop: make(chan struct{})}
 	go func() { defer func() { <-slots }(); observe(o, kind, id, pid, shared, result, run, session, anchor) }()
 	return o
 }
 func (o *Owner) Reaped() {
 	if o != nil {
 		o.reapOnce.Do(func() { close(o.reap) })
+	}
+}
+func (o *Owner) StopRequested() {
+	if o != nil {
+		o.stopOnce.Do(func() { close(o.stop) })
 	}
 }
 func (o *Owner) End() {
@@ -224,10 +230,16 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 		pid = daemon.PID
 	}
 	known := map[int]process{}
+	baseline := map[int]process{}
+	firstSample := true
+	stopping := false
+	neutralStopSample := false
+	var lastDrops uint64
 	rootAttempted := false
 	ended := time.Time{}
 	reap := o.reap
 	end := o.end
+	stop := o.stop
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	sample := func() int {
@@ -272,40 +284,36 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 				l.write(event{Event: "unavailable", Owner: id, Detail: "launch identity not observed; descendants cannot be attributed"})
 			}
 		}
-		// Add only children whose currently observed parent still has the same birth.
-		for changed := true; changed; {
-			changed = false
-			for n, p := range snapshot {
-				if _, ok := known[n]; ok {
-					continue
-				}
-				parent, ok := known[p.Parent]
-				if !ok {
-					continue
-				}
-				current, ok := snapshot[p.Parent]
-				if !ok || !sameProcess(current, parent) {
-					continue
-				}
-				if len(known) >= maxProcesses {
-					l.dropped.Add(1)
-					break
-				}
-				known[n] = p
-				changed = true
-				label := "owned"
-				if shared {
-					label = "candidate"
-				}
-				l.write(event{Event: label, Owner: id, Process: &p})
-			}
+		added, dropped := discover(known, snapshot)
+		if dropped > 0 {
+			l.dropped.Add(uint64(dropped))
+			l.write(event{Event: "dropped_process", Owner: id, Count: dropped, Detail: "process attribution capacity reached"})
 		}
+		for _, item := range classify(added, shared, firstSample, baseline) {
+			p := item.process
+			l.write(event{Event: item.label, Owner: id, Process: &p})
+		}
+		if firstSample && shared {
+			l.write(event{Event: "baseline_count", Owner: id, Count: len(baseline), Detail: "first census baseline; changes before sampling and missed ancestry are unknown"})
+		}
+		firstSample = false
+
 		if !ended.IsZero() {
+			baselineCount := 0
 			for n, p := range known {
 				if cur, ok := snapshot[n]; ok && sameProcess(cur, p) && (!shared || n != pid) {
+					if shared {
+						if base, ok := baseline[n]; ok && sameProcess(base, p) {
+							baselineCount++
+							continue
+						}
+					}
 					count++
 					q := cur
 					label := "suspect_survivor"
+					if stopping && neutralStopSample {
+						label = "stop_observation"
+					}
 					if shared {
 						label = "candidate_survivor"
 					}
@@ -313,10 +321,14 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 				}
 			}
 			label := "survivor_count"
+			if stopping && neutralStopSample {
+				label = "stop_observation_count"
+			}
 			detail := "missed ancestry unknown"
 			if shared {
 				label = "candidate_count"
-				detail = "shared daemon children may belong to other clients; task ownership unknown; missed ancestry unknown"
+				detail = "first seen after baseline, not proven new; other clients and missed ancestry remain possible"
+				l.write(event{Event: "baseline_alive_count", Owner: id, Count: baselineCount, Detail: "baseline processes are not candidates"})
 			}
 			l.write(event{Event: label, Owner: id, Count: count, AgeSeconds: int(time.Since(ended).Seconds()), Detail: fmt.Sprintf("dropped=%d; %s", l.dropped.Load()+droppedOwners.Load(), detail)})
 		}
@@ -327,14 +339,16 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 	var timer *time.Timer
 	stage := 0
 	var reapedAt time.Time
-	finish := func() {
+	finish := func(label string) {
 		ended = time.Now()
-		l.write(event{Event: "owner_end", Owner: id, PID: pid})
+		stopping = label == "stop_requested"
+		l.write(event{Event: label, Owner: id, PID: pid})
 		_, _ = snapshotFresh()
+		neutralStopSample = stopping
 		sample()
+		neutralStopSample = false
 		timer = time.NewTimer(10 * time.Second)
 		grace = timer.C
-		end = nil
 	}
 	for {
 		select {
@@ -342,14 +356,28 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			l.write(event{Event: "reaped", Owner: id, PID: pid})
 			reap = nil
 			reapedAt = time.Now()
+		case <-stop:
+			stop = nil
+			if ended.IsZero() {
+				finish("stop_requested")
+			}
 		case <-end:
-			finish()
+			end = nil
+			if ended.IsZero() {
+				finish("owner_end")
+			} else {
+				l.write(event{Event: "owner_end", Owner: id, PID: pid})
+			}
 		case <-ticker.C:
+			if n := droppedOwners.Load(); n > lastDrops {
+				l.write(event{Event: "dropped_owner", Owner: id, Count: int(n - lastDrops), Detail: "owner capacity reached"})
+				lastDrops = n
+			}
 			if ended.IsZero() {
 				sample()
 				if result != "" {
 					if _, err := os.Stat(result); err == nil {
-						finish()
+						finish("owner_end")
 					} else if !reapedAt.IsZero() && time.Since(reapedAt) > 2*time.Second {
 						l.write(event{Event: "unavailable", Owner: id, Detail: "worker reaped without observed result; logical owner end unknown"})
 						return
@@ -370,6 +398,57 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			}
 		}
 	}
+}
+
+type attributed struct {
+	process process
+	label   string
+}
+
+func classify(added []process, shared, first bool, baseline map[int]process) []attributed {
+	out := make([]attributed, 0, len(added))
+	for _, p := range added {
+		label := "owned"
+		if shared {
+			label = "candidate"
+			if first {
+				label = "baseline"
+				baseline[p.PID] = p
+			}
+		}
+		out = append(out, attributed{p, label})
+	}
+	return out
+}
+
+// discover only follows a parent whose PID and birth still match the census.
+func discover(known, census map[int]process) ([]process, int) {
+	var added []process
+	dropped := 0
+	for changed := true; changed; {
+		changed = false
+		for n, p := range census {
+			if _, ok := known[n]; ok {
+				continue
+			}
+			parent, ok := known[p.Parent]
+			if !ok {
+				continue
+			}
+			current, ok := census[p.Parent]
+			if !ok || !sameProcess(current, parent) {
+				continue
+			}
+			if len(known) >= maxProcesses {
+				dropped++
+				continue
+			}
+			known[n] = p
+			added = append(added, p)
+			changed = true
+		}
+	}
+	return added, dropped
 }
 
 // All observers in this process share a recent immutable census. The mutex

@@ -206,7 +206,7 @@ type ownedService struct {
 }
 
 func (s *ownedService) beginStop() {
-	s.observation.End()
+	s.observation.StopRequested()
 	s.mu.Lock()
 	s.stopping = true
 	s.mu.Unlock()

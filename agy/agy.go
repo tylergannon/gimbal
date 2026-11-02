@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tylergannon/gimbal/internal/processdebug"
 	"io"
 	"os"
 	"os/exec"
@@ -287,6 +288,8 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 	if startErr != nil {
 		return nativeResult{}, nil, fmt.Errorf("agy: start: %w", startErr)
 	}
+	observation := processdebug.Start("agy", request.sessionID, command.Process.Pid)
+	defer observation.End()
 	active := &activeTurn{command: command, stdout: stdout}
 	if s != nil {
 		s.mu.Lock()
@@ -304,7 +307,7 @@ func (a *adapter) runOnce(ctx context.Context, s *session, request runRequest) (
 	stream := make(chan streamItem)
 	go scanStream(stdout, stream)
 	waited := make(chan error, 1)
-	go func() { waited <- command.Wait() }()
+	go func() { err := command.Wait(); observation.Reaped(); waited <- err }()
 
 	var result *nativeResult
 	var initID string

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/tylergannon/gimbal/internal/processdebug"
 	"io"
 	"net"
 	"os"
@@ -229,9 +230,14 @@ func Launch(binary string, args []string, input any, root string) (Descriptor, e
 		_ = write.Close()
 		return d, err
 	}
+	observation := processdebug.Executor(filepath.Base(root), cmd.Process.Pid, filepath.Join(root, "result.json"))
+	var candidates *processdebug.Owner
+	if len(args) > 0 && args[0] == "--gimbal-agent-worker" {
+		candidates = processdebug.ExecutorCandidates(filepath.Base(root), filepath.Join(root, "result.json"))
+	}
 	closeStartup()
 	_ = write.Close()
-	go func() { _ = cmd.Wait() }()
+	go func() { _ = cmd.Wait(); observation.Reaped(); candidates.Reaped() }()
 
 	var response struct {
 		Descriptor

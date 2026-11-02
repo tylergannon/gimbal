@@ -37,6 +37,7 @@ import (
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/processdebug"
 )
 
 var errTurnInterrupted = errors.New("codex: the turn was interrupted")
@@ -331,6 +332,8 @@ func (a *adapter) RunTurn(ctx context.Context, sessionID, prompt string, schema 
 	if err != nil {
 		return gimbal.TurnResult{}, err
 	}
+	observation := processdebug.Candidates(sessionID)
+	defer observation.End()
 	ch := s.registerThread(conn, sessionID)
 	if ch == nil {
 		return gimbal.TurnResult{}, context.Canceled

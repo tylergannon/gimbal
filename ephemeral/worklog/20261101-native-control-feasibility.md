@@ -23,3 +23,8 @@ decision: Tyler explicitly accepted the Escape-cancellation amendment via the ap
 friction: Independent review initially lacked pointers to original parent lock/model observation tool outputs. Exact original records, with parent-source lines, were extracted outside Git into the native-control output directory; this fixes provenance access without reconstructing observations or committing run dumps.
 decision: Independent Sonnet proof round 02 concluded only nitpicks remain after the HITL Escape amendment and original evidence pointers. Its accepted conclusion is two fresh-task native Finder observations through the Gimbal-initiated Desktop worker, not a maintained caller, standalone-daemon qualification or unattended guarantee. No further native experiments are planned.
 friction: Preparation initially printed broader service/configuration fields than needed. A review of already-returned output found no credential values; subsequent inspection was restricted to relevant metadata and did not dump raw environments.
+
+
+decision: Tyler explicitly authorized maintained Gimbal integration after the passing gate, with Amrita coordination through A and no release action. A clarified prior global coordination holds were released; this lane retains its own no-merge/tag/release constraint.
+
+friction: The conditional spec names an existing product workflow, but no existing Gimbal workflow owns native task policy. Generic conversation and browser testing are unsuitable owners. Asked Tyler to select dedicated native-task/NativeTask versus qualification-only entrypoint; prepared a local draft while awaiting that material interface choice. No new owner or runtime action taken.

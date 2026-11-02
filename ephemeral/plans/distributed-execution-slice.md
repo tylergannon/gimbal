@@ -101,6 +101,10 @@ follows the review synthesis's withdrawal of workspace management as a prerequis
 
 R6. Retain distinct facts for request storage, native-owner acceptance and native
 completion. Stable run/scope/session/request/native identities tie them together.
+Each new-work request explicitly names its logical environment; requests for
+admitted sessions address their retained owner. Physical destinations still belong
+to plugin configuration. Amend `MessageRequest` and its destination comment to
+distinguish logical placement from physical connection details.
 Ownership acceptance is atomic and retained before an ambiguous reply can cause
 another dispatch. A queue delivery acknowledgement alone is not native completion.
 
@@ -209,7 +213,7 @@ Each claim is mandatory for this milestone, with its required observation.
 | --- | --- | --- |
 | D1 | Cell-local / declaration | Metadata includes both logical environments; invalid or absent names reject before any workflow/native effect. Exercise registered preparation/admission, not a separate invented preflight utility. |
 | D2 | Cell-local / declaration | Overlay semantics, strict plugin validation and namespace interpretation agree; invalid selection produces an explicit error without fallback or capacity startup. |
-| D3 | Cell-local / transport | Duplicate active registration is rejected; requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. A transient connection loss resumes the same execution wait and its retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
+| D3 | Cell-local / transport | Duplicate active registration is rejected; requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. After transient connection loss the listener delivers the original completion from retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
 | D4 | Cell-local / native dispatch | The original native identity governs acceptance and outcome; uncertain replies reconcile that identity and never authorize replacement work. |
 | D5 | Cell-local / context | Visible inherited/shadowed context and complete-value artifact bytes retain existing semantics at the task-input boundary. |
 | D5a | Cell-local / provision | Prestarted registered workers can receive named work without an orchestrator; selected provisioning receives the same transport bootstrap and cannot return ready before registration. Missing or failed registration fails at use without another route. |
@@ -288,7 +292,8 @@ Before implementation approval:
   `MessagingDefinition` exposes plugin-owned schema/namespace interpretation and
   registration/retained-owner addressing. Remove `EnvironmentRouting` and
   `Route.Environment`. Extend existing message record/selection contracts with
-  stable source sequence/identity and selected-boundary byte delivery as required
+  logical-environment/retained-owner request addressing, stable source
+  sequence/identity and selected-boundary byte delivery as required
   above. Exact internal layout is derivable; no untyped generic RPC or new public
   workflow function beyond `WithEnvironment` is approved.
 - Configuration uses the existing Route envelope (`Name`, `Configuration`) and

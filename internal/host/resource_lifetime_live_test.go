@@ -34,9 +34,9 @@ func TestNativeGroupSessionsLive(t *testing.T) {
 		group := gimbal.Group(ctx, "parallel")
 		for i := range 2 {
 			group.Go("worker", func(ctx context.Context) error {
-				own := filepath.Join(project.Path(), fmt.Sprintf("ready-%d", i))
-				other := filepath.Join(project.Path(), fmt.Sprintf("ready-%d", 1-i))
-				crossed := filepath.Join(project.Path(), fmt.Sprintf("crossed-%d", i))
+				own := fmt.Sprintf("ready-%d", i)
+				other := fmt.Sprintf("ready-%d", 1-i)
+				crossed := fmt.Sprintf("crossed-%d", i)
 				gimbal.Set(ctx, "shell command", fmt.Sprintf("touch %q; for i in $(seq 1 30); do if test -f %q; then touch %q; exit 0; fi; sleep 1; done; exit 1", own, other, crossed))
 				_, err := gimbal.NewSession(ctx, "worker", project.Path()).Generate[gimbal.Text](ctx, "Run the supplied shell command exactly once, then report the result.")
 				return err

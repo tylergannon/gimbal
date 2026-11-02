@@ -16,33 +16,37 @@ import (
 
 // selectedDaemon verifies an exact socket match for a single same-user codex
 // process. This does not establish ownership of any daemon descendant.
-func selectedDaemon() (int, error) {
+func selectedDaemon() (process, error) {
+	before, err := snapshotFresh()
+	if err != nil {
+		return process{}, err
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	b, err := exec.CommandContext(ctx, "codex", "app-server", "daemon", "version").Output()
 	if err != nil {
-		return 0, err
+		return process{}, err
 	}
 	var v struct {
 		Status     string `json:"status"`
 		SocketPath string `json:"socketPath"`
 	}
 	if json.Unmarshal(b, &v) != nil || v.Status != "running" || v.SocketPath == "" {
-		return 0, errors.New("daemon unavailable")
+		return process{}, errors.New("daemon unavailable")
 	}
 	path, err := filepath.EvalSymlinks(v.SocketPath)
 	if err != nil {
-		return 0, err
+		return process{}, err
 	}
 	info, err := os.Stat(path)
 	if err != nil || info.Mode()&os.ModeSocket == 0 {
-		return 0, errors.New("socket unavailable")
+		return process{}, errors.New("socket unavailable")
 	}
 	ctx2, cancel2 := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel2()
 	b, err = exec.CommandContext(ctx2, "lsof", "-n", "-a", "-U", "-u", strconv.Itoa(os.Getuid()), "-Fpcn", "--", path).Output()
 	if err != nil {
-		return 0, err
+		return process{}, err
 	}
 	pid := 0
 	command := ""
@@ -64,10 +68,22 @@ func selectedDaemon() (int, error) {
 		}
 	}
 	if len(matches) != 1 {
-		return 0, errors.New("socket owner ambiguous")
+		return process{}, errors.New("socket owner ambiguous")
 	}
 	for pid = range matches {
-		return pid, nil
+		old, ok := before[pid]
+		if !ok {
+			return process{}, errors.New("daemon identity not observed before socket lookup")
+		}
+		after, err := snapshotFresh()
+		if err != nil {
+			return process{}, err
+		}
+		now, ok := after[pid]
+		if !ok || !sameProcess(old, now) {
+			return process{}, errors.New("daemon identity changed during socket lookup")
+		}
+		return now, nil
 	}
-	return 0, errors.New("socket owner unavailable")
+	return process{}, errors.New("socket owner unavailable")
 }

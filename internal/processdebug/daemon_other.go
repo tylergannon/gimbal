@@ -4,4 +4,4 @@ package processdebug
 
 import "errors"
 
-func selectedDaemon() (int, error) { return 0, errors.New("unsupported platform") }
+func selectedDaemon() (process, error) { return process{}, errors.New("unsupported platform") }

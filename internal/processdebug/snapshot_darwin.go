@@ -26,3 +26,15 @@ func snapshotSystem() (map[int]process, error) {
 	}
 	return out, nil
 }
+
+// This query runs at the launch boundary before the caller starts Wait.
+func initialIdentity(pid int) (process, error) {
+	p, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil {
+		return process{}, err
+	}
+	if p.Proc.P_starttime.Sec == 0 && p.Proc.P_starttime.Usec == 0 {
+		return process{}, fmt.Errorf("birth identity unavailable")
+	}
+	return process{PID: int(p.Proc.P_pid), Birth: fmt.Sprintf("%d.%06d", p.Proc.P_starttime.Sec, p.Proc.P_starttime.Usec)}, nil
+}

@@ -174,8 +174,12 @@ func start(kind, id string, pid int, shared bool, result string) *Owner {
 		droppedOwners.Add(1)
 		return nil
 	}
+	var anchor process
+	if !shared {
+		anchor, _ = initialIdentity(pid)
+	}
 	o := &Owner{end: make(chan struct{}), reap: make(chan struct{})}
-	go func() { defer func() { <-slots }(); observe(o, kind, id, pid, shared, result) }()
+	go func() { defer func() { <-slots }(); observe(o, kind, id, pid, shared, result, anchor) }()
 	return o
 }
 func (o *Owner) Reaped() {
@@ -189,7 +193,7 @@ func (o *Owner) End() {
 	}
 }
 
-func observe(o *Owner, kind, id string, pid int, shared bool, result string) {
+func observe(o *Owner, kind, id string, pid int, shared bool, result string, anchor process) {
 	l := getLogger()
 	if l == nil {
 		return
@@ -202,13 +206,15 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string) {
 		l.write(event{Event: "unavailable", Owner: id, Detail: "process enumeration unsupported on this platform"})
 		return
 	}
+	var daemon process
 	if shared {
 		var err error
-		pid, err = selectedDaemon()
+		daemon, err = selectedDaemon()
 		if err != nil {
 			l.write(event{Event: "unavailable", Owner: id, Detail: "shared daemon identity unavailable"})
 			return
 		}
+		pid = daemon.PID
 	}
 	known := map[int]process{}
 	rootAttempted := false
@@ -234,7 +240,13 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result string) {
 				}
 				p, ok = snapshot[pid]
 			}
+			if shared && ok && !sameProcess(p, daemon) {
+				ok = false
+			}
 			if !shared {
+				if ok && !sameProcess(p, anchor) {
+					ok = false
+				}
 				select {
 				case <-o.reap:
 					ok = false

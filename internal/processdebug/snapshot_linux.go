@@ -43,3 +43,21 @@ func snapshotSystem() (map[int]process, error) {
 	}
 	return out, nil
 }
+
+// Read only the child’s kernel stat while it is still unreaped.
+func initialIdentity(pid int) (process, error) {
+	b, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "stat"))
+	if err != nil {
+		return process{}, err
+	}
+	line := string(b)
+	right := strings.LastIndexByte(line, ')')
+	if right < 0 {
+		return process{}, fmt.Errorf("invalid proc stat")
+	}
+	f := strings.Fields(line[right+1:])
+	if len(f) < 20 || f[19] == "0" {
+		return process{}, fmt.Errorf("invalid proc stat")
+	}
+	return process{PID: pid, Birth: "ticks:" + f[19]}, nil
+}

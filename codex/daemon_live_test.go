@@ -859,3 +859,57 @@ func TestTerminalConnectionFailureLive(t *testing.T) {
 		t.Fatalf("effect=%q: %v", raw, err)
 	}
 }
+
+// TestSeparateClientsSurviveReleaseLive keeps one disposable client usable while another releases.
+func TestSeparateClientsSurviveReleaseLive(t *testing.T) {
+	if os.Getenv("GIMBAL_LIVE") != "1" {
+		t.Skip("set GIMBAL_LIVE=1")
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	model, dir := liveLuna(t), t.TempDir()
+	clients := []*adapter{New().(*adapter), New().(*adapter)}
+	ids := make([]string, len(clients))
+	defer func() {
+		for i, id := range ids {
+			if id != "" {
+				cleanup, stop := context.WithTimeout(context.Background(), requestTimeout)
+				if err := clients[i].Close(effects.WithExecutionIdentity(cleanup, backend.NewExecutionIdentity("close")), id); err != nil {
+					t.Errorf("cleanup client %d: %v", i, err)
+				}
+				stop()
+			}
+		}
+	}()
+	for i, ad := range clients {
+		var err error
+		ids[i], err = ad.CreateSession(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("session")), model, "low", dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ad.RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), ids[i], "Reply briefly without tools.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+	}
+	other := clients[1].current()
+	if clients[0].current() == other {
+		t.Fatal("adapters unexpectedly share a connection")
+	}
+	if err := clients[0].Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), ids[0]); err != nil {
+		t.Fatal(err)
+	}
+	ids[0] = ""
+	if clients[1].current() != other {
+		t.Fatal("other client's connection changed during release")
+	}
+	if _, err := clients[1].RunTurn(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("turn")), ids[1], "Reply briefly without tools.", nil, func(gimbal.AgentEvent) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if err := clients[1].Close(effects.WithExecutionIdentity(ctx, backend.NewExecutionIdentity("close")), ids[1]); err != nil {
+		t.Fatal(err)
+	}
+	ids[1] = ""
+	if clients[0].current() != nil || clients[1].current() != nil {
+		t.Fatal("clients retained their connections")
+	}
+}

@@ -27,3 +27,7 @@ decision: Terra found no necessary source changes. The previously unexercised bo
 decision: Independent Sonnet proof review reached only-nitpicks in fixed-candidate-completion-proof-round-01.md. Its earlier CLI shell permission denials were resolved for the authorized validation invocation; this final round actually executed independent local checks and GitHub API reads.
 
 decision: Owned temporary tag was removed locally and remotely after verification, and A received explicit window release. Native GUI acceptance and actual publisher-job/retry behavior remain outside the proved foundation; do not reuse this build-only result as their qualification.
+
+decision: After the foundation handback Tyler requested "continue". Integrate the ready PR as ci: with no publication: fresh main equals latest v0.20.2 and nextVersion ignores ci: when no other unreleased changes exist. Coordinate a short merge/version-preparation window through A and verify the actual main automation outcome before release of that window.
+
+friction: Root checkout still contains the older uncommitted run-inventory edits and .gimbal. Preserve them; do not stash, discard or attempt a conflicting fast-forward merely to satisfy cleanup protocol.

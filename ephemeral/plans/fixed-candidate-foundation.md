@@ -1,6 +1,6 @@
 # Fixed candidate foundation — proposed task and definition of done
 
-Status: approved for execution by Tyler on November 1: "If you don't think it needs to go by me and if you recommend that I approve it as it is, then just go ahead and execute." The owner recommends this bounded task. Implementation, coordinated temporary-tag creation/cleanup and build-only dispatch are authorized. Merge and publication remain excluded.
+Status: approved for execution by Tyler on November 1: "If you don't think it needs to go by me and if you recommend that I approve it as it is, then just go ahead and execute." The owner recommends this bounded task. Implementation, coordinated temporary-tag creation/cleanup and build-only dispatch are authorized. The initial phase excluded merge/publication; the continuation below authorizes squash integration only.
 
 ## Goal and existing work
 
@@ -108,9 +108,10 @@ unexercised: C5 demonstrates external exact-ID consumption, not those skipped st
    consequential decision cannot be settled from this plan. Never repoint or
    recreate the deleted test tag to make a changed revision look like a retry.
 5. Update the existing PR with observed claims, checks and boundaries. Readiness
-   for merge is the handback; do not merge in this lane. Merge can activate the
+   for merge is the initial foundation handback. Merge can activate the
    automatic release path, depending on Conventional Commit version selection
-   and other pending changes, and requires a separate publication-aware decision.
+   and other pending changes, and requires the separate publication-aware
+   decision recorded in the continuation below.
 
 ## Exclusions
 
@@ -132,5 +133,18 @@ accounting. Do not recreate the existing PR or modify another task's branch.
   cleanup as above; do not repoint an existing public tag. The owner selects the
   exact tag after a fresh collision check and coordination, without an additional
   Tyler approval for routine implementation choices.
-Handback is the existing PR with verified foundation claims and explicit
-operational limits. Merge and publication remain excluded.
+Initial handback is the existing PR with verified foundation claims and explicit
+operational limits. Publication remains excluded.
+
+## Integration continuation
+
+After the completed foundation handback, Tyler requested "continue". Applying
+his instruction to execute recommended next work, integrate the proved PR by
+squash merge with its unchanged `ci:` title. Fresh inspection found main equal
+to the latest released v0.20.2; `prepare-release` selects no new version for a
+`ci:` commit in that state. Coordinate a short main-merge/version-preparation
+window through A, then recheck main, tags, PR head and active workflows before
+merging. Stop for a competing event that invalidates the no-publication premise.
+Observe main automation's actual result, verify no tag/release was produced,
+and explicitly release the window. Do not dispatch publication, qualify the
+native GUI or begin promotion as part of this continuation.

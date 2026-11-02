@@ -2,7 +2,13 @@
 
 **Approved by Tyler, November 1, 2026:** the written spec and bounded feasibility
 gate, including scoped installation and one fresh execution-owner chat if needed.
-Amrita runtime use must first be coordinated with A. The release hold remains.
+Amrita runtime use must first be coordinated with A. Release coordination remains
+with A; this spec confers no release authority.
+
+**HITL amendment, November 1, 2026:** Tyler explicitly accepted Escape cancellation
+instead of clicking a literal Cancel button, absent from the observed Finder
+sheet. Native clicks, typing, original screenshots and lock/relock checks remain
+required. Retained experiment input copies preserve their as-run wording.
 
 ## Overview and goals
 
@@ -256,12 +262,12 @@ activation remedy, stop without any further owner creation.
 
 ## Observable definition of done
 
-The native target is Finder (`com.apple.finder`). Its saved persistent approval
-is not yet confirmed from the actual worker context; the admission status check
-above must confirm it. In each native trial, observe Finder's accessibility and
+The native target is Finder (`com.apple.finder`). The gate confirmed its saved
+persistent approval from the actual worker context. Future invocations must still
+perform the admission status check above. In each native trial, observe Finder's accessibility and
 window, open its Go to Folder dialog, type a unique trial marker into the dialog
 without submitting navigation, capture an original native screenshot showing that
-input, click Cancel, and observe that the dialog closed and the original window
+input, dismiss the sheet with Escape without navigation, and observe that it closed and the original window
 remains. Do not submit the marker as a path, edit files or consent dialogs, or
 substitute another app after failure. This gives reversible native typing and
 clicking with a visible result, under the same C5/C6 lock evidence requirements.

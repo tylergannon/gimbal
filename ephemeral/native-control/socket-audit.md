@@ -2,6 +2,11 @@
 
 Research notes, November 1, 2026. **Independently reviewed within the stated scope;
 only nitpicks remain.** See `../reviews/native-control-round-07.md`.
+
+This checklist is the pre-installation audit snapshot. Subsequent approved runtime
+work is described in [the operating recipe](operating-recipe.md) and its proof
+review; the snapshot's “untested” and absent-directory rows are historical baseline
+observations, not claims about the installed state after that experiment.
 Owner: Sol in the native-control feasibility chat. This is a source/configuration
 audit, not a native-control success report or a proof of universal impossibility.
 

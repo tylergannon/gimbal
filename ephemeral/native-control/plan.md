@@ -1,7 +1,10 @@
 # Implementation and validation plan
 
 Governed by `spec.md`; Tyler explicitly approved the written spec and bounded
-feasibility gate on November 1, 2026. Remote execution awaits A's host window.
+feasibility gate on November 1, 2026. A granted the native-runtime window, the
+experiment completed, and the window was explicitly released. Tyler accepted the
+Escape-cancellation amendment. The final independent proof review reports only
+nitpicks; this does not authorize the separate maintained-caller/product work.
 
 1. Sol completes and independently reviews the read-only interface audit before
    choosing an experiment. Review artifacts are separate, numbered rounds.

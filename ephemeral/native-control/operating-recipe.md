@@ -5,6 +5,10 @@ This is the bounded configuration recovered on Amritanandamayi on November 1,
 public OpenAI integration or a Desktop-independent Gimbal daemon solution.
 Revalidate after changing Desktop, its helper, the worker or the controller.
 
+Independent Sonnet proof assessment: [round 2](../reviews/native-control-proof-round-02.md),
+only nitpicks remain. Its conclusion covers the bounded Desktop-owned route;
+it does not establish a maintained Go caller or general unattended reliability.
+
 ## Components and ownership
 
 | Component | Observed configuration |
@@ -106,8 +110,10 @@ Capture an original native screenshot showing the marker, then dismiss the sheet
 without navigation and verify the original Finder window remains. On this build,
 the observed Close control cleared the path field; there was no Cancel control.
 Escape dismissed the sheet. **Both successful interactions used Escape, not a
-literal Cancel click.** This is a recorded difference from the approved scripted
-procedure; it is not hidden by a claim that the exact procedure passed.
+literal Cancel click.** Tyler explicitly accepted that procedure amendment after
+reviewing the discrepancy. Native clicks, typing, original screenshots and
+lock/relock requirements remain unchanged. The original as-run input records were
+not rewritten to conceal the earlier wording.
 
 The tool returned screenshots inline. The original JPEG bytes were recovered from
 the explicitly owned tasks' retained tool outputs, without recapture, conversion

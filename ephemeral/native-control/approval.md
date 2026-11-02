@@ -1,7 +1,9 @@
 # Approval brief: native Mac control feasibility
 
 **Approved by Tyler, November 1, 2026.** No installation or native experiment has
-run yet. Amrita runtime use awaits A's confirmed window; the release hold remains.
+run at the time of approval. Amrita runtime use was coordinated with A; no release
+authority is conferred. Tyler subsequently accepted Escape cancellation in place
+of the unavailable literal Cancel control, with all other native/lock checks kept.
 
 Goal: Gimbal initiates native control on Amrita while Locked Use remains enabled,
 without manual unlock. A Desktop-dependent worker is acceptable. One Desktop
@@ -12,7 +14,7 @@ a separate coordination socket, and the historical authenticated app-tools route
 It did not establish a direct Gimbal endpoint into Desktop's native-capable
 runtime. Coverage and unknowns are explicit; this is not proof of impossibility.
 
-Proposed authorization, governed by the [spec and definition of done](spec.md):
+Approved authorization, governed by the [spec and definition of done](spec.md):
 
 1. At most 20 minutes to verify the genuine Desktop bootstrap, install only the
    already-staged scoped worker, verify real discovery, saved Finder approval,
@@ -21,7 +23,7 @@ Proposed authorization, governed by the [spec and definition of done](spec.md):
    or app-server. Any missing prerequisite ends the attempt.
 2. At most 20 minutes for an actual Gimbal-originated locked Finder trial:
    accessibility and screenshot, type into Go to Folder without navigating,
-   click Cancel, and verify normal protected unlock/relock.
+   dismiss with Escape, and verify normal protected unlock/relock.
 3. At most 20 minutes for a new execution task repeating the same behavior and
    reconciling owned resources. No manual unlock or security-setting changes.
 
@@ -38,6 +40,5 @@ Terra 6.1 owns the approved experiment/implementation work; Sonnet independently
 validates. Sol supervises here. Research/review notes are retained; run output
 and screenshots stay out of git.
 
-Approve the written spec and this bounded experiment, including scoped installation,
-targeted bootstrap follow-up, one fresh worker-owner chat if necessary, and the
-bounded Gimbal-created execution tasks?
+The approved scope includes scoped installation, targeted bootstrap follow-up,
+one fresh worker-owner chat if necessary, and bounded Gimbal-created execution tasks.

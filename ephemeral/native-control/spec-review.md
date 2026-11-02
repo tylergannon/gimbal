@@ -12,6 +12,17 @@ retained separately under `ephemeral/reviews/`.
 | Derivability / spanning | No universal impossibility conclusion from failed candidates. Current source cannot establish real peer admission or effective dynamic tools; these are named experiment prerequisites. Unselected architecture is excluded from implementation authorization. |
 | Pump hygiene | No approved spec exists yet. Interview decisions and review corrections are incorporated into this draft for explicit HITL approval; implementers are not authorized to amend it. |
 
-The interview has not reached explicit approval. Do not label the integration
+At this original draft-review point, the interview had not reached explicit approval. Do not label the integration
 constructible or start product changes until the remaining route-specific
 decisions are settled through the post-gate amendment.
+
+## Approved-gate amendment review
+
+Tyler subsequently approved the bounded gate and explicitly accepted Escape
+cancellation after observing that Finder exposes no Cancel control. Consistency
+and traceability remain intact: native menu clicks, focused typing, original
+screenshots, restored state and lock/relock observations still serve C5/C6.
+No seam, public surface, budget, exclusion or claim classification changed.
+The Finder API/label details belong to the operating recipe. Pump hygiene is
+explicit HITL acceptance; retained as-run inputs keep the original wording.
+The future maintained caller remains conditional rather than silently implemented.

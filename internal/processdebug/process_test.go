@@ -2,6 +2,7 @@ package processdebug
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -15,7 +16,7 @@ import (
 func TestDisabledDoesNotStartObserver(t *testing.T) {
 	for _, flag := range []string{"", "0", "true"} {
 		t.Setenv("GIMBAL_DEBUG_PROCESSES", flag)
-		if Start("test", "test", os.Getpid()) != nil || Candidates("session") != nil || Executor("id", "", os.Getpid(), "") != nil || ExecutorCandidates("id", "", "") != nil {
+		if Start("test", "test", os.Getpid()) != nil || Candidates("session") != nil || Executor("id", "", "", os.Getpid(), "", nil, os.ErrNotExist) != nil || ExecutorCandidates("id", "", "", "", nil, os.ErrNotExist) != nil {
 			t.Fatalf("observer started for %q", flag)
 		}
 	}
@@ -79,10 +80,6 @@ func TestSurvivingOwnedChild(t *testing.T) {
 	o.Reaped()
 	o.End()
 	waitLog(t, `"event":"suspect_survivor","owner":"survivor-test"`)
-	data, err := os.ReadFile(output.path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	// An exited and reaped worker is not reported as a live survivor.
 	exited := exec.Command("sleep", "30")
 	if err := exited.Start(); err != nil {
@@ -106,7 +103,7 @@ func TestSurvivingOwnedChild(t *testing.T) {
 	}
 	defer func() { _ = worker.Process.Kill(); _ = worker.Wait() }()
 	result := dir + "/result.json"
-	observer := Executor("live-worker", "session_abc", worker.Process.Pid, result)
+	observer := Executor("live-worker", "session_abc", "run_abc", worker.Process.Pid, result, nil, os.ErrNotExist)
 	defer observer.End()
 	waitLog(t, `"event":"owned","owner":"live-worker"`)
 	waitLog(t, `"session":"session_abc"`)
@@ -114,10 +111,36 @@ func TestSurvivingOwnedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitLog(t, `"event":"suspect_survivor","owner":"live-worker"`)
-	data, err = os.ReadFile(output.path)
+	data, err := os.ReadFile(output.path)
 	if err != nil {
 		t.Fatal(err)
 	}
+	// An unchanged result from an earlier launch must not finish this owner.
+	stale := dir + "/stale.json"
+	if err := os.WriteFile(stale, []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	prior, err := os.Stat(stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleWorker := exec.Command("sleep", "30")
+	if err := staleWorker.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = staleWorker.Process.Kill(); _ = staleWorker.Wait() }()
+	staleObserver := Executor("stale-worker", "", "run_abc", staleWorker.Process.Pid, stale, prior, nil)
+	defer staleObserver.End()
+	waitLog(t, `"event":"result_baseline","owner":"stale-worker"`)
+	time.Sleep(700 * time.Millisecond)
+	current, _ := os.ReadFile(output.path)
+	if strings.Contains(string(current), `"event":"owner_end","owner":"stale-worker"`) {
+		t.Fatal("unchanged stale result ended owner")
+	}
+	if err := os.WriteFile(stale, []byte("new result publication"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	waitLog(t, `"event":"owner_end","owner":"stale-worker"`)
 	if strings.Contains(string(data), fmt.Sprintf(`"pid":%d`, unrelated.Process.Pid)) {
 		t.Fatal("unrelated service was attributed to owner")
 	}
@@ -297,4 +320,182 @@ func TestAttributionCapacityAndWriteFailure(t *testing.T) {
 	if l.dropped.Load() != 1 {
 		t.Fatal("write failure was not exposed")
 	}
+}
+
+// The resolver seam selects only a disposable stand-in. The production
+// observer, process census, ancestry traversal and baseline logic are real.
+func TestSharedDaemonStandin(t *testing.T) {
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("unsupported")
+	}
+	if os.Getenv("GIMBAL_PROCESSDEBUG_SHARED_CHILD") != "1" {
+		dir := t.TempDir()
+		cmd := exec.Command(os.Args[0], "-test.run=^TestSharedDaemonStandin$")
+		cmd.Env = append(os.Environ(), "GIMBAL_PROCESSDEBUG_SHARED_CHILD=1", "GIMBAL_PROCESSDEBUG_TEST_DIR="+dir)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("shared fixture: %v\n%s", err, out)
+		}
+		return
+	}
+	dir := os.Getenv("GIMBAL_PROCESSDEBUG_TEST_DIR")
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CACHE_HOME", dir)
+	t.Setenv("GIMBAL_DEBUG_PROCESSES", "1")
+	parent := exec.Command("sh", "-c", "sleep 30 & echo $!; read ignored; sleep 30 & echo $!; wait")
+	input, err := parent.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	stdout, err := parent.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = parent.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = parent.Process.Kill(); _ = parent.Wait() }()
+	scanner := bufio.NewScanner(stdout)
+	if !scanner.Scan() {
+		t.Fatal("missing baseline child")
+	}
+	baselinePID, err := strconv.Atoi(scanner.Text())
+	if err != nil {
+		t.Fatal(err)
+	}
+	baselineChild, _ := os.FindProcess(baselinePID)
+	defer func() { _ = baselineChild.Kill() }()
+	anchor, err := initialIdentity(parent.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolveDaemon = func() (process, error) { time.Sleep(200 * time.Millisecond); return anchor, nil }
+	owner := Candidates("shared-session")
+	if owner == nil {
+		t.Fatal("observer unavailable")
+	}
+	defer owner.End()
+	waitLog(t, `"event":"baseline_count","owner":"shared-session"`)
+	if _, err = input.Write([]byte("continue\n")); err != nil {
+		t.Fatal(err)
+	}
+	if !scanner.Scan() {
+		t.Fatal("missing later child")
+	}
+	laterPID, err := strconv.Atoi(scanner.Text())
+	if err != nil {
+		t.Fatal(err)
+	}
+	laterChild, _ := os.FindProcess(laterPID)
+	defer func() { _ = laterChild.Kill() }()
+	waitEvent(t, "shared-session", "candidate", laterPID, 0, 5*time.Second)
+	owner.End()
+	waitEvent(t, "shared-session", "candidate_survivor", laterPID, 0, 5*time.Second)
+	waitEvent(t, "shared-session", "candidate_count", 0, 0, 5*time.Second)
+	events := readEvents(t)
+	var baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned bool
+	for _, e := range events {
+		if e.Owner != "shared-session" {
+			continue
+		}
+		if e.Event == "shared_daemon" && e.Process != nil && e.Process.PID == parent.Process.Pid {
+			rootSeen = true
+		}
+		if e.Event == "owned" {
+			owned = true
+		}
+		if e.Event == "baseline_alive_count" && e.Count >= 1 {
+			baselineCount = true
+		}
+		if e.Event == "candidate_count" && e.Count == 1 {
+			candidateCount = true
+		}
+		if e.Event == "baseline" && e.Process != nil && e.Process.PID == baselinePID {
+			baselineSeen = true
+		}
+		if e.Event == "candidate_survivor" && e.Process != nil && e.Process.PID == baselinePID {
+			baselineSurvivor = true
+		}
+		if e.Event == "first_census" && !e.RequestedAt.IsZero() && !e.CensusAt.Before(e.RequestedAt) && e.DiscoveryDelayMS != nil && *e.DiscoveryDelayMS >= 150 && e.Detail != "" {
+			timing = true
+		}
+	}
+	if !baselineSeen || baselineSurvivor || !timing || !rootSeen || !baselineCount || !candidateCount || owned {
+		t.Fatalf("baseline=%v reported_candidate=%v timing=%v root=%v baseline_count=%v candidate_count=%v owned=%v", baselineSeen, baselineSurvivor, timing, rootSeen, baselineCount, candidateCount, owned)
+	}
+}
+
+func readEvents(t *testing.T) []event {
+	t.Helper()
+	b, err := os.ReadFile(getLogger().path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []event
+	for _, line := range strings.Split(string(b), "\n") {
+		var e event
+		if json.Unmarshal([]byte(line), &e) == nil {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+func waitEvent(t *testing.T, owner, kind string, pid, age int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		for _, e := range readEvents(t) {
+			if e.Owner == owner && e.Event == kind && e.AgeSeconds >= age && (pid == 0 || e.Process != nil && e.Process.PID == pid) {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("missing event %s for %s at age %d", kind, owner, age)
+}
+
+func TestLongServiceGrace(t *testing.T) {
+	if os.Getenv("GIMBAL_PROCESSDEBUG_LONG_TEST") != "1" {
+		t.Skip("set GIMBAL_PROCESSDEBUG_LONG_TEST=1 for real 10s/60s grace")
+	}
+	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
+		t.Skip("unsupported")
+	}
+	if os.Getenv("GIMBAL_PROCESSDEBUG_LONG_CHILD") != "1" {
+		dir := t.TempDir()
+		cmd := exec.Command(os.Args[0], "-test.run=^TestLongServiceGrace$", "-test.timeout=90s")
+		cmd.Env = append(os.Environ(), "GIMBAL_PROCESSDEBUG_LONG_CHILD=1", "GIMBAL_PROCESSDEBUG_TEST_DIR="+dir)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("grace fixture: %v\n%s", err, out)
+		}
+		return
+	}
+	dir := os.Getenv("GIMBAL_PROCESSDEBUG_TEST_DIR")
+	t.Setenv("HOME", dir)
+	t.Setenv("XDG_CACHE_HOME", dir)
+	t.Setenv("GIMBAL_DEBUG_PROCESSES", "1")
+	warnings, err := os.Create(dir + "/warnings")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = warnings
+	worker := exec.Command("sleep", "90")
+	if err = worker.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = worker.Process.Kill(); _ = worker.Wait(); _ = warnings.Close() }()
+	owner := Service("service.1", "run_1", worker.Process.Pid)
+	waitEvent(t, "service.1", "owned", worker.Process.Pid, 0, 5*time.Second)
+	owner.StopRequested()
+	waitEvent(t, "service.1", "stop_observation", worker.Process.Pid, 0, 5*time.Second)
+	waitEvent(t, "service.1", "suspect_survivor", worker.Process.Pid, 10, 15*time.Second)
+	waitEvent(t, "service.1", "suspect_survivor", worker.Process.Pid, 60, 60*time.Second)
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		b, err := os.ReadFile(dir + "/warnings")
+		if err == nil && strings.Count(string(b), "suspects, not confirmed leaks") >= 2 {
+			return
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+	t.Fatal("missing qualified grace warnings")
 }

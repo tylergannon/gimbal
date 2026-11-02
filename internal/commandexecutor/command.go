@@ -20,6 +20,7 @@ import (
 )
 
 type Request struct {
+	DiagnosticRun  string             `json:"-"`
 	Reconstructing bool               `json:"-"`
 	Deadline       time.Time          `json:"deadline,omitzero"`
 	ID             executor.CommandID `json:"id"`
@@ -92,7 +93,7 @@ func Submit(root string, req Request) (executor.Descriptor, error) {
 	if info, e := os.Stat(sibling); e == nil && info.Mode().IsRegular() {
 		binary = sibling
 	}
-	d, err := executor.Launch(binary, []string{workerArg, root}, req, filepath.Join(root, string(req.ID)), "")
+	d, err := executor.Launch(binary, []string{workerArg, root}, req, filepath.Join(root, string(req.ID)), "", req.DiagnosticRun)
 	if err != nil {
 		dir := filepath.Join(root, string(req.ID))
 		if executor.Match(dir, acceptedCommand(req)) == nil {

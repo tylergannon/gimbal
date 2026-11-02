@@ -17,7 +17,7 @@ import (
 // selectedDaemon verifies an exact socket match for a single same-user codex
 // process. This does not establish ownership of any daemon descendant.
 func selectedDaemon() (process, error) {
-	before, err := snapshotFresh()
+	before, _, err := snapshotFresh()
 	if err != nil {
 		return process{}, err
 	}
@@ -75,7 +75,7 @@ func selectedDaemon() (process, error) {
 		if !ok {
 			return process{}, errors.New("daemon identity not observed before socket lookup")
 		}
-		after, err := snapshotFresh()
+		after, _, err := snapshotFresh()
 		if err != nil {
 			return process{}, err
 		}

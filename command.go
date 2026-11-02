@@ -302,7 +302,7 @@ func runCapturedCommand(ctx context.Context, id, workdir, command string, args [
 		_ = errOut.close()
 		return "", "", err
 	}
-	request := commandexecutor.Request{Reconstructing: effects.Reconstructing(ctx), ID: executor.CommandID(effects.ExecutionIdentityFromContext(ctx).ExecutorOperation), Command: command, Args: args, Workdir: workdir, Environment: environment}
+	request := commandexecutor.Request{DiagnosticRun: filepath.Base(r.dir), Reconstructing: effects.Reconstructing(ctx), ID: executor.CommandID(effects.ExecutionIdentityFromContext(ctx).ExecutorOperation), Command: command, Args: args, Workdir: workdir, Environment: environment}
 	if deadline, ok := ctx.Deadline(); ok {
 		request.Deadline = deadline
 	}

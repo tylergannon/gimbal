@@ -26,17 +26,20 @@ type process struct {
 	Executable string `json:"executable"`
 }
 type event struct {
-	Time       time.Time `json:"time"`
-	Event      string    `json:"event"`
-	Owner      string    `json:"owner,omitempty"`
-	Kind       string    `json:"kind,omitempty"`
-	Run        string    `json:"run,omitempty"`
-	Session    string    `json:"session,omitempty"`
-	PID        int       `json:"pid,omitempty"`
-	Process    *process  `json:"process,omitempty"`
-	AgeSeconds int       `json:"owner_end_age_seconds,omitempty"`
-	Count      int       `json:"count,omitempty"`
-	Detail     string    `json:"detail,omitempty"`
+	Time             time.Time `json:"time"`
+	Event            string    `json:"event"`
+	Owner            string    `json:"owner,omitempty"`
+	Kind             string    `json:"kind,omitempty"`
+	Run              string    `json:"run,omitempty"`
+	Session          string    `json:"session,omitempty"`
+	PID              int       `json:"pid,omitempty"`
+	Process          *process  `json:"process,omitempty"`
+	AgeSeconds       int       `json:"owner_end_age_seconds,omitempty"`
+	Count            int       `json:"count,omitempty"`
+	RequestedAt      time.Time `json:"requested_at,omitzero"`
+	CensusAt         time.Time `json:"census_at,omitzero"`
+	DiscoveryDelayMS *int64    `json:"discovery_delay_ms,omitempty"`
+	Detail           string    `json:"detail,omitempty"`
 }
 type logger struct {
 	mu      sync.Mutex
@@ -93,7 +96,7 @@ func pruneLogs(dir string) {
 	}
 	var files []item
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasPrefix(e.Name(), "process-") || !(strings.HasSuffix(e.Name(), ".jsonl") || strings.HasSuffix(e.Name(), ".jsonl.1")) {
+		if e.IsDir() || !strings.HasPrefix(e.Name(), "process-") || (!strings.HasSuffix(e.Name(), ".jsonl") && !strings.HasSuffix(e.Name(), ".jsonl.1")) {
 			continue
 		}
 		info, err := e.Info()
@@ -154,23 +157,25 @@ type Owner struct {
 }
 
 func Start(kind, id string, pid int) *Owner {
-	return start(kind, id, pid, false, "", "", "")
+	return start(kind, id, pid, false, "", "", "", nil, os.ErrNotExist)
 }
 
 // Candidates observes the selected shared Codex daemon without attributing its children to a turn.
 func Candidates(sessionID string) *Owner {
-	return start("codex_shared_daemon", sessionID, 0, true, "", "", sessionID)
+	return start("codex_shared_daemon", sessionID, 0, true, "", "", sessionID, nil, os.ErrNotExist)
 }
 
-func Service(id, run string, pid int) *Owner { return start("service", id, pid, false, "", run, "") }
-func Executor(id, session string, pid int, result string) *Owner {
-	return start("executor", id, pid, false, result, "", session)
+func Service(id, run string, pid int) *Owner {
+	return start("service", id, pid, false, "", run, "", nil, os.ErrNotExist)
 }
-func ExecutorCandidates(id, session, result string) *Owner {
-	return start("codex_shared_daemon", id, 0, true, result, "", session)
+func Executor(id, session, run string, pid int, result string, prior os.FileInfo, priorErr error) *Owner {
+	return start("executor", id, pid, false, result, run, session, prior, priorErr)
+}
+func ExecutorCandidates(id, session, run, result string, prior os.FileInfo, priorErr error) *Owner {
+	return start("codex_shared_daemon", id, 0, true, result, run, session, prior, priorErr)
 }
 
-func start(kind, id string, pid int, shared bool, result, run, session string) *Owner {
+func start(kind, id string, pid int, shared bool, result, run, session string, prior os.FileInfo, priorErr error) *Owner {
 	if os.Getenv("GIMBAL_DEBUG_PROCESSES") != "1" || (pid <= 0 && !shared) {
 		return nil
 	}
@@ -180,12 +185,16 @@ func start(kind, id string, pid int, shared bool, result, run, session string) *
 		droppedOwners.Add(1)
 		return nil
 	}
+	requestedAt := time.Now()
 	var anchor process
 	if !shared {
 		anchor, _ = initialIdentity(pid)
 	}
 	o := &Owner{end: make(chan struct{}), reap: make(chan struct{}), stop: make(chan struct{})}
-	go func() { defer func() { <-slots }(); observe(o, kind, id, pid, shared, result, run, session, anchor) }()
+	go func() {
+		defer func() { <-slots }()
+		observe(o, kind, id, pid, shared, result, run, session, anchor, requestedAt, prior, priorErr)
+	}()
 	return o
 }
 func (o *Owner) Reaped() {
@@ -204,7 +213,7 @@ func (o *Owner) End() {
 	}
 }
 
-func observe(o *Owner, kind, id string, pid int, shared bool, result, run, session string, anchor process) {
+func observe(o *Owner, kind, id string, pid int, shared bool, result, run, session string, anchor process, requestedAt time.Time, prior os.FileInfo, priorErr error) {
 	l := getLogger()
 	if l == nil {
 		return
@@ -214,15 +223,20 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 	kind = safeID(kind)
 	run = safeID(run)
 	session = safeID(session)
-	l.write(event{Event: "start", Owner: id, Kind: kind, Run: run, Session: session, PID: pid, Detail: "missing run or session correlation is unavailable; sampled ancestry may be incomplete"})
+	l.write(event{Event: "start", Owner: id, Kind: kind, Run: run, Session: session, PID: pid, RequestedAt: requestedAt, Detail: "missing run or session correlation is unavailable; sampled ancestry may be incomplete"})
 	if runtime.GOOS != "darwin" && runtime.GOOS != "linux" {
 		l.write(event{Event: "unavailable", Owner: id, Detail: "process enumeration unsupported on this platform"})
 		return
 	}
+	if result != "" && priorErr == nil && prior != nil {
+		l.write(event{Event: "result_baseline", Owner: id, Detail: "existing result ignored until changed; launch ownership may be a replay"})
+	} else if result != "" && priorErr != nil && !os.IsNotExist(priorErr) {
+		l.write(event{Event: "unavailable", Owner: id, Detail: "result state before launch unavailable; completion cannot be established"})
+	}
 	var daemon process
 	if shared {
 		var err error
-		daemon, err = selectedDaemon()
+		daemon, err = resolveDaemon()
 		if err != nil {
 			l.write(event{Event: "unavailable", Owner: id, Detail: "shared daemon identity unavailable"})
 			return
@@ -235,6 +249,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 	stopping := false
 	neutralStopSample := false
 	var lastDrops uint64
+	processCapacityReported := false
 	rootAttempted := false
 	ended := time.Time{}
 	reap := o.reap
@@ -244,22 +259,20 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 	defer ticker.Stop()
 	sample := func() int {
 		count := 0
-		snapshot, err := snapshot()
+		var snapshot map[int]process
+		var censusAt time.Time
+		var err error
+		if !rootAttempted {
+			snapshot, censusAt, err = snapshotFresh()
+		} else {
+			snapshot, censusAt, err = cachedSnapshot()
+		}
 		if err != nil {
 			l.write(event{Event: "unavailable", Owner: id, Detail: "process enumeration failed"})
 			return -1
 		}
 		if !rootAttempted {
-			rootAttempted = true
 			p, ok := snapshot[pid]
-			if !shared || !ok {
-				snapshot, err = snapshotFresh()
-				if err != nil {
-					l.write(event{Event: "unavailable", Owner: id, Detail: "process enumeration failed"})
-					return -1
-				}
-				p, ok = snapshot[pid]
-			}
 			if shared && ok && !sameProcess(p, daemon) {
 				ok = false
 			}
@@ -273,6 +286,11 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 				default:
 				}
 			}
+			rootAttempted = true
+			if shared {
+				delay := censusAt.Sub(requestedAt).Milliseconds()
+				l.write(event{Event: "first_census", Owner: id, RequestedAt: requestedAt, CensusAt: censusAt, DiscoveryDelayMS: &delay, Detail: "first census follows asynchronous daemon discovery and may include work started before or during discovery"})
+			}
 			if ok {
 				known[pid] = p
 				label := "owned"
@@ -285,7 +303,8 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			}
 		}
 		added, dropped := discover(known, snapshot)
-		if dropped > 0 {
+		if dropped > 0 && !processCapacityReported {
+			processCapacityReported = true
 			l.dropped.Add(uint64(dropped))
 			l.write(event{Event: "dropped_process", Owner: id, Count: dropped, Detail: "process attribution capacity reached"})
 		}
@@ -294,7 +313,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			l.write(event{Event: item.label, Owner: id, Process: &p})
 		}
 		if firstSample && shared {
-			l.write(event{Event: "baseline_count", Owner: id, Count: len(baseline), Detail: "first census baseline; changes before sampling and missed ancestry are unknown"})
+			l.write(event{Event: "baseline_count", Owner: id, Count: len(baseline), Detail: "first census may include work begun before or during discovery; missed ancestry remains unknown"})
 		}
 		firstSample = false
 
@@ -343,7 +362,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 		ended = time.Now()
 		stopping = label == "stop_requested"
 		l.write(event{Event: label, Owner: id, PID: pid})
-		_, _ = snapshotFresh()
+		_, _, _ = snapshotFresh()
 		neutralStopSample = stopping
 		sample()
 		neutralStopSample = false
@@ -376,7 +395,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 			if ended.IsZero() {
 				sample()
 				if result != "" {
-					if _, err := os.Stat(result); err == nil {
+					if info, err := os.Stat(result); err == nil && resultChanged(prior, priorErr, info) {
 						finish("owner_end")
 					} else if !reapedAt.IsZero() && time.Since(reapedAt) > 2*time.Second {
 						l.write(event{Event: "unavailable", Owner: id, Detail: "worker reaped without observed result; logical owner end unknown"})
@@ -385,7 +404,7 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 				}
 			}
 		case <-grace:
-			_, _ = snapshotFresh()
+			_, _, _ = snapshotFresh()
 			count := sample()
 			if count > 0 {
 				fmt.Fprintln(os.Stderr, survivorWarning(id, count, int(time.Since(ended).Seconds()), shared))
@@ -399,6 +418,19 @@ func observe(o *Owner, kind, id string, pid int, shared bool, result, run, sessi
 		}
 	}
 }
+
+// A pre-existing result must change before it can mark this launch complete.
+func resultChanged(before os.FileInfo, beforeErr error, after os.FileInfo) bool {
+	if beforeErr != nil {
+		return os.IsNotExist(beforeErr)
+	}
+	if before == nil || after == nil {
+		return false
+	}
+	return !os.SameFile(before, after) || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime())
+}
+
+var resolveDaemon = selectedDaemon
 
 type attributed struct {
 	process process
@@ -460,23 +492,23 @@ var census struct {
 	err       error
 }
 
-func snapshot() (map[int]process, error) {
+func cachedSnapshot() (map[int]process, time.Time, error) {
 	census.Lock()
 	defer census.Unlock()
 	if time.Since(census.at) < 200*time.Millisecond {
-		return census.processes, census.err
+		return census.processes, census.at, census.err
 	}
 	census.processes, census.err = snapshotSystem()
 	census.at = time.Now()
-	return census.processes, census.err
+	return census.processes, census.at, census.err
 }
 
-func snapshotFresh() (map[int]process, error) {
+func snapshotFresh() (map[int]process, time.Time, error) {
 	census.Lock()
 	defer census.Unlock()
 	census.processes, census.err = snapshotSystem()
 	census.at = time.Now()
-	return census.processes, census.err
+	return census.processes, census.at, census.err
 }
 
 func sameProcess(a, b process) bool { return a.PID == b.PID && a.Birth != "" && a.Birth == b.Birth }
@@ -496,7 +528,7 @@ func safeID(s string) string {
 			return "unavailable"
 		}
 		for _, r := range part {
-			if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' || r == '.') {
+			if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' && r != '_' && r != '.' {
 				return "unavailable"
 			}
 		}

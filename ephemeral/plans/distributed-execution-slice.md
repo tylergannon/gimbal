@@ -69,6 +69,20 @@ and reject unknown fields. Existing sessions retain their owner after rebinding;
 new independent work uses the current binding. Initially one active worker per
 logical environment, with duplicate active registration rejected.
 
+The plugin-configured worker identity is stable across process restarts and is
+bound to its retained native state directory. Registration history alone does not
+mean a worker is active. One serving instance holds database-owned exclusive
+registration authority (a session advisory lock is sufficient), and only that
+instance may admit its addressed work. A concurrent second instance, including one
+using the same configured identity, cannot take over while the first still owns
+that authority. After the database releases the departed instance's authority,
+the same configured identity may register again and recover its retained sessions
+without manually deleting a stale registration row. If authority is unresolved,
+wait within the worker's startup budget or fail explicitly; do not assume death
+or promise immediate restart. No application heartbeat/lease-expiry scheme is
+required. A distinct worker identity cannot claim an already-bound logical name
+without an explicit configuration rebind; rebinding preserves old session owners.
+
 R4. Local and remote command/session tasks in this specimen cross the same selected
 messaging contract. No task-endpoint fallback, per-peer connection construction,
 shared network filesystem or SSH tunnel supplies missing participant operations.
@@ -170,6 +184,13 @@ as one local/run-wide destination. Reconnect and logical-name rebinding preserve
 the recorded placement of admitted work. This is a bounded addition to existing
 command/session details, not a page redesign. Inspect actual rendered pixels before
 claiming human legibility. Existing out-of-slice run-wide display is not removed.
+For a run using this new composition, the mapped observation registry's decoration
+uses retained per-task placement to replace its task summary with the actual single
+environment or a mixed summary, overriding the old host-derived `local` label.
+It does not infer task location from the workflow's computer. The unchanged legacy
+summary remains only for out-of-slice runs. The accepted/completed message facts
+carry the admitting worker's identity and logical environment, and A records them
+as lifecycle facts so replay builds the same task/session placement rows.
 
 ## Cells, contracts and implementation volume tripwires
 
@@ -231,7 +252,7 @@ Each claim is mandatory for this milestone, with its required observation.
 | --- | --- | --- |
 | D1 | Cell-local / declaration | Metadata includes both logical environments; invalid or absent names reject before any workflow/native effect. Exercise registered preparation/admission, not a separate invented preflight utility. |
 | D2 | Cell-local / declaration | Overlay semantics, strict plugin validation and namespace interpretation agree; invalid selection produces an explicit error without fallback or capacity startup. |
-| D3 | Cell-local / transport | Duplicate active registration is rejected; requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. After transient connection loss the listener delivers the original completion from retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
+| D3 | Cell-local / transport | Duplicate active registration is rejected, including a concurrent instance with the same identity. After its predecessor's database authority is released, the restarted worker re-registers with its original identity and retained sessions without stale-row cleanup; an unresolved predecessor cannot be replaced. Requests/facts retain stable identities; repeated delivery does not create another accepted assignment. Rebind a logical name: new work selects the new owner and existing sessions still address the original owner. After transient connection loss the listener delivers the original completion from retained records; budget exhaustion returns uncertainty without resubmission. Exercise the actual database implementation. |
 | D4 | Cell-local / native dispatch | The original native identity governs acceptance and outcome; uncertain replies reconcile that identity and never authorize replacement work. |
 | D5 | Cell-local / context | Visible inherited/shadowed context and complete-value artifact bytes retain existing semantics at the task-input boundary. |
 | D5a | Cell-local / bootstrap | Prestarted registered workers can receive named work without an orchestrator. Mixed-in legacy destination/provisioning settings reject before effects; missing/failed registration fails at use without another route. Out-of-slice conversation composition using namespace-based River fails explicitly, preserving the selected environment rather than falling back. |
@@ -257,7 +278,7 @@ code and review/spec notes remain under `ephemeral/`.
    River delivery and retained ownership in this product worktree. Put repeatable
    checks beside their owning code, including an opt-in integration test in the
    package that checks registered invocation/task dispatch. That test registers an
-  ordinary workflow and uses real separately started message-worker participants
+   ordinary workflow and uses real separately started message-worker participants
    and the actual River plugin/database for live claims; mocks cannot satisfy D6–D10.
    Do not commit a standalone specimen/proof program or relabel it as an example.
    Run focused checks and D1–D5b.

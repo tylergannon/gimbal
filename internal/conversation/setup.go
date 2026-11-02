@@ -44,24 +44,35 @@ func (m *Manager) SetupEnvironment(ctx context.Context, environment string) (Set
 	if err != nil {
 		return Setup{}, err
 	}
-	directory, err := service.Inspect(ctx, target, target.Directory)
+	route, named, err := service.NamespaceRoute(target, environment)
 	if err != nil {
 		return Setup{}, err
 	}
+	if !named {
+		return Setup{}, errors.New("conversation: selected environment requires a messaging namespace")
+	}
+	target.Route = route
+	facts, err := service.Inspect(ctx, target, target.Directory)
+	if err != nil {
+		return Setup{}, err
+	}
+	directory := facts.Directory
 	snapshot, err := service.Snapshot(ctx, projectID)
 	if err != nil {
 		return Setup{}, err
 	}
-	setup := Setup{Harnesses: []Harness{}, Directory: directory.Path, Git: directory.Git && !directory.Unborn, Branch: directory.Branch, Unborn: directory.Unborn, Bases: directory.Bases, Base: directory.Base, Environment: environment, Machine: target.Machine.Name, Capabilities: target.Capabilities, Environments: snapshot, HarnessStates: []environments.Harness{}}
+	setup := Setup{Harnesses: observedHarnesses(facts.Harnesses, nil), Directory: directory.Path, Git: directory.Git && !directory.Unborn, Branch: directory.Branch, Unborn: directory.Unborn, Bases: directory.Bases, Base: directory.Base, Environment: environment, Machine: target.Machine.Name, Capabilities: target.Capabilities, Environments: snapshot, HarnessStates: facts.Harnesses}
 	for _, machine := range snapshot.Machines {
 		if machine.ID != target.Machine.ID {
 			continue
 		}
 		setup.Capabilities.Steer = machine.Capabilities.Steer
 		setup.Capabilities.Fork = machine.Capabilities.Fork
-		setup.HarnessStates = machine.Harnesses
-		setup.Harnesses = observedHarnesses(machine.Harnesses, nil)
 	}
+	// Named messaging supports steering but not native session forks, regardless
+	// of whether the configured directory is labelled local or remote.
+	setup.Capabilities.Steer = true
+	setup.Capabilities.Fork = false
 	setup.Capabilities.Worktree = directory.Git && !directory.Unborn && directory.FixedWorkdir == ""
 	return setup, nil
 }

@@ -763,3 +763,29 @@ func TestInteractiveStopAbandonsPromptNotYetSubmitted(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestInteractiveAttachmentRetryRejectsDifferentBytes(t *testing.T) {
+	adapter := &interactionAdapter{}
+	r, done := startInteractiveTest(t, adapter, func(ctx context.Context) error {
+		_, err := Interactive(ctx, "dialogue", NewSession(ctx, RoleAgenticDialogues, ""), "Discuss.")
+		return err
+	})
+	input := interactionInput{Address: "dialogue", ID: "attachment", Message: "read", Files: []backend.TaskFile{{Name: "a.txt", Bytes: []byte("original")}}}
+	if err := r.acceptInput(input); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.acceptInput(input); err != nil {
+		t.Fatal(err)
+	}
+	changed := input
+	changed.Files = []backend.TaskFile{{Name: "a.txt", Bytes: []byte("changed")}}
+	if err := r.acceptInput(changed); !errors.Is(err, runstore.ErrConflict) {
+		t.Fatalf("changed attachment accepted: %v", err)
+	}
+	if err := r.acceptInteractive("dialogue", "finish-attachment", "", true); err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}

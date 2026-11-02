@@ -1,8 +1,8 @@
 // Package main is the runtime-loaded River/Postgres messaging plugin.
 // Build with go build -buildmode=plugin -o river.so ./plugins/messaging-river.
 // Configuration names a private DSNFile and explicitly selected action/control
-// queues. Start one local worker for those queues; events last until database
-// removal. Native execution is not resumed after worker loss.
+// queues and stable worker identities. Retained events and native ownership
+// survive a worker-process restart when its state directory is retained.
 package main
 
 import (
@@ -36,6 +36,8 @@ type configuration struct {
 	Environments     map[string]string
 	WorkerID         string
 	ReconnectSeconds int
+	// RebindFrom explicitly names the current worker expected for each rebind.
+	RebindFrom map[string]string
 }
 
 func parse(raw json.RawMessage) (configuration, error) {
@@ -75,6 +77,11 @@ func parse(raw json.RawMessage) (configuration, error) {
 	for name, worker := range c.Environments {
 		if strings.TrimSpace(name) != name || name == "" || strings.TrimSpace(worker) != worker || worker == "" {
 			return c, errors.New("river environment names and worker identities must be nonempty and have no surrounding whitespace")
+		}
+	}
+	for name, previous := range c.RebindFrom {
+		if c.Environments[name] == "" || strings.TrimSpace(previous) != previous || previous == "" || previous == c.Environments[name] {
+			return c, errors.New("river RebindFrom requires a configured environment and a distinct previous worker")
 		}
 	}
 	if strings.TrimSpace(c.WorkerID) != c.WorkerID {
@@ -144,13 +151,22 @@ func (t *transport) initialize(ctx context.Context) error {
 	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_events (
  queue text NOT NULL, id text NOT NULL, created timestamptz NOT NULL,
  request_id text NOT NULL, run_id text NOT NULL, session_id text NOT NULL,
+ source text NOT NULL DEFAULT '', sequence bigint NOT NULL DEFAULT 0,
  event bytea NOT NULL, PRIMARY KEY (queue, id))`); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `ALTER TABLE gimbal_message_events ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS sequence bigint NOT NULL DEFAULT 0`); err != nil {
 		return err
 	}
 	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_owners (
  namespace text NOT NULL, run_id text NOT NULL, kind text NOT NULL, identity text NOT NULL,
  worker text NOT NULL, environment text NOT NULL, scope text NOT NULL DEFAULT '',
  PRIMARY KEY (namespace, run_id, kind, identity))`); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_bindings (
+ namespace text NOT NULL, environment text NOT NULL, worker text NOT NULL,
+ PRIMARY KEY (namespace, environment))`); err != nil {
 		return err
 	}
 	if _, err = t.pool.Exec(ctx, `ALTER TABLE gimbal_message_owners ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT ''`); err != nil {
@@ -197,8 +213,8 @@ func (t *transport) PublishEvent(ctx context.Context, e backend.MessageEvent) er
 		return err
 	}
 	_, err = t.pool.Exec(ctx, `INSERT INTO gimbal_message_events
- (queue,id,created,request_id,run_id,session_id,event) VALUES ($1,$2,$3,$4,$5,$6,$7)
- ON CONFLICT (queue,id) DO NOTHING`, t.config.Queue, e.ID, e.Created, e.RequestID, e.Run, e.SessionID, b)
+ (queue,id,created,request_id,run_id,session_id,source,sequence,event) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+ ON CONFLICT (queue,id) DO NOTHING`, t.config.Queue, e.ID, e.Created, e.RequestID, e.Run, e.SessionID, e.Source, e.Sequence, b)
 	return storeError(err)
 }
 
@@ -221,7 +237,7 @@ func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection
 		queryCtx, cancel := context.WithTimeout(ctx, remaining)
 		rows, err := t.pool.Query(queryCtx, `SELECT event FROM gimbal_message_events
  WHERE queue=$1 AND created >= $2 AND ($3='' OR request_id=$3)
- AND ($4='' OR run_id=$4) AND ($5='' OR session_id=$5) ORDER BY created,id`, t.config.Queue, since, s.RequestID, s.Run, s.SessionID)
+ AND ($4='' OR run_id=$4) AND ($5='' OR session_id=$5) ORDER BY source,sequence,created,id`, t.config.Queue, since, s.RequestID, s.Run, s.SessionID)
 		var events []backend.MessageEvent
 		if err == nil {
 			for rows.Next() {
@@ -403,7 +419,8 @@ func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependenc
 
 func Register(registry *gimbal.Registry) error {
 	return registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true,
-		Name: "river",
+		Name:                "river",
+		ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["DSNFile"],"properties":{"DSNFile":{"type":"string","minLength":1,"description":"Private file containing the PostgreSQL DSN."},"Queue":{"type":"string","default":"gimbal"},"ControlQueue":{"type":"string","description":"Defaults to Queue plus _control."},"Workers":{"type":"integer","minimum":0,"default":4},"Environments":{"type":"object","additionalProperties":{"type":"string","minLength":1}},"WorkerID":{"type":"string"},"ReconnectSeconds":{"type":"integer","minimum":0,"default":30},"RebindFrom":{"type":"object","description":"Explicit rebinds: environment name to expected previous worker identity.","additionalProperties":{"type":"string","minLength":1}}}}`),
 		ValidateEnvironment: func(raw json.RawMessage, name string) error {
 			c, err := parse(raw)
 			if err != nil {

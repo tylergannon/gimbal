@@ -3,6 +3,7 @@ package messagefiles
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -61,5 +62,33 @@ func TestRetainedLateOlderEventAndIndependentReaders(t *testing.T) {
 		if !errors.Is(err, stop) || count != 2 {
 			t.Fatalf("independent retained read count=%d err=%v", count, err)
 		}
+	}
+}
+
+func TestReplayOrdersOneSourceBySequence(t *testing.T) {
+	store, err := Open(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	later := time.Now().UTC()
+	for _, event := range []backend.MessageEvent{
+		{ID: "01ARZ3NDEKTSV4RRFFQ69G5FA0", RequestID: "request", Source: "request", Sequence: 2, Created: later.Add(-time.Hour)},
+		{ID: "01ARZ3NDEKTSV4RRFFQ69G5FA1", RequestID: "request", Source: "request", Sequence: 1, Created: later},
+	} {
+		if err := store.PublishEvent(t.Context(), event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := errors.New("done")
+	var got []uint64
+	err = store.ListenEvents(t.Context(), backend.MessageSelection{RequestID: "request"}, time.Time{}, func(e backend.MessageEvent) error {
+		got = append(got, e.Sequence)
+		if len(got) == 2 {
+			return stop
+		}
+		return nil
+	})
+	if !errors.Is(err, stop) || !reflect.DeepEqual(got, []uint64{1, 2}) {
+		t.Fatalf("sequence replay: %v %v", got, err)
 	}
 }

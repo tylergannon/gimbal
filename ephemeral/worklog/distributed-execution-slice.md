@@ -34,3 +34,59 @@ friction: Built-in implement requires TYPESAFE_API_KEY, absent from this session
 correction: The initial map omitted service.go and the interactive example despite explicitly requiring service placement and conversation caller updates. These are ordinary direct callers within existing responsibilities, not new seams or reasons to stop after small fragments. Corrected exact base counts: workflow context 3,074 including base service.go 345 lines; bootstrap 1,001 including base example 91 lines, with proportional volume tripwires. File splitting/caller corrections remain derivable within a cell; actual new responsibilities or volume breaches still stop for review.
 friction: First temporary source loop ended because a nonempty free-text blocker field contained “None external”. Corrected the program to branch on a typed ready/needs_work/blocked enum, with fresh review paths keyed by run ID. Prior turns/process were confirmed terminal before continuing; no uncertain native operation was replayed. Replacement run 01M6D7FRS1SZ1W0AY18G4R1KPC is active through exec session 58545 in the same source-loop-state directory.
 correction: Review commentary assumed a missing Prettier executable meant missing frontend tooling. Current package.json/Justfile specify VitePlus formatting and no Prettier dependency. Pinned frozen-lockfile install succeeded. Require actual generation/format/build checks and consistent generated output, not an unrequested formatter dependency.
+
+
+## Live deployment intake, November 1, 23:38–23:44
+
+Sonnet source round 07 reported no material source findings after exercising
+Postgres/race/native-luna and frontend checks. That is a source checkpoint,
+not live C1 acceptance. Root opened the actual private application in IAB and
+selected the configured remote directory. New-session setup returned Internal
+Error before Start. Inspection shows SetupEnvironment still uses Service.Inspect
+and the old operation context takes Route.Environment (empty on a named bus),
+without selecting the logical target.Environment.ID. Manager.Start-only coverage
+missed this setup path. Fed this existing consumer requirement back to Terra in
+the continuation assignment during pass 8. Selected-factory nil-result authority
+checks also remain required; root has not accepted the source stage yet.
+
+Owned deployment uses Compose project gimbal-dist-owner-b and a distinct
+live database gimbal_live, separated from the source-test database. A's private
+application and message worker started successfully; B's matching private CLI
+and River plugin were copied with equal SHA-256 checks. No installed application,
+shared daemon, qualification central, or existing worker was replaced.
+
+B's nc reaches the database port but the candidate process returns EHOSTUNREACH.
+macOS network-extension diagnostics identify the unbundled a.out signature and
+cannot find its bundle/display name. Signing the private copy with the normal
+Developer ID Gimbal CLI identity (as release packaging does) did not fix the
+connection; the same diagnostic then names gimbal. This suggests a host network
+privacy problem but does not establish the exact cause. Asked Tyler to inspect
+Local Network access on Amrita while source repairs continue. No privacy setting,
+firewall, network extension, VPN, or system service was changed. B has not accepted
+native work; C1/D6–D10 remain unproved.
+
+
+## Browser check of repaired named-local flow, November 1, 23:54–23:56
+
+Root deployed Terra pass 8's actual built application/plugin privately and used
+the browser to select workflow-local (bound worker-a). Setup succeeded through
+River. The UI selected Luna and launched the registered conversation with the
+default separate Git worktree. Its real native session ran hostname/pwd, reported
+Esmeralda.local and its created checkout, and recalled the nonsecret first-turn
+token in a second human turn. End session completed its workflow and cleanup.
+The normal run page visibly showed workflow-local · worker-a in its header,
+session row and prepare-checkout command row. Both command and session were on A;
+this is useful local UI evidence, not the C1 two-computer or D10 mixed-placement
+claim. Screenshots/run state remain outside Git in the owned temporary directory.
+Observed candidate-process TCP connections included Postgres, loopback browser
+connections and a public HTTPS endpoint; the public connection still needs source
+classification during final independent attestation. No blanket communication
+attestation is made from these snapshots. B's connection problem remains open.
+
+
+Connection classification follow-up: the candidate's public HTTPS destination
+172.66.40.54 resolves as api.doppler.com. cmd/gimbal/main.go calls
+loadCommandSecrets at startup for the central and message-worker; the fixed
+endpoint is in cmd/gimbal/secrets.go. This is startup secret retrieval, not an
+alternate participant task channel. Final independent attestation still must
+inspect the full actual composition and classify its other external services.

@@ -32,6 +32,23 @@ func TestNamespaceValidationIsPureAndStrict(t *testing.T) {
 		t.Fatal(err)
 	}
 	d, _ := registry.Messaging("river")
+	var schema map[string]any
+	if err := json.Unmarshal(d.ConfigurationSchema, &schema); err != nil || schema["additionalProperties"] != false {
+		t.Fatalf("missing strict configuration schema: %v", err)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("schema has no properties")
+	}
+	for key, want := range map[string]any{"Queue": "gimbal", "Workers": float64(4), "ReconnectSeconds": float64(30)} {
+		field, ok := properties[key].(map[string]any)
+		if !ok || field["default"] != want {
+			t.Errorf("schema default %s: %v", key, properties[key])
+		}
+	}
+	if field, ok := properties["RebindFrom"].(map[string]any); !ok || field["description"] == "" {
+		t.Fatal("schema does not explain explicit rebinds")
+	}
 	raw := json.RawMessage(`{"DSNFile":"/does/not/exist","Environments":{"build":"worker-a"}}`)
 	if err := d.ValidateConfiguration(raw); err != nil {
 		t.Fatal(err)
@@ -42,7 +59,7 @@ func TestNamespaceValidationIsPureAndStrict(t *testing.T) {
 	if err := d.ValidateEnvironment(raw, "missing"); err == nil {
 		t.Fatal("unknown environment accepted")
 	}
-	for _, raw := range []string{`{"DSNFile":"x","extra":1}`, `{"DSNFile":"x"} {}`, `{"DSNFile":"x","Environments":{"x":" "}}`, `{"DSNFile":"x","ReconnectSeconds":-1}`} {
+	for _, raw := range []string{`{"DSNFile":"x","extra":1}`, `{"DSNFile":"x"} {}`, `{"DSNFile":"x","Environments":{"x":" "}}`, `{"DSNFile":"x","ReconnectSeconds":-1}`, `{"DSNFile":"x","RebindFrom":{"x":"old"}}`, `{"DSNFile":"x","Environments":{"x":"same"},"RebindFrom":{"x":"same"}}`} {
 		if err := d.ValidateConfiguration(json.RawMessage(raw)); err == nil {
 			t.Fatalf("accepted %s", raw)
 		}
@@ -91,6 +108,7 @@ func integration(t *testing.T) (*transport, context.Context) {
 		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_events WHERE queue=$1", c.Queue)
 		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_acceptances WHERE namespace=$1", c.Queue)
 		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_owners WHERE namespace=$1", c.Queue)
+		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_bindings WHERE namespace=$1", c.Queue)
 		tr.pool.Close()
 	})
 	return tr, ctx
@@ -492,6 +510,13 @@ func TestPostgresNamedWorkersReceiveOnlyAddressedRequests(t *testing.T) {
 	if err := serve(ctx, raw, backend.Dependencies{}, func(context.Context, backend.MessageRequest) error { t.Error("duplicate admitted"); return nil }); err == nil || !strings.Contains(err.Error(), "already registered") {
 		t.Fatalf("duplicate registration: %v", err)
 	}
+	conflicting := tr.config
+	conflicting.WorkerID = "worker-c"
+	conflicting.Environments = map[string]string{"east": "worker-c"}
+	conflictingRaw, _ := json.Marshal(conflicting)
+	if err := serve(ctx, conflictingRaw, backend.Dependencies{}, func(context.Context, backend.MessageRequest) error { t.Error("conflicting owner admitted"); return nil }); err == nil || !strings.Contains(err.Error(), "already bound") {
+		t.Fatalf("different worker claimed existing name: %v", err)
+	}
 	for _, r := range []backend.MessageRequest{{ID: "one", Environment: "east", Kind: "identified-process"}, {ID: "two", Environment: "west", Kind: "identified-process"}} {
 		if err := tr.PublishRequest(ctx, r); err != nil {
 			t.Fatal(err)
@@ -521,6 +546,7 @@ func TestPostgresNamedWorkersReceiveOnlyAddressedRequests(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	tr.config.Environments = map[string]string{"east": "worker-b", "west": "worker-b"}
+	tr.config.RebindFrom = map[string]string{"east": "worker-a"}
 	if err := tr.PublishRequest(ctx, backend.MessageRequest{ID: "turn", Environment: "east", Kind: "identified-turn", Owner: backend.Owner{Run: "run", Task: "turn"}, SessionID: "agent"}); err != nil {
 		t.Fatal(err)
 	}
@@ -538,6 +564,50 @@ func TestPostgresNamedWorkersReceiveOnlyAddressedRequests(t *testing.T) {
 	}
 	if seen["turn"].worker != "worker-a" || seen["new"].worker != "worker-b" {
 		t.Fatalf("rebind moved retained owner: %+v", seen)
+	}
+	var binding string
+	if err := tr.pool.QueryRow(ctx, "SELECT worker FROM gimbal_message_bindings WHERE namespace=$1 AND environment='east'", tr.config.Queue).Scan(&binding); err != nil || binding != "worker-b" {
+		t.Fatalf("explicit rebind not retained: %q %v", binding, err)
+	}
+	// The new identity has never been registered. An explicit compare-and-swap
+	// permits it to start while the original session remains at worker-a.
+	tr.config.Environments = map[string]string{"east": "worker-c", "west": "worker-b"}
+	tr.config.RebindFrom = map[string]string{"east": "wrong-owner"}
+	bad := tr.config
+	bad.WorkerID = "worker-c"
+	badRaw, _ := json.Marshal(bad)
+	if err := serve(ctx, badRaw, backend.Dependencies{}, func(context.Context, backend.MessageRequest) error { t.Error("incorrect rebind admitted"); return nil }); err == nil {
+		t.Fatal("rebind with incorrect previous owner accepted")
+	}
+	tr.config.RebindFrom["east"] = "worker-b"
+	stopC, doneC := start("worker-c")
+	defer func() {
+		stopC()
+		if err := <-doneC; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("worker-c exit: %v", err)
+		}
+	}()
+	queues = append(queues, workerQueue(tr.config.Queue, "worker-c", false), workerQueue(tr.config.Queue, "worker-c", true))
+	tr.config.RebindFrom = nil
+	for _, r := range []backend.MessageRequest{
+		{ID: "old-session-turn", Environment: "east", Kind: "identified-turn", Owner: backend.Owner{Run: "run", Task: "turn2"}, SessionID: "agent"},
+		{ID: "fresh-worker-task", Environment: "east", Kind: "identified-process", Owner: backend.Owner{Run: "run", Task: "fresh"}},
+	} {
+		if err := tr.PublishRequest(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen = map[string]arrival{}
+	for len(seen) < 2 {
+		select {
+		case a := <-arrivals:
+			seen[a.id] = a
+		case <-ctx.Done():
+			t.Fatalf("missing fresh rebind deliveries: %v", seen)
+		}
+	}
+	if seen["old-session-turn"].worker != "worker-a" || seen["fresh-worker-task"].worker != "worker-c" {
+		t.Fatalf("fresh rebind delivery: %+v", seen)
 	}
 }
 
@@ -591,6 +661,21 @@ func TestPostgresNamedNativeCommand(t *testing.T) {
 	}
 	if event.Environment != "selected" || event.WorkerID != "native-worker" || event.Result == nil || event.Result.Process == nil || event.Result.Process.ExitCode != 0 || string(event.Result.Stdout) != "named-native" {
 		t.Fatalf("native result: %+v", event)
+	}
+	stopReplay := errors.New("replayed completion")
+	var prior uint64
+	err = tr.ListenEvents(ctx, backend.MessageSelection{RequestID: req.ID}, time.Time{}, func(fact backend.MessageEvent) error {
+		if fact.Source != req.ID || fact.Sequence <= prior {
+			t.Fatalf("invalid source order: %+v after %d", fact, prior)
+		}
+		prior = fact.Sequence
+		if fact.Kind == "completed" {
+			return stopReplay
+		}
+		return nil
+	})
+	if !errors.Is(err, stopReplay) || prior != event.Sequence {
+		t.Fatalf("completion replay: %v sequence=%d", err, prior)
 	}
 	if err := effects.Cleanup(callCtx, "", owner.Run, "", "cleanup-native"); err != nil {
 		t.Fatalf("named native cleanup: %v", err)
@@ -717,13 +802,13 @@ func TestPostgresListenerReconnectBudgetExhaustion(t *testing.T) {
 
 type droppedCompletion struct {
 	backend.Messaging
-	dropped chan struct{}
+	dropped chan backend.MessageEvent
 }
 
 func (d *droppedCompletion) PublishEvent(ctx context.Context, event backend.MessageEvent) error {
 	if event.Kind == "completed" {
 		select {
-		case d.dropped <- struct{}{}:
+		case d.dropped <- event:
 		default:
 		}
 		return errors.New("injected completion delivery loss")
@@ -743,7 +828,7 @@ func TestPostgresNamedNativeCompletionRecoversAfterRestart(t *testing.T) {
 	t.Cleanup(func() { _, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=ANY($1)", queues) })
 	root := t.TempDir()
 	marker := filepath.Join(root, "count")
-	dropped := &droppedCompletion{Messaging: tr, dropped: make(chan struct{}, 1)}
+	dropped := &droppedCompletion{Messaging: tr, dropped: make(chan backend.MessageEvent, 1)}
 	start := func(daemon *taskdaemon.Daemon, bus backend.Messaging, recover bool) (context.CancelFunc, <-chan error) {
 		t.Helper()
 		workerCtx, cancel := context.WithCancel(ctx)
@@ -781,8 +866,9 @@ func TestPostgresNamedNativeCompletionRecoversAfterRestart(t *testing.T) {
 	if err := effects.Submit(callCtx, req); err != nil {
 		t.Fatal(err)
 	}
+	var original backend.MessageEvent
 	select {
-	case <-dropped.dropped:
+	case original = <-dropped.dropped:
 	case <-ctx.Done():
 		t.Fatal("completion was not reached")
 	}
@@ -796,7 +882,7 @@ func TestPostgresNamedNativeCompletionRecoversAfterRestart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if event.WorkerID != "restart-worker" || event.Result == nil || string(event.Result.Stdout) != "recovered" {
+	if event.ID != original.ID || event.Source != original.Source || event.Sequence != original.Sequence || event.Sequence == 0 || event.WorkerID != "restart-worker" || event.Result == nil || string(event.Result.Stdout) != "recovered" {
 		t.Fatalf("recovered event: %+v", event)
 	}
 	data, err := os.ReadFile(marker)
@@ -905,6 +991,7 @@ func TestPostgresWorkerStopsAdmissionWhenAuthorityRecoveryExhausts(t *testing.T)
 		t.Fatal(err)
 	}
 	defer blocker.Close(context.Background())
+	blockerPID := blocker.PgConn().PID()
 	acquired := make(chan error, 1)
 	go func() {
 		_, err := blocker.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1,0))", key)
@@ -912,7 +999,7 @@ func TestPostgresWorkerStopsAdmissionWhenAuthorityRecoveryExhausts(t *testing.T)
 	}()
 	var waiting bool
 	for !waiting {
-		err = tr.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='advisory' AND NOT granted)`, blocker.PgConn().PID()).Scan(&waiting)
+		err = tr.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='advisory' AND NOT granted)`, blockerPID).Scan(&waiting)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -952,5 +1039,30 @@ func TestPostgresWorkerStopsAdmissionWhenAuthorityRecoveryExhausts(t *testing.T)
 	}
 	if state == "cancelled" || state == "discarded" || state == "completed" {
 		t.Fatalf("queued request spent under lost authority: %s", state)
+	}
+}
+
+func TestPostgresReplayOrdersBySourceSequenceNotClock(t *testing.T) {
+	tr, ctx := integration(t)
+	later := time.Now().UTC()
+	for _, event := range []backend.MessageEvent{
+		{ID: "first-id", RequestID: "ordered", Source: "owner-request", Sequence: 2, Created: later.Add(-time.Hour), Kind: "completed", Result: &backend.MessageResult{}},
+		{ID: "second-id", RequestID: "ordered", Source: "owner-request", Sequence: 1, Created: later, Kind: "accepted"},
+	} {
+		if err := tr.PublishEvent(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := errors.New("done")
+	var got []uint64
+	err := tr.ListenEvents(ctx, backend.MessageSelection{RequestID: "ordered"}, time.Time{}, func(e backend.MessageEvent) error {
+		got = append(got, e.Sequence)
+		if len(got) == 2 {
+			return stop
+		}
+		return nil
+	})
+	if !errors.Is(err, stop) || !reflect.DeepEqual(got, []uint64{1, 2}) {
+		t.Fatalf("sequence replay: %v %v", got, err)
 	}
 }

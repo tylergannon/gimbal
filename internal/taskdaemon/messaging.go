@@ -8,6 +8,7 @@ import (
 	"log"
 	"maps"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -63,7 +64,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 				return errors.New("request identity conflicts with accepted inputs")
 			}
 			if saved.Result != nil {
-				event := backend.MessageEvent{ID: saved.EventID, RequestID: r.ID, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: saved.Result}
+				event := backend.MessageEvent{ID: saved.EventID, RequestID: r.ID, Source: r.ID, Sequence: saved.Sequence, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: saved.Result}
 				d.messageMu.Unlock()
 				return bus.PublishEvent(ctx, event)
 			}
@@ -81,8 +82,22 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 		}
 		d.activeMessages[r.ID] = true
 		d.messageMu.Unlock()
+		var publishMu sync.Mutex
 		publish := func(kind string, result *backend.MessageResult, activity json.RawMessage) error {
-			return bus.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result, Activity: activity})
+			publishMu.Lock()
+			defer publishMu.Unlock()
+			d.messageMu.Lock()
+			next := *saved
+			next.Sequence++
+			err := d.writeState("messages", r.ID, next)
+			if err == nil {
+				*saved = next
+			}
+			d.messageMu.Unlock()
+			if err != nil {
+				return err
+			}
+			return bus.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Source: r.ID, Sequence: next.Sequence, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: kind, Result: result, Activity: activity})
 		}
 		if err := publish("accepted", nil, nil); err != nil {
 			d.messageMu.Lock()
@@ -91,6 +106,8 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			return err
 		}
 		complete := func(result backend.MessageResult, err error) error {
+			publishMu.Lock()
+			defer publishMu.Unlock()
 			if err == nil && (result.Process == nil || result.Process.Error == "" && result.Process.ExitCode == 0) {
 				var requirements backend.Requirements
 				if r.Turn != nil {
@@ -119,6 +136,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			completed := *saved
 			completed.Result = &result
 			completed.EventID = ulid.Make().String()
+			completed.Sequence++
 			saveErr := d.writeState("messages", r.ID, completed)
 			if saveErr == nil {
 				*saved = completed
@@ -128,7 +146,7 @@ func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {
 			if saveErr != nil {
 				return saveErr
 			}
-			return bus.PublishEvent(ctx, backend.MessageEvent{ID: completed.EventID, RequestID: r.ID, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: &result})
+			return bus.PublishEvent(ctx, backend.MessageEvent{ID: completed.EventID, RequestID: r.ID, Source: r.ID, Sequence: completed.Sequence, Created: time.Now().UTC(), Environment: r.Environment, WorkerID: r.WorkerID, Owner: r.Owner, SessionID: r.SessionID, Kind: "completed", Result: &result})
 		}
 		if restored {
 			if r.Process != nil && r.Process.Service {

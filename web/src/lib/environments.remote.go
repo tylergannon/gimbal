@@ -209,7 +209,8 @@ func inspectEnvironment(ctx context.Context, in EnvironmentLocation) (environmen
 	if err != nil {
 		return environments.Directory{}, err
 	}
-	return service.Inspect(ctx, target, in.Directory)
+	facts, err := service.Inspect(ctx, target, in.Directory)
+	return facts.Directory, err
 }
 func listEnvironmentDirectories(ctx context.Context, in EnvironmentLocation) (environments.Directory, error) {
 	service, err := environmentService(ctx)

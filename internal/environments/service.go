@@ -203,10 +203,11 @@ func (s *Service) SaveEnvironment(ctx context.Context, in EnvironmentEdit) (Envi
 		return EnvironmentRow{}, fmt.Errorf("unknown project or machine")
 	}
 	target := Target{Environment: v, Machine: m, Directory: v.Directory}
-	d, e := s.Inspect(ctx, target, v.Directory)
+	facts, e := s.Inspect(ctx, target, v.Directory)
 	if e != nil {
 		return EnvironmentRow{}, e
 	}
+	d := facts.Directory
 	if !d.Exists {
 		return EnvironmentRow{}, fmt.Errorf("directory does not exist; clone explicitly before adding")
 	}
@@ -456,7 +457,7 @@ func (s *Service) binding(ctx context.Context, t Target, owner backend.Owner, ac
 		}
 		s.mu.Unlock()
 	}
-	if t.Machine.ID == Local || t.Machine.ID == "" {
+	if (t.Machine.ID == Local || t.Machine.ID == "") && t.Route.Name == "" {
 		return Binding{Target: t, Owner: owner}, nil
 	}
 	route := t.Route

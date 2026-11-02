@@ -163,7 +163,17 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return err
 	}
 	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation, route backend.Route) error {
-		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item), "environment": item.Environment})
+		values := map[string]any{"purpose": conversations.Purpose(item), "environment": item.Environment}
+		if route.Name != "" && !item.SharedCheckout {
+			values["prepare_checkout"], values["checkout_id"] = true, item.ID
+			if item.Branch != "" {
+				values["branch"] = item.Branch
+			}
+			if item.Base != "" {
+				values["base"] = item.Base
+			}
+		}
+		input, _ := json.Marshal(values)
 		spec, err := conversation.RoleSpec(item)
 		if err != nil {
 			return err

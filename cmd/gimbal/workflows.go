@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -194,12 +196,79 @@ func readRoute(value string) (backend.Route, error) {
 			return backend.Route{}, err
 		}
 	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var input any
+	if err := decoder.Decode(&input); err != nil {
+		return backend.Route{}, err
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return backend.Route{}, fmt.Errorf("backend route must contain one JSON value")
+	}
+	var overlays []any
+	switch v := input.(type) {
+	case map[string]any:
+		overlays = []any{v}
+	case []any:
+		overlays = v
+	default:
+		return backend.Route{}, fmt.Errorf("backend route must be an object or array of objects")
+	}
+	if len(overlays) == 0 {
+		return backend.Route{}, fmt.Errorf("backend route overlays cannot be empty")
+	}
+	merged := map[string]any{}
+	for _, value := range overlays {
+		object, ok := value.(map[string]any)
+		if !ok {
+			return backend.Route{}, fmt.Errorf("backend route overlay must be an object")
+		}
+		normalized := map[string]any{}
+		for key, v := range object {
+			canonical := ""
+			for _, field := range []string{"Name", "Configuration", "Environment", "Label", "Backends"} {
+				if strings.EqualFold(field, key) {
+					canonical = field
+					break
+				}
+			}
+			if canonical == "" {
+				return backend.Route{}, fmt.Errorf("unknown backend route field %q", key)
+			}
+			if _, exists := normalized[canonical]; exists {
+				return backend.Route{}, fmt.Errorf("duplicate backend route field %q", key)
+			}
+			normalized[canonical] = v
+		}
+		if name, ok := normalized["Name"].(string); ok && merged["Name"] != nil && merged["Name"] != name {
+			delete(merged, "Configuration")
+		}
+		mergeRouteObject(merged, normalized)
+	}
+	data, err := json.Marshal(merged)
+	if err != nil {
+		return backend.Route{}, err
+	}
 	var route backend.Route
-	if err := json.Unmarshal(raw, &route); err != nil {
+	strict := json.NewDecoder(bytes.NewReader(data))
+	strict.DisallowUnknownFields()
+	if err := strict.Decode(&route); err != nil {
 		return route, err
 	}
 	if route.Name == "" {
 		return route, fmt.Errorf("backend route requires name")
 	}
 	return route, nil
+}
+
+func mergeRouteObject(dst, overlay map[string]any) {
+	for key, value := range overlay {
+		if next, ok := value.(map[string]any); ok {
+			if prior, ok := dst[key].(map[string]any); ok {
+				mergeRouteObject(prior, next)
+				continue
+			}
+		}
+		dst[key] = value
+	}
 }

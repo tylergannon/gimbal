@@ -57,8 +57,12 @@ type MessageResult struct {
 type MessageEvent struct {
 	ID, RequestID string
 	Created       time.Time
-	Environment   string `json:",omitempty"`
-	WorkerID      string `json:",omitempty"`
+	// Source identifies an independently ordered event stream; Sequence is its
+	// durable ordinal. A missing ordinal represents an unpublished fact.
+	Source      string `json:",omitempty"`
+	Sequence    uint64 `json:",omitempty"`
+	Environment string `json:",omitempty"`
+	WorkerID    string `json:",omitempty"`
 	Owner
 	SessionID string `json:",omitempty"`
 	Kind      string
@@ -76,7 +80,8 @@ func (s MessageSelection) Matches(e MessageEvent) bool {
 // Messaging retains published events for the configured store lifetime.
 // ListenEvents includes matching events since the inclusive lower bound,
 // including events published before listening, then continues live. Consumers
-// are independent. The since bound is diagnostic; execution waits must replay
+// are independent. Events retain their source and sequence across replay;
+// no total order between sources is promised. The since bound is diagnostic; execution waits must replay
 // the complete matching request because publisher clocks may differ. It returns
 // callback errors unchanged and stops on ctx.
 // Closing a listener never cancels native work. Publication errors describe

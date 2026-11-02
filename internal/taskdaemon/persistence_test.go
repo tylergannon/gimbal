@@ -218,7 +218,7 @@ func TestMessagingStartupReconcilesWithoutRedelivery(t *testing.T) {
 	req.SessionID = "agent"
 	req.Target = &effects.Target{Run: "run", ID: "agent", Message: "hello"}
 	result := &backend.MessageResult{Value: true}
-	if err := d.writeState("messages", req.ID, disposition{Request: req, Result: result, EventID: "01ARZ3NDEKTSV4RRFFQ69G5FAV"}); err != nil {
+	if err := d.writeState("messages", req.ID, disposition{Request: req, Result: result, EventID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", Sequence: 7}); err != nil {
 		t.Fatal(err)
 	}
 	eventsDir := t.TempDir()
@@ -241,7 +241,7 @@ func TestMessagingStartupReconcilesWithoutRedelivery(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
 	err = store.ListenEvents(ctx, backend.MessageSelection{RequestID: req.ID}, time.Time{}, func(e backend.MessageEvent) error {
-		if e.ID != "01ARZ3NDEKTSV4RRFFQ69G5FAV" || e.Kind != "completed" || e.Result == nil || !e.Result.Value {
+		if e.ID != "01ARZ3NDEKTSV4RRFFQ69G5FAV" || e.Source != req.ID || e.Sequence != 7 || e.Kind != "completed" || e.Result == nil || !e.Result.Value {
 			t.Fatalf("wrong recovered event: %+v", e)
 		}
 		return errors.New("received")

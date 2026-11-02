@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/riverqueue/river"
 	"github.com/tylergannon/gimbal/backend"
 )
@@ -50,7 +51,53 @@ func registerWorker(ctx context.Context, t *transport, worker string) (*authorit
 		}
 		return nil, fmt.Errorf("river worker %q is already registered", worker)
 	}
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		_ = conn.Close(context.Background())
+		return nil, err
+	}
+	for name, configured := range t.config.Environments {
+		if configured != worker {
+			continue
+		}
+		err = bindName(ctx, tx, t.config, name, worker)
+		if err != nil {
+			_ = tx.Rollback(context.Background())
+			_ = conn.Close(context.Background())
+			return nil, err
+		}
+	}
+	if err = tx.Commit(ctx); err != nil {
+		_ = conn.Close(context.Background())
+		return nil, err
+	}
 	return &authority{conn: conn, lost: make(chan error, 1), namespace: t.config.Queue, worker: worker}, nil
+}
+
+// A rebind is a compare-and-swap against an explicitly named previous owner.
+// Retained request/session assignments are independent and never rewritten.
+func bindName(ctx context.Context, tx pgx.Tx, c configuration, name, worker string) error {
+	if c.RebindFrom[name] == "" {
+		if _, err := tx.Exec(ctx, `INSERT INTO gimbal_message_bindings(namespace,environment,worker) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING`, c.Queue, name, worker); err != nil {
+			return err
+		}
+	}
+	var bound string
+	err := tx.QueryRow(ctx, `SELECT worker FROM gimbal_message_bindings WHERE namespace=$1 AND environment=$2 FOR UPDATE`, c.Queue, name).Scan(&bound)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &backend.ContractRejected{Message: fmt.Sprintf("river environment %q has no previous binding to rebind", name)}
+	}
+	if err != nil {
+		return err
+	}
+	if bound == worker {
+		return nil
+	}
+	if c.RebindFrom[name] != bound {
+		return &backend.ContractRejected{Message: fmt.Sprintf("river environment %q is already bound to worker %q; configure RebindFrom with that identity", name, bound)}
+	}
+	_, err = tx.Exec(ctx, `UPDATE gimbal_message_bindings SET worker=$3 WHERE namespace=$1 AND environment=$2`, c.Queue, name, worker)
+	return err
 }
 
 // The assignment is committed by the connection that owns registration.
@@ -166,10 +213,16 @@ func (t *transport) publishNamed(ctx context.Context, r backend.MessageRequest) 
 			if worker == "" {
 				return &backend.ContractRejected{Message: fmt.Sprintf("river environment %q is not configured", r.Environment)}
 			}
-			_, err = tx.Exec(ctx, `INSERT INTO gimbal_message_owners (namespace,run_id,kind,identity,worker,environment,scope)
+			var inserted pgconn.CommandTag
+			inserted, err = tx.Exec(ctx, `INSERT INTO gimbal_message_owners (namespace,run_id,kind,identity,worker,environment,scope)
  VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING`, t.config.Queue, r.Run, ownerKind, ownerID, worker, r.Environment, r.Scope)
 			if err != nil {
 				return storeError(err)
+			}
+			if inserted.RowsAffected() != 0 {
+				if err = bindName(ctx, tx, t.config, r.Environment, worker); err != nil {
+					return storeError(err)
+				}
 			}
 		}
 		var environment, ownerScope string

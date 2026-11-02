@@ -189,3 +189,17 @@ func TestParentCleanupAfterLastEnvironmentRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestEnvironmentRouterRejectsNilSelectedBus(t *testing.T) {
+	registry := &Registry{}
+	err := registry.RegisterMessaging(MessagingDefinition{Name: "nil-route", ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+		return nil, nil
+	}, Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error { return nil }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	router := &environmentMessaging{registry: registry, buses: map[string]backend.Messaging{}}
+	if _, err := router.bus(t.Context(), backend.EnvironmentDestination{ID: "remote", Route: backend.Route{Name: "nil-route"}}); err == nil {
+		t.Fatal("nil selected environment bus accepted")
+	}
+}

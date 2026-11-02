@@ -25,9 +25,8 @@ type operation struct {
 	Error          string
 }
 
-func (s *Service) Inspect(ctx context.Context, t Target, path string) (Directory, error) {
-	r, e := s.operation(ctx, t, HelperRequest{Operation: "inspect", Path: path}, "")
-	return r.Directory, e
+func (s *Service) Inspect(ctx context.Context, t Target, path string) (HelperResult, error) {
+	return s.operation(ctx, t, HelperRequest{Operation: "inspect", Path: path}, "")
 }
 func (s *Service) ListDirectories(ctx context.Context, t Target, path string) (Directory, error) {
 	r, e := s.operation(ctx, t, HelperRequest{Operation: "list", Path: path}, "")
@@ -62,7 +61,7 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	if t.Machine.ID == "" || t.Machine.ID == Local {
+	if (t.Machine.ID == "" || t.Machine.ID == Local) && t.Route.Name == "" {
 		r, e := RunHelper(ctx, in)
 		s.recordFacts(t, r, e)
 		return r, e
@@ -136,8 +135,17 @@ func (s *Service) operation(ctx context.Context, t Target, in HelperRequest, id 
 		}
 		return HelperResult{}, e
 	}
-	requestCtx := effects.WithEnvironment(effects.WithConnection(ctx, b.Connection), b.Target.Route.Environment)
+	environment := b.Target.Route.Environment
+	if named, ok := b.Connection.Messages.(backend.NamedMessaging); ok && named.NamedEnvironments() {
+		environment = b.Target.Environment.ID
+	}
+	requestCtx := effects.WithEnvironment(effects.WithConnection(ctx, b.Connection), environment)
 	executable := t.Machine.Executable
+	// A configured-local directory can still be inspected by a named worker.
+	// The host executable path belongs to the sender, not that worker.
+	if named, ok := b.Connection.Messages.(backend.NamedMessaging); ok && named.NamedEnvironments() && (t.Machine.ID == "" || t.Machine.ID == Local) {
+		executable = "gimbal"
+	}
 	if executable == "" {
 		executable = "gimbal"
 	}
@@ -299,7 +307,11 @@ func (s *Service) recordFacts(t Target, r HelperResult, err error) {
 func (s *Service) cleanupBinding(ctx context.Context, b Binding) error {
 	c, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
 	defer cancel()
-	cc := effects.WithEnvironment(effects.WithConnection(c, b.Connection), b.Target.Route.Environment)
+	environment := b.Target.Route.Environment
+	if named, ok := b.Connection.Messages.(backend.NamedMessaging); ok && named.NamedEnvironments() {
+		environment = b.Target.Environment.ID
+	}
+	cc := effects.WithEnvironment(effects.WithConnection(c, b.Connection), environment)
 	if b.environmentID == "" {
 		if routing, ok := b.Connection.Orchestrator.(backend.EnvironmentRouting); ok {
 			ds, err := routing.Destinations(c, backend.MessageRequest{Owner: b.Owner, Kind: "process", Process: &backend.Process{Owner: b.Owner}})

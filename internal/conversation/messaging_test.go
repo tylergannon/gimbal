@@ -3,6 +3,7 @@ package conversation
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/tylergannon/gimbal/internal/runstate"
@@ -27,7 +28,7 @@ func TestInterruptedWorkflowAcknowledgementRetriesSameInputIdentity(t *testing.T
 	if _, err := m.Submit(item.ID, input); err != nil {
 		t.Fatal(err)
 	}
-	if len(accepted) != 2 || accepted[0] != accepted[1] {
+	if len(accepted) != 2 || !reflect.DeepEqual(accepted[0], accepted[1]) {
 		t.Fatalf("retry changed durable input %+v", accepted)
 	}
 	saved, _ := m.Get(item.ID)

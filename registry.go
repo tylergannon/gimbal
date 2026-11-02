@@ -371,6 +371,9 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 		if err != nil {
 			return backend.Connection{}, errors.Join(err, connection.Close())
 		}
+		if b == nil {
+			return backend.Connection{}, errors.Join(fmt.Errorf("messaging backend %q returned no connection", route.Name), connection.Close())
+		}
 		if dependencies.Routing != nil {
 			routed, err := r.connectEnvironments(ctx, b, dependencies.Routing, dependencies)
 			if err != nil {
@@ -409,5 +412,12 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 	if err := d.ValidateConfiguration(raw); err != nil {
 		return backend.Connection{}, err
 	}
-	return d.Connect(ctx, raw)
+	connection, err := d.Connect(ctx, raw)
+	if err != nil {
+		return backend.Connection{}, errors.Join(err, connection.Close())
+	}
+	if connection.Execution == nil && connection.Messages == nil {
+		return backend.Connection{}, errors.Join(fmt.Errorf("backend %q returned no execution connection", route.Name), connection.Close())
+	}
+	return connection, nil
 }

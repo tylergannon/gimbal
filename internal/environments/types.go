@@ -303,7 +303,7 @@ type Options struct {
 //	(*Service).Resolve(context.Context, project, environment string) (Target, error)
 //	(*Service).Acquire(context.Context, Target, backend.Owner) (Binding, error)
 //	(*Service).Release(context.Context, Binding) error
-//	(*Service).Inspect(context.Context, Target, path string) (Directory, error)
+//	(*Service).Inspect(context.Context, Target, path string) (HelperResult, error)
 //	(*Service).ListDirectories(context.Context, Target, path string) (Directory, error)
 //	(*Service).Prepare(context.Context, Target, Checkout, conversationID string) (Prepared, error)
 //	(*Service).Clone(context.Context, Target, origin, path, operationID string) (Directory, error)

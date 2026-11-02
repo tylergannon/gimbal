@@ -76,6 +76,27 @@ merely to suppress automated generation changes.
 The later C1/D6–D10 cross-machine/native/browser claims are not satisfied here;
 the parent will deploy and validate those after this source checkpoint.
 
+Do not lose the original acceptance denominator while addressing reviews:
+parent R3/D2 also require discoverable plugin-owned configuration schema/defaults
+and the defined ordered route-file overlay behavior, including payload replacement
+when plugin identity changes. The source must support the documented single full
+Route object or ordered overlay array, not only the one test configuration.
+Parent R8 requires durable replay sequence in each identified record stream;
+state the stream identity and do not imply a native global execution order.
+Selected constructor results must also preserve authority: a messaging/store
+factory returning nil without an error must fail explicitly, never become local
+execution or an unrelated memory store. Intentional default local/memory selection
+is a different case. This is the original fail-closed selection contract, not a
+request for a new backend abstraction.
+Close the self-reported conversation attachment and non-shared preparation gaps
+with existing byte inputs and ordinary workflow commands; do not add a workspace
+manager. Remove replaced conversation-specific physical preparation/recovery code
+and replace obsolete protocol tests with meaningful namespace lifecycle coverage;
+deleting a replaced path is not permission to weaken the retained behavioral claims.
+The observed older native shared-queue test failure must be fixed or explained as
+an actionable external limitation; a baseline failure is not a passing check. Use
+unversioned live model selection and truthful model labels in that fixture too.
+
 Do not modify this task/spec to waive requirements. Do not commit, push, merge,
 publish releases, add proof-only programs/run outputs, or alter shared services.
 Run checks in the designated product worktree. Source files may be split within
@@ -89,3 +110,17 @@ then implement. Report an actual volume breach or new responsibility. Preserve
 The persistent workflow will retain the same coder and independent validator across
 passes. A partial coding reply is feedback for another pass, not completion. On a
 real external blocker, describe the evidence and required action precisely.
+
+Live UI setup finding from root (23:40, after pass 7 coding): the actual browser's
+new-session Environment picker selects `task-remote` but setup fails with
+`Internal Error` before Start. Source inspection shows `SetupEnvironment` still
+calls `environments.Service.Inspect`, whose `operation` builds its request context
+from `b.Target.Route.Environment` (empty for the named bus), rather than the
+selected logical `target.Environment.ID`. The source-stage native host test goes
+straight to `manager.Start` and never exercises SetupEnvironment. Cover the
+actual namespace setup/inspection path, using the selected boundary and logical
+name, including a meaningful successful setup-to-start test. Do not bypass the UI
+setup or use a physical route to make the live check pass. The remote worker also
+has a separate host-level connection problem under investigation by root; that
+does not explain the source setup omission. Existing factory nil-result checks
+above remain absent in Registry.Connect/constructDependencies as of this finding.

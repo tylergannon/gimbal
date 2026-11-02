@@ -102,3 +102,48 @@ func TestBackendSelectionsValidateBeforeConstruction(t *testing.T) {
 		t.Fatal("messaging started before validation")
 	}
 }
+
+func TestSelectedFactoriesCannotReturnNil(t *testing.T) {
+	t.Run("messaging closes dependencies", func(t *testing.T) {
+		fixture := &constructionFixture{}
+		r := fixtureRegistry(t, fixture, func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+			return nil, nil
+		})
+		if _, err := r.Connect(t.Context(), fixtureRoute()); err == nil {
+			t.Fatal("nil messaging connection accepted")
+		}
+		if fixture.closes != 1 || fixture.releases != 0 {
+			t.Fatalf("dependencies not closed correctly: %+v", fixture)
+		}
+	})
+	t.Run("selected store", func(t *testing.T) {
+		r := &Registry{}
+		if err := r.RegisterSecrets(SecretsDefinition{Name: "nil", ValidateConfiguration: func(json.RawMessage) error { return nil }, Construct: func(context.Context, json.RawMessage) (backend.SecretsBackend, error) { return nil, nil }}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.constructDependencies(t.Context(), backend.BackendSelection{Secrets: backend.Selection{Name: "nil"}}); err == nil {
+			t.Fatal("nil selected store accepted")
+		}
+	})
+	t.Run("selected orchestrator", func(t *testing.T) {
+		fixture := &constructionFixture{}
+		r := fixtureRegistry(t, fixture, func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+			return constructionMessages{}, nil
+		})
+		r.orchestrators["fixture"] = OrchestratorDefinition{Name: "fixture", ValidateConfiguration: func(json.RawMessage) error { return nil }, Construct: func(context.Context, json.RawMessage, backend.Selection) (backend.OrchestratorBackend, error) {
+			return nil, nil
+		}}
+		if _, err := r.Connect(t.Context(), fixtureRoute()); err == nil {
+			t.Fatal("nil selected orchestrator accepted")
+		}
+	})
+	t.Run("selected execution", func(t *testing.T) {
+		r := &Registry{}
+		if err := r.RegisterBackend(BackendDefinition{Name: "nil", ExecutionIdentity: true, ConfigurationSchema: json.RawMessage(`{}`), ValidateConfiguration: func(json.RawMessage) error { return nil }, Connect: func(context.Context, json.RawMessage) (backend.Connection, error) { return backend.Connection{}, nil }}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := r.Connect(t.Context(), backend.Route{Name: "nil"}); err == nil {
+			t.Fatal("nil execution connection accepted")
+		}
+	})
+}

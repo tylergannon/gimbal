@@ -15,6 +15,8 @@ import (
 // Its context bounds establishment only; resource-owning transports implement
 // io.Closer and are closed by their caller after all cleanup operations.
 type MessagingDefinition struct {
+	// ConfigurationSchema describes the plugin-owned configuration and defaults.
+	ConfigurationSchema json.RawMessage
 	// ValidateEnvironment checks a logical name against namespace metadata in the supplied
 	// configuration. It must be pure: do not connect, start capacity, or read
 	// private bootstrap material. A nil callback cannot admit declared environments.
@@ -31,6 +33,11 @@ func (r *Registry) RegisterMessaging(d MessagingDefinition) error {
 	defer r.mu.Unlock()
 	if strings.TrimSpace(d.Name) == "" || d.ValidateConfiguration == nil || d.Connect == nil || d.Worker == nil {
 		return fmt.Errorf("malformed messaging definition %q", d.Name)
+	}
+	if len(d.ConfigurationSchema) != 0 {
+		if _, err := compileInputSchema(d.ConfigurationSchema); err != nil {
+			return fmt.Errorf("messaging %s configuration schema: %w", d.Name, err)
+		}
 	}
 	if _, ok := r.backends[d.Name]; ok {
 		return fmt.Errorf("backend %q already registered", d.Name)

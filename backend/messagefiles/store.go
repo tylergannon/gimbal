@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -67,6 +69,7 @@ func (s *Store) ListenEvents(ctx context.Context, selection backend.MessageSelec
 		if err != nil {
 			return err
 		}
+		var events []backend.MessageEvent
 		for _, entry := range entries {
 			if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" || seen[entry.Name()] {
 				continue
@@ -79,12 +82,29 @@ func (s *Store) ListenEvents(ctx context.Context, selection backend.MessageSelec
 			if err = json.Unmarshal(raw, &e); err != nil {
 				return err
 			}
-			seen[entry.Name()] = true
 			if !e.Created.Before(since) && selection.Matches(e) {
-				if err = emit(e); err != nil {
-					return err
-				}
+				events = append(events, e)
+			} else {
+				seen[entry.Name()] = true
 			}
+		}
+		slices.SortFunc(events, func(a, b backend.MessageEvent) int {
+			if a.Source != b.Source {
+				return strings.Compare(a.Source, b.Source)
+			}
+			if a.Source != "" && a.Sequence != b.Sequence {
+				if a.Sequence < b.Sequence {
+					return -1
+				}
+				return 1
+			}
+			return strings.Compare(a.ID, b.ID)
+		})
+		for _, e := range events {
+			if err := emit(e); err != nil {
+				return err
+			}
+			seen[e.ID+".json"] = true
 		}
 		select {
 		case <-ctx.Done():

@@ -85,7 +85,7 @@ export type Request = {
 export type JSONText = string;
 
 /**
- * Placement exposes display facts, while transport configuration remains in the private durable Transport snapshot and is never projected into browser state.
+ * Placement exposes display facts while namespace configuration stays private.
  */
 export type Placement = {
   machine: PlacementMachine;

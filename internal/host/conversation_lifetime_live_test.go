@@ -1,14 +1,17 @@
 package host
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/conversation"
 	"github.com/tylergannon/gimbal/internal/executor"
@@ -82,36 +85,54 @@ func TestNativeConversationDetachResumeLive(t *testing.T) {
 	if first.Messages[0].Role != "user" || first.Messages[1].Role != "assistant" || strings.TrimSpace(first.Messages[1].Text) == "" {
 		t.Fatalf("first messages: %+v", first.Messages)
 	}
-	bindingID := func() string {
+	bindingID := func() (string, map[string]string) {
 		t.Helper()
-		records, err := runstate.ForProject(project.Dir()).Open(ctx, runstore.RunID(chat.WorkflowRun))
+		file, err := os.Open(filepath.Join(project.Dir(), "runs", chat.WorkflowRun, "sessions", "agentic-dialogues.1.jsonl"))
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer func() { _ = records.Close() }()
-		rows, err := records.Read(ctx, 0, 4096)
-		if err != nil {
-			t.Fatal(err)
-		}
+		defer func() { _ = file.Close() }()
 		var id string
-		for _, row := range rows {
-			if row.Kind == "native-binding" {
-				var value struct{ Native string }
-				if err := json.Unmarshal(row.Payload, &value); err != nil {
-					t.Fatal(err)
-				}
-				if id != "" && id != value.Native {
-					t.Fatalf("multiple native bindings: %s, %s", id, value.Native)
-				}
-				id = value.Native
+		nativeTurns := map[string]string{}
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			var record gimbal.AgentRecord
+			if err := json.Unmarshal(scanner.Bytes(), &record); err != nil {
+				t.Fatal(err)
 			}
+			var ref struct {
+				Provider  string
+				SessionID string
+			}
+			if len(record.NativeRef) == 0 {
+				continue
+			}
+			if err := json.Unmarshal(record.NativeRef, &ref); err != nil {
+				t.Fatal(err)
+			}
+			if ref.Provider == "codex" && ref.SessionID != "" {
+				if previous := nativeTurns[record.Turn]; previous != "" && previous != ref.SessionID {
+					t.Fatalf("turn %s changed native session: %s -> %s", record.Turn, previous, ref.SessionID)
+				}
+				nativeTurns[record.Turn] = ref.SessionID
+			}
+			if ref.Provider != "gimbal" || ref.SessionID == "" {
+				continue
+			}
+			if id != "" && id != ref.SessionID {
+				t.Fatalf("multiple executor sessions: %s, %s", id, ref.SessionID)
+			}
+			id = ref.SessionID
+		}
+		if err := scanner.Err(); err != nil {
+			t.Fatal(err)
 		}
 		if err := executor.Validate(id, "session_"); err != nil {
-			t.Fatalf("native executor binding: %v", err)
+			t.Fatalf("observed executor session: %v", err)
 		}
-		return id
+		return id, nativeTurns
 	}
-	binding := bindingID()
+	binding, firstNativeTurns := bindingID()
 	root, err := executor.Root("")
 	if err != nil {
 		t.Fatal(err)
@@ -126,6 +147,14 @@ func TestNativeConversationDetachResumeLive(t *testing.T) {
 		return saved.ID
 	}
 	originalNative := nativeID()
+	if len(firstNativeTurns) != 1 {
+		t.Fatalf("first native turns: %v", firstNativeTurns)
+	}
+	for _, id := range firstNativeTurns {
+		if id != originalNative {
+			t.Fatalf("first native observation %s differs from checkpoint %s", id, originalNative)
+		}
+	}
 	wait("first worker release", func() bool {
 		lease, err := executor.Lock(sessionDir)
 		if err != nil {
@@ -149,8 +178,17 @@ func TestNativeConversationDetachResumeLive(t *testing.T) {
 	if second.Messages[1].Text != first.Messages[1].Text || !strings.Contains(second.Messages[3].Text, token) {
 		t.Fatalf("resumed messages: %+v", second.Messages)
 	}
-	if next := bindingID(); next != binding {
-		t.Fatalf("executor session changed: %s -> %s", binding, next)
+	nextBinding, nativeTurns := bindingID()
+	if nextBinding != binding {
+		t.Fatalf("executor session changed: %s -> %s", binding, nextBinding)
+	}
+	if len(nativeTurns) != 2 {
+		t.Fatalf("native turns: %v", nativeTurns)
+	}
+	for _, id := range nativeTurns {
+		if id != originalNative {
+			t.Fatalf("native turn session %s differs from checkpoint %s", id, originalNative)
+		}
 	}
 	if next := nativeID(); next != originalNative {
 		t.Fatalf("native session changed: %s -> %s", originalNative, next)
@@ -186,5 +224,41 @@ func TestNativeConversationDetachResumeLive(t *testing.T) {
 		return ok && snapshot.Status == "completed" && !snapshot.Live
 	})
 	finished = true
+	// The completed workflow releases its writer lease. Corroborate the live
+	// observation with the authoritative native-binding record afterward.
+	var records runstore.Run
+	wait("journal writer release", func() bool {
+		var err error
+		records, err = runstate.ForProject(project.Dir()).Open(ctx, runstore.RunID(chat.WorkflowRun))
+		if errors.Is(err, runstore.ErrBusy) {
+			return false
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		return true
+	})
+	defer func() { _ = records.Close() }()
+	rows, err := records.Read(ctx, 0, 4096)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var journalBinding string
+	for _, row := range rows {
+		if row.Kind != "native-binding" {
+			continue
+		}
+		var value struct{ Native string }
+		if err := json.Unmarshal(row.Payload, &value); err != nil {
+			t.Fatal(err)
+		}
+		if journalBinding != "" && journalBinding != value.Native {
+			t.Fatalf("multiple journal bindings: %s, %s", journalBinding, value.Native)
+		}
+		journalBinding = value.Native
+	}
+	if journalBinding != binding {
+		t.Fatalf("observed executor session %s differs from journal binding %s", binding, journalBinding)
+	}
 	t.Logf("conversation=%s run=%s executor session=%s native session=%s completed after detach and recall", chat.ID, chat.WorkflowRun, binding, originalNative)
 }

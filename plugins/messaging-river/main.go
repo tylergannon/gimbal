@@ -107,6 +107,7 @@ type transport struct {
 	config configuration
 	pool   *pgxpool.Pool
 	client *river.Client[pgx.Tx]
+	fatal  chan error
 }
 
 func (t *transport) NamedEnvironments() bool { return len(t.config.Environments) != 0 }
@@ -151,7 +152,7 @@ func open(ctx context.Context, c configuration) (*transport, error) {
 		return nil, err
 	}
 	ok = true
-	return &transport{config: c, pool: pool, client: client}, nil
+	return &transport{config: c, pool: pool, client: client, fatal: make(chan error, 1)}, nil
 }
 
 func (t *transport) initialize(ctx context.Context) error {
@@ -230,15 +231,54 @@ func (t *transport) PublishRequest(ctx context.Context, r backend.MessageRequest
 	return storeError(err)
 }
 
+// PublicationFailure reports a terminal event delivery failure to the worker owner.
+func (t *transport) PublicationFailure() <-chan error { return t.fatal }
+
+func permanentDatabaseError(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && !strings.HasPrefix(pgErr.Code, "08") && pgErr.Code != "57P01" && pgErr.Code != "57P02" && pgErr.Code != "57P03"
+}
+
 func (t *transport) PublishEvent(ctx context.Context, e backend.MessageEvent) error {
 	b, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
-	_, err = t.pool.Exec(ctx, `INSERT INTO gimbal_message_events
+	budget := time.Duration(t.config.ReconnectSeconds) * time.Second
+	if budget <= 0 {
+		budget = 30 * time.Second
+	}
+	attemptCtx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	for {
+		_, err = t.pool.Exec(attemptCtx, `INSERT INTO gimbal_message_events
  (queue,id,created,request_id,run_id,session_id,source,sequence,event) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
  ON CONFLICT (queue,id) DO NOTHING`, t.config.Queue, e.ID, e.Created, e.RequestID, e.Run, e.SessionID, e.Source, e.Sequence, b)
-	return storeError(err)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if permanentDatabaseError(err) || attemptCtx.Err() != nil {
+			break
+		}
+		select {
+		case <-attemptCtx.Done():
+		case <-time.After(100 * time.Millisecond):
+			continue
+		}
+		break
+	}
+	if !permanentDatabaseError(err) {
+		err = fmt.Errorf("reconnect budget exhausted: %w", err)
+	}
+	err = fmt.Errorf("river event publication for request %s event %s failed; retained result requires reconciliation: %w", e.RequestID, e.ID, storeError(err))
+	select {
+	case t.fatal <- err:
+	default:
+	}
+	return err
 }
 
 func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection, since time.Time, receive func(backend.MessageEvent) error) error {
@@ -258,24 +298,18 @@ func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection
 			return fmt.Errorf("river event reconnect budget exhausted")
 		}
 		queryCtx, cancel := context.WithTimeout(ctx, remaining)
-		rows, err := t.pool.Query(queryCtx, `SELECT event FROM gimbal_message_events
+		rows, err := t.pool.Query(queryCtx, `SELECT id FROM gimbal_message_events
  WHERE queue=$1 AND created >= $2 AND ($3='' OR request_id=$3)
  AND ($4='' OR run_id=$4) AND ($5='' OR session_id=$5) ORDER BY source,sequence,created,id`, t.config.Queue, since, s.RequestID, s.Run, s.SessionID)
-		var events []backend.MessageEvent
+		var ids []string
 		if err == nil {
 			for rows.Next() {
-				var b []byte
-				if err = rows.Scan(&b); err != nil {
+				var id string
+				if err = rows.Scan(&id); err != nil {
 					break
 				}
-				var event backend.MessageEvent
-				if err = json.Unmarshal(b, &event); err != nil {
-					rows.Close()
-					cancel()
-					return fmt.Errorf("invalid retained event: %w", err)
-				}
-				if !seen[event.ID] {
-					events = append(events, event)
+				if !seen[id] {
+					ids = append(ids, id)
 				}
 			}
 			if err == nil {
@@ -283,13 +317,35 @@ func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection
 			}
 			rows.Close()
 		}
+		var events []backend.MessageEvent
+		if err == nil && len(ids) > 0 {
+			rows, err = t.pool.Query(queryCtx, `SELECT event FROM gimbal_message_events WHERE queue=$1 AND id=ANY($2) ORDER BY source,sequence,created,id`, t.config.Queue, ids)
+			if err == nil {
+				for rows.Next() {
+					var b []byte
+					if err = rows.Scan(&b); err != nil {
+						break
+					}
+					var event backend.MessageEvent
+					if decodeErr := json.Unmarshal(b, &event); decodeErr != nil {
+						rows.Close()
+						cancel()
+						return fmt.Errorf("invalid retained event: %w", decodeErr)
+					}
+					events = append(events, event)
+				}
+				if err == nil {
+					err = rows.Err()
+				}
+				rows.Close()
+			}
+		}
 		cancel()
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && !strings.HasPrefix(pgErr.Code, "08") && pgErr.Code != "57P01" && pgErr.Code != "57P02" && pgErr.Code != "57P03" {
+			if permanentDatabaseError(err) {
 				return storeError(err)
 			}
 			if disconnected.IsZero() {
@@ -369,6 +425,9 @@ func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependenc
 	if err != nil {
 		return err
 	}
+	if len(c.Environments) != 0 && (resources.Orchestrator != nil || resources.Routing != nil) {
+		return errors.New("river named worker cannot use an orchestrator")
+	}
 	if len(c.Environments) != 0 && c.WorkerID == "" {
 		return errors.New("river named worker requires WorkerID")
 	}
@@ -444,6 +503,7 @@ func Register(registry *gimbal.Registry) error {
 	return registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true,
 		Name:                "river",
 		ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"oneOf":[{"required":["DSNFile"]},{"required":["DSNEnv"]}],"properties":{"DSNFile":{"type":"string","minLength":1,"description":"Private file containing the PostgreSQL DSN."},"DSNEnv":{"type":"string","minLength":1,"description":"Environment variable containing the PostgreSQL DSN."},"Queue":{"type":"string","default":"gimbal"},"ControlQueue":{"type":"string","description":"Defaults to Queue plus _control."},"Workers":{"type":"integer","minimum":0,"default":4},"Environments":{"type":"object","additionalProperties":{"type":"string","minLength":1}},"WorkerID":{"type":"string"},"ReconnectSeconds":{"type":"integer","minimum":0,"default":30},"RebindFrom":{"type":"object","description":"Explicit rebinds: environment name to expected previous worker identity.","additionalProperties":{"type":"string","minLength":1}}}}`),
+		NamedEnvironments:   func(raw json.RawMessage) (bool, error) { c, err := parse(raw); return len(c.Environments) != 0, err },
 		ValidateEnvironment: func(raw json.RawMessage, name string) error {
 			c, err := parse(raw)
 			if err != nil {

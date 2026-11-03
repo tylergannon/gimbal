@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
@@ -129,5 +130,53 @@ func TestUnreadCallsRejectBeforeWorkflow(t *testing.T) {
 		if ran {
 			t.Fatal("workflow ran during preflight")
 		}
+	}
+}
+
+func TestNamedRouteRejectsLegacyWithoutDeclarations(t *testing.T) {
+	const name = "undeclared-named-preflight"
+	ran := false
+	if err := gimbal.DefaultRegistry.RegisterWorkflow(gimbal.WorkflowDefinition{
+		WorkflowDescription: gimbal.WorkflowDescription{Name: name, InputSchema: json.RawMessage(`{"type":"object"}`)},
+		Graph:               workflow.Graph{Name: name},
+		Prepare: func(json.RawMessage) (gimbal.Invocation, error) {
+			return func(context.Context, gimbal.Env) error { ran = true; return nil }, nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := gimbal.DefaultRegistry.RegisterMessaging(gimbal.MessagingDefinition{
+		Name: name, ExecutionIdentity: true, ValidateConfiguration: func(json.RawMessage) error { return nil },
+		NamedEnvironments: func(json.RawMessage) (bool, error) { return true, nil },
+		Connect: func(context.Context, json.RawMessage, backend.Dependencies) (backend.Messaging, error) {
+			t.Fatal("connected")
+			return nil, nil
+		},
+		Worker: func(context.Context, json.RawMessage, backend.Dependencies, backend.MessageHandler) error {
+			t.Fatal("worker started")
+			return nil
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		route    backend.Route
+		endpoint string
+	}{
+		{backend.Route{Name: name, Environment: "physical"}, ""},
+		{backend.Route{Name: name, Backends: &backend.BackendSelection{Orchestrator: backend.Selection{Name: "legacy"}}}, ""},
+		{backend.Route{Name: name}, "http://localhost"},
+	} {
+		if _, _, err := Prepare(Request{Workflow: name, Input: json.RawMessage(`{}`), TaskRoute: tc.route, TaskEndpoint: tc.endpoint}); err == nil {
+			t.Fatal("accepted legacy route")
+		}
+		if tc.endpoint == "" {
+			if _, err := gimbal.DefaultRegistry.Connect(context.Background(), tc.route); err == nil || !strings.Contains(err.Error(), "named messaging") {
+				t.Fatalf("route was not rejected before dependency construction: %v", err)
+			}
+		}
+	}
+	if ran {
+		t.Fatal("body ran")
 	}
 }

@@ -353,6 +353,15 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 		if err := d.ValidateConfiguration(route.Configuration); err != nil {
 			return backend.Connection{}, err
 		}
+		if d.NamedEnvironments != nil {
+			named, err := d.NamedEnvironments(route.Configuration)
+			if err != nil {
+				return backend.Connection{}, err
+			}
+			if named && (route.Environment != "" || route.Backends != nil && route.Backends.Orchestrator.Name != "") {
+				return backend.Connection{}, fmt.Errorf("named messaging cannot use an orchestrator or physical task destination")
+			}
+		}
 		var dependencies backend.Dependencies
 		if route.Backends != nil {
 			var err error

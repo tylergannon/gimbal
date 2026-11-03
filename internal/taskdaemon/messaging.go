@@ -41,6 +41,24 @@ func (d *Daemon) RecoverMessages(ctx context.Context, bus backend.Messaging) err
 	return nil
 }
 
+// WaitMessages waits for already admitted native work to retain its outcome.
+// It does not cancel native owners or admit replacement work.
+func (d *Daemon) WaitMessages(ctx context.Context) error {
+	for {
+		d.messageMu.Lock()
+		active := len(d.activeMessages)
+		d.messageMu.Unlock()
+		if active == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+}
+
 // Messages uses this daemon's existing native owner. Duplicate admission IDs
 // and returned outcomes survive worker restart in its executor state directory.
 func (d *Daemon) Messages(bus backend.Messaging) backend.MessageHandler {

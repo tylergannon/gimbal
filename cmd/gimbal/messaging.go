@@ -43,6 +43,15 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		if err = d.ValidateConfiguration(route.Configuration); err != nil {
 			return err
 		}
+		if d.NamedEnvironments != nil {
+			named, err := d.NamedEnvironments(route.Configuration)
+			if err != nil {
+				return err
+			}
+			if named && (route.Environment != "" || route.Backends != nil && route.Backends.Orchestrator.Name != "") {
+				return fmt.Errorf("named messaging cannot use an orchestrator or physical task destination")
+			}
+		}
 		state, err := executor.Root(executorRoot)
 		if err != nil {
 			return err
@@ -92,7 +101,29 @@ Filesystem Configuration: {"Directory":"/abs/private-messages"}. Events remain u
 		if readyFile != "" {
 			defer func() { _ = os.Remove(readyFile) }()
 		}
-		err = d.Worker(ctx, route.Configuration, dependencies, daemon.Messages(connection.Messages))
+		workerCtx, stopWorker := context.WithCancel(ctx)
+		defer stopWorker()
+		failure := make(chan error, 1)
+		if reporter, ok := connection.Messages.(interface{ PublicationFailure() <-chan error }); ok {
+			go func() {
+				select {
+				case err := <-reporter.PublicationFailure():
+					failure <- err
+					stopWorker()
+				case <-workerCtx.Done():
+				}
+			}()
+		}
+		err = d.Worker(workerCtx, route.Configuration, dependencies, daemon.Messages(connection.Messages))
+		select {
+		case publicationErr := <-failure:
+			_, _ = fmt.Fprintln(c.ErrOrStderr(), publicationErr)
+			if err := daemon.WaitMessages(ctx); err != nil {
+				return errors.Join(publicationErr, err)
+			}
+			return publicationErr
+		default:
+		}
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}

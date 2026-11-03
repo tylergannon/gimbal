@@ -84,6 +84,15 @@ func PrepareContext(ctx context.Context, r Request) (map[gimbal.WorkflowRole]gim
 			return nil, nil, fmt.Errorf("environment inventory incomplete at %s:%d: %s", diagnostic.Source.File, diagnostic.Source.Line, diagnostic.Message)
 		}
 	}
+	if d, ok := gimbal.DefaultRegistry.Messaging(r.TaskRoute.Name); ok && d.NamedEnvironments != nil {
+		named, err := d.NamedEnvironments(r.TaskRoute.Configuration)
+		if err != nil {
+			return nil, nil, err
+		}
+		if named && (r.TaskRoute.Environment != "" || r.TaskEndpoint != "" || r.TaskRoute.Backends != nil && r.TaskRoute.Backends.Orchestrator.Name != "") {
+			return nil, nil, fmt.Errorf("named messaging cannot use an orchestrator or physical task destination")
+		}
+	}
 	if len(graph.Environments) > 0 {
 		if r.TaskRoute.Environment != "" || r.TaskEndpoint != "" || (r.TaskRoute.Backends != nil && r.TaskRoute.Backends.Orchestrator.Name != "") {
 			return nil, nil, fmt.Errorf("workflow environment declarations cannot use a physical task destination")

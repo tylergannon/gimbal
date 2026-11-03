@@ -17,6 +17,9 @@ import (
 type MessagingDefinition struct {
 	// ConfigurationSchema describes the plugin-owned configuration and defaults.
 	ConfigurationSchema json.RawMessage
+	// NamedEnvironments reports whether this configuration selects a namespace. It
+	// must be pure: never connect or read DSN/bootstrap material.
+	NamedEnvironments func(json.RawMessage) (bool, error)
 	// ValidateEnvironment checks a logical name against namespace metadata in the supplied
 	// configuration. It must be pure: do not connect, start capacity, or read
 	// private bootstrap material. A nil callback cannot admit declared environments.

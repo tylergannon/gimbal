@@ -1115,3 +1115,191 @@ func TestPostgresReplayOrdersBySourceSequenceNotClock(t *testing.T) {
 		t.Fatalf("sequence replay: %v %v", got, err)
 	}
 }
+
+func TestPostgresPublicationRetriesOriginalEvent(t *testing.T) {
+	tr, ctx := integration(t)
+	name := "gimbal_retry_" + fmt.Sprint(time.Now().UnixNano())
+	ident := pgx.Identifier{name}.Sanitize()
+	_, err := tr.pool.Exec(ctx, "CREATE SEQUENCE "+ident)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = tr.pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS "+ident+" ON gimbal_message_events")
+		_, _ = tr.pool.Exec(context.Background(), "DROP FUNCTION IF EXISTS "+ident+"()")
+		_, _ = tr.pool.Exec(context.Background(), "DROP SEQUENCE IF EXISTS "+ident)
+	}()
+	_, err = tr.pool.Exec(ctx, "CREATE FUNCTION "+ident+"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.queue = '"+tr.config.Queue+"' AND nextval('"+name+"') = 1 THEN RAISE EXCEPTION 'transient' USING ERRCODE = '08006'; END IF; RETURN NEW; END $$")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tr.pool.Exec(ctx, "CREATE TRIGGER "+ident+" BEFORE INSERT ON gimbal_message_events FOR EACH ROW EXECUTE FUNCTION "+ident+"()"); err != nil {
+		t.Fatal(err)
+	}
+	event := backend.MessageEvent{ID: "original", RequestID: "request", Source: "request", Sequence: 7, Created: time.Now(), Kind: "completed", Result: &backend.MessageResult{Output: json.RawMessage(`"retained"`)}}
+	if err := tr.PublishEvent(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := tr.pool.QueryRow(ctx, "SELECT count(*) FROM gimbal_message_events WHERE queue=$1 AND id=$2 AND sequence=7", tr.config.Queue, event.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("count %d: %v", count, err)
+	}
+}
+
+func TestPostgresListenerDoesNotRefetchSeenPayload(t *testing.T) {
+	tr, ctx := integration(t)
+	first := backend.MessageEvent{ID: "one", RequestID: "bounded", Source: "s", Sequence: 1, Created: time.Now()}
+	if err := tr.PublishEvent(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	finished := errors.New("done")
+	var seen []string
+	err := tr.ListenEvents(ctx, backend.MessageSelection{RequestID: "bounded"}, time.Time{}, func(e backend.MessageEvent) error {
+		seen = append(seen, e.ID)
+		if e.ID == "one" {
+			// Invalidating the already-delivered payload makes any repeat fetch observable.
+			if _, err := tr.pool.Exec(ctx, "UPDATE gimbal_message_events SET event=$1 WHERE queue=$2 AND id=$3", []byte("invalid"), tr.config.Queue, e.ID); err != nil {
+				return err
+			}
+			go func() {
+				time.Sleep(200 * time.Millisecond)
+				_ = tr.PublishEvent(ctx, backend.MessageEvent{ID: "two", RequestID: "bounded", Source: "s", Sequence: 2, Created: time.Now()})
+			}()
+			return nil
+		}
+		return finished
+	})
+	if !errors.Is(err, finished) || !reflect.DeepEqual(seen, []string{"one", "two"}) {
+		t.Fatalf("seen %v: %v", seen, err)
+	}
+}
+
+func TestPostgresLiveWorkerRepublishesCompletion(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.Environments = map[string]string{"selected": "live-retry-worker"}
+	tr.config.WorkerID = "live-retry-worker"
+	raw, _ := json.Marshal(tr.config)
+	queues := []string{workerQueue(tr.config.Queue, tr.config.WorkerID, false), workerQueue(tr.config.Queue, tr.config.WorkerID, true)}
+	t.Cleanup(func() { _, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=ANY($1)", queues) })
+	name := "gimbal_live_retry_" + fmt.Sprint(time.Now().UnixNano())
+	ident := pgx.Identifier{name}.Sanitize()
+	if _, err := tr.pool.Exec(ctx, "CREATE SEQUENCE "+ident); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = tr.pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS "+ident+" ON gimbal_message_events")
+		_, _ = tr.pool.Exec(context.Background(), "DROP FUNCTION IF EXISTS "+ident+"()")
+		_, _ = tr.pool.Exec(context.Background(), "DROP SEQUENCE IF EXISTS "+ident)
+	}()
+	sql := "CREATE FUNCTION " + ident + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.queue = '" + tr.config.Queue + "' AND convert_from(NEW.event,'UTF8')::jsonb->>'Kind' = 'completed' AND nextval('" + name + "') = 1 THEN RAISE EXCEPTION 'transient' USING ERRCODE = '08006'; END IF; RETURN NEW; END $$"
+	if _, err := tr.pool.Exec(ctx, sql); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.pool.Exec(ctx, "CREATE TRIGGER "+ident+" BEFORE INSERT ON gimbal_message_events FOR EACH ROW EXECUTE FUNCTION "+ident+"()"); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	marker := filepath.Join(root, "count")
+	daemon := taskdaemon.New(root)
+	workerCtx, stop := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	ready := make(chan struct{})
+	go func() {
+		done <- serve(workerCtx, raw, backend.Dependencies{Ready: func() error { close(ready); return nil }}, daemon.Messages(tr))
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatal(err)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	defer func() { stop(); <-done }()
+	identity := backend.NewExecutionIdentity("process")
+	owner := backend.Owner{Run: "live-retry", Task: "once"}
+	req := effects.Request(identity.RequestID, "identified-process", owner)
+	req.ExecutionIdentity = identity
+	req.Process = &backend.Process{Owner: owner, ExecutionIdentity: identity, Command: "sh", Args: []string{"-c", "printf x >> \"$1\"; printf recovered", "sh", marker}, Workdir: root}
+	callCtx := effects.WithEnvironment(effects.WithConnection(ctx, backend.Connection{Messages: tr}), "selected")
+	if err := effects.Submit(callCtx, req); err != nil {
+		t.Fatal(err)
+	}
+	event, err := effects.Await(callCtx, req, "completed", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.ID == "" || event.Sequence == 0 || event.Source != req.ID || event.Result == nil || string(event.Result.Stdout) != "recovered" {
+		t.Fatalf("completion: %+v", event)
+	}
+	var count int
+	if err := tr.pool.QueryRow(ctx, "SELECT count(*) FROM gimbal_message_events WHERE queue=$1 AND id=$2", tr.config.Queue, event.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("event count %d: %v", count, err)
+	}
+	data, err := os.ReadFile(marker)
+	if err != nil || string(data) != "x" {
+		t.Fatalf("native executions %q: %v", data, err)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("worker stopped: %v", err)
+	default:
+	}
+}
+
+func TestPostgresPublicationTerminalErrors(t *testing.T) {
+	for _, tc := range []struct{ name, code string }{{"permanent", "42501"}, {"budget", "08006"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			tr, ctx := integration(t)
+			tr.config.ReconnectSeconds = 1
+			name := "gimbal_fail_" + fmt.Sprint(time.Now().UnixNano())
+			ident := pgx.Identifier{name}.Sanitize()
+			sql := "CREATE FUNCTION " + ident + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.queue = '" + tr.config.Queue + "' THEN RAISE EXCEPTION 'injected' USING ERRCODE = '" + tc.code + "'; END IF; RETURN NEW; END $$"
+			if _, err := tr.pool.Exec(ctx, sql); err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				_, _ = tr.pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS "+ident+" ON gimbal_message_events")
+				_, _ = tr.pool.Exec(context.Background(), "DROP FUNCTION IF EXISTS "+ident+"()")
+			}()
+			if _, err := tr.pool.Exec(ctx, "CREATE TRIGGER "+ident+" BEFORE INSERT ON gimbal_message_events FOR EACH ROW EXECUTE FUNCTION "+ident+"()"); err != nil {
+				t.Fatal(err)
+			}
+			start := time.Now()
+			err := tr.PublishEvent(ctx, backend.MessageEvent{ID: "kept-id", RequestID: "kept-request", Created: time.Now()})
+			if err == nil || !strings.Contains(err.Error(), "kept-id") {
+				t.Fatalf("error: %v", err)
+			}
+			if tc.name == "permanent" && time.Since(start) > 500*time.Millisecond {
+				t.Fatal("permanent error was retried")
+			}
+			if tc.name == "budget" && !strings.Contains(err.Error(), "budget exhausted") {
+				t.Fatalf("budget: %v", err)
+			}
+			select {
+			case failure := <-tr.PublicationFailure():
+				if failure != err {
+					t.Fatalf("failure %v", failure)
+				}
+			default:
+				t.Fatal("worker was not notified")
+			}
+		})
+	}
+}
+
+type forbiddenRouting struct{}
+
+func (forbiddenRouting) Destinations(context.Context, backend.MessageRequest) ([]backend.EnvironmentDestination, error) {
+	panic("routing must not be called")
+}
+func (forbiddenRouting) ActiveEnvironments(context.Context) ([]backend.EnvironmentDestination, error) {
+	panic("routing must not be called")
+}
+
+func TestNamedWorkerRejectsLegacyBeforeConnection(t *testing.T) {
+	raw := json.RawMessage(`{"DSNFile":"/does-not-exist","Environments":{"test":"worker"},"WorkerID":"worker"}`)
+	err := serve(context.Background(), raw, backend.Dependencies{Routing: forbiddenRouting{}, Ready: func() error { t.Fatal("worker ready"); return nil }}, func(context.Context, backend.MessageRequest) error { t.Fatal("native handler called"); return nil })
+	if err == nil || !strings.Contains(err.Error(), "cannot use an orchestrator") {
+		t.Fatalf("expected pre-connection rejection: %v", err)
+	}
+}

@@ -22,7 +22,19 @@ import (
 )
 
 // TestDistributedRestartOwnedParticipant requires the independently operated app
-// and workers. The callback contract and invocation are documented below.
+// and workers. Set GIMBAL_DISTRIBUTED_RESTART_TEST=1 and absolute paths in
+// GIMBAL_DISTRIBUTED_INSTANCE, GIMBAL_DISTRIBUTED_PROJECT,
+// GIMBAL_DISTRIBUTED_ROUTE, GIMBAL_DISTRIBUTED_REMOTE_DIR and
+// GIMBAL_DISTRIBUTED_RESTART_CALLBACK; the route must configure the private DSN.
+// The database user must create/drop a trigger and function, inspect locks and
+// acquire advisory locks. The callback receives (inspect-stop|restart, run ID,
+// request ID, remote marker path). inspect-stop reads the matching worker-b
+// retained disposition, stops only that worker even if publication is blocked,
+// waits for exit and database disconnection, then prints the exact JSON object
+// containing Request, Result, EventID and Sequence without credentials. It must
+// not alter the marker or state. restart starts the same worker configuration
+// and state directory and waits for readiness; it must not submit work or edit
+// state. Both phases exit nonzero on failure. No callback program is committed.
 func TestDistributedRestartOwnedParticipant(t *testing.T) {
 	if os.Getenv("GIMBAL_DISTRIBUTED_RESTART_TEST") != "1" {
 		t.Skip("set GIMBAL_DISTRIBUTED_RESTART_TEST=1 with owned participants")

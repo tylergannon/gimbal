@@ -35,6 +35,7 @@ function props() {
               content: [
                 { type: "text", text: envelope },
                 { type: "text", text: '{"ordinary":"JSON narration"}' },
+        { type: "text", text: '{"decision":{"type":"chat","message":"an intentional example"}}' },
               ],
             },
           ],
@@ -55,6 +56,7 @@ test("an interactive result is readable prose after reopening, with literal JSON
     (detail) => detail.querySelector("summary")?.textContent === "Structured result",
   )!;
   expect(raw.open).toBe(false);
+  await expect.element(screen.getByText('{"decision":{"type":"chat","message":"an intentional example"}}', { exact: true })).toBeVisible();
   await screen.getByText("Structured result", { exact: true }).click();
   await screen.getByRole("button", { name: "View JSON", exact: true }).click();
   expect(raw.querySelector("pre")?.textContent).toBe(envelope);

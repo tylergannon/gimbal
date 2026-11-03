@@ -14,12 +14,17 @@
       return result?.decision?.type === 'chat' && typeof result.decision.message === 'string' ? result.decision.message : undefined;
     } catch { return undefined; }
   });
-  // Only this typed turn owns the envelope; decoded message content stays literal.
-  const protocol = (value: string | undefined) => interactive && !!value && /^\s*(?:```(?:json)?\s*)?\{\s*"decision"\s*:/.test(value);
+  // Suppress only a recorded result echo, never JSON merely because of its shape.
+  const resultEcho = (value: string | undefined) => {
+    if (!value || !turn.result || turn.output_type === 'gimbal.Text') return false;
+    try {
+      const text = value.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/, '$1');
+      return JSON.stringify(JSON.parse(text)) === JSON.stringify(JSON.parse(turn.result));
+    } catch { return false; }
+  };
   const session = $derived(snapshot.sessions[turn.session]);
-  const structured = (value: string | undefined) => { if (!value) return false; try { const parsed = JSON.parse(value); return parsed !== null && typeof parsed === 'object'; } catch { return false; } };
   const recorded = $derived.by(() => { revision; return Object.values(observation.state(turn.id)?.message ?? {}).flat(); });
-  const drafts = $derived(recorded.flatMap(message => message.content ?? []).filter((part: JSONObject) => part.type === 'text' && (interactive ? protocol(part.text) : structured(part.text)) && part.text !== turn.result));
+  const drafts = $derived(recorded.flatMap(message => message.content ?? []).filter((part: JSONObject) => part.type === 'text' && resultEcho(part.text) && part.text !== turn.result));
   const toolCount = $derived(recorded.flatMap(message => message.content ?? []).filter((part: JSONObject) => part.type === 'tool').length);
   const messages = $derived.by(() => {
     revision;
@@ -28,7 +33,7 @@
     // than appearing repeatedly as prose while a provider finalizes it.
     return recorded.filter((message, index) => !(index === 0 && message.type === 'user')).map((message): JSONObject => ({ ...message,
       content: message.content?.filter((part: { type?: string; text?: string }) => {
-        return part.type !== 'text' || !(interactive ? protocol(part.text) || (reply !== undefined && part.text === reply) : structured(part.text));
+        return part.type !== 'text' || !(resultEcho(part.text) || (reply !== undefined && part.text === reply));
       }),
     }));
   });

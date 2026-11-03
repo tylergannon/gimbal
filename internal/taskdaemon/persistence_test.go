@@ -69,6 +69,13 @@ func TestRestartReattachesRunningCommandWithoutExecutingAgain(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("reattach timeout")
 	}
+	// The original owner also persists its completion; let it finish before
+	// the temporary state directory is removed.
+	select {
+	case <-d.tasks[key(owner.Run, owner.Task)].done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("original command owner did not finish")
+	}
 	if err := restored.process(req); err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +176,8 @@ func TestAcceptedOnlySteerNeverResends(t *testing.T) {
 func TestMessagingCompletedOutcomeRepublishesAfterRestart(t *testing.T) {
 	root := t.TempDir()
 	d := New(root)
-	store, err := messagefiles.Open(t.TempDir())
+	eventsDir := t.TempDir()
+	store, err := messagefiles.Open(eventsDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,6 +201,53 @@ func TestMessagingCompletedOutcomeRepublishesAfterRestart(t *testing.T) {
 	saved := restored.messages[req.ID]
 	if saved.Result == nil || !saved.Result.Value || native.calls != 1 {
 		t.Fatalf("lost or repeated outcome %+v", saved)
+	}
+	entries, err := os.ReadDir(eventsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("expected one acceptance and one completion, got %d records", len(entries))
+	}
+}
+
+func TestMessagingStartupReconcilesWithoutRedelivery(t *testing.T) {
+	root := t.TempDir()
+	d := New(root)
+	req := effects.Request("stable-recovery", "steer", effects.Owner{Run: "run", Task: "turn"})
+	req.SessionID = "agent"
+	req.Target = &effects.Target{Run: "run", ID: "agent", Message: "hello"}
+	result := &backend.MessageResult{Value: true}
+	if err := d.writeState("messages", req.ID, disposition{Request: req, Result: result, EventID: "01ARZ3NDEKTSV4RRFFQ69G5FAV", Sequence: 7}); err != nil {
+		t.Fatal(err)
+	}
+	eventsDir := t.TempDir()
+	store, err := messagefiles.Open(eventsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored := New(root)
+	bus := &directMessages{Store: store, ctx: t.Context()}
+	if err := restored.RecoverMessages(t.Context(), bus); err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.RecoverMessages(t.Context(), bus); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(eventsDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("recovery should retain one completion: %d records, %v", len(entries), err)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	err = store.ListenEvents(ctx, backend.MessageSelection{RequestID: req.ID}, time.Time{}, func(e backend.MessageEvent) error {
+		if e.ID != "01ARZ3NDEKTSV4RRFFQ69G5FAV" || e.Source != req.ID || e.Sequence != 7 || e.Kind != "completed" || e.Result == nil || !e.Result.Value {
+			t.Fatalf("wrong recovered event: %+v", e)
+		}
+		return errors.New("received")
+	})
+	if err == nil || err.Error() != "received" {
+		t.Fatalf("completion not replayed: %v", err)
 	}
 }
 

@@ -201,5 +201,14 @@
 "format":{"type":"string"},
 "preview":{"type":"string"}
 },"required":["file","size","format","preview"],"additionalProperties":false}
-},"required":["kind","key"],"additionalProperties":false}]}
+},"required":["kind","key"],"additionalProperties":false},
+{"type":"object",
+"description":"taskPlacement records the worker that admitted a named task.","properties":{
+"kind":{"type":"string","const":"task_placement"},
+"id":{"type":"string"},
+"session":{"type":"string"},
+"environment":{"type":"string"},
+"worker_id":{"type":"string"},
+"event_id":{"type":"string"}
+},"required":["kind","id","session","environment","worker_id","event_id"],"additionalProperties":false}]}
 },"required":["seq","time","scope","event"],"additionalProperties":false}

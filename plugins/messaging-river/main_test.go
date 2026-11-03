@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,12 +16,104 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/tylergannon/gimbal"
 	"github.com/tylergannon/gimbal/backend"
+	"github.com/tylergannon/gimbal/internal/effects"
+	"github.com/tylergannon/gimbal/internal/taskdaemon"
 )
+
+func TestNamespaceValidationIsPureAndStrict(t *testing.T) {
+	var registry gimbal.Registry
+	if err := Register(&registry); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := registry.Messaging("river")
+	var schema map[string]any
+	if err := json.Unmarshal(d.ConfigurationSchema, &schema); err != nil || schema["additionalProperties"] != false {
+		t.Fatalf("missing strict configuration schema: %v", err)
+	}
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("schema has no properties")
+	}
+	for key, want := range map[string]any{"Queue": "gimbal", "Workers": float64(4), "ReconnectSeconds": float64(30)} {
+		field, ok := properties[key].(map[string]any)
+		if !ok || field["default"] != want {
+			t.Errorf("schema default %s: %v", key, properties[key])
+		}
+	}
+	if field, ok := properties["RebindFrom"].(map[string]any); !ok || field["description"] == "" {
+		t.Fatal("schema does not explain explicit rebinds")
+	}
+	raw := json.RawMessage(`{"DSNFile":"/does/not/exist","Environments":{"build":"worker-a"}}`)
+	if err := d.ValidateConfiguration(raw); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.ValidateConfiguration(json.RawMessage(`{"DSNEnv":"UNSET_RIVER_DSN","Environments":{"build":"worker-a"}}`)); err != nil {
+		t.Fatalf("environment selection must not read the environment: %v", err)
+	}
+	if err := d.ValidateEnvironment(raw, "build"); err != nil {
+		t.Fatal(err)
+	}
+	if err := d.ValidateEnvironment(raw, "missing"); err == nil {
+		t.Fatal("unknown environment accepted")
+	}
+	for _, raw := range []string{`{}`, `{"DSNEnv":""}`, `{"DSNEnv":" x "}`, `{"DSNFile":"x","DSNEnv":"y"}`, `{"DSNFile":"","DSNEnv":"y"}`, `{"DSNFile":"x","extra":1}`, `{"DSNFile":"x"} {}`, `{"DSNFile":"x","Environments":{"x":" "}}`, `{"DSNFile":"x","ReconnectSeconds":-1}`, `{"DSNFile":"x","RebindFrom":{"x":"old"}}`, `{"DSNFile":"x","Environments":{"x":"same"},"RebindFrom":{"x":"same"}}`} {
+		if err := d.ValidateConfiguration(json.RawMessage(raw)); err == nil {
+			t.Fatalf("accepted %s", raw)
+		}
+	}
+}
+
+func TestConfigurationMarshalValidatesBothDSNSelectors(t *testing.T) {
+	var registry gimbal.Registry
+	if err := Register(&registry); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := registry.Messaging("river")
+	for _, tc := range []struct {
+		name, active, inactive string
+		config                 configuration
+	}{
+		{"file", "DSNFile", "DSNEnv", configuration{DSNFile: "/does/not/exist"}},
+		{"environment", "DSNEnv", "DSNFile", configuration{DSNEnv: "UNSET_RIVER_DSN"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := json.Marshal(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &fields); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := fields[tc.active]; !ok {
+				t.Errorf("missing active selector %s", tc.active)
+			}
+			if _, ok := fields[tc.inactive]; ok {
+				t.Errorf("included inactive selector %s", tc.inactive)
+			}
+			if err := d.ValidateConfiguration(raw); err != nil {
+				t.Fatalf("marshaled configuration rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestEnvironmentDSNRejectsMissingAndMalformedWithoutDisclosure(t *testing.T) {
+	const name = "GIMBAL_TEST_INVALID_RIVER_DSN"
+	for _, value := range []string{"", "   ", "postgres://user:secret-marker@%invalid/db"} {
+		t.Setenv(name, value)
+		_, err := open(context.Background(), configuration{DSNEnv: name, DSNFile: "/must-not-fallback"})
+		if err == nil || strings.Contains(err.Error(), "secret-marker") || strings.Contains(err.Error(), "/must-not-fallback") {
+			t.Fatalf("unsafe or missing error for invalid environment DSN: %v", err)
+		}
+	}
+}
 
 func TestAdmissionDoesNotReplayOrPropagateShutdownRetry(t *testing.T) {
 	var calls atomic.Int32
@@ -62,6 +155,9 @@ func integration(t *testing.T) (*transport, context.Context) {
 		defer cancel()
 		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM river_job WHERE queue=ANY($1)", []string{c.Queue, c.ControlQueue})
 		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_events WHERE queue=$1", c.Queue)
+		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_acceptances WHERE namespace=$1", c.Queue)
+		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_owners WHERE namespace=$1", c.Queue)
+		_, _ = tr.pool.Exec(cleanupCtx, "DELETE FROM gimbal_message_bindings WHERE namespace=$1", c.Queue)
 		tr.pool.Close()
 	})
 	return tr, ctx
@@ -396,5 +492,814 @@ func TestConnectDoesNotInitializeMissingSchema(t *testing.T) {
 	}
 	if err := caller.PublishRequest(ctx, backend.MessageRequest{ID: "after-worker-init", Kind: "turn", Created: time.Now()}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPostgresNamedWorkersReceiveOnlyAddressedRequests(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.Environments = map[string]string{"east": "worker-a", "west": "worker-b"}
+	tr.config.ReconnectSeconds = 3
+	queues := []string{workerQueue(tr.config.Queue, "worker-a", false), workerQueue(tr.config.Queue, "worker-a", true), workerQueue(tr.config.Queue, "worker-b", false), workerQueue(tr.config.Queue, "worker-b", true)}
+	t.Cleanup(func() {
+		_, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=ANY($1)", queues)
+		_, _ = tr.pool.Exec(context.Background(), "DELETE FROM gimbal_message_owners WHERE namespace=$1", tr.config.Queue)
+	})
+	if err := tr.PublishRequest(ctx, backend.MessageRequest{ID: "not-admitted", Environment: "east", Kind: "identified-process"}); err == nil {
+		t.Fatal("unregistered owner accepted")
+	}
+	type arrival struct{ worker, id, environment, assigned string }
+	arrivals := make(chan arrival, 4)
+	start := func(id string) (context.CancelFunc, <-chan error) {
+		t.Helper()
+		cfg := tr.config
+		cfg.WorkerID = id
+		raw, err := json.Marshal(cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workerCtx, cancel := context.WithCancel(ctx)
+		done := make(chan error, 1)
+		ready := make(chan struct{})
+		go func() {
+			done <- serve(workerCtx, raw, backend.Dependencies{Ready: func() error { close(ready); return nil }}, func(_ context.Context, r backend.MessageRequest) error {
+				arrivals <- arrival{id, r.ID, r.Environment, r.WorkerID}
+				return nil
+			})
+		}()
+		select {
+		case <-ready:
+		case err := <-done:
+			cancel()
+			t.Fatalf("worker %s: %v", id, err)
+		case <-ctx.Done():
+			cancel()
+			t.Fatal(ctx.Err())
+		}
+		return cancel, done
+	}
+	stopA, doneA := start("worker-a")
+	stopB, doneB := start("worker-b")
+	defer func() {
+		stopA()
+		stopB()
+		for _, done := range []<-chan error{doneA, doneB} {
+			select {
+			case err := <-done:
+				if err != nil && !errors.Is(err, context.Canceled) {
+					t.Errorf("worker exit: %v", err)
+				}
+			case <-time.After(12 * time.Second):
+				t.Error("worker did not stop")
+			}
+		}
+	}()
+	duplicate := tr.config
+	duplicate.WorkerID = "worker-a"
+	raw, _ := json.Marshal(duplicate)
+	if err := serve(ctx, raw, backend.Dependencies{}, func(context.Context, backend.MessageRequest) error { t.Error("duplicate admitted"); return nil }); err == nil || !strings.Contains(err.Error(), "already registered") {
+		t.Fatalf("duplicate registration: %v", err)
+	}
+	conflicting := tr.config
+	conflicting.WorkerID = "worker-c"
+	conflicting.Environments = map[string]string{"east": "worker-c"}
+	conflictingRaw, _ := json.Marshal(conflicting)
+	if err := serve(ctx, conflictingRaw, backend.Dependencies{}, func(context.Context, backend.MessageRequest) error { t.Error("conflicting owner admitted"); return nil }); err == nil || !strings.Contains(err.Error(), "already bound") {
+		t.Fatalf("different worker claimed existing name: %v", err)
+	}
+	for _, r := range []backend.MessageRequest{{ID: "one", Environment: "east", Kind: "identified-process"}, {ID: "two", Environment: "west", Kind: "identified-process"}} {
+		if err := tr.PublishRequest(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen := map[string]arrival{}
+	for len(seen) < 2 {
+		select {
+		case a := <-arrivals:
+			seen[a.id] = a
+		case <-ctx.Done():
+			t.Fatalf("missing addressed deliveries: %v", seen)
+		}
+	}
+	if seen["one"] != (arrival{"worker-a", "one", "east", "worker-a"}) || seen["two"] != (arrival{"worker-b", "two", "west", "worker-b"}) {
+		t.Fatalf("incorrect delivery: %+v", seen)
+	}
+	if err := tr.PublishRequest(ctx, backend.MessageRequest{ID: "session", Environment: "east", Kind: "identified-session", Owner: backend.Owner{Run: "run", Task: "agent"}, SessionID: "agent"}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-arrivals:
+		if got.worker != "worker-a" {
+			t.Fatalf("session: %+v", got)
+		}
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	tr.config.Environments = map[string]string{"east": "worker-b", "west": "worker-b"}
+	tr.config.RebindFrom = map[string]string{"east": "worker-a"}
+	if err := tr.PublishRequest(ctx, backend.MessageRequest{ID: "turn", Environment: "east", Kind: "identified-turn", Owner: backend.Owner{Run: "run", Task: "turn"}, SessionID: "agent"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := tr.PublishRequest(ctx, backend.MessageRequest{ID: "new", Environment: "east", Kind: "identified-process", Owner: backend.Owner{Run: "run", Task: "new"}}); err != nil {
+		t.Fatal(err)
+	}
+	seen = map[string]arrival{}
+	for len(seen) < 2 {
+		select {
+		case a := <-arrivals:
+			seen[a.id] = a
+		case <-ctx.Done():
+			t.Fatalf("missing rebind deliveries: %v", seen)
+		}
+	}
+	if seen["turn"].worker != "worker-a" || seen["new"].worker != "worker-b" {
+		t.Fatalf("rebind moved retained owner: %+v", seen)
+	}
+	var binding string
+	if err := tr.pool.QueryRow(ctx, "SELECT worker FROM gimbal_message_bindings WHERE namespace=$1 AND environment='east'", tr.config.Queue).Scan(&binding); err != nil || binding != "worker-b" {
+		t.Fatalf("explicit rebind not retained: %q %v", binding, err)
+	}
+	// The new identity has never been registered. An explicit compare-and-swap
+	// permits it to start while the original session remains at worker-a.
+	tr.config.Environments = map[string]string{"east": "worker-c", "west": "worker-b"}
+	tr.config.RebindFrom = map[string]string{"east": "wrong-owner"}
+	bad := tr.config
+	bad.WorkerID = "worker-c"
+	badRaw, _ := json.Marshal(bad)
+	if err := serve(ctx, badRaw, backend.Dependencies{}, func(context.Context, backend.MessageRequest) error { t.Error("incorrect rebind admitted"); return nil }); err == nil {
+		t.Fatal("rebind with incorrect previous owner accepted")
+	}
+	tr.config.RebindFrom["east"] = "worker-b"
+	stopC, doneC := start("worker-c")
+	defer func() {
+		stopC()
+		if err := <-doneC; err != nil && !errors.Is(err, context.Canceled) {
+			t.Errorf("worker-c exit: %v", err)
+		}
+	}()
+	queues = append(queues, workerQueue(tr.config.Queue, "worker-c", false), workerQueue(tr.config.Queue, "worker-c", true))
+	tr.config.RebindFrom = nil
+	for _, r := range []backend.MessageRequest{
+		{ID: "old-session-turn", Environment: "east", Kind: "identified-turn", Owner: backend.Owner{Run: "run", Task: "turn2"}, SessionID: "agent"},
+		{ID: "fresh-worker-task", Environment: "east", Kind: "identified-process", Owner: backend.Owner{Run: "run", Task: "fresh"}},
+	} {
+		if err := tr.PublishRequest(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seen = map[string]arrival{}
+	for len(seen) < 2 {
+		select {
+		case a := <-arrivals:
+			seen[a.id] = a
+		case <-ctx.Done():
+			t.Fatalf("missing fresh rebind deliveries: %v", seen)
+		}
+	}
+	if seen["old-session-turn"].worker != "worker-a" || seen["fresh-worker-task"].worker != "worker-c" {
+		t.Fatalf("fresh rebind delivery: %+v", seen)
+	}
+}
+
+func TestPostgresNamedNativeCommand(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.Environments = map[string]string{"selected": "native-worker"}
+	tr.config.WorkerID = "native-worker"
+	raw, err := json.Marshal(tr.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queues := []string{workerQueue(tr.config.Queue, "native-worker", false), workerQueue(tr.config.Queue, "native-worker", true)}
+	t.Cleanup(func() {
+		_, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=ANY($1)", queues)
+		_, _ = tr.pool.Exec(context.Background(), "DELETE FROM gimbal_message_owners WHERE namespace=$1", tr.config.Queue)
+	})
+	daemon := taskdaemon.New(t.TempDir())
+	workerCtx, stop := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	ready := make(chan struct{})
+	go func() {
+		done <- serve(workerCtx, raw, backend.Dependencies{Ready: func() error { close(ready); return nil }}, daemon.Messages(tr))
+	}()
+	defer func() {
+		stop()
+		select {
+		case err := <-done:
+			if err != nil && !errors.Is(err, context.Canceled) {
+				t.Errorf("worker: %v", err)
+			}
+		case <-time.After(12 * time.Second):
+			t.Error("worker did not stop")
+		}
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatal(err)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	owner := backend.Owner{Run: "run", Task: "command"}
+	identity := backend.NewExecutionIdentity("process")
+	req := effects.Request(identity.RequestID, "identified-process", owner)
+	req.ExecutionIdentity = identity
+	req.Process = &backend.Process{Owner: owner, ExecutionIdentity: identity, Command: "sh", Args: []string{"-c", "printf named-native"}, Workdir: t.TempDir()}
+	callCtx := effects.WithEnvironment(effects.WithConnection(ctx, backend.Connection{Messages: tr}), "selected")
+	event, err := effects.MessageCall(callCtx, req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.Environment != "selected" || event.WorkerID != "native-worker" || event.Result == nil || event.Result.Process == nil || event.Result.Process.ExitCode != 0 || string(event.Result.Stdout) != "named-native" {
+		t.Fatalf("native result: %+v", event)
+	}
+	stopReplay := errors.New("replayed completion")
+	var prior uint64
+	err = tr.ListenEvents(ctx, backend.MessageSelection{RequestID: req.ID}, time.Time{}, func(fact backend.MessageEvent) error {
+		if fact.Source != req.ID || fact.Sequence <= prior {
+			t.Fatalf("invalid source order: %+v after %d", fact, prior)
+		}
+		prior = fact.Sequence
+		if fact.Kind == "completed" {
+			return stopReplay
+		}
+		return nil
+	})
+	if !errors.Is(err, stopReplay) || prior != event.Sequence {
+		t.Fatalf("completion replay: %v sequence=%d", err, prior)
+	}
+	if err := effects.Cleanup(callCtx, "", owner.Run, "", "cleanup-native"); err != nil {
+		t.Fatalf("named native cleanup: %v", err)
+	}
+}
+
+func TestPostgresWorkerAuthorityReacquiresAfterConnectionLoss(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.ReconnectSeconds = 3
+	owner, err := registerWorker(ctx, tr, "reconnect")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer owner.close()
+	pid := owner.conn.PgConn().PID()
+	var killed bool
+	if err = tr.pool.QueryRow(ctx, "SELECT pg_terminate_backend($1)", pid).Scan(&killed); err != nil || !killed {
+		t.Fatalf("terminate own authority connection: %v", err)
+	}
+	if err = owner.confirm(ctx); err == nil {
+		t.Fatal("lost authority was accepted")
+	}
+	if err = owner.reacquire(ctx, tr, "reconnect"); err != nil {
+		t.Fatal(err)
+	}
+	if err = owner.confirm(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if duplicate, err := registerWorker(ctx, tr, "reconnect"); err == nil {
+		duplicate.close()
+		t.Fatal("duplicate obtained reacquired lock")
+	}
+}
+
+func TestPostgresListenerReconnectsAndReplays(t *testing.T) {
+	tr, ctx := integration(t)
+	config := tr.pool.Config().Copy()
+	var blocked atomic.Bool
+	var failed atomic.Int32
+	config.ConnConfig.DialFunc = func(ctx context.Context, network, address string) (net.Conn, error) {
+		if blocked.Load() {
+			failed.Add(1)
+			return nil, errors.New("injected connection loss")
+		}
+		var dialer net.Dialer
+		return dialer.DialContext(ctx, network, address)
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	listener := &transport{config: tr.config, pool: pool}
+	listener.config.ReconnectSeconds = 3
+	finished := errors.New("received completion")
+	result := make(chan error, 1)
+	seen := make(chan backend.MessageEvent, 2)
+	go func() {
+		result <- listener.ListenEvents(ctx, backend.MessageSelection{RequestID: "reconnect"}, time.Time{}, func(e backend.MessageEvent) error {
+			seen <- e
+			if e.Kind == "completed" {
+				return finished
+			}
+			return nil
+		})
+	}()
+	event := backend.MessageEvent{ID: "reconnect-accepted", RequestID: "reconnect", Created: time.Now(), Kind: "accepted"}
+	if err := tr.PublishEvent(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-seen:
+	case <-ctx.Done():
+		t.Fatal("initial event missing")
+	}
+	blocked.Store(true)
+	pool.Reset()
+	deadline := time.NewTimer(5 * time.Second)
+	defer deadline.Stop()
+	for failed.Load() == 0 {
+		select {
+		case <-deadline.C:
+			t.Fatal("listener did not observe disconnect")
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	event.ID = "reconnect-completed"
+	event.Kind = "completed"
+	event.Result = &backend.MessageResult{Output: []byte("replayed")}
+	if err := tr.PublishEvent(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	blocked.Store(false)
+	select {
+	case got := <-seen:
+		if got.ID != event.ID || string(got.Result.Output) != "replayed" {
+			t.Fatalf("wrong replay: %+v", got)
+		}
+	case <-ctx.Done():
+		t.Fatal("completion was not replayed")
+	}
+	if err := <-result; !errors.Is(err, finished) {
+		t.Fatalf("listener: %v", err)
+	}
+}
+
+func TestPostgresListenerReconnectBudgetExhaustion(t *testing.T) {
+	tr, ctx := integration(t)
+	config := tr.pool.Config().Copy()
+	config.ConnConfig.DialFunc = func(context.Context, string, string) (net.Conn, error) { return nil, errors.New("injected outage") }
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	listener := &transport{config: tr.config, pool: pool}
+	listener.config.ReconnectSeconds = 1
+	started := time.Now()
+	err = listener.ListenEvents(ctx, backend.MessageSelection{RequestID: "unavailable"}, time.Time{}, func(backend.MessageEvent) error { t.Error("unexpected event"); return nil })
+	if err == nil || !strings.Contains(err.Error(), "reconnect budget exhausted") || time.Since(started) > 3*time.Second {
+		t.Fatalf("reconnect not bounded: %v after %v", err, time.Since(started))
+	}
+}
+
+type droppedCompletion struct {
+	backend.Messaging
+	dropped chan backend.MessageEvent
+}
+
+func (d *droppedCompletion) PublishEvent(ctx context.Context, event backend.MessageEvent) error {
+	if event.Kind == "completed" {
+		select {
+		case d.dropped <- event:
+		default:
+		}
+		return errors.New("injected completion delivery loss")
+	}
+	return d.Messaging.PublishEvent(ctx, event)
+}
+
+func TestPostgresNamedNativeCompletionRecoversAfterRestart(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.Environments = map[string]string{"selected": "restart-worker"}
+	tr.config.WorkerID = "restart-worker"
+	raw, err := json.Marshal(tr.config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queues := []string{workerQueue(tr.config.Queue, "restart-worker", false), workerQueue(tr.config.Queue, "restart-worker", true)}
+	t.Cleanup(func() { _, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=ANY($1)", queues) })
+	root := t.TempDir()
+	marker := filepath.Join(root, "count")
+	dropped := &droppedCompletion{Messaging: tr, dropped: make(chan backend.MessageEvent, 1)}
+	start := func(daemon *taskdaemon.Daemon, bus backend.Messaging, recover bool) (context.CancelFunc, <-chan error) {
+		t.Helper()
+		workerCtx, cancel := context.WithCancel(ctx)
+		ready := make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			done <- serve(workerCtx, raw, backend.Dependencies{Ready: func() error {
+				if recover {
+					if err := daemon.RecoverMessages(workerCtx, bus); err != nil {
+						return err
+					}
+				}
+				close(ready)
+				return nil
+			}}, daemon.Messages(bus))
+		}()
+		select {
+		case <-ready:
+		case err := <-done:
+			cancel()
+			t.Fatalf("start: %v", err)
+		case <-ctx.Done():
+			cancel()
+			t.Fatal(ctx.Err())
+		}
+		return cancel, done
+	}
+	stop, done := start(taskdaemon.New(root), dropped, false)
+	identity := backend.NewExecutionIdentity("process")
+	owner := backend.Owner{Run: "run", Task: "once"}
+	req := effects.Request(identity.RequestID, "identified-process", owner)
+	req.ExecutionIdentity = identity
+	req.Process = &backend.Process{Owner: owner, ExecutionIdentity: identity, Command: "sh", Args: []string{"-c", "printf x >> \"$1\"; printf recovered", "sh", marker}, Workdir: root}
+	callCtx := effects.WithEnvironment(effects.WithConnection(ctx, backend.Connection{Messages: tr}), "selected")
+	if err := effects.Submit(callCtx, req); err != nil {
+		t.Fatal(err)
+	}
+	var original backend.MessageEvent
+	select {
+	case original = <-dropped.dropped:
+	case <-ctx.Done():
+		t.Fatal("completion was not reached")
+	}
+	stop()
+	if err := <-done; err != nil && !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	stop, done = start(taskdaemon.New(root), tr, true)
+	defer func() { stop(); <-done }()
+	event, err := effects.Await(callCtx, req, "completed", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.ID != original.ID || event.Source != original.Source || event.Sequence != original.Sequence || event.Sequence == 0 || event.WorkerID != "restart-worker" || event.Result == nil || string(event.Result.Stdout) != "recovered" {
+		t.Fatalf("recovered event: %+v", event)
+	}
+	data, err := os.ReadFile(marker)
+	if err != nil || string(data) != "x" {
+		t.Fatalf("native execution repeated: %q %v", data, err)
+	}
+}
+
+func TestPostgresNamedCleanupReachesEveryRetainedOwner(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.Environments = map[string]string{"east": "cleanup-a", "west": "cleanup-b"}
+	queues := []string{}
+	stops := []context.CancelFunc{}
+	dones := []<-chan error{}
+	for _, worker := range []string{"cleanup-a", "cleanup-b"} {
+		cfg := tr.config
+		cfg.WorkerID = worker
+		raw, _ := json.Marshal(cfg)
+		daemon := taskdaemon.New(t.TempDir())
+		workerCtx, stop := context.WithCancel(ctx)
+		done := make(chan error, 1)
+		ready := make(chan struct{})
+		go func() {
+			done <- serve(workerCtx, raw, backend.Dependencies{Ready: func() error { close(ready); return nil }}, daemon.Messages(tr))
+		}()
+		select {
+		case <-ready:
+		case err := <-done:
+			t.Fatal(err)
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		stops = append(stops, stop)
+		dones = append(dones, done)
+		queues = append(queues, workerQueue(tr.config.Queue, worker, false), workerQueue(tr.config.Queue, worker, true))
+	}
+	defer func() {
+		for _, stop := range stops {
+			stop()
+		}
+		for _, done := range dones {
+			<-done
+		}
+	}()
+	t.Cleanup(func() { _, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=ANY($1)", queues) })
+	call := func(environment, scope, task string) error {
+		identity := backend.NewExecutionIdentity("process")
+		owner := backend.Owner{Run: "cleanup-run", Scope: scope, Task: task}
+		req := effects.Request(identity.RequestID, "identified-process", owner)
+		req.ExecutionIdentity = identity
+		req.Process = &backend.Process{Owner: owner, ExecutionIdentity: identity, Command: "sh", Args: []string{"-c", "printf ok"}, Workdir: t.TempDir()}
+		selected := effects.WithEnvironment(effects.WithConnection(ctx, backend.Connection{Messages: tr}), environment)
+		_, err := effects.MessageCall(selected, req)
+		return err
+	}
+	if err := call("east", "parent/a", "one"); err != nil {
+		t.Fatal(err)
+	}
+	if err := call("west", "parent/b", "two"); err != nil {
+		t.Fatal(err)
+	}
+	cleanupCtx := effects.WithConnection(ctx, backend.Connection{Messages: tr})
+	if err := effects.Cleanup(cleanupCtx, "", "cleanup-run", "parent", "scope-cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []struct{ env, scope string }{{"east", "parent/a"}, {"west", "parent/b"}} {
+		if err := call(v.env, v.scope, "after-"+v.env); err == nil || !strings.Contains(err.Error(), "closed") {
+			t.Fatalf("owner %s did not close scope: %v", v.env, err)
+		}
+	}
+}
+
+func TestPostgresWorkerStopsAdmissionWhenAuthorityRecoveryExhausts(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.Environments = map[string]string{"selected": "blocked-worker"}
+	tr.config.WorkerID = "blocked-worker"
+	tr.config.ReconnectSeconds = 1
+	raw, _ := json.Marshal(tr.config)
+	queue := workerQueue(tr.config.Queue, "blocked-worker", false)
+	t.Cleanup(func() { _, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=$1", queue) })
+	workerCtx, stop := context.WithCancel(ctx)
+	defer stop()
+	ready := make(chan struct{})
+	done := make(chan error, 1)
+	var admitted atomic.Int32
+	go func() {
+		done <- serve(workerCtx, raw, backend.Dependencies{Ready: func() error { close(ready); return nil }}, func(context.Context, backend.MessageRequest) error { admitted.Add(1); return nil })
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatal(err)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	key := authorityKey(tr.config.Queue, "blocked-worker")
+	var pid int32
+	err := tr.pool.QueryRow(ctx, `SELECT pid FROM pg_locks WHERE locktype='advisory' AND granted AND objsubid=1
+ AND classid::bigint=((hashtextextended($1,0) >> 32) & 4294967295)
+ AND objid::bigint=(hashtextextended($1,0) & 4294967295)`, key).Scan(&pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocker, err := pgx.ConnectConfig(ctx, tr.pool.Config().ConnConfig)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = blocker.Close(context.Background()) }()
+	blockerPID := blocker.PgConn().PID()
+	acquired := make(chan error, 1)
+	go func() {
+		_, err := blocker.Exec(ctx, "SELECT pg_advisory_lock(hashtextextended($1,0))", key)
+		acquired <- err
+	}()
+	var waiting bool
+	for !waiting {
+		err = tr.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_locks WHERE pid=$1 AND locktype='advisory' AND NOT granted)`, blockerPID).Scan(&waiting)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !waiting {
+			select {
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			case <-time.After(10 * time.Millisecond):
+			}
+		}
+	}
+	var terminated bool
+	if err := tr.pool.QueryRow(ctx, "SELECT pg_terminate_backend($1)", pid).Scan(&terminated); err != nil || !terminated {
+		t.Fatalf("terminate own authority: %v", err)
+	}
+	if err := <-acquired; err != nil {
+		t.Fatal(err)
+	}
+	request := backend.MessageRequest{ID: "queued-during-loss", Environment: "selected", WorkerID: "blocked-worker", Kind: "identified-process"}
+	if _, err := tr.client.Insert(ctx, actionArgs{Request: request}, &river.InsertOpts{Queue: queue, MaxAttempts: 1}); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		if err == nil || !strings.Contains(err.Error(), "could not reacquire registration") {
+			t.Fatalf("worker exit: %v", err)
+		}
+	case <-ctx.Done():
+		t.Fatal("worker did not stop after loss")
+	}
+	if admitted.Load() != 0 {
+		t.Fatalf("admitted %d requests after authority loss", admitted.Load())
+	}
+	var state string
+	if err := tr.pool.QueryRow(ctx, "SELECT state::text FROM river_job WHERE queue=$1", queue).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state == "cancelled" || state == "discarded" || state == "completed" {
+		t.Fatalf("queued request spent under lost authority: %s", state)
+	}
+}
+
+func TestPostgresReplayOrdersBySourceSequenceNotClock(t *testing.T) {
+	tr, ctx := integration(t)
+	later := time.Now().UTC()
+	for _, event := range []backend.MessageEvent{
+		{ID: "first-id", RequestID: "ordered", Source: "owner-request", Sequence: 2, Created: later.Add(-time.Hour), Kind: "completed", Result: &backend.MessageResult{}},
+		{ID: "second-id", RequestID: "ordered", Source: "owner-request", Sequence: 1, Created: later, Kind: "accepted"},
+	} {
+		if err := tr.PublishEvent(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stop := errors.New("done")
+	var got []uint64
+	err := tr.ListenEvents(ctx, backend.MessageSelection{RequestID: "ordered"}, time.Time{}, func(e backend.MessageEvent) error {
+		got = append(got, e.Sequence)
+		if len(got) == 2 {
+			return stop
+		}
+		return nil
+	})
+	if !errors.Is(err, stop) || !reflect.DeepEqual(got, []uint64{1, 2}) {
+		t.Fatalf("sequence replay: %v %v", got, err)
+	}
+}
+
+func TestPostgresPublicationRetriesOriginalEvent(t *testing.T) {
+	tr, ctx := integration(t)
+	name := "gimbal_retry_" + fmt.Sprint(time.Now().UnixNano())
+	ident := pgx.Identifier{name}.Sanitize()
+	_, err := tr.pool.Exec(ctx, "CREATE SEQUENCE "+ident)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = tr.pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS "+ident+" ON gimbal_message_events")
+		_, _ = tr.pool.Exec(context.Background(), "DROP FUNCTION IF EXISTS "+ident+"()")
+		_, _ = tr.pool.Exec(context.Background(), "DROP SEQUENCE IF EXISTS "+ident)
+	}()
+	_, err = tr.pool.Exec(ctx, "CREATE FUNCTION "+ident+"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.queue = '"+tr.config.Queue+"' AND nextval('"+name+"') = 1 THEN RAISE EXCEPTION 'transient' USING ERRCODE = '08006'; END IF; RETURN NEW; END $$")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = tr.pool.Exec(ctx, "CREATE TRIGGER "+ident+" BEFORE INSERT ON gimbal_message_events FOR EACH ROW EXECUTE FUNCTION "+ident+"()"); err != nil {
+		t.Fatal(err)
+	}
+	event := backend.MessageEvent{ID: "original", RequestID: "request", Source: "request", Sequence: 7, Created: time.Now(), Kind: "completed", Result: &backend.MessageResult{Output: json.RawMessage(`"retained"`)}}
+	if err := tr.PublishEvent(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := tr.pool.QueryRow(ctx, "SELECT count(*) FROM gimbal_message_events WHERE queue=$1 AND id=$2 AND sequence=7", tr.config.Queue, event.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("count %d: %v", count, err)
+	}
+}
+
+func TestPostgresListenerDoesNotRefetchSeenPayload(t *testing.T) {
+	tr, ctx := integration(t)
+	first := backend.MessageEvent{ID: "one", RequestID: "bounded", Source: "s", Sequence: 1, Created: time.Now()}
+	if err := tr.PublishEvent(ctx, first); err != nil {
+		t.Fatal(err)
+	}
+	finished := errors.New("done")
+	var seen []string
+	err := tr.ListenEvents(ctx, backend.MessageSelection{RequestID: "bounded"}, time.Time{}, func(e backend.MessageEvent) error {
+		seen = append(seen, e.ID)
+		if e.ID == "one" {
+			// Invalidating the already-delivered payload makes any repeat fetch observable.
+			if _, err := tr.pool.Exec(ctx, "UPDATE gimbal_message_events SET event=$1 WHERE queue=$2 AND id=$3", []byte("invalid"), tr.config.Queue, e.ID); err != nil {
+				return err
+			}
+			go func() {
+				time.Sleep(200 * time.Millisecond)
+				_ = tr.PublishEvent(ctx, backend.MessageEvent{ID: "two", RequestID: "bounded", Source: "s", Sequence: 2, Created: time.Now()})
+			}()
+			return nil
+		}
+		return finished
+	})
+	if !errors.Is(err, finished) || !reflect.DeepEqual(seen, []string{"one", "two"}) {
+		t.Fatalf("seen %v: %v", seen, err)
+	}
+}
+
+func TestPostgresLiveWorkerRepublishesCompletion(t *testing.T) {
+	tr, ctx := integration(t)
+	tr.config.Environments = map[string]string{"selected": "live-retry-worker"}
+	tr.config.WorkerID = "live-retry-worker"
+	raw, _ := json.Marshal(tr.config)
+	queues := []string{workerQueue(tr.config.Queue, tr.config.WorkerID, false), workerQueue(tr.config.Queue, tr.config.WorkerID, true)}
+	t.Cleanup(func() { _, _ = tr.pool.Exec(context.Background(), "DELETE FROM river_job WHERE queue=ANY($1)", queues) })
+	name := "gimbal_live_retry_" + fmt.Sprint(time.Now().UnixNano())
+	ident := pgx.Identifier{name}.Sanitize()
+	if _, err := tr.pool.Exec(ctx, "CREATE SEQUENCE "+ident); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = tr.pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS "+ident+" ON gimbal_message_events")
+		_, _ = tr.pool.Exec(context.Background(), "DROP FUNCTION IF EXISTS "+ident+"()")
+		_, _ = tr.pool.Exec(context.Background(), "DROP SEQUENCE IF EXISTS "+ident)
+	}()
+	sql := "CREATE FUNCTION " + ident + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.queue = '" + tr.config.Queue + "' AND convert_from(NEW.event,'UTF8')::jsonb->>'Kind' = 'completed' AND nextval('" + name + "') = 1 THEN RAISE EXCEPTION 'transient' USING ERRCODE = '08006'; END IF; RETURN NEW; END $$"
+	if _, err := tr.pool.Exec(ctx, sql); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tr.pool.Exec(ctx, "CREATE TRIGGER "+ident+" BEFORE INSERT ON gimbal_message_events FOR EACH ROW EXECUTE FUNCTION "+ident+"()"); err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	marker := filepath.Join(root, "count")
+	daemon := taskdaemon.New(root)
+	workerCtx, stop := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	ready := make(chan struct{})
+	go func() {
+		done <- serve(workerCtx, raw, backend.Dependencies{Ready: func() error { close(ready); return nil }}, daemon.Messages(tr))
+	}()
+	select {
+	case <-ready:
+	case err := <-done:
+		t.Fatal(err)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	defer func() { stop(); <-done }()
+	identity := backend.NewExecutionIdentity("process")
+	owner := backend.Owner{Run: "live-retry", Task: "once"}
+	req := effects.Request(identity.RequestID, "identified-process", owner)
+	req.ExecutionIdentity = identity
+	req.Process = &backend.Process{Owner: owner, ExecutionIdentity: identity, Command: "sh", Args: []string{"-c", "printf x >> \"$1\"; printf recovered", "sh", marker}, Workdir: root}
+	callCtx := effects.WithEnvironment(effects.WithConnection(ctx, backend.Connection{Messages: tr}), "selected")
+	if err := effects.Submit(callCtx, req); err != nil {
+		t.Fatal(err)
+	}
+	event, err := effects.Await(callCtx, req, "completed", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if event.ID == "" || event.Sequence == 0 || event.Source != req.ID || event.Result == nil || string(event.Result.Stdout) != "recovered" {
+		t.Fatalf("completion: %+v", event)
+	}
+	var count int
+	if err := tr.pool.QueryRow(ctx, "SELECT count(*) FROM gimbal_message_events WHERE queue=$1 AND id=$2", tr.config.Queue, event.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("event count %d: %v", count, err)
+	}
+	data, err := os.ReadFile(marker)
+	if err != nil || string(data) != "x" {
+		t.Fatalf("native executions %q: %v", data, err)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("worker stopped: %v", err)
+	default:
+	}
+}
+
+func TestPostgresPublicationTerminalErrors(t *testing.T) {
+	for _, tc := range []struct{ name, code string }{{"permanent", "42501"}, {"budget", "08006"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			tr, ctx := integration(t)
+			tr.config.ReconnectSeconds = 1
+			name := "gimbal_fail_" + fmt.Sprint(time.Now().UnixNano())
+			ident := pgx.Identifier{name}.Sanitize()
+			sql := "CREATE FUNCTION " + ident + "() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.queue = '" + tr.config.Queue + "' THEN RAISE EXCEPTION 'injected' USING ERRCODE = '" + tc.code + "'; END IF; RETURN NEW; END $$"
+			if _, err := tr.pool.Exec(ctx, sql); err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				_, _ = tr.pool.Exec(context.Background(), "DROP TRIGGER IF EXISTS "+ident+" ON gimbal_message_events")
+				_, _ = tr.pool.Exec(context.Background(), "DROP FUNCTION IF EXISTS "+ident+"()")
+			}()
+			if _, err := tr.pool.Exec(ctx, "CREATE TRIGGER "+ident+" BEFORE INSERT ON gimbal_message_events FOR EACH ROW EXECUTE FUNCTION "+ident+"()"); err != nil {
+				t.Fatal(err)
+			}
+			start := time.Now()
+			err := tr.PublishEvent(ctx, backend.MessageEvent{ID: "kept-id", RequestID: "kept-request", Created: time.Now()})
+			if err == nil || !strings.Contains(err.Error(), "kept-id") {
+				t.Fatalf("error: %v", err)
+			}
+			if tc.name == "permanent" && time.Since(start) > 500*time.Millisecond {
+				t.Fatal("permanent error was retried")
+			}
+			if tc.name == "budget" && !strings.Contains(err.Error(), "budget exhausted") {
+				t.Fatalf("budget: %v", err)
+			}
+			select {
+			case failure := <-tr.PublicationFailure():
+				if failure != err {
+					t.Fatalf("failure %v", failure)
+				}
+			default:
+				t.Fatal("worker was not notified")
+			}
+		})
+	}
+}
+
+type forbiddenRouting struct{}
+
+func (forbiddenRouting) Destinations(context.Context, backend.MessageRequest) ([]backend.EnvironmentDestination, error) {
+	panic("routing must not be called")
+}
+func (forbiddenRouting) ActiveEnvironments(context.Context) ([]backend.EnvironmentDestination, error) {
+	panic("routing must not be called")
+}
+
+func TestNamedWorkerRejectsLegacyBeforeConnection(t *testing.T) {
+	raw := json.RawMessage(`{"DSNFile":"/does-not-exist","Environments":{"test":"worker"},"WorkerID":"worker"}`)
+	err := serve(context.Background(), raw, backend.Dependencies{Routing: forbiddenRouting{}, Ready: func() error { t.Fatal("worker ready"); return nil }}, func(context.Context, backend.MessageRequest) error { t.Fatal("native handler called"); return nil })
+	if err == nil || !strings.Contains(err.Error(), "cannot use an orchestrator") {
+		t.Fatalf("expected pre-connection rejection: %v", err)
 	}
 }

@@ -203,10 +203,11 @@ func (s *Service) SaveEnvironment(ctx context.Context, in EnvironmentEdit) (Envi
 		return EnvironmentRow{}, fmt.Errorf("unknown project or machine")
 	}
 	target := Target{Environment: v, Machine: m, Directory: v.Directory}
-	d, e := s.Inspect(ctx, target, v.Directory)
+	facts, e := s.Inspect(ctx, target, v.Directory)
 	if e != nil {
 		return EnvironmentRow{}, e
 	}
+	d := facts.Directory
 	if !d.Exists {
 		return EnvironmentRow{}, fmt.Errorf("directory does not exist; clone explicitly before adding")
 	}
@@ -344,6 +345,42 @@ func (s *Service) Resolve(ctx context.Context, project, id string) (Target, erro
 	return Target{}, fmt.Errorf("environment is not available for this project")
 }
 
+// NamespaceRoute selects a configured messaging namespace without connecting.
+// Local directories may use a separately configured namespace worker.
+func (s *Service) NamespaceRoute(target Target, name string) (backend.Route, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.refreshLocked(); err != nil {
+		return backend.Route{}, false, err
+	}
+	candidates := []backend.Route{}
+	if target.Machine.Kind == KindRoute {
+		candidates = append(candidates, target.Route)
+	} else if target.Machine.ID == Local || target.Machine.ID == "" {
+		for _, machine := range s.config.Machines {
+			if machine.Kind == KindRoute && machine.Route != nil {
+				candidates = append(candidates, *machine.Route)
+			}
+		}
+	}
+	var selected backend.Route
+	found := false
+	for _, route := range candidates {
+		definition, ok := s.registry.Messaging(route.Name)
+		if !ok || definition.ValidateEnvironment == nil || definition.ValidateEnvironment(route.Configuration, name) != nil {
+			continue
+		}
+		if route.Environment != "" || route.Backends != nil && route.Backends.Orchestrator.Name != "" {
+			return backend.Route{}, false, fmt.Errorf("namespace route cannot select a physical destination or orchestrator")
+		}
+		if found {
+			return backend.Route{}, false, fmt.Errorf("environment %q is configured in multiple messaging namespaces", name)
+		}
+		selected, found = route, true
+	}
+	return selected, found, nil
+}
+
 // ResolveDirectory identifies a prospective directory on a validated machine.
 // It neither saves an environment nor acquires resources or starts a harness.
 // Using the same cache as Resolve isolates invalid configuration siblings and
@@ -420,7 +457,7 @@ func (s *Service) binding(ctx context.Context, t Target, owner backend.Owner, ac
 		}
 		s.mu.Unlock()
 	}
-	if t.Machine.ID == Local || t.Machine.ID == "" {
+	if (t.Machine.ID == Local || t.Machine.ID == "") && t.Route.Name == "" {
 		return Binding{Target: t, Owner: owner}, nil
 	}
 	route := t.Route

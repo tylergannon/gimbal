@@ -1,0 +1,241 @@
+# Distributed-execution task definition
+
+decision: Tyler chose a real two-computer first slice: workflow/local tasks on A, remote session on B, fresh workflow context consumed remotely through an intermediary. Favor the happy path and modest restart reconciliation.
+correction: Tyler explicitly removed enforced network denial from final acceptance, not merely from an initial checkpoint. Source/configuration/observed-connection attestation replaces it. Older distributed proposal and architecture-gate wording must not reintroduce a partition experiment.
+decision: User explicitly requested registering and pursuing the goal; goal is active in this chat. Existing explicit task/DoD approval gate remains before implementation or consequential experiments/publication.
+decision: #664 owner reserved release integration; main merges, version preparation, release dispatch and stable-tag changes are held. Acknowledged to parent A; no runtime/runner conflict is active here.
+discovery: Current worktree is a3ee508b; changes since proposal baseline 2f67be83 concern inventory tests/release notes, not distributed runtime repair. River plugin uses MaxAttempts=1 and explicitly does not resume native execution after worker loss; queue delivery cannot be presented as restart recovery.
+discovery: Ordinary Set/SetJSON context and confidential scoped stores have separate existing contracts. Draft defaults to ordinary context pending Tyler's answer, including complete-value artifact transfer.
+correction: The River plugin's header understates native daemon recovery: internal/taskdaemon/persistence.go restores native mappings, and Messages reconciles repeated original identities/results. The remaining River reconnect/redelivery/publication behavior requires inspection and live proof; do not describe all native recovery as missing based on the plugin comment.
+decision: Independent task-definition reviewer session is b0717a8e-4ad5-4238-9167-addc6015bc52; round 01 artifact is ephemeral/reviews/distributed-execution-task-round-01.md. This is task review, not implementation validation or proof.
+decision: Parent A released the #664 integration hold; no additional merge/publication authorization is implied. Locked Use retains its separate native-runtime reservation.
+review: Round 01 found five material task-definition gaps: orchestration disposition, restart outcome publication, unmapped seam contracts, working-directory semantics and a potentially proof-only committed workflow. Draft amendments remove route-returning EnvironmentRouting, support prestarted workers without a dummy orchestrator, assign recovery publication to native dispatch, map known seam/persistence/bootstrap owners, retain explicit native directory inputs per the prior synthesis, and specify a real opt-in package integration test instead of a standalone proof program. Approval remains pending.
+review: Round 02 accepted all five round-01 resolutions. It found two remaining material gaps: known callers/shared messagefiles were absent from the ownership map, and execution-wait reconnect responsibility/bounds were unspecified. Draft now maps those owners, explicitly removes run-wide Route.Environment in favor of workflow declarations, and assigns bounded identity-preserving reconnect to the River transport. No implementation has started.
+decision: Parent A reserved a renewed short main-merge/version-preparation/tag/release-dispatch hold for #664 integration; acknowledged, no conflicting operation active here. Native runtime remains owned by Locked Use.
+friction: Round 02 observed a mid-review budget-row edit. Pin future review requests after checkpointing the complete draft; do not edit the target while that round runs.
+review: Round 03 accepted all round-02 resolutions. It found that blanket removal of Route.Environment forces migration of runtime-selected conversation placement and existing placement UI; this risks expanding the first slice. Asked Tyler to choose a focused unmerged milestone with conversation migration deferred versus including it. Independent task consensus is not yet achieved. The request-envelope logical-destination omission and D3 classification wording were corrected separately.
+decision: Parent A released the renewed #664 integration hold after merge 9aee226771adc804ccf0041ffdd70a06863b7317 and nonpublishing release-preparation success. No new merge/publication permission or native-runtime reservation is implied.
+decision: Continued drafting the recommended focused checkpoint while the optional scope question remains unanswered. This is a proposed scope boundary for explicit task approval, not permission to implement it. The real two-computer/local-plus-remote/context/restart/attestation outcome is preserved; full conversation/orchestrator migration and the whole-application merge gate are still outstanding.
+review: For the focused draft, existing out-of-slice routing is unmodified rather than a newly added compatibility shim. The namespace-based River composition explicitly rejects legacy destination/provisioning settings before effects and cannot use those paths. Added actual per-task run-page placement proof, logical-environment request addressing, and an ordered file overlay supply rule. No code or runtime experiment has begun.
+review: Round 04 accepted the focused checkpoint boundary as coherent and not a compatibility shim, but required active-registration/restart semantics and an explicit override of the old local placement summary. Draft uses stable worker identity plus database-held exclusive serving authority, never blind same-identity takeover; re-registration follows release of the predecessor's authority. The observation registry overrides the summary for new-composition runs from retained per-task facts. No application heartbeat/lease scheme or orchestration migration was added.
+review: Round 05 accepted the prior amendments and identified a remaining authority-loss race: a worker's data pool could keep consuming after its exclusive authority connection drops. Draft now gates admission commits on authority, stops admissions/consumption during unresolved ownership, uses the existing native state-directory lease in message-worker, and preserves already-admitted native work/results through reconnect or same-identity restart. It distinguishes definite no-owner rejection from delivery uncertainty and explicitly limits the live restart specimen to process loss with retained state.
+review: Round 06 returned only nitpicks remain for task definition at b46be5ef369db18329a675327bff0cff46ea14ea, SHA-256 33900a3ee14e8913d0ae20e4f11f644b1fe96a688dcee3b4859953c55e0267eb. Independent task-definition consensus is reached; the exact reviewed plan is unchanged. This is not implementation or runtime proof. Explicit Tyler approval of the written task/DoD, focused checkpoint boundary, ordinary context and proposed WithEnvironment remains required before coding.
+review: Mechanical spec review at this draft: consistency, requirement-to-claim and claim-to-requirement traceability, distinct seam ownership/budgets and local/integration classifications are covered; seven cell-local claim rows and five integration claim rows exercise every cell. No approved nlspec amendment or catalytic-converter change has occurred; this is initial authoring. Unsettled machine allocation remains an explicit prerequisite for live work, not fabricated evidence.
+decision: Retain round-06 implementation cautions in the handoff: pause consumption or snooze without spending a River attempt while authority is unresolved; do not permanently cancel queued requests through the current MaxAttempts=1 path. Prefer authority/ownership writes on the dedicated lock-owning database session so an unrelated pool connection cannot check then commit after authority loss. These derive from the reviewed contract and require no new subsystem.
+decision: Parent A released Amrita's serialized native-runtime reservation, while requiring preservation of the intentionally idle/bound qualification worker and owner chat 01a19a25-3fbf-7c81-9f8b-f93ac4dc9510. No native qualification/promotion completion is claimed. Fresh host ownership checks remain required before any approved live work; no runtime action has begun here.
+decision: Tyler authorized the revised conversation-first sequence: “the job is yours. get it done.” Updated the task and prerequisite handoff accordingly. The dynamic environment is a declared/validated string input resolved before effects, not an exception to preflight. Rebased onto bc9e158d, inheriting merged #664/#665 before coding.
+friction: First Gimbal-owned gpt-6.1-terra pass ended after preliminary clock-skew replay and completion-ID fixes, explicitly leaving C1 unimplemented. Continued with a concrete declaration/preflight assignment rather than crediting the terminal run as feature completion. The installed terra alias still resolves to 5.6, so the explicitly requested native gpt-6.1-terra identifier is used and confirmed by Gimbal's actual session metadata.
+decision: Parent A's fresh conflict check found no remaining shared-host operation. Approved isolated topology: workflow/local worker and private Compose Postgres on Esmeralda, private-state task worker on Amrita. Borrow the existing managed Codex daemon; never stop/reset qualification/Desktop/runner/cache/keychain state. Preserve the bound qualification worker, genuine owner chat and other worktrees. Clean only this task's resources.
+discovery: Isolated Compose Postgres 17.11 is healthy at Esmeralda's database service port 55004; Amrita's TCP reachability is verified. Credentials are private files under /tmp/gimbal-distributed-owner-b/live and /private/tmp/gimbal-dist-01a19a10.sK9NHy, never included in notes. The private Amrita work/plugins directories are prepared; no remote native worker has started.
+review: Requested Sonnet 5.5 session 5e090c8e-d5e8-45d2-b754-16fc31ce8d96 reviewed checkpoint 9fe8e769 and found incomplete inventory for unfollowed calls, missing generated graphs, stale conversation launchers and configured-local regression. Its artifact is ephemeral/reviews/conversation-declarations-sonnet-round-01.md. It inspected an immutable temporary copy to distinguish that checkpoint from ongoing source changes; this is not live or final candidate validation. The persistent validator below must run final checks in the designated product worktree.
+friction: Both broad single-turn River assignments ended after partial implementation, despite explicit completion instructions. The second did add strict config/namespace parsing, a state-directory lease and fail-closed named startup, with database/race/build checks, but did not implement addressed delivery. Replaced single-turn supervision with an ordinary-Go Gimbal coding/independent-validation loop retaining both sessions, max eight passes; no transport/provider failure is blindly retried.
+decision: Active persistent source loop: run 01M6D729NR8ZW9CKDTX11WNKHD, exec session 95243, records /tmp/gimbal-distributed-owner-b/source-loop-state/runs/01M6D729NR8ZW9CKDTX11WNKHD. Program is outside the repo at /tmp/gimbal-distributed-owner-b/source-loop/main.go; it is development orchestration, not a committed proof program or product API. Coder model is gpt-6.1-terra and reviewer claude-sonnet-5-5, confirmed by session metadata. Assignment is ephemeral/plans/conversation-implementation-continuation.md. Do not restart solely because observation times out; inspect the same live handle. This loop's completion means source-stage only, never C1/D6–D10 live proof.
+friction: Built-in implement requires TYPESAFE_API_KEY, absent from this session. The owned temporary coding loop uses no WithSupervisor and retains ordinary independent validation; no shared credentials/services were changed. The attempted owned discovery central was stopped, and its sole owner.lock state was moved from the task source tree to /tmp/gimbal-distributed-owner-b/central-no-web/project-state. No other runtime or state was removed.
+correction: The initial map omitted service.go and the interactive example despite explicitly requiring service placement and conversation caller updates. These are ordinary direct callers within existing responsibilities, not new seams or reasons to stop after small fragments. Corrected exact base counts: workflow context 3,074 including base service.go 345 lines; bootstrap 1,001 including base example 91 lines, with proportional volume tripwires. File splitting/caller corrections remain derivable within a cell; actual new responsibilities or volume breaches still stop for review.
+friction: First temporary source loop ended because a nonempty free-text blocker field contained “None external”. Corrected the program to branch on a typed ready/needs_work/blocked enum, with fresh review paths keyed by run ID. Prior turns/process were confirmed terminal before continuing; no uncertain native operation was replayed. Replacement run 01M6D7FRS1SZ1W0AY18G4R1KPC is active through exec session 58545 in the same source-loop-state directory.
+correction: Review commentary assumed a missing Prettier executable meant missing frontend tooling. Current package.json/Justfile specify VitePlus formatting and no Prettier dependency. Pinned frozen-lockfile install succeeded. Require actual generation/format/build checks and consistent generated output, not an unrequested formatter dependency.
+
+
+## Live deployment intake, November 1, 23:38–23:44
+
+Sonnet source round 07 reported no material source findings after exercising
+Postgres/race/native-luna and frontend checks. That is a source checkpoint,
+not live C1 acceptance. Root opened the actual private application in IAB and
+selected the configured remote directory. New-session setup returned Internal
+Error before Start. Inspection shows SetupEnvironment still uses Service.Inspect
+and the old operation context takes Route.Environment (empty on a named bus),
+without selecting the logical target.Environment.ID. Manager.Start-only coverage
+missed this setup path. Fed this existing consumer requirement back to Terra in
+the continuation assignment during pass 8. Selected-factory nil-result authority
+checks also remain required; root has not accepted the source stage yet.
+
+Owned deployment uses Compose project gimbal-dist-owner-b and a distinct
+live database gimbal_live, separated from the source-test database. A's private
+application and message worker started successfully; B's matching private CLI
+and River plugin were copied with equal SHA-256 checks. No installed application,
+shared daemon, qualification central, or existing worker was replaced.
+
+B's nc reaches the database port but the candidate process returns EHOSTUNREACH.
+macOS network-extension diagnostics identify the unbundled a.out signature and
+cannot find its bundle/display name. Signing the private copy with the normal
+Developer ID Gimbal CLI identity (as release packaging does) did not fix the
+connection; the same diagnostic then names gimbal. This suggests a host network
+privacy problem but does not establish the exact cause. Asked Tyler to inspect
+Local Network access on Amrita while source repairs continue. No privacy setting,
+firewall, network extension, VPN, or system service was changed. B has not accepted
+native work; C1/D6–D10 remain unproved.
+
+
+## Browser check of repaired named-local flow, November 1, 23:54–23:56
+
+Root deployed Terra pass 8's actual built application/plugin privately and used
+the browser to select workflow-local (bound worker-a). Setup succeeded through
+River. The UI selected Luna and launched the registered conversation with the
+default separate Git worktree. Its real native session ran hostname/pwd, reported
+Esmeralda.local and its created checkout, and recalled the nonsecret first-turn
+token in a second human turn. End session completed its workflow and cleanup.
+The normal run page visibly showed workflow-local · worker-a in its header,
+session row and prepare-checkout command row. Both command and session were on A;
+this is useful local UI evidence, not the C1 two-computer or D10 mixed-placement
+claim. Screenshots/run state remain outside Git in the owned temporary directory.
+Observed candidate-process TCP connections included Postgres, loopback browser
+connections and a public HTTPS endpoint; the public connection still needs source
+classification during final independent attestation. No blanket communication
+attestation is made from these snapshots. B's connection problem remains open.
+
+
+Connection classification follow-up: the candidate's public HTTPS destination
+172.66.40.54 resolves as api.doppler.com. cmd/gimbal/main.go calls
+loadCommandSecrets at startup for the central and message-worker; the fixed
+endpoint is in cmd/gimbal/secrets.go. This is startup secret retrieval, not an
+alternate participant task channel. Final independent attestation still must
+inspect the full actual composition and classify its other external services.
+
+
+## Source checkpoint and remaining host dependency, November 2
+
+Pushed source checkpoint 88b9314e and opened draft PR #668 via authenticated gh
+because the connected GitHub integration returned 403 for PR creation. The draft
+explicitly retains C1/D6–D10 and the mixed integration test as incomplete, and is
+not merge-ready. The candidate's workflow lint also passed. Source code remains
+unchanged since the candidate build and the checkpoint; root's later edits are
+worklog notes only. Sonnet round 8 remains active. It has passed the repaired
+native setup/bytes tests repeatedly, but subsequently launched another unchanged
+native matrix with count=8. Further repetition without a new failure or source
+change is unnecessary. Do not confuse the temporary source-loop's incorrect
+ready-and-empty-findings predicate with the reviewer's readiness verdict: it
+mistakenly treats positive evidence/nonblocking notes in Findings as rejection.
+The temporary runner source is corrected for future use, without touching the
+running process or product source.
+
+Amrita's network/Local Network inspection remains pending from Tyler. A's owned
+private application and worker remain available; the local browser run is fully
+completed, with no active user conversation. B has accepted no task. Do not
+restart B using its stale candidate: after host access is resolved, copy the
+matching latest CLI/plugin pair before resuming C1. Keep the shared qualification
+central, Desktop, Codex daemon, network/privacy settings and installed Gimbal
+untouched. No main merge or release has occurred.
+
+
+CI run 41398634306 exposed three unchecked deferred Close results in the new
+lease, conversation and authority-loss tests. A separate Gimbal-owned Terra 6.1
+turn repaired those three test cleanup calls without changing product source.
+All three affected tests passed against the private database, and lint passed
+with CI's pinned golangci-lint v2.14.0. The installed v2.15.0 reports additional
+channel-receive checks not enabled by the pinned project gate; no unrelated
+source changes were made. Native model checks were not repeated for this repair.
+
+
+## Source stage independently accepted, November 2, 00:22
+
+Sonnet round 8 assessed the complete source through 1006a81d and returned ready
+with no material findings. Gimbal run 01M6D7FRS1SZ1W0AY18G4R1KPC completed
+successfully. The retained review is
+`ephemeral/reviews/conversation-source-sonnet-01M6D7FRS1SZ1W0AY18G4R1KPC-round-08.md`.
+This accepts the source-stage outcome, not remote C1 or D6–D10.
+
+The review records one native host-test deadline under concurrent frontend and
+generation work whose filtered output was not retained, leaving its cause
+unknown. About fourteen later host-test runs passed, including under the same
+load. An additional count=8 aggregate run exceeded its cumulative 590-second
+package budget while an individual host case had run 27 seconds; that aggregate
+budget exhaustion is separate from the unexplained earlier individual deadline.
+Future validation must retain complete failure output before filtering, and
+avoid escalating unchanged passing repetitions without a concrete unresolved
+question and an adequate cumulative budget. Do not erase either failed attempt
+or misstate the repeated successful observations as universal reliability.
+
+The review's remaining checkout/helper cleanup and capability-reporting notes
+are nonblocking for this source checkpoint; this is still not main-merge-ready.
+The latest CI run for the test-cleanup repair was in progress at acceptance.
+Remote C1 and the mixed workflow/restart/reconnect/attestation stages remain
+unimplemented or unproved as stated in the parent plan. The Amrita host-access
+question has not been answered, so no permission change or remote task launch
+has been inferred.
+
+
+## November 3: Neon replaces the live LAN database
+
+Tyler reopened the work and selected Neon as the intermediary. He created the
+account/database, connected the Neon plugin, and explicitly requested CLI init
+and deploy against org-cold-dawn-90086127 / jolly-sea-66052544 / production.
+Installed Neon CLI 8.18.0 using his requested global npm command. Init created
+neon.ts, root package manifests and the ignored .neon link. CLI authentication
+completed in the user's browser; deploy reported the existing Postgres-only
+policy matched and pulled three variables into .env.local. Both local secret
+files are ignored and owner-only. Existing pgx remains the driver; direct
+DATABASE_URL_UNPOOLED is required for worker session advisory locks.
+
+The exact requested init command also performed user-level agent setup across
+its defaults. It reported plugins for Claude Code/Desktop, Codex, Cursor and VS
+Code, plus user-level skills/MCP entries for other detected agents. After Tyler
+clarified that the app plugin already supplies skills, no additional installer
+was run. The current skill was fetched to a private local cache, not installed
+again. Preserve the generated Neon policy and all unrelated existing settings.
+
+The CLI's additional detected setup targets were Antigravity, Droid, Gemini CLI,
+Hermes, Junie, Kiro CLI, OpenCode, Pi, Windsurf and Zed. Its reported MCP targets:
+
+- `/Users/tyler/.gemini/config/mcp_config.json`
+- `/Users/tyler/.factory/mcp.json`
+- `/Users/tyler/.gemini/settings.json`
+- `/Users/tyler/.hermes/config.yaml`
+- `/Users/tyler/.junie/mcp/mcp.json`
+- `/Users/tyler/.kiro/settings/mcp.json`
+- `/Users/tyler/.config/opencode/opencode.jsonc`
+- `/Users/tyler/.pi/agent/mcp.json`
+- `/Users/tyler/.codeium/windsurf/mcp_config.json`
+- `/Users/tyler/Library/Application Support/Zed/settings.json`
+
+These files were verified to exist with Neon entries. The installed CLI delegates
+to add-mcp's keyed upsert/JSONC or YAML merge, retaining unrelated entries; no
+before-init byte snapshots exist, so this is not a byte-for-byte global diff.
+CLI browser login also cached its DEFAULT console OAuth profile; that token later
+expired. Database credentials remain in the intended ignored owner-only local
+env file and B's private env file. Obsolete operating copies were moved into
+owner-only retired-credentials directories outside Git, not claimed erased.
+
+Amrita's actual Gimbal River worker successfully connected to the public Neon
+endpoint and initialized the previously empty app database. This removes the
+LAN connection obstacle without changing macOS privacy/network settings. Terra
+is implementing the narrow DSNEnv integration and root npm build/start commands;
+actual app/native proof and Sonnet review follow. The full original A/B and
+restart/reconnect/attestation denominator remains, with hosting amended by the
+user rather than silently reduced.
+
+
+## Neon application proof and review adjudication
+
+The root npm build succeeded and produced the actual CLI, web assets and matching
+River plugin. The private app started using npm start with Neon environment
+injection. Matching environment-selected worker binaries ran on A and Amrita.
+The actual UI selected task-remote, completed a real Luna turn on Amrita that
+reported its hostname/directory, and recalled the first-turn token on follow-up.
+Stop interrupted a subsequent active turn; End completed the registered workflow
+and cleanup with no run error. This establishes the remote conversation
+prerequisite C1, subject to the independent review follow-up; it does not
+establish the remaining mixed workflow/restart/reconnect/attestation claims.
+
+Sonnet independently confirmed matching binaries/configs, remote placement,
+second-turn recall, Stop completion and message records in Neon. It examined the
+run before End was clicked; the later authoritative run is completed. Its review
+raises environment inheritance and leftover credential files as material.
+Caller adjudication: native tasks deliberately run as the same trusted OS user,
+with access to os.Environ and that user's 0600 credential files. This was also
+true of DSNFile and existing bootstrap secrets. No isolation from trusted native
+code was requested or is claimed; requiring a new credential isolation boundary
+is outside this integration's accepted scope. Never print credentials or place
+them into workflow context, prompts, events, source or committed files. The
+observed commands did not read or print credentials. Keep this trust limit
+explicit; this review is not a security certification.
+
+The cleanup guard rejected rm -f syntax. Used recoverable retirement instead:
+obsolete task-owned DSN/staging files were moved into owner-only archive folders.
+Kept the intended owner-only project .env.local and B deployment environment file
+for worker restart. The local Docker test DSN remains for source tests. No
+unrelated user files, services, passwords or database contents were reset.
+
+UI note: at the narrow in-app-browser width, the existing More actions popover
+clipped off the left edge. Keyboard navigation opened the normal End dialog,
+which named worker-b, and End completed successfully. This is a retained UI
+limitation, not a reason to reject the Neon connection or rewrite the frontend.

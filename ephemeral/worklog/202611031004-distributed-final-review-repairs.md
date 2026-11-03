@@ -1,0 +1,2 @@
+decision: River publication failure notification must come from the controller connection used by taskdaemon, not the separate pool opened by serve; the worker command cancels consumption after that connection reports an exhausted or permanent publication error. Native process and turn owners use independent contexts and retained results remain available for restart reconciliation.
+friction: an unrestricted go test ./... run under concurrent load timed out TestAttestEventFixture; its isolated rerun passed. Keep the full-run failure distinct from the focused rerun result.

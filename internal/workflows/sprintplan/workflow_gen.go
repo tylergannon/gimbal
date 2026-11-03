@@ -10,9 +10,10 @@ import (
 
 // Graph is the shape of this workflow, read from the source of SprintPlan.
 var Graph = workflow.Graph{
-	Name:     "sprint-plan",
-	Source:   workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 48},
-	Services: []workflow.Service{},
+	Name:         "sprint-plan",
+	Source:       workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 48},
+	Environments: []workflow.EnvironmentDeclaration{},
+	Services:     []workflow.Service{},
 	Body: []workflow.Operation{
 		workflow.Command{Source: workflow.Source{File: "internal/workflows/sprintplan/files.go", Line: 23}, Name: "prepare-sprint"},
 		workflow.Set{Source: workflow.Source{File: "internal/workflows/sprintplan/sprintplan.go", Line: 53}, Key: "intent file"},

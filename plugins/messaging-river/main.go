@@ -1,15 +1,17 @@
 // Package main is the runtime-loaded River/Postgres messaging plugin.
 // Build with go build -buildmode=plugin -o river.so ./plugins/messaging-river.
-// Configuration names a private DSNFile and explicitly selected action/control
-// queues. Start one local worker for those queues; events last until database
-// removal. Native execution is not resumed after worker loss.
+// Configuration names a private DSNFile or DSNEnv and explicitly selected action/control
+// queues and stable worker identities. Retained events and native ownership
+// survive a worker-process restart when its state directory is retained.
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -27,19 +29,36 @@ import (
 )
 
 type configuration struct {
-	DSNFile      string
-	Queue        string
-	ControlQueue string
-	Workers      int
+	DSNFile          string `json:",omitempty"`
+	DSNEnv           string `json:",omitempty"`
+	Queue            string
+	ControlQueue     string
+	Workers          int
+	Environments     map[string]string
+	WorkerID         string
+	ReconnectSeconds int
+	// RebindFrom explicitly names the current worker expected for each rebind.
+	RebindFrom map[string]string
 }
 
 func parse(raw json.RawMessage) (configuration, error) {
 	var c configuration
-	if err := json.Unmarshal(raw, &c); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&c); err != nil {
 		return c, err
 	}
-	if c.DSNFile == "" {
-		return c, errors.New("river messaging requires DSNFile pointing to a private PostgreSQL connection string")
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return c, errors.New("river configuration must contain one JSON object")
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return c, err
+	}
+	_, hasFile := fields["DSNFile"]
+	_, hasEnv := fields["DSNEnv"]
+	if hasFile == hasEnv || (hasFile && c.DSNFile == "") || (hasEnv && c.DSNEnv == "") || strings.TrimSpace(c.DSNFile) != c.DSNFile || strings.TrimSpace(c.DSNEnv) != c.DSNEnv {
+		return c, errors.New("river messaging requires exactly one nonempty DSNFile or DSNEnv without surrounding whitespace")
 	}
 	if c.Queue == "" {
 		c.Queue = "gimbal"
@@ -56,6 +75,25 @@ func parse(raw json.RawMessage) (configuration, error) {
 	if c.Workers < 1 {
 		return c, errors.New("river Workers must be positive")
 	}
+	if c.ReconnectSeconds == 0 {
+		c.ReconnectSeconds = 30
+	}
+	if c.ReconnectSeconds < 0 {
+		return c, errors.New("river ReconnectSeconds must be positive")
+	}
+	for name, worker := range c.Environments {
+		if strings.TrimSpace(name) != name || name == "" || strings.TrimSpace(worker) != worker || worker == "" {
+			return c, errors.New("river environment names and worker identities must be nonempty and have no surrounding whitespace")
+		}
+	}
+	for name, previous := range c.RebindFrom {
+		if c.Environments[name] == "" || strings.TrimSpace(previous) != previous || previous == "" || previous == c.Environments[name] {
+			return c, errors.New("river RebindFrom requires a configured environment and a distinct previous worker")
+		}
+	}
+	if strings.TrimSpace(c.WorkerID) != c.WorkerID {
+		return c, errors.New("river WorkerID must have no surrounding whitespace")
+	}
 	return c, nil
 }
 
@@ -69,17 +107,36 @@ type transport struct {
 	config configuration
 	pool   *pgxpool.Pool
 	client *river.Client[pgx.Tx]
+	fatal  chan error
 }
 
+func (t *transport) NamedEnvironments() bool { return len(t.config.Environments) != 0 }
+
 func open(ctx context.Context, c configuration) (*transport, error) {
-	dsn, err := os.ReadFile(c.DSNFile)
-	if err != nil {
-		return nil, fmt.Errorf("river DSN file: %w", err)
+	var dsn string
+	if c.DSNEnv != "" {
+		dsn = os.Getenv(c.DSNEnv)
+		if strings.TrimSpace(dsn) == "" {
+			return nil, errors.New("river DSN environment variable is missing or empty")
+		}
+	} else {
+		data, err := os.ReadFile(c.DSNFile)
+		if err != nil {
+			return nil, fmt.Errorf("river DSN file: %w", err)
+		}
+		dsn = string(data)
 	}
 	// pgx parse errors can contain the complete input, including a password.
-	pool, err := pgxpool.New(ctx, strings.TrimSpace(string(dsn)))
+	if strings.TrimSpace(dsn) == "" {
+		return nil, errors.New("river DSN is empty")
+	}
+	config, err := pgxpool.ParseConfig(strings.TrimSpace(dsn))
 	if err != nil {
-		return nil, errors.New("river DSN file contains an invalid PostgreSQL connection string")
+		return nil, errors.New("river DSN contains an invalid PostgreSQL connection string")
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, errors.New("river could not initialize PostgreSQL connection")
 	}
 	ok := false
 	defer func() {
@@ -95,7 +152,7 @@ func open(ctx context.Context, c configuration) (*transport, error) {
 		return nil, err
 	}
 	ok = true
-	return &transport{config: c, pool: pool, client: client}, nil
+	return &transport{config: c, pool: pool, client: client, fatal: make(chan error, 1)}, nil
 }
 
 func (t *transport) initialize(ctx context.Context) error {
@@ -118,7 +175,30 @@ func (t *transport) initialize(ctx context.Context) error {
 	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_events (
  queue text NOT NULL, id text NOT NULL, created timestamptz NOT NULL,
  request_id text NOT NULL, run_id text NOT NULL, session_id text NOT NULL,
+ source text NOT NULL DEFAULT '', sequence bigint NOT NULL DEFAULT 0,
  event bytea NOT NULL, PRIMARY KEY (queue, id))`); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `ALTER TABLE gimbal_message_events ADD COLUMN IF NOT EXISTS source text NOT NULL DEFAULT '', ADD COLUMN IF NOT EXISTS sequence bigint NOT NULL DEFAULT 0`); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_owners (
+ namespace text NOT NULL, run_id text NOT NULL, kind text NOT NULL, identity text NOT NULL,
+ worker text NOT NULL, environment text NOT NULL, scope text NOT NULL DEFAULT '',
+ PRIMARY KEY (namespace, run_id, kind, identity))`); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_bindings (
+ namespace text NOT NULL, environment text NOT NULL, worker text NOT NULL,
+ PRIMARY KEY (namespace, environment))`); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `ALTER TABLE gimbal_message_owners ADD COLUMN IF NOT EXISTS scope text NOT NULL DEFAULT ''`); err != nil {
+		return err
+	}
+	if _, err = t.pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS gimbal_message_acceptances (
+ namespace text NOT NULL, request_id text NOT NULL, worker text NOT NULL, digest bytea NOT NULL,
+ PRIMARY KEY (namespace, request_id))`); err != nil {
 		return err
 	}
 	return nil
@@ -137,6 +217,9 @@ func storeError(err error) error {
 }
 
 func (t *transport) PublishRequest(ctx context.Context, r backend.MessageRequest) error {
+	if len(t.config.Environments) != 0 {
+		return t.publishNamed(ctx, r)
+	}
 	queue := t.config.Queue
 	switch r.Kind {
 	case "interrupt", "identified-close", "cleanup":
@@ -148,74 +231,137 @@ func (t *transport) PublishRequest(ctx context.Context, r backend.MessageRequest
 	return storeError(err)
 }
 
+// PublicationFailure reports a terminal event delivery failure to the worker owner.
+func (t *transport) PublicationFailure() <-chan error { return t.fatal }
+
+func permanentDatabaseError(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && !strings.HasPrefix(pgErr.Code, "08") && pgErr.Code != "57P01" && pgErr.Code != "57P02" && pgErr.Code != "57P03"
+}
+
 func (t *transport) PublishEvent(ctx context.Context, e backend.MessageEvent) error {
 	b, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
-	_, err = t.pool.Exec(ctx, `INSERT INTO gimbal_message_events
- (queue,id,created,request_id,run_id,session_id,event) VALUES ($1,$2,$3,$4,$5,$6,$7)
- ON CONFLICT (queue,id) DO NOTHING`, t.config.Queue, e.ID, e.Created, e.RequestID, e.Run, e.SessionID, b)
-	return storeError(err)
+	budget := time.Duration(t.config.ReconnectSeconds) * time.Second
+	if budget <= 0 {
+		budget = 30 * time.Second
+	}
+	attemptCtx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	for {
+		_, err = t.pool.Exec(attemptCtx, `INSERT INTO gimbal_message_events
+ (queue,id,created,request_id,run_id,session_id,source,sequence,event) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+ ON CONFLICT (queue,id) DO NOTHING`, t.config.Queue, e.ID, e.Created, e.RequestID, e.Run, e.SessionID, e.Source, e.Sequence, b)
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if permanentDatabaseError(err) || attemptCtx.Err() != nil {
+			break
+		}
+		select {
+		case <-attemptCtx.Done():
+		case <-time.After(100 * time.Millisecond):
+			continue
+		}
+		break
+	}
+	if !permanentDatabaseError(err) {
+		err = fmt.Errorf("reconnect budget exhausted: %w", err)
+	}
+	err = fmt.Errorf("river event publication for request %s event %s failed; retained result requires reconciliation: %w", e.RequestID, e.ID, storeError(err))
+	select {
+	case t.fatal <- err:
+	default:
+	}
+	return err
 }
 
 func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection, since time.Time, receive func(backend.MessageEvent) error) error {
 	seen := map[string]bool{}
-	ticker := time.NewTicker(50 * time.Millisecond)
-	defer ticker.Stop()
+	budget := time.Duration(t.config.ReconnectSeconds) * time.Second
+	if budget <= 0 {
+		budget = 30 * time.Second
+	}
+	var disconnected time.Time
 	for {
-		rows, err := t.pool.Query(ctx, `SELECT id FROM gimbal_message_events
-            WHERE queue=$1 AND created >= $2 AND ($3='' OR request_id=$3)
-            AND ($4='' OR run_id=$4) AND ($5='' OR session_id=$5)`,
-			t.config.Queue, since, s.RequestID, s.Run, s.SessionID)
-		if err != nil {
-			return storeError(err)
+		started := time.Now()
+		remaining := budget
+		if !disconnected.IsZero() {
+			remaining -= started.Sub(disconnected)
 		}
+		if remaining <= 0 {
+			return fmt.Errorf("river event reconnect budget exhausted")
+		}
+		queryCtx, cancel := context.WithTimeout(ctx, remaining)
+		rows, err := t.pool.Query(queryCtx, `SELECT id FROM gimbal_message_events
+ WHERE queue=$1 AND created >= $2 AND ($3='' OR request_id=$3)
+ AND ($4='' OR run_id=$4) AND ($5='' OR session_id=$5) ORDER BY source,sequence,created,id`, t.config.Queue, since, s.RequestID, s.Run, s.SessionID)
 		var ids []string
-		for rows.Next() {
-			var id string
-			if err = rows.Scan(&id); err != nil {
-				break
-			}
-			if !seen[id] {
-				ids = append(ids, id)
-			}
-		}
 		if err == nil {
-			err = rows.Err()
-		}
-		rows.Close()
-		if err != nil {
-			return storeError(err)
-		}
-		var events []backend.MessageEvent
-		if len(ids) > 0 {
-			rows, err = t.pool.Query(ctx, `SELECT event FROM gimbal_message_events
-                WHERE queue=$1 AND id=ANY($2) ORDER BY created,id`, t.config.Queue, ids)
-			if err != nil {
-				return storeError(err)
-			}
 			for rows.Next() {
-				var b []byte
-				if err = rows.Scan(&b); err != nil {
+				var id string
+				if err = rows.Scan(&id); err != nil {
 					break
 				}
-				var event backend.MessageEvent
-				if err = json.Unmarshal(b, &event); err != nil {
-					break
+				if !seen[id] {
+					ids = append(ids, id)
 				}
-				events = append(events, event)
 			}
 			if err == nil {
 				err = rows.Err()
 			}
 			rows.Close()
-			if err != nil {
-				return storeError(err)
+		}
+		var events []backend.MessageEvent
+		if err == nil && len(ids) > 0 {
+			rows, err = t.pool.Query(queryCtx, `SELECT event FROM gimbal_message_events WHERE queue=$1 AND id=ANY($2) ORDER BY source,sequence,created,id`, t.config.Queue, ids)
+			if err == nil {
+				for rows.Next() {
+					var b []byte
+					if err = rows.Scan(&b); err != nil {
+						break
+					}
+					var event backend.MessageEvent
+					if decodeErr := json.Unmarshal(b, &event); decodeErr != nil {
+						rows.Close()
+						cancel()
+						return fmt.Errorf("invalid retained event: %w", decodeErr)
+					}
+					events = append(events, event)
+				}
+				if err == nil {
+					err = rows.Err()
+				}
+				rows.Close()
 			}
 		}
-		// Release connections before callbacks so slow listeners cannot hold
-		// the database resources needed by publishers or other listeners.
+		cancel()
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			if permanentDatabaseError(err) {
+				return storeError(err)
+			}
+			if disconnected.IsZero() {
+				disconnected = started
+			}
+			if time.Since(disconnected) >= budget {
+				return fmt.Errorf("river event reconnect budget exhausted: %w", err)
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(100 * time.Millisecond):
+			}
+			continue
+		}
+		disconnected = time.Time{}
 		for _, event := range events {
 			if err := ctx.Err(); err != nil {
 				return err
@@ -228,20 +374,37 @@ func (t *transport) ListenEvents(ctx context.Context, s backend.MessageSelection
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-ticker.C:
+		case <-time.After(50 * time.Millisecond):
 		}
 	}
 }
 
 type actionWorker struct {
 	river.WorkerDefaults[actionArgs]
-	ctx     context.Context
-	handler backend.MessageHandler
-	mu      sync.Mutex
-	seen    map[string]bool
+	ctx       context.Context
+	handler   backend.MessageHandler
+	mu        sync.Mutex
+	seen      map[string]bool
+	authority *authority
+	workerID  string
 }
 
 func (w *actionWorker) Work(_ context.Context, job *river.Job[actionArgs]) error {
+	if w.authority != nil {
+		if job.Args.Request.WorkerID != w.workerID {
+			return river.JobCancel(fmt.Errorf("request addressed to a different worker"))
+		}
+		check, cancel := context.WithTimeout(w.ctx, 2*time.Second)
+		err := w.authority.admit(check, job.Args.Request)
+		cancel()
+		if err != nil {
+			var rejected *backend.ContractRejected
+			if errors.As(err, &rejected) {
+				return river.JobCancel(err)
+			}
+			return river.JobSnooze(time.Second)
+		}
+	}
 	w.mu.Lock()
 	duplicate := w.seen[job.Args.Request.ID]
 	w.seen[job.Args.Request.ID] = true
@@ -262,6 +425,12 @@ func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependenc
 	if err != nil {
 		return err
 	}
+	if len(c.Environments) != 0 && (resources.Orchestrator != nil || resources.Routing != nil) {
+		return errors.New("river named worker cannot use an orchestrator")
+	}
+	if len(c.Environments) != 0 && c.WorkerID == "" {
+		return errors.New("river named worker requires WorkerID")
+	}
 	t, err := open(ctx, c)
 	if err != nil {
 		return err
@@ -270,10 +439,20 @@ func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependenc
 	if err := t.initialize(ctx); err != nil {
 		return err
 	}
+	queues := map[string]river.QueueConfig{c.Queue: {MaxWorkers: c.Workers}, c.ControlQueue: {MaxWorkers: 2}}
+	var owner *authority
+	if len(c.Environments) != 0 {
+		owner, err = registerWorker(ctx, t, c.WorkerID)
+		if err != nil {
+			return err
+		}
+		defer owner.close()
+		queues = map[string]river.QueueConfig{workerQueue(c.Queue, c.WorkerID, false): {MaxWorkers: c.Workers}, workerQueue(c.Queue, c.WorkerID, true): {MaxWorkers: 2}}
+	}
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &actionWorker{ctx: ctx, handler: handler, seen: map[string]bool{}})
+	river.AddWorker(workers, &actionWorker{ctx: ctx, handler: handler, seen: map[string]bool{}, authority: owner, workerID: c.WorkerID})
 	client, err := river.NewClient(riverpgxv5.New(t.pool), &river.Config{
-		Queues:  map[string]river.QueueConfig{c.Queue: {MaxWorkers: c.Workers}, c.ControlQueue: {MaxWorkers: 2}},
+		Queues:  queues,
 		Workers: workers,
 	})
 	if err != nil {
@@ -288,18 +467,53 @@ func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependenc
 			return err
 		}
 	}
-	<-ctx.Done()
+	var lost error
+	if owner != nil {
+		watchCtx, stopWatch := context.WithCancel(ctx)
+		defer stopWatch()
+		go owner.watch(watchCtx)
+	loop:
+		for {
+			select {
+			case <-ctx.Done():
+				break loop
+			case lost = <-owner.lost:
+				if err := owner.reacquire(ctx, t, c.WorkerID); err != nil {
+					lost = errors.Join(lost, err)
+					break loop
+				}
+				lost = nil
+			}
+		}
+	} else {
+		<-ctx.Done()
+	}
 	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := client.Stop(stopCtx); err != nil {
 		return err
+	}
+	if lost != nil {
+		return fmt.Errorf("river worker authority lost: %w", lost)
 	}
 	return ctx.Err()
 }
 
 func Register(registry *gimbal.Registry) error {
 	return registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true,
-		Name:                  "river",
+		Name:                "river",
+		ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"oneOf":[{"required":["DSNFile"]},{"required":["DSNEnv"]}],"properties":{"DSNFile":{"type":"string","minLength":1,"description":"Private file containing the PostgreSQL DSN."},"DSNEnv":{"type":"string","minLength":1,"description":"Environment variable containing the PostgreSQL DSN."},"Queue":{"type":"string","default":"gimbal"},"ControlQueue":{"type":"string","description":"Defaults to Queue plus _control."},"Workers":{"type":"integer","minimum":0,"default":4},"Environments":{"type":"object","additionalProperties":{"type":"string","minLength":1}},"WorkerID":{"type":"string"},"ReconnectSeconds":{"type":"integer","minimum":0,"default":30},"RebindFrom":{"type":"object","description":"Explicit rebinds: environment name to expected previous worker identity.","additionalProperties":{"type":"string","minLength":1}}}}`),
+		NamedEnvironments:   func(raw json.RawMessage) (bool, error) { c, err := parse(raw); return len(c.Environments) != 0, err },
+		ValidateEnvironment: func(raw json.RawMessage, name string) error {
+			c, err := parse(raw)
+			if err != nil {
+				return err
+			}
+			if c.Environments[name] == "" {
+				return fmt.Errorf("river environment %q is not configured", name)
+			}
+			return nil
+		},
 		ValidateConfiguration: func(raw json.RawMessage) error { _, err := parse(raw); return err },
 		Connect: func(ctx context.Context, raw json.RawMessage, _ backend.Dependencies) (backend.Messaging, error) {
 			c, err := parse(raw)

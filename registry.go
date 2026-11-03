@@ -353,6 +353,15 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 		if err := d.ValidateConfiguration(route.Configuration); err != nil {
 			return backend.Connection{}, err
 		}
+		if d.NamedEnvironments != nil {
+			named, err := d.NamedEnvironments(route.Configuration)
+			if err != nil {
+				return backend.Connection{}, err
+			}
+			if named && (route.Environment != "" || route.Backends != nil && route.Backends.Orchestrator.Name != "") {
+				return backend.Connection{}, fmt.Errorf("named messaging cannot use an orchestrator or physical task destination")
+			}
+		}
 		var dependencies backend.Dependencies
 		if route.Backends != nil {
 			var err error
@@ -370,6 +379,9 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 		connection := backend.Connection{Messages: b, Orchestrator: dependencies.Orchestrator, Secrets: dependencies.Secrets}
 		if err != nil {
 			return backend.Connection{}, errors.Join(err, connection.Close())
+		}
+		if b == nil {
+			return backend.Connection{}, errors.Join(fmt.Errorf("messaging backend %q returned no connection", route.Name), connection.Close())
 		}
 		if dependencies.Routing != nil {
 			routed, err := r.connectEnvironments(ctx, b, dependencies.Routing, dependencies)
@@ -409,5 +421,12 @@ func (r *Registry) Connect(ctx context.Context, route backend.Route) (backend.Co
 	if err := d.ValidateConfiguration(raw); err != nil {
 		return backend.Connection{}, err
 	}
-	return d.Connect(ctx, raw)
+	connection, err := d.Connect(ctx, raw)
+	if err != nil {
+		return backend.Connection{}, errors.Join(err, connection.Close())
+	}
+	if connection.Execution == nil && connection.Messages == nil {
+		return backend.Connection{}, errors.Join(fmt.Errorf("backend %q returned no execution connection", route.Name), connection.Close())
+	}
+	return connection, nil
 }

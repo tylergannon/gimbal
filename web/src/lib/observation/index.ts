@@ -69,6 +69,8 @@ export type ScopeRow = {
 /** One agent conversation. `scope` is where it was created, which is not
  * where its turns necessarily ran. */
 export type SessionRow = {
+  environment?: string;
+  worker_id?: string;
   workdir?: string;
   effort?: string;
   steers?: { message: string; source: string; landed: boolean; created: number }[];
@@ -105,6 +107,8 @@ export type TurnRow = {
 };
 /** One command run by the workflow, matching the public command table. */
 export type CommandRow = {
+  environment?: string;
+  worker_id?: string;
   run: string;
   id: string;
   scope: string;

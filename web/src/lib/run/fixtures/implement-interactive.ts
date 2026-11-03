@@ -14,6 +14,7 @@ import type { Graph } from "../../workflow/types.js";
 const workflowFile = "internal/workflows/implementinteractive/implementinteractive.go";
 
 export const implementInteractiveGraph: Graph = {
+  environments: [],
   name: "implement-interactive",
   source: { file: workflowFile, line: 45 },
   services: [],

@@ -9,11 +9,13 @@ import (
 )
 
 // MessageRequest identifies one admission, independently of the conversation.
-// Exactly one payload corresponding to Kind is present. Destinations belong to
-// plugin configuration, never the action vocabulary.
+// Exactly one payload corresponding to Kind is present. Environment is a
+// logical destination; physical connection details belong to plugin configuration.
 type MessageRequest struct {
-	ID      string
-	Created time.Time
+	ID          string
+	Created     time.Time
+	Environment string `json:",omitempty"`
+	WorkerID    string `json:",omitempty"`
 	Owner
 	SessionID         string `json:",omitempty"`
 	ExecutionIdentity ExecutionIdentity
@@ -55,6 +57,12 @@ type MessageResult struct {
 type MessageEvent struct {
 	ID, RequestID string
 	Created       time.Time
+	// Source identifies an independently ordered event stream; Sequence is its
+	// durable ordinal. A missing ordinal represents an unpublished fact.
+	Source      string `json:",omitempty"`
+	Sequence    uint64 `json:",omitempty"`
+	Environment string `json:",omitempty"`
+	WorkerID    string `json:",omitempty"`
 	Owner
 	SessionID string `json:",omitempty"`
 	Kind      string
@@ -72,13 +80,21 @@ func (s MessageSelection) Matches(e MessageEvent) bool {
 // Messaging retains published events for the configured store lifetime.
 // ListenEvents includes matching events since the inclusive lower bound,
 // including events published before listening, then continues live. Consumers
-// are independent. It returns callback errors unchanged and stops on ctx.
+// are independent. Events retain their source and sequence across replay;
+// no total order between sources is promised. The since bound is diagnostic; execution waits must replay
+// the complete matching request because publisher clocks may differ. It returns
+// callback errors unchanged and stops on ctx.
 // Closing a listener never cancels native work. Publication errors describe
 // delivery uncertainty and must not be interpreted as native execution failure.
 type Messaging interface {
 	PublishRequest(context.Context, MessageRequest) error
 	PublishEvent(context.Context, MessageEvent) error
 	ListenEvents(context.Context, MessageSelection, time.Time, func(MessageEvent) error) error
+}
+
+// NamedMessaging reports whether this connection owns logical placement.
+type NamedMessaging interface {
+	NamedEnvironments() bool
 }
 
 // MessageHandler admits native work and arranges completion publication without

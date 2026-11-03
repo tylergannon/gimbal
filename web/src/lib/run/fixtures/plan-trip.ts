@@ -13,6 +13,7 @@ import type { Graph } from "../../workflow/types.js";
 const workflowFile = "examples/plantrip/plantrip.go";
 
 export const planTripGraph: Graph = {
+  environments: [],
   name: "plan-trip",
   source: { file: workflowFile, line: 20 },
   services: [],

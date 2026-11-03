@@ -1,0 +1,3 @@
+doc_bug: The continuation requires updating every conversation launcher, but the source-stage cell map omits cmd/examples/interactive/main.go. That launcher is 92 production lines and was updated under the explicit continuation instruction; the map needs reconciliation.
+friction: go generate ./... emits unformatted TypeScript in this worktree because web/node_modules/.bin/prettier is unavailable; frontend installation/formatting must precede a clean generation comparison.
+decision: Unread function-value, cross-package Gimbal, and recursive-helper diagnostics now fail preflight. Other graph-analysis gaps still need assessment before claiming a complete environment inventory; these guards alone do not establish the full source-stage outcome.

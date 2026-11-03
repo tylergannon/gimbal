@@ -34,7 +34,15 @@ func Run(request invocation.Request, startup io.Writer) error {
 		_ = json.NewEncoder(startup).Encode(Response{Error: err.Error()})
 		return err
 	}
-	ctx := effects.WithEnvironment(effects.WithEndpoint(context.Background(), request.TaskEndpoint), request.TaskRoute.Environment)
+	// Validate declarations and configuration before opening task connections.
+	if _, _, err := invocation.Prepare(request); err != nil {
+		_ = json.NewEncoder(startup).Encode(Response{Error: err.Error()})
+		return err
+	}
+	ctx := effects.WithEndpoint(context.Background(), request.TaskEndpoint)
+	if request.TaskRoute.Environment != "" {
+		ctx = effects.WithEnvironment(ctx, request.TaskRoute.Environment)
+	}
 	var connection backend.Connection
 	if request.TaskRoute.Name != "" && request.TaskRoute.Name != "local" {
 		var err error
@@ -76,7 +84,10 @@ func run(request invocation.Request, startup io.Writer, models map[gimbal.Workfl
 	runs.Resolve = func(id string) (live.Controller, error) { return Connect(state, id) }
 	ctx := observation.WithRegistry(effects.WithRoute(context.Background(), request.TaskRoute), registry)
 	ctx = live.WithRuns(ctx, runs)
-	ctx = effects.WithEnvironment(effects.WithEndpoint(ctx, request.TaskEndpoint), request.TaskRoute.Environment)
+	ctx = effects.WithEndpoint(ctx, request.TaskEndpoint)
+	if request.TaskRoute.Environment != "" {
+		ctx = effects.WithEnvironment(ctx, request.TaskRoute.Environment)
+	}
 	if len(connections) > 0 && (connections[0].Execution != nil || connections[0].Messages != nil) {
 		ctx = effects.WithConnection(ctx, connections[0])
 	} else if request.TaskRoute.Name != "" && request.TaskRoute.Name != "local" {

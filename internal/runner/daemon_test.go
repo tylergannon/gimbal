@@ -20,7 +20,7 @@ func TestWorkflowDaemonRestoresIndexAndDeduplicatesAdmission(t *testing.T) {
 	}
 	state := t.TempDir()
 	id := string(runstore.NewRunID())
-	request := backend.Workflow{ID: id, Name: "conversation", Project: project, Workdir: project, Input: json.RawMessage(`{"purpose":"Discuss."}`), Roles: map[string]string{"agentic-dialogues": "luna"}}
+	request := backend.Workflow{ID: id, Name: "conversation", Project: project, Workdir: project, Input: json.RawMessage(`{"purpose":"Discuss.","environment":"local"}`), Roles: map[string]string{"agentic-dialogues": "luna"}}
 	first := &WorkflowDaemon{Root: project, StateDir: state}
 	status := first.admit(request)
 	if status.Error != "" || status.State != "running" {
@@ -36,7 +36,7 @@ func TestWorkflowDaemonRestoresIndexAndDeduplicatesAdmission(t *testing.T) {
 	if status := second.admit(request); status.Error != "" {
 		t.Fatalf("same admission=%+v", status)
 	}
-	request.Input = json.RawMessage(`{"purpose":"Conflicting work."}`)
+	request.Input = json.RawMessage(`{"purpose":"Conflicting work.","environment":"local"}`)
 	if status := second.admit(request); status.Error == "" {
 		t.Fatal("conflicting identity accepted")
 	}

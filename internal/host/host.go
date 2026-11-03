@@ -157,8 +157,23 @@ func (o *Owner) AdmitProject(dir string) (*Project, error) {
 		return nil, err
 	}
 	p.ctx = p.RequestContext(conversation.WithManager(projectCtx, conversations))
+	conversations.WorkflowPrepare = func(_ context.Context, environment string, route backend.Route) error {
+		input, _ := json.Marshal(map[string]string{"purpose": "conversation", "environment": environment})
+		_, _, err := invocation.Prepare(invocation.Request{Workflow: "conversation", Input: input, TaskRoute: route})
+		return err
+	}
 	conversations.WorkflowStart = func(ctx context.Context, item conversation.Conversation, route backend.Route) error {
-		input, _ := json.Marshal(map[string]string{"purpose": conversations.Purpose(item)})
+		values := map[string]any{"purpose": conversations.Purpose(item), "environment": item.Environment}
+		if route.Name != "" && !item.SharedCheckout {
+			values["prepare_checkout"], values["checkout_id"] = true, item.ID
+			if item.Branch != "" {
+				values["branch"] = item.Branch
+			}
+			if item.Base != "" {
+				values["base"] = item.Base
+			}
+		}
+		input, _ := json.Marshal(values)
 		spec, err := conversation.RoleSpec(item)
 		if err != nil {
 			return err
@@ -433,7 +448,9 @@ func (p *Project) Start(request invocation.Request) (string, error) {
 	if request.WorkDir == "" {
 		request.WorkDir = p.project
 	}
-	if !filepath.IsAbs(request.WorkDir) {
+	definition, namedRoute := gimbal.DefaultRegistry.Messaging(request.TaskRoute.Name)
+	namedRoute = namedRoute && definition.ValidateEnvironment != nil
+	if !namedRoute && !filepath.IsAbs(request.WorkDir) {
 		return "", errors.New("work_dir must be absolute")
 	}
 	if (request.WorkflowRoute.Name == "" || request.WorkflowRoute.Name == "local") && (request.TaskRoute.Name == "" || request.TaskRoute.Name == "local") && request.TaskEndpoint == "" {

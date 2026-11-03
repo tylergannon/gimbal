@@ -36,6 +36,10 @@ func Yields(ctx context.Context) (string, []string, bool) {
 func WithEnvironment(ctx context.Context, name string) context.Context {
 	return context.WithValue(ctx, environmentKey{}, name)
 }
+func EnvironmentSelected(ctx context.Context) (string, bool) {
+	name, ok := ctx.Value(environmentKey{}).(string)
+	return name, ok
+}
 func Environment(ctx context.Context) string {
 	name, _ := ctx.Value(environmentKey{}).(string)
 	return name

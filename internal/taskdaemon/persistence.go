@@ -43,9 +43,10 @@ type savedFile struct {
 	Path     string
 }
 type disposition struct {
-	Request backend.MessageRequest
-	Result  *backend.MessageResult
-	EventID string
+	Request  backend.MessageRequest
+	Result   *backend.MessageResult
+	EventID  string
+	Sequence uint64
 }
 
 func (d *Daemon) statePath(kind, id string) string {

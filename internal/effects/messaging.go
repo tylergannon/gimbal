@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/oklog/ulid/v2"
@@ -29,6 +30,27 @@ func Request(id string, kind string, owner Owner) backend.MessageRequest {
 }
 
 func Submit(ctx context.Context, r backend.MessageRequest) error {
+	if named, ok := Messages(ctx).(backend.NamedMessaging); ok && named.NamedEnvironments() {
+		endpoint, _ := ctx.Value(endpointKey{}).(string)
+		if Connection(ctx).Orchestrator != nil || endpoint != "" {
+			return fmt.Errorf("named messaging cannot use an orchestrator or task endpoint")
+		}
+		r.Environment = Environment(ctx)
+		if strings.TrimSpace(r.Environment) == "" && r.Kind != "interrupt" && r.Kind != "identified-close" && r.Kind != "steer" && r.Kind != "identified-turn" {
+			return &backend.ContractRejected{Message: "named environment is required"}
+		}
+		if err := r.Validate(); err != nil {
+			return err
+		}
+		if err := Messages(ctx).PublishRequest(ctx, r); err != nil {
+			var rejected *backend.ContractRejected
+			if errors.As(err, &rejected) {
+				return err
+			}
+			return &backend.DeliveryUncertain{RequestID: r.ID, Err: fmt.Errorf("publication unconfirmed; do not retry as new work: %w", err)}
+		}
+		return nil
+	}
 	if (r.Kind == "identified-session" || r.Kind == "identified-process") && Connection(ctx).Orchestrator != nil {
 		if _, err := Connection(ctx).Orchestrator.AcquireEnvironment(ctx, r.Owner, Environment(ctx)); err != nil {
 			return err
@@ -52,8 +74,8 @@ func Submit(ctx context.Context, r backend.MessageRequest) error {
 
 var errEventReached = errors.New("requested messaging fact received")
 
-// Await keeps acceptance uncertainty separate from execution outcome. The
-// original creation bound is retained for every new subscription.
+// Await keeps acceptance uncertainty separate from execution outcome. Replay
+// the whole request: the worker's clock need not agree with the caller's.
 func Await(ctx context.Context, r backend.MessageRequest, until string, onActivity func(json.RawMessage)) (backend.MessageEvent, error) {
 
 	var got backend.MessageEvent
@@ -66,7 +88,13 @@ func Await(ctx context.Context, r backend.MessageRequest, until string, onActivi
 			}
 		}
 	}
-	err := Messages(ctx).ListenEvents(ctx, backend.MessageSelection{RequestID: r.ID}, r.Created, func(e backend.MessageEvent) error {
+	err := Messages(ctx).ListenEvents(ctx, backend.MessageSelection{RequestID: r.ID}, time.Time{}, func(e backend.MessageEvent) error {
+		if (e.Kind == "accepted" || e.Kind == "completed") && e.Environment != "" && e.WorkerID != "" {
+			observer, _ := ctx.Value(observationKey{}).(observationOptions)
+			if observer.placement != nil {
+				observer.placement(e)
+			}
+		}
 		if e.Resource != nil {
 			observeResource(*e.Resource)
 		}

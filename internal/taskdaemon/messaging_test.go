@@ -395,3 +395,25 @@ func TestWorkflowMessageServiceCollectsSavedFinalResult(t *testing.T) {
 	}
 	t.Fatal("service final output missing from saved outcome")
 }
+
+func TestWaitMessagesPreservesAdmittedWork(t *testing.T) {
+	d := New(t.TempDir())
+	d.messageMu.Lock()
+	d.activeMessages["admitted"] = true
+	d.messageMu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- d.WaitMessages(ctx) }()
+	select {
+	case err := <-done:
+		t.Fatalf("returned while work active: %v", err)
+	case <-time.After(75 * time.Millisecond):
+	}
+	d.messageMu.Lock()
+	delete(d.activeMessages, "admitted")
+	d.messageMu.Unlock()
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}

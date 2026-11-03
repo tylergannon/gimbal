@@ -31,6 +31,8 @@ type Session struct {
 	model               string
 	effort              string
 	workdir             string
+	environment         string
+	environmentSelected bool
 	id                  string // the creating scope's key, then name.ordinal, as in lap.3/coder.1
 
 	mu          sync.Mutex
@@ -60,7 +62,8 @@ type Session struct {
 // outcome remains an error and is never automatically redispatched.
 func NewSession(ctx context.Context, role WorkflowRole, workdir string) *Session {
 	name := string(role)
-	s := &Session{name: name, workdir: workdir}
+	environment, selected := effects.EnvironmentSelected(ctx)
+	s := &Session{name: name, workdir: workdir, environment: environment, environmentSelected: selected}
 	scope, err := current(ctx)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -321,6 +324,9 @@ func generateResponse(ctx context.Context, s *Session, prompt string, onEvent fu
 // launch the native conversation on RunTurn. Every definite rejection can be
 // retried explicitly; uncertain admission is never silently redispatched.
 func (s *Session) create(ctx context.Context) error {
+	if s.environmentSelected && (strings.TrimSpace(s.environment) == "" || (effects.Messages(ctx) == nil && (s.environment != "local" || effects.Endpoint(ctx) != ""))) {
+		return fmt.Errorf("gimbal: environment %q has no configured messaging namespace", s.environment)
+	}
 	s.mu.Lock()
 	if s.createErr != nil {
 		err := s.createErr
@@ -339,7 +345,7 @@ func (s *Session) create(ctx context.Context) error {
 		return s.adoptNative(ctx, saved["native"])
 	}
 	identity := actionIdentity(s.owner.node, s.node, node, "session")
-	createCtx := effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity)
+	createCtx := effects.WithExecutionIdentity(effectContext(effects.WithEnvironment(ctx, s.environment), s.owner, s.id), identity)
 	if err := s.owner.run.prepareAction(createCtx, s.owner.node, s.node, node, "session", map[string]string{"model": s.model, "effort": s.effort, "workdir": s.workdir}, identity); err != nil {
 		return err
 	}
@@ -501,7 +507,7 @@ func (s *Session) turn(ctx context.Context, prompt string, schema json.RawMessag
 	var result TurnResult
 	if err == nil {
 		identity := actionIdentity(scope.node, s.node, turnNode, "turn")
-		turnContext := effects.WithTaskFiles(effects.WithExecutionIdentity(effectContext(turnCtx, scope, turnID), identity), files)
+		turnContext := effects.WithTaskFiles(effects.WithExecutionIdentity(effectContext(effects.WithEnvironment(turnCtx, s.environment), scope, turnID), identity), files)
 		err = scope.run.prepareAction(turnContext, scope.node, s.node, turnNode, "turn", struct {
 			Prompt   string
 			Schema   json.RawMessage
@@ -851,7 +857,7 @@ func (s *Session) stopNative() error {
 	identity.ScopeID = string(s.owner.node)
 	identity.SessionID = string(s.node)
 	identity.ExecutorSession = "session_" + string(s.node)
-	err := s.adapter.Close(effects.WithExecutionIdentity(effectContext(ctx, s.owner, s.id), identity), s.native)
+	err := s.adapter.Close(effects.WithExecutionIdentity(effectContext(effects.WithEnvironment(ctx, s.environment), s.owner, s.id), identity), s.native)
 	if err != nil {
 		s.owner.run.recordCloseFailure(s.id, err)
 	}
@@ -877,7 +883,7 @@ func (s *Session) Steer(ctx context.Context, message string) (landed bool, err e
 	if owner == nil {
 		owner = s.owner
 	}
-	ctx = effects.WithExecutionIdentity(effectContext(ctx, owner, turn), actionIdentity(owner.node, s.node, owner.run.nodeID(turn), "turn"))
+	ctx = effects.WithExecutionIdentity(effectContext(effects.WithEnvironment(ctx, s.environment), owner, turn), actionIdentity(owner.node, s.node, owner.run.nodeID(turn), "turn"))
 	if effects.InputID(ctx) == "" {
 		ctx = effects.WithInputID(ctx, string(runstore.NewRecordID()))
 	}
@@ -951,7 +957,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	fork := &Session{source: s.node, adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir}
+	fork := &Session{source: s.node, adapter: s.adapter, name: name, model: s.model, effort: s.effort, workdir: s.workdir, environment: s.environment, environmentSelected: s.environmentSelected}
 	scope.adopt(fork)
 	if err := scope.run.recordingError(); err != nil {
 		return nil, err
@@ -959,7 +965,7 @@ func (s *Session) Fork(ctx context.Context, name string) (*Session, error) {
 	if native != "" {
 		key, node := scope.nextNode(runstore.Action, "fork")
 		identity := actionIdentity(scope.node, fork.node, node, "session")
-		forkCtx := effects.WithExecutionIdentity(effectContext(ctx, scope, key), identity)
+		forkCtx := effects.WithExecutionIdentity(effectContext(effects.WithEnvironment(ctx, s.environment), scope, key), identity)
 		if err = scope.run.prepareAction(forkCtx, scope.node, fork.node, node, "fork", map[string]string{"source_session": native}, identity); err != nil {
 			return nil, err
 		}
@@ -1093,7 +1099,7 @@ func (s *Session) configure(ctx context.Context, model, effort string) error {
 		if !ok {
 			return errors.New("gimbal: executor cannot configure this session")
 		}
-		if err := adapter.ConfigureSession(ctx, native, model, effort); err != nil {
+		if err := adapter.ConfigureSession(effects.WithEnvironment(ctx, s.environment), native, model, effort); err != nil {
 			return err
 		}
 	}

@@ -19,6 +19,15 @@ func effectOwner(s *scope, task string) effects.Owner {
 }
 func effectContext(ctx context.Context, s *scope, task string) context.Context {
 	ctx = effects.WithOwner(ctx, effectOwner(s, task))
+	ctx = effects.ObservePlacement(ctx, func(fact backend.MessageEvent) {
+		if s == nil || s.run == nil {
+			return
+		}
+		event := taskPlacement{ID: fact.Task, Session: fact.SessionID, Environment: fact.Environment, WorkerID: fact.WorkerID, EventID: fact.ID}
+		if err := s.run.eventResult(fact.Scope, "", "", event); err != nil {
+			logf("%s: placement recording unavailable: %v", task, err)
+		}
+	})
 	return effects.WithResourceObserver(ctx, func(use backend.ResourceFact) {
 		if s == nil || s.run == nil {
 			return

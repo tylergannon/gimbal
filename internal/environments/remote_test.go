@@ -60,10 +60,10 @@ func TestRemoteHTTPHelperUsesActualDirectoryAndRetainsMutationIdentity(t *testin
 	dir := repository(t)
 	target := Target{Machine: Machine{ID: "remote", Name: "Test remote", Kind: KindAddress, Address: server.URL, Executable: os.Args[0]}, Environment: Environment{ID: "env", Project: "p", Machine: "remote", Directory: dir}, Directory: dir}
 	facts, e := s.Inspect(ctx, target, dir)
-	if e != nil || !facts.Git {
+	if e != nil || !facts.Directory.Git {
 		t.Fatal(facts, e)
 	}
-	if facts.Path != dir {
+	if facts.Directory.Path != dir {
 		t.Fatal("inspected wrong machine directory", facts)
 	}
 	prepared, e := s.Prepare(ctx, target, Checkout{Branch: "remote-work", Base: "main"}, "remote123")
@@ -94,7 +94,7 @@ func TestRemoteFixedDaemonDirectoryIsReportedAndCannotPrepareElsewhere(t *testin
 	s := testService(t)
 	target := Target{Machine: Machine{ID: "remote", Name: "Remote", Kind: KindAddress, Address: server.URL, Executable: os.Args[0]}, Directory: t.TempDir()}
 	d, e := s.Inspect(context.Background(), target, target.Directory)
-	if e != nil || d.FixedWorkdir != fixed || d.ExecutionDirectory != fixed {
+	if e != nil || d.Directory.FixedWorkdir != fixed || d.Directory.ExecutionDirectory != fixed {
 		t.Fatalf("daemon override concealed: %+v %v", d, e)
 	}
 	_, e = s.Prepare(context.Background(), target, Checkout{SharedCheckout: true}, "fixed123")
@@ -151,7 +151,7 @@ func TestMessagingHelpersReadRetainedStdoutAndKeepCleanupResponsibility(t *testi
 	dir := repository(t)
 	target := Target{Machine: Machine{ID: "queue", Name: "Queue", Kind: KindRoute, Route: &route, Executable: os.Args[0]}, Directory: dir}
 	facts, e := s.Inspect(ctx, target, dir)
-	if e != nil || !facts.Git {
+	if e != nil || !facts.Directory.Git {
 		t.Fatal(facts, e)
 	}
 	p, e := s.Prepare(ctx, target, Checkout{Branch: "message-work", Base: "main"}, "messaging123")

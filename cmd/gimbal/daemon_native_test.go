@@ -93,8 +93,7 @@ func TestNativeRemoteInteractiveDaemonRestart(t *testing.T) {
 	start()
 	transport := backend.HTTP{Endpoint: endpoint}
 	id := string(runstore.NewRunID())
-	config, _ := json.Marshal(map[string]string{"endpoint": endpoint})
-	request := backend.Workflow{ID: id, Name: "conversation", Project: project, Workdir: project, Input: json.RawMessage(`{"purpose":"Remember the human token and answer briefly with chat; do not end unless asked."}`), Roles: map[string]string{"agentic-dialogues": "luna"}, TaskRoute: backend.Route{Name: "http", Configuration: config}}
+	request := backend.Workflow{ID: id, Name: "conversation", Project: project, Workdir: project, Input: json.RawMessage(`{"purpose":"Remember the human token and answer briefly with chat; do not end unless asked.","environment":"local"}`), Roles: map[string]string{"agentic-dialogues": "luna"}}
 	status, err := transport.StartWorkflow(ctx, request)
 	if err != nil || status.State != "running" {
 		t.Fatalf("admit=%+v err=%v", status, err)

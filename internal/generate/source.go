@@ -318,12 +318,17 @@ func literal(entry string, graph workflow.Graph) string {
 	b.WriteString("var Graph = workflow.Graph{\n")
 	fmt.Fprintf(&b, "Name: %s,\n", strconv.Quote(graph.Name))
 	fmt.Fprintf(&b, "Source: %s,\n", position(graph.Source))
+	b.WriteString("Environments: []workflow.EnvironmentDeclaration{\n")
+	for _, d := range graph.Environments {
+		fmt.Fprintf(&b, "{Source: %s, Name: %q, Input: %q},\n", position(d.Source), d.Name, d.Input)
+	}
+	b.WriteString("},\n")
 	fmt.Fprintf(&b, "Services: %s,\n", services(graph.Services))
 	fmt.Fprintf(&b, "Body: %s,\n", operations(graph.Body))
 	if len(graph.Diagnostics) > 0 {
 		b.WriteString("Diagnostics: []workflow.Diagnostic{\n")
 		for _, d := range graph.Diagnostics {
-			fmt.Fprintf(&b, "{Source: %s, Message: %s},\n", position(d.Source), strconv.Quote(d.Message))
+			fmt.Fprintf(&b, "{Source: %s, Message: %s, EnvironmentIncomplete: %t},\n", position(d.Source), strconv.Quote(d.Message), d.EnvironmentIncomplete)
 		}
 		b.WriteString("},\n")
 	}

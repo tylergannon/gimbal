@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/internal/commandexecutor"
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/executor"
@@ -183,13 +184,20 @@ func recordCheckResult(s *scope, key string, raw []byte) error {
 }
 
 func runCommand(ctx context.Context, s *scope, name, workdir, command string, args []string) (CommandStarted, CommandEnded, error, error) {
+	if selected, ok := effects.EnvironmentSelected(ctx); ok && (strings.TrimSpace(selected) == "" || (effects.Messages(ctx) == nil && (selected != "local" || effects.Endpoint(ctx) != ""))) {
+		err := fmt.Errorf("gimbal: environment %q has no configured messaging namespace", selected)
+		return CommandStarted{}, CommandEnded{ExitCode: -1}, err, nil
+	}
 	id, node := s.nextNode(runstore.Action, name)
 	identity := actionIdentity(s.node, "", node, "process")
 	ctx = effects.WithReconstruction(ctx, s.run.hasFact(node, "intent"))
 	ctx, cancelAccepted := s.run.acceptedContext(ctx, node)
 	defer cancelAccepted()
 	ctx = effects.WithExecutionIdentity(effectContext(ctx, s, id), identity)
-	dir, _ := filepath.Abs(workdir)
+	dir := workdir
+	if named, ok := effects.Messages(ctx).(backend.NamedMessaging); !ok || !named.NamedEnvironments() {
+		dir, _ = filepath.Abs(workdir)
+	}
 	started := CommandStarted{ID: id, Name: name, Command: command, Args: args, Workdir: dir}
 	var accepted struct {
 		Input struct {

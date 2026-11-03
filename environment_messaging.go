@@ -45,6 +45,9 @@ func (m *environmentMessaging) bus(ctx context.Context, destination backend.Envi
 	if err != nil {
 		return nil, err
 	}
+	if bus == nil {
+		return nil, fmt.Errorf("environment %q messaging backend %q returned no connection", destination.ID, route.Name)
+	}
 	m.buses[destination.ID] = bus
 	return bus, nil
 }
@@ -59,7 +62,7 @@ func (m *environmentMessaging) PublishRequest(ctx context.Context, r backend.Mes
 		}
 		// A parent scope may have no remaining assignments after its children
 		// released their last uses. There is no native work left to contact.
-		return m.base.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, Kind: "completed", Result: &backend.MessageResult{}})
+		return m.base.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Source: r.ID, Sequence: 1, Created: time.Now().UTC(), Owner: r.Owner, Kind: "completed", Result: &backend.MessageResult{}})
 	}
 	if r.Kind != "cleanup" {
 		if len(destinations) != 1 {
@@ -73,7 +76,7 @@ func (m *environmentMessaging) PublishRequest(ctx context.Context, r backend.Mes
 	}
 	// Publish one aggregate cleanup result after every relevant daemon replies.
 	// Native failures and delivery uncertainty remain distinguishable.
-	if err := m.base.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, Kind: "accepted"}); err != nil {
+	if err := m.base.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Source: r.ID, Sequence: 1, Created: time.Now().UTC(), Owner: r.Owner, Kind: "accepted"}); err != nil {
 		return err
 	}
 	go func() {
@@ -113,7 +116,7 @@ func (m *environmentMessaging) PublishRequest(ctx context.Context, r backend.Mes
 			})
 		}
 		group.Wait()
-		_ = m.base.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Created: time.Now().UTC(), Owner: r.Owner, Kind: "completed", Result: result})
+		_ = m.base.PublishEvent(ctx, backend.MessageEvent{ID: ulid.Make().String(), RequestID: r.ID, Source: r.ID, Sequence: 2, Created: time.Now().UTC(), Owner: r.Owner, Kind: "completed", Result: result})
 	}()
 	return nil
 }

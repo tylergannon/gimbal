@@ -4,6 +4,7 @@ package runstate
 
 import (
 	"context"
+	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/runstore"
 	"github.com/tylergannon/gimbal/runstore/directory"
 	"os"
@@ -42,13 +43,14 @@ func Recognized(runDir string) bool {
 // InteractionInput is the journal's durable wire representation. Sequence in
 // runstore, rather than a timestamp, orders admission and delivery updates.
 type InteractionInput struct {
-	Configure   bool   `json:"configure"`
-	Model       string `json:"model"`
-	Effort      string `json:"effort"`
-	Stop        bool   `json:"stop"`
-	ID          string `json:"id"`
-	Address     string `json:"address"`
-	Message     string `json:"message"`
-	Finish      bool   `json:"finish"`
-	Disposition string `json:"disposition"`
+	Files       []backend.TaskFile `json:"files,omitempty"`
+	Configure   bool               `json:"configure"`
+	Model       string             `json:"model"`
+	Effort      string             `json:"effort"`
+	Stop        bool               `json:"stop"`
+	ID          string             `json:"id"`
+	Address     string             `json:"address"`
+	Message     string             `json:"message"`
+	Finish      bool               `json:"finish"`
+	Disposition string             `json:"disposition"`
 }

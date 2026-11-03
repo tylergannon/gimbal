@@ -261,6 +261,9 @@ type record struct {
 		Unresolved  bool     `json:"unresolved"`
 		Duration    int64    `json:"duration"`
 		ID          string   `json:"id"`
+		Session     string   `json:"session"`
+		Environment string   `json:"environment"`
+		WorkerID    string   `json:"worker_id"`
 		Command     string   `json:"command"`
 		Args        []string `json:"args"`
 		Workdir     string   `json:"workdir"`
@@ -442,6 +445,19 @@ func (s *Store) Lifecycle(raw json.RawMessage) error {
 		command.Name, command.Command, command.Args = rec.Event.Name, rec.Event.Command, rec.Event.Args
 		command.Workdir, command.Started = rec.Event.Workdir, at
 		changed = append(changed, change{tableCommands, rec.Event.ID})
+	case "task_placement":
+		if rec.Event.Session != "" {
+			if row := s.sessions[rec.Event.Session]; row != nil && row.WorkerID == "" {
+				row.Environment, row.WorkerID = rec.Event.Environment, rec.Event.WorkerID
+				changed = append(changed, change{tableSessions, rec.Event.Session})
+			}
+		} else {
+			command := s.commandLocked(rec.Scope, rec.Event.ID)
+			if command.WorkerID == "" {
+				command.Environment, command.WorkerID = rec.Event.Environment, rec.Event.WorkerID
+				changed = append(changed, change{tableCommands, rec.Event.ID})
+			}
+		}
 	case "command_ended":
 		command := s.commandLocked(rec.Scope, rec.Event.ID)
 		command.ExitCode, command.Error, command.Interrupted = rec.Event.ExitCode, rec.Event.Error, rec.Event.Interrupted

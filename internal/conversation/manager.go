@@ -83,8 +83,7 @@ type Conversation struct {
 	CleanupPending bool                         `json:"cleanup_pending"`
 }
 
-// Placement exposes display facts, while transport configuration remains in the
-// private durable Transport snapshot and is never projected into browser state.
+// Placement exposes display facts while namespace configuration stays private.
 type Placement struct {
 	Machine     PlacementMachine             `json:"machine"`
 	Environment environments.EnvironmentInfo `json:"environment"`
@@ -113,16 +112,12 @@ type NewConversation struct {
 // AdapterFactory resolves a provider name to its existing Gimbal harness.
 type AdapterFactory func(string) (gimbal.HarnessAdapter, error)
 
-type activeConversation struct {
-	admitMu sync.Mutex
-	remote  *environments.Binding
-}
-
 // Manager is owned by one host project. Durable state is under projectDir;
 // adapters exist only for that runtime's life. Providers that support durable
 // conversation sessions may persist their native identity with the transcript.
 type Manager struct {
 	workflowMu      sync.Mutex
+	WorkflowPrepare func(context.Context, string, backend.Route) error
 	WorkflowStart   func(context.Context, Conversation, backend.Route) error
 	WorkflowInput   func(string, string, string) error
 	WorkflowObserve func(string) (gimbal.InteractiveTranscript, string, []string, error)
@@ -134,16 +129,14 @@ type Manager struct {
 	project         string
 	registry        *observation.Registry
 
-	mu            sync.RWMutex
-	items         map[string]*Conversation
-	active        map[string]*activeConversation
-	projections   map[string]*sessionstate.Projection
-	closing       bool
-	closed        chan struct{}
-	environments  *environments.Service
-	projectID     string
-	remoteStates  map[string]*remoteState
-	remoteReaders sync.WaitGroup
+	mu              sync.RWMutex
+	items           map[string]*Conversation
+	projections     map[string]*sessionstate.Projection
+	closing         bool
+	closed          chan struct{}
+	environments    *environments.Service
+	projectID       string
+	namespaceRoutes map[string]backend.Route
 }
 
 type managerKey struct{}
@@ -177,7 +170,7 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	}
 	manager := &Manager{
 		ctx: ctx, projectDir: projectDir, factory: factory, cli: cli, instanceDir: instanceDir, project: project, registry: registry,
-		items: make(map[string]*Conversation), active: make(map[string]*activeConversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}), remoteStates: make(map[string]*remoteState),
+		items: make(map[string]*Conversation), projections: make(map[string]*sessionstate.Projection), closed: make(chan struct{}), namespaceRoutes: make(map[string]backend.Route),
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -211,12 +204,8 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 			item.Contact = "connected"
 			item.Capabilities = localCapabilities()
 		}
-		if len(record.Transport) > 0 {
-			var remote remoteState
-			if err := json.Unmarshal(record.Transport, &remote); err != nil {
-				return nil, fmt.Errorf("conversation: read retained transport: %w", err)
-			}
-			manager.remoteStates[item.ID] = &remote
+		if record.NamespaceRoute != nil {
+			manager.namespaceRoutes[item.ID] = *record.NamespaceRoute
 		}
 		copy := item
 		manager.items[item.ID] = &copy
@@ -232,8 +221,8 @@ func New(ctx context.Context, projectDir string, factory AdapterFactory, cli, in
 	return manager, nil
 }
 
-// Create prepares the selected checkout before admitting a conversation. Git
-// projects default to an isolated worktree; SharedCheckout uses their directory.
+// Create records the selected checkout before admitting a conversation. Named
+// work prepares an isolated checkout in the selected workflow when it starts.
 func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation, error) {
 	provider := strings.TrimSpace(in.Provider)
 	model, err := selectModel(provider, strings.TrimSpace(in.Model), strings.TrimSpace(in.Effort))
@@ -241,6 +230,43 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		return Conversation{}, err
 	}
 	in.Model, in.Effort = model, strings.TrimSpace(in.Effort)
+	if in.Environment != "" && in.Environment != environments.Local {
+		m.mu.RLock()
+		service, projectID := m.environments, m.projectID
+		m.mu.RUnlock()
+		if service == nil {
+			return Conversation{}, errors.New("conversation: environment service unavailable")
+		}
+		target, err := service.Resolve(ctx, projectID, in.Environment)
+		if err != nil {
+			return Conversation{}, err
+		}
+		route, named, err := service.NamespaceRoute(target, in.Environment)
+		if err != nil {
+			return Conversation{}, err
+		}
+		if !named {
+			return Conversation{}, errors.New("conversation: selected environment requires a messaging namespace")
+		}
+		if m.WorkflowPrepare == nil {
+			return Conversation{}, errors.New("conversation: workflow preflight unavailable")
+		}
+		if err := m.WorkflowPrepare(ctx, in.Environment, route); err != nil {
+			return Conversation{}, err
+		}
+		return m.createNamespace(in, provider, model, target, route)
+	}
+	// The host validates the selected namespace before setup can connect or provision.
+	if m.WorkflowPrepare != nil {
+		environment := in.Environment
+		if environment == "" {
+			environment = environments.Local
+		}
+		route := backend.Route{}
+		if err := m.WorkflowPrepare(ctx, environment, route); err != nil {
+			return Conversation{}, err
+		}
+	}
 	m.mu.RLock()
 	observedEnvironment := m.environments != nil
 	m.mu.RUnlock()
@@ -262,25 +288,6 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		if !offered {
 			return Conversation{}, fmt.Errorf("conversation: OpenCode model %q is unavailable on %s; choose a model from Harness and model", model, setup.Machine)
 		}
-	}
-	if in.Environment != "" && in.Environment != environments.Local {
-		m.mu.RLock()
-		service, projectID := m.environments, m.projectID
-		m.mu.RUnlock()
-		if service == nil {
-			return Conversation{}, errors.New("conversation: environment service unavailable")
-		}
-		if m.pendingRemotePreparation(in, provider, model) != "" {
-			return m.createRemote(ctx, in, provider, model)
-		}
-		target, err := service.Resolve(ctx, projectID, in.Environment)
-		if err != nil {
-			return Conversation{}, err
-		}
-		if target.Machine.ID == environments.Local || target.Machine.ID == "" {
-			return m.createLocalEnvironment(ctx, in, provider, model, target)
-		}
-		return m.createRemote(ctx, in, provider, model)
 	}
 	checkout, err := m.prepareCheckout(ctx, in)
 	if err != nil {
@@ -318,16 +325,16 @@ func (m *Manager) Create(ctx context.Context, in NewConversation) (Conversation,
 		Created: now, Updated: now, Messages: []Message{}, Runs: []Run{}, Requests: []RequestState{},
 		Environment: environments.Local, Contact: "connected", Capabilities: localCapabilities(),
 	}
-	if err := m.save(item); err != nil {
-		return Conversation{}, err
-	}
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
 		return Conversation{}, errors.New("conversation: runtime is shutting down")
 	}
+	if err := m.save(item); err != nil {
+		m.mu.Unlock()
+		return Conversation{}, err
+	}
 	m.items[id] = item
-	m.active[id] = &activeConversation{}
 	m.projections[id] = sessionstate.New(sessionstate.NewProjectionState())
 	m.mu.Unlock()
 	return clone(item), nil
@@ -521,6 +528,31 @@ func (m *Manager) Get(id string) (Conversation, bool) {
 		// admitted prompt; one that cannot be read leaves a transcript already shown.
 		run, err := m.registry.Snapshot(item.WorkflowRun)
 		if err == nil || errors.Is(err, observation.ErrNoRun) || errors.Is(err, runstore.ErrIncomplete) {
+			if err == nil {
+				if _, named := m.namespaceRoutes[item.ID]; named {
+					if value, ok := run.Scopes[""].Values["conversation_checkout_branch"]; ok {
+						var branch string
+						if json.Unmarshal(value.Value, &branch) == nil && branch != "" && item.Branch != branch {
+							item.Branch = branch
+							item.Revision++
+							_ = m.save(item)
+						}
+					}
+					for _, session := range run.Sessions {
+						if session.WorkerID != "" && item.Placement.Value.Machine.ID == "" {
+							item.Placement.Value.Machine = PlacementMachine{ID: session.WorkerID, Name: session.WorkerID, Kind: "worker"}
+							if session.Workdir != "" {
+								item.Worktree = session.Workdir
+								item.Placement.Value.Directory = session.Workdir
+							}
+							item.Contact = "connected"
+							item.Revision++
+							_ = m.save(item)
+							break
+						}
+					}
+				}
+			}
 			if changed, err := projectTranscript(item, run, err == nil); err == nil && changed {
 				item.Revision++
 				_ = m.save(item)
@@ -638,25 +670,20 @@ func (m *Manager) Close() {
 	}
 	m.closing = true
 	m.mu.Unlock()
-	m.remoteReaders.Wait()
 	close(m.closed)
 }
 
 type conversationRecord struct {
 	Conversation
-	Transport json.RawMessage `json:"transport,omitempty"`
+	NamespaceRoute *backend.Route `json:"namespace_route,omitempty"`
 }
 
 func (m *Manager) save(item *Conversation) error {
-	var raw json.RawMessage
-	if remote := m.remoteStates[item.ID]; remote != nil {
-		var err error
-		raw, err = json.Marshal(remote)
-		if err != nil {
-			return err
-		}
+	var namespaceRoute *backend.Route
+	if route, ok := m.namespaceRoutes[item.ID]; ok {
+		namespaceRoute = &route
 	}
-	data, err := json.MarshalIndent(conversationRecord{Conversation: *item, Transport: raw}, "", "  ")
+	data, err := json.MarshalIndent(conversationRecord{Conversation: *item, NamespaceRoute: namespaceRoute}, "", "  ")
 	if err != nil {
 		return fmt.Errorf("conversation: encode %s: %w", item.ID, err)
 	}

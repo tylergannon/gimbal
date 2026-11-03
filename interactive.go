@@ -1,11 +1,13 @@
 package gimbal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
+	"slices"
 	"strings"
 	"time"
 
@@ -203,6 +205,9 @@ Respond with {"decision":{"type":"chat","message":"your reply"}}, or {"decision"
 				return state.Transcript, err
 			}
 			turnCtx, stop := context.WithCancelCause(ctx)
+			if len(input.Files) != 0 {
+				turnCtx = WithTaskFiles(turnCtx, input.Files...)
+			}
 			cancel = stop
 			turnCtx = context.WithValue(turnCtx, interactionGenerationKey{}, interactionGeneration{Node: node, Input: input.ID})
 			done := make(chan turnResult, 1)
@@ -466,7 +471,9 @@ func (r *run) acceptInputAtTurn(input interactionInput, expectedTurn string) err
 		return errors.New("gimbal: interaction input requires an id")
 	}
 	if old, ok := r.interactionInputs[id]; ok {
-		if old.Address != address || old.Message != message || old.Finish != finish || old.Stop != input.Stop || old.Configure != input.Configure || old.Model != input.Model || old.Effort != input.Effort {
+		if old.Address != address || old.Message != message || old.Finish != finish || old.Stop != input.Stop || old.Configure != input.Configure || old.Model != input.Model || old.Effort != input.Effort || !slices.EqualFunc(old.Files, input.Files, func(a, b backend.TaskFile) bool {
+			return a.Name == b.Name && a.Reference == b.Reference && bytes.Equal(a.Bytes, b.Bytes)
+		}) {
 			return runstore.ErrConflict
 		}
 		return nil

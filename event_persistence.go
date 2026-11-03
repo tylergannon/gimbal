@@ -157,6 +157,8 @@ func (r *run) eventResult(scope, session, turn string, event LifecycleEvent) err
 		node = r.nodeID(e.ID)
 	case CommandEnded:
 		node = r.nodeID(e.ID)
+	case taskPlacement:
+		node = r.nodeID(e.ID)
 
 	}
 	// Reconstructing a library operation must not republish its lifecycle.

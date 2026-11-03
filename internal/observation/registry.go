@@ -210,6 +210,24 @@ func (r *Registry) decorate(id string, snapshot RunSnapshot) RunSnapshot {
 	if r.Placement != nil {
 		snapshot.Run.WorkflowEnvironment, snapshot.Run.TaskEnvironment = r.Placement(id)
 	}
+	placements := map[string]bool{}
+	for _, row := range snapshot.Sessions {
+		if row.WorkerID != "" {
+			placements[row.Environment+" · "+row.WorkerID] = true
+		}
+	}
+	for _, row := range snapshot.Commands {
+		if row.WorkerID != "" {
+			placements[row.Environment+" · "+row.WorkerID] = true
+		}
+	}
+	if len(placements) > 1 {
+		snapshot.Run.TaskEnvironment = "mixed"
+	} else {
+		for placement := range placements {
+			snapshot.Run.TaskEnvironment = placement
+		}
+	}
 	return snapshot
 }
 

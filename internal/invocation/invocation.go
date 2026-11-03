@@ -77,6 +77,67 @@ func PrepareContext(ctx context.Context, r Request) (map[gimbal.WorkflowRole]gim
 		return nil, nil, err
 	}
 	graph, _ := gimbal.RegisteredGraph(r.Workflow)
+	// An unread call can hide an environment selection even when the graph has
+	// no declarations at all. Do not treat an incomplete inventory as empty.
+	for _, diagnostic := range graph.Diagnostics {
+		if diagnostic.EnvironmentIncomplete {
+			return nil, nil, fmt.Errorf("environment inventory incomplete at %s:%d: %s", diagnostic.Source.File, diagnostic.Source.Line, diagnostic.Message)
+		}
+	}
+	if d, ok := gimbal.DefaultRegistry.Messaging(r.TaskRoute.Name); ok && d.NamedEnvironments != nil {
+		named, err := d.NamedEnvironments(r.TaskRoute.Configuration)
+		if err != nil {
+			return nil, nil, err
+		}
+		if named && (r.TaskRoute.Environment != "" || r.TaskEndpoint != "" || r.TaskRoute.Backends != nil && r.TaskRoute.Backends.Orchestrator.Name != "") {
+			return nil, nil, fmt.Errorf("named messaging cannot use an orchestrator or physical task destination")
+		}
+	}
+	if len(graph.Environments) > 0 {
+		if r.TaskRoute.Environment != "" || r.TaskEndpoint != "" || (r.TaskRoute.Backends != nil && r.TaskRoute.Backends.Orchestrator.Name != "") {
+			return nil, nil, fmt.Errorf("workflow environment declarations cannot use a physical task destination")
+		}
+		var input map[string]json.RawMessage
+		if err := json.Unmarshal(r.Input, &input); err != nil {
+			return nil, nil, err
+		}
+		for _, declaration := range graph.Environments {
+			name := declaration.Name
+			if declaration.Input != "" {
+				if declaration.Name != "" {
+					return nil, nil, fmt.Errorf("environment declaration has multiple selectors")
+				}
+				valid := false
+				for _, f := range definition.Fields {
+					if f.Name == declaration.Input && f.Kind == "string" && !f.Optional && !f.Nullable {
+						valid = true
+					}
+				}
+				if !valid {
+					return nil, nil, fmt.Errorf("environment input %q is not a declared required string", declaration.Input)
+				}
+				if err := json.Unmarshal(input[declaration.Input], &name); err != nil {
+					return nil, nil, fmt.Errorf("environment input %q: %w", declaration.Input, err)
+				}
+			}
+			if strings.TrimSpace(name) == "" {
+				return nil, nil, fmt.Errorf("environment selector at %s:%d is empty or cannot be determined", declaration.Source.File, declaration.Source.Line)
+			}
+			if r.TaskRoute.Name == "" || r.TaskRoute.Name == "local" {
+				if name != "local" {
+					return nil, nil, fmt.Errorf("environment %q is not configured", name)
+				}
+			} else {
+				d, ok := gimbal.DefaultRegistry.Messaging(r.TaskRoute.Name)
+				if !ok || d.ValidateEnvironment == nil {
+					return nil, nil, fmt.Errorf("task route %q does not declare an environment namespace", r.TaskRoute.Name)
+				}
+				if err := d.ValidateEnvironment(r.TaskRoute.Configuration, name); err != nil {
+					return nil, nil, err
+				}
+			}
+		}
+	}
 	specs := map[gimbal.WorkflowRole]string{}
 	defaults := definition.Roles
 	for _, name := range graph.Roles() {

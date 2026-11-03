@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"time"
 
@@ -74,26 +75,29 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 	}
 	snapshot := clone(item)
 	route := backend.Route{}
-	if start && remotePlacement(item) {
-		if state := m.remoteStates[id]; state != nil {
-			route = state.Target.Route
-		}
-		if active := m.active[id]; active != nil && active.remote != nil {
-			route = active.remote.Target.Route
-		}
-		if route.Name == "" {
-			m.mu.Unlock()
-			return RequestState{}, errors.New("conversation: retained remote route is unavailable")
-		}
+	_, named := m.namespaceRoutes[id]
+	if selected, ok := m.namespaceRoutes[id]; start && ok {
+		route = selected
+
 	}
 	m.mu.Unlock()
 	message := request.Message
+	var files []backend.TaskFile
 	if request.FileID != "" {
 		path, name, err := m.filePath(request.FileID)
 		if err != nil {
 			return RequestState{}, err
 		}
-		message += "\n\nRead the attached file " + name + " at " + path + "."
+		if named {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return RequestState{}, err
+			}
+			files = []backend.TaskFile{{Name: name, Bytes: data}}
+			message += "\n\nRead the attached file " + name + "."
+		} else {
+			message += "\n\nRead the attached file " + name + " at " + path + "."
+		}
 	}
 	if start {
 		if err := m.WorkflowStart(m.ctx, snapshot, route); err != nil {
@@ -113,7 +117,7 @@ func (m *Manager) Submit(id string, request Request) (RequestState, error) {
 			return RequestState{}, err
 		}
 	}
-	raw, _ := json.Marshal(map[string]any{"id": request.ID, "message": message, "finish": request.Kind == "finish", "stop": request.Kind == "interrupt"})
+	raw, _ := json.Marshal(map[string]any{"id": request.ID, "message": message, "files": files, "finish": request.Kind == "finish", "stop": request.Kind == "interrupt"})
 	// The runner announces its controller before its Go body installs the
 	// first Interactive owner. Keep this first handoff in the same request,
 	// with one run and one input identity; only the ready owner can admit it.

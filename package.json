@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "scripts": {
+    "build": "just build && mkdir -p bin/plugins && go build -buildmode=plugin -o bin/plugins/river.so ./plugins/messaging-river",
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=.env.local -e 'process.execve(\"./bin/gimbal\", [\"bin/gimbal\", \"--plugin-dir\", \"bin/plugins\", ...process.argv.slice(1)], process.env)' --"
+  },
+  "dependencies": {
+    "@neon/config": "^1.10.1"
+  }
+}

@@ -100,17 +100,19 @@ type steerRecord struct {
 // SessionRow is one agent conversation. Scope is where the session was
 // created, which is not where its turns necessarily ran.
 type SessionRow struct {
-	Workdir string        `json:"workdir,omitempty"`
-	Effort  string        `json:"effort,omitempty"`
-	Steers  []steerRecord `json:"steers,omitempty"`
-	Run     string        `json:"run"`
-	ID      string        `json:"id"`
-	Name    string        `json:"name"`
-	Adapter string        `json:"adapter"`
-	Model   string        `json:"model"`
-	Scope   string        `json:"scope"`
-	Parent  string        `json:"parent"`
-	Created int64         `json:"created"`
+	Environment string        `json:"environment"`
+	WorkerID    string        `json:"worker_id"`
+	Workdir     string        `json:"workdir,omitempty"`
+	Effort      string        `json:"effort,omitempty"`
+	Steers      []steerRecord `json:"steers,omitempty"`
+	Run         string        `json:"run"`
+	ID          string        `json:"id"`
+	Name        string        `json:"name"`
+	Adapter     string        `json:"adapter"`
+	Model       string        `json:"model"`
+	Scope       string        `json:"scope"`
+	Parent      string        `json:"parent"`
+	Created     int64         `json:"created"`
 }
 
 // InteractiveRow is one question an interactive asked. An accepted answer updates
@@ -183,6 +185,8 @@ type TurnUsageRow struct {
 // larger ones. StdoutFile and StderrFile name the complete files relative to
 // the run directory.
 type CommandRow struct {
+	Environment string   `json:"environment"`
+	WorkerID    string   `json:"worker_id"`
 	Run         string   `json:"run"`
 	ID          string   `json:"id"`
 	Scope       string   `json:"scope"`

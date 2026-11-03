@@ -290,6 +290,11 @@ func TestFixtureGraph(t *testing.T) {
 			t.Errorf("no diagnostic says %q: %v", message, g.Diagnostics)
 		}
 	}
+	for _, d := range g.Diagnostics {
+		if strings.Contains(d.Message, "a call through a function value") && !d.EnvironmentIncomplete {
+			t.Error("unread function value must mark the environment inventory incomplete")
+		}
+	}
 	if _, ok := find[workflow.Session](g.Body, func(s workflow.Session) bool { return s.Name == "reader" }); ok {
 		t.Error("a session whose role the source does not spell out is a diagnostic, not a node")
 	}
@@ -402,4 +407,17 @@ func find[T workflow.Operation](body []workflow.Operation, want func(T) bool) (T
 	}
 	var zero T
 	return zero, false
+}
+
+func TestEnvironmentAuditCoversUnreadHelpers(t *testing.T) {
+	for _, name := range []string{"HiddenEnvironment", "HiddenFunctionValue"} {
+		graph, err := generate.Extract("testdata/fixture", name, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		incomplete := slices.ContainsFunc(graph.Diagnostics, func(d workflow.Diagnostic) bool { return d.EnvironmentIncomplete }) || slices.ContainsFunc(graph.Environments, func(d workflow.EnvironmentDeclaration) bool { return d.Name == "" && d.Input == "" })
+		if !incomplete {
+			t.Fatalf("%s hid a selection from preflight: %+v", name, graph)
+		}
+	}
 }

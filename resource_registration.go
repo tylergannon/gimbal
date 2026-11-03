@@ -96,12 +96,18 @@ func (r *Registry) constructDependencies(ctx context.Context, selections backend
 	var err error
 	deps.Secrets, err = secrets.Construct(ctx, selections.Secrets.Configuration)
 	if err != nil {
-		return backend.Dependencies{}, err
+		return backend.Dependencies{}, errors.Join(err, (backend.Connection{Secrets: deps.Secrets}).Close())
+	}
+	if deps.Secrets == nil {
+		return backend.Dependencies{}, fmt.Errorf("secrets backend %q returned no store", selections.Secrets.Name)
 	}
 	if selections.Orchestrator.Name != "" {
 		deps.Orchestrator, err = orchestrator.Construct(ctx, selections.Orchestrator.Configuration, selections.Secrets)
 		if err != nil {
 			return backend.Dependencies{}, errors.Join(err, (backend.Connection{Orchestrator: deps.Orchestrator, Secrets: deps.Secrets}).Close())
+		}
+		if deps.Orchestrator == nil {
+			return backend.Dependencies{}, errors.Join(fmt.Errorf("orchestrator %q returned no connection", selections.Orchestrator.Name), (backend.Connection{Secrets: deps.Secrets}).Close())
 		}
 		var routed bool
 		deps.Routing, routed = deps.Orchestrator.(backend.EnvironmentRouting)

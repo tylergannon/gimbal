@@ -53,15 +53,64 @@ func TestNamespaceValidationIsPureAndStrict(t *testing.T) {
 	if err := d.ValidateConfiguration(raw); err != nil {
 		t.Fatal(err)
 	}
+	if err := d.ValidateConfiguration(json.RawMessage(`{"DSNEnv":"UNSET_RIVER_DSN","Environments":{"build":"worker-a"}}`)); err != nil {
+		t.Fatalf("environment selection must not read the environment: %v", err)
+	}
 	if err := d.ValidateEnvironment(raw, "build"); err != nil {
 		t.Fatal(err)
 	}
 	if err := d.ValidateEnvironment(raw, "missing"); err == nil {
 		t.Fatal("unknown environment accepted")
 	}
-	for _, raw := range []string{`{"DSNFile":"x","extra":1}`, `{"DSNFile":"x"} {}`, `{"DSNFile":"x","Environments":{"x":" "}}`, `{"DSNFile":"x","ReconnectSeconds":-1}`, `{"DSNFile":"x","RebindFrom":{"x":"old"}}`, `{"DSNFile":"x","Environments":{"x":"same"},"RebindFrom":{"x":"same"}}`} {
+	for _, raw := range []string{`{}`, `{"DSNEnv":""}`, `{"DSNEnv":" x "}`, `{"DSNFile":"x","DSNEnv":"y"}`, `{"DSNFile":"","DSNEnv":"y"}`, `{"DSNFile":"x","extra":1}`, `{"DSNFile":"x"} {}`, `{"DSNFile":"x","Environments":{"x":" "}}`, `{"DSNFile":"x","ReconnectSeconds":-1}`, `{"DSNFile":"x","RebindFrom":{"x":"old"}}`, `{"DSNFile":"x","Environments":{"x":"same"},"RebindFrom":{"x":"same"}}`} {
 		if err := d.ValidateConfiguration(json.RawMessage(raw)); err == nil {
 			t.Fatalf("accepted %s", raw)
+		}
+	}
+}
+
+func TestConfigurationMarshalValidatesBothDSNSelectors(t *testing.T) {
+	var registry gimbal.Registry
+	if err := Register(&registry); err != nil {
+		t.Fatal(err)
+	}
+	d, _ := registry.Messaging("river")
+	for _, tc := range []struct {
+		name, active, inactive string
+		config                 configuration
+	}{
+		{"file", "DSNFile", "DSNEnv", configuration{DSNFile: "/does/not/exist"}},
+		{"environment", "DSNEnv", "DSNFile", configuration{DSNEnv: "UNSET_RIVER_DSN"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			raw, err := json.Marshal(tc.config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var fields map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &fields); err != nil {
+				t.Fatal(err)
+			}
+			if _, ok := fields[tc.active]; !ok {
+				t.Errorf("missing active selector %s", tc.active)
+			}
+			if _, ok := fields[tc.inactive]; ok {
+				t.Errorf("included inactive selector %s", tc.inactive)
+			}
+			if err := d.ValidateConfiguration(raw); err != nil {
+				t.Fatalf("marshaled configuration rejected: %v", err)
+			}
+		})
+	}
+}
+
+func TestEnvironmentDSNRejectsMissingAndMalformedWithoutDisclosure(t *testing.T) {
+	const name = "GIMBAL_TEST_INVALID_RIVER_DSN"
+	for _, value := range []string{"", "   ", "postgres://user:secret-marker@%invalid/db"} {
+		t.Setenv(name, value)
+		_, err := open(context.Background(), configuration{DSNEnv: name, DSNFile: "/must-not-fallback"})
+		if err == nil || strings.Contains(err.Error(), "secret-marker") || strings.Contains(err.Error(), "/must-not-fallback") {
+			t.Fatalf("unsafe or missing error for invalid environment DSN: %v", err)
 		}
 	}
 }

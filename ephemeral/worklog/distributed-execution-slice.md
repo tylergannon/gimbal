@@ -152,3 +152,68 @@ Remote C1 and the mixed workflow/restart/reconnect/attestation stages remain
 unimplemented or unproved as stated in the parent plan. The Amrita host-access
 question has not been answered, so no permission change or remote task launch
 has been inferred.
+
+
+## November 3: Neon replaces the live LAN database
+
+Tyler reopened the work and selected Neon as the intermediary. He created the
+account/database, connected the Neon plugin, and explicitly requested CLI init
+and deploy against org-cold-dawn-90086127 / jolly-sea-66052544 / production.
+Installed Neon CLI 8.18.0 using his requested global npm command. Init created
+neon.ts, root package manifests and the ignored .neon link. CLI authentication
+completed in the user's browser; deploy reported the existing Postgres-only
+policy matched and pulled three variables into .env.local. Both local secret
+files are ignored and owner-only. Existing pgx remains the driver; direct
+DATABASE_URL_UNPOOLED is required for worker session advisory locks.
+
+The exact requested init command also performed user-level agent setup across
+its defaults. It reported plugins for Claude Code/Desktop, Codex, Cursor and VS
+Code, plus user-level skills/MCP entries for other detected agents. After Tyler
+clarified that the app plugin already supplies skills, no additional installer
+was run. The current skill was fetched to a private local cache, not installed
+again. Preserve the generated Neon policy and all unrelated existing settings.
+
+Amrita's actual Gimbal River worker successfully connected to the public Neon
+endpoint and initialized the previously empty app database. This removes the
+LAN connection obstacle without changing macOS privacy/network settings. Terra
+is implementing the narrow DSNEnv integration and root npm build/start commands;
+actual app/native proof and Sonnet review follow. The full original A/B and
+restart/reconnect/attestation denominator remains, with hosting amended by the
+user rather than silently reduced.
+
+
+## Neon application proof and review adjudication
+
+The root npm build succeeded and produced the actual CLI, web assets and matching
+River plugin. The private app started using npm start with Neon environment
+injection. Matching environment-selected worker binaries ran on A and Amrita.
+The actual UI selected task-remote, completed a real Luna turn on Amrita that
+reported its hostname/directory, and recalled the first-turn token on follow-up.
+Stop interrupted a subsequent active turn; End completed the registered workflow
+and cleanup with no run error. This establishes the remote conversation
+prerequisite C1, subject to the independent review follow-up; it does not
+establish the remaining mixed workflow/restart/reconnect/attestation claims.
+
+Sonnet independently confirmed matching binaries/configs, remote placement,
+second-turn recall, Stop completion and message records in Neon. It examined the
+run before End was clicked; the later authoritative run is completed. Its review
+raises environment inheritance and leftover credential files as material.
+Caller adjudication: native tasks deliberately run as the same trusted OS user,
+with access to os.Environ and that user's 0600 credential files. This was also
+true of DSNFile and existing bootstrap secrets. No isolation from trusted native
+code was requested or is claimed; requiring a new credential isolation boundary
+is outside this integration's accepted scope. Never print credentials or place
+them into workflow context, prompts, events, source or committed files. The
+observed commands did not read or print credentials. Keep this trust limit
+explicit; this review is not a security certification.
+
+The cleanup guard rejected rm -f syntax. Used recoverable retirement instead:
+obsolete task-owned DSN/staging files were moved into owner-only archive folders.
+Kept the intended owner-only project .env.local and B deployment environment file
+for worker restart. The local Docker test DSN remains for source tests. No
+unrelated user files, services, passwords or database contents were reset.
+
+UI note: at the narrow in-app-browser width, the existing More actions popover
+clipped off the left edge. Keyboard navigation opened the normal End dialog,
+which named worker-b, and End completed successfully. This is a retained UI
+limitation, not a reason to reject the Neon connection or rewrite the frontend.

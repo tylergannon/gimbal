@@ -1,0 +1,10 @@
+{
+  "Name": "river",
+  "Configuration": {
+    "DSNEnv": "DATABASE_URL_UNPOOLED",
+    "Environments": {
+      "workflow-local": "worker-a",
+      "task-remote": "worker-b"
+    }
+  }
+}

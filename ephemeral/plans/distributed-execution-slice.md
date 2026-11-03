@@ -11,8 +11,10 @@ Implementation base: `bc9e158d` (includes merged #664 and #665). Rebased before 
 
 One registered ordinary-Go workflow runs on computer A, performs a task on A,
 sets context values, and places a session on computer B that uses those values.
-A and B use one selected River/Postgres communication boundary. A Docker Compose
-deployment hosts Postgres on an owned instance on A, Bob, or another agreed host.
+A and B use one selected River/Postgres communication boundary. On November 3,
+Tyler selected hosted Neon Postgres for the live intermediary, superseding the
+original Docker-hosted deployment choice. Local Docker Postgres remains available
+for isolated source tests.
 River clients/workers run in participant processes; a separate River broker is
 not required. The logical intermediary may share a physical computer with A or B.
 The workflow body does not move when it places a task.
@@ -313,8 +315,8 @@ code and review/spec notes remain under `ephemeral/`.
    and the actual River plugin/database for live claims; mocks cannot satisfy D6–D10.
    Do not commit a standalone specimen/proof program or relabel it as an example.
    Run focused checks and D1–D5b.
-4. Live checkpoint: reserve two real computers and one isolated Compose database
-   with their owners, then demonstrate D6–D8 using that opt-in integration test
+4. Live checkpoint: use the two real computers and the user-selected Neon database,
+   then demonstrate D6–D8 using that opt-in integration test
    and D10 in the running page for its actual run.
    Start a message-worker on A for its local tasks and a message-worker on B for
    remote tasks. The test/workflow process remains on A; the observer is independently

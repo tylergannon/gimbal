@@ -1,6 +1,6 @@
 // Package main is the runtime-loaded River/Postgres messaging plugin.
 // Build with go build -buildmode=plugin -o river.so ./plugins/messaging-river.
-// Configuration names a private DSNFile and explicitly selected action/control
+// Configuration names a private DSNFile or DSNEnv and explicitly selected action/control
 // queues and stable worker identities. Retained events and native ownership
 // survive a worker-process restart when its state directory is retained.
 package main
@@ -29,7 +29,8 @@ import (
 )
 
 type configuration struct {
-	DSNFile          string
+	DSNFile          string `json:",omitempty"`
+	DSNEnv           string `json:",omitempty"`
 	Queue            string
 	ControlQueue     string
 	Workers          int
@@ -50,8 +51,14 @@ func parse(raw json.RawMessage) (configuration, error) {
 	if err := decoder.Decode(new(any)); err != io.EOF {
 		return c, errors.New("river configuration must contain one JSON object")
 	}
-	if c.DSNFile == "" {
-		return c, errors.New("river messaging requires DSNFile pointing to a private PostgreSQL connection string")
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return c, err
+	}
+	_, hasFile := fields["DSNFile"]
+	_, hasEnv := fields["DSNEnv"]
+	if hasFile == hasEnv || (hasFile && c.DSNFile == "") || (hasEnv && c.DSNEnv == "") || strings.TrimSpace(c.DSNFile) != c.DSNFile || strings.TrimSpace(c.DSNEnv) != c.DSNEnv {
+		return c, errors.New("river messaging requires exactly one nonempty DSNFile or DSNEnv without surrounding whitespace")
 	}
 	if c.Queue == "" {
 		c.Queue = "gimbal"
@@ -105,14 +112,30 @@ type transport struct {
 func (t *transport) NamedEnvironments() bool { return len(t.config.Environments) != 0 }
 
 func open(ctx context.Context, c configuration) (*transport, error) {
-	dsn, err := os.ReadFile(c.DSNFile)
-	if err != nil {
-		return nil, fmt.Errorf("river DSN file: %w", err)
+	var dsn string
+	if c.DSNEnv != "" {
+		dsn = os.Getenv(c.DSNEnv)
+		if strings.TrimSpace(dsn) == "" {
+			return nil, errors.New("river DSN environment variable is missing or empty")
+		}
+	} else {
+		data, err := os.ReadFile(c.DSNFile)
+		if err != nil {
+			return nil, fmt.Errorf("river DSN file: %w", err)
+		}
+		dsn = string(data)
 	}
 	// pgx parse errors can contain the complete input, including a password.
-	pool, err := pgxpool.New(ctx, strings.TrimSpace(string(dsn)))
+	if strings.TrimSpace(dsn) == "" {
+		return nil, errors.New("river DSN is empty")
+	}
+	config, err := pgxpool.ParseConfig(strings.TrimSpace(dsn))
 	if err != nil {
-		return nil, errors.New("river DSN file contains an invalid PostgreSQL connection string")
+		return nil, errors.New("river DSN contains an invalid PostgreSQL connection string")
+	}
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		return nil, errors.New("river could not initialize PostgreSQL connection")
 	}
 	ok := false
 	defer func() {
@@ -420,7 +443,7 @@ func serve(ctx context.Context, raw json.RawMessage, resources backend.Dependenc
 func Register(registry *gimbal.Registry) error {
 	return registry.RegisterMessaging(gimbal.MessagingDefinition{ExecutionIdentity: true,
 		Name:                "river",
-		ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"required":["DSNFile"],"properties":{"DSNFile":{"type":"string","minLength":1,"description":"Private file containing the PostgreSQL DSN."},"Queue":{"type":"string","default":"gimbal"},"ControlQueue":{"type":"string","description":"Defaults to Queue plus _control."},"Workers":{"type":"integer","minimum":0,"default":4},"Environments":{"type":"object","additionalProperties":{"type":"string","minLength":1}},"WorkerID":{"type":"string"},"ReconnectSeconds":{"type":"integer","minimum":0,"default":30},"RebindFrom":{"type":"object","description":"Explicit rebinds: environment name to expected previous worker identity.","additionalProperties":{"type":"string","minLength":1}}}}`),
+		ConfigurationSchema: json.RawMessage(`{"type":"object","additionalProperties":false,"oneOf":[{"required":["DSNFile"]},{"required":["DSNEnv"]}],"properties":{"DSNFile":{"type":"string","minLength":1,"description":"Private file containing the PostgreSQL DSN."},"DSNEnv":{"type":"string","minLength":1,"description":"Environment variable containing the PostgreSQL DSN."},"Queue":{"type":"string","default":"gimbal"},"ControlQueue":{"type":"string","description":"Defaults to Queue plus _control."},"Workers":{"type":"integer","minimum":0,"default":4},"Environments":{"type":"object","additionalProperties":{"type":"string","minLength":1}},"WorkerID":{"type":"string"},"ReconnectSeconds":{"type":"integer","minimum":0,"default":30},"RebindFrom":{"type":"object","description":"Explicit rebinds: environment name to expected previous worker identity.","additionalProperties":{"type":"string","minLength":1}}}}`),
 		ValidateEnvironment: func(raw json.RawMessage, name string) error {
 			c, err := parse(raw)
 			if err != nil {

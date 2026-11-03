@@ -1,0 +1,1 @@
+friction: Presence-based River DSN selection rejected typed configurations because JSON marshaling emitted both selectors, including the empty one. Keep inactive selectors omitted while retaining presence-based validation for raw configuration.

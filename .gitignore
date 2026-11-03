@@ -46,3 +46,8 @@ docs-site/src/lib/generated/workflows/*.svg
 
 # Project-local frontend build freshness cache.
 .skgo/
+
+/.env
+/.env.local
+/.neon
+/node_modules/

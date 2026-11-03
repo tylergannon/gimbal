@@ -173,6 +173,28 @@ clarified that the app plugin already supplies skills, no additional installer
 was run. The current skill was fetched to a private local cache, not installed
 again. Preserve the generated Neon policy and all unrelated existing settings.
 
+The CLI's additional detected setup targets were Antigravity, Droid, Gemini CLI,
+Hermes, Junie, Kiro CLI, OpenCode, Pi, Windsurf and Zed. Its reported MCP targets:
+
+- `/Users/tyler/.gemini/config/mcp_config.json`
+- `/Users/tyler/.factory/mcp.json`
+- `/Users/tyler/.gemini/settings.json`
+- `/Users/tyler/.hermes/config.yaml`
+- `/Users/tyler/.junie/mcp/mcp.json`
+- `/Users/tyler/.kiro/settings/mcp.json`
+- `/Users/tyler/.config/opencode/opencode.jsonc`
+- `/Users/tyler/.pi/agent/mcp.json`
+- `/Users/tyler/.codeium/windsurf/mcp_config.json`
+- `/Users/tyler/Library/Application Support/Zed/settings.json`
+
+These files were verified to exist with Neon entries. The installed CLI delegates
+to add-mcp's keyed upsert/JSONC or YAML merge, retaining unrelated entries; no
+before-init byte snapshots exist, so this is not a byte-for-byte global diff.
+CLI browser login also cached its DEFAULT console OAuth profile; that token later
+expired. Database credentials remain in the intended ignored owner-only local
+env file and B's private env file. Obsolete operating copies were moved into
+owner-only retired-credentials directories outside Git, not claimed erased.
+
 Amrita's actual Gimbal River worker successfully connected to the public Neon
 endpoint and initialized the previously empty app database. This removes the
 LAN connection obstacle without changing macOS privacy/network settings. Terra

@@ -51,10 +51,11 @@ The test must clean up its trigger/function/locks on all exits and never affect
 other queues or databases. This is a suggestion, not a new authority contract;
 inspect the actual persistence/publication order before using it.
 
-Root prepared an owned Compose database, separate live database from source
-tests, private A/B state directories, and private route files. Ask root for the
-current concrete paths in the Gimbal assignment before operating participants.
-Credentials are files: never print contents. Do not touch other databases,
+Root prepared a user-selected Neon live database, a separate owned Compose
+database for source tests, private A/B state directories, and private route
+files. Ask root for the current concrete paths in the Gimbal assignment before
+operating participants. Live routes use DSNEnv=DATABASE_URL_UNPOOLED loaded from
+private environment files; never print credentials. Do not touch other databases,
 workers, Desktop, installed Gimbal or the shared Codex app-server daemon.
 
 Run appropriate tests/builds. Report exact changes, actual observed behavior and

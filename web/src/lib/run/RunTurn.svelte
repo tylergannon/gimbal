@@ -6,10 +6,20 @@
   import Payload from './detail/Payload.svelte';
   import Pip from './Pip.svelte';
   let { turn, ordinal, snapshot, observation, revision }: { turn: TurnRow; ordinal: number; snapshot: RunSnapshot; observation: RunObservation; revision: number } = $props();
+  const interactive = $derived(turn.output_type === 'gimbal.interactiveOutput');
+  const reply = $derived.by(() => {
+    if (!interactive || !turn.result) return undefined;
+    try {
+      const result = JSON.parse(turn.result);
+      return result?.decision?.type === 'chat' && typeof result.decision.message === 'string' ? result.decision.message : undefined;
+    } catch { return undefined; }
+  });
+  // Only this typed turn owns the envelope; decoded message content stays literal.
+  const protocol = (value: string | undefined) => interactive && !!value && /^\s*(?:```(?:json)?\s*)?\{\s*"decision"\s*:/.test(value);
   const session = $derived(snapshot.sessions[turn.session]);
   const structured = (value: string | undefined) => { if (!value) return false; try { const parsed = JSON.parse(value); return parsed !== null && typeof parsed === 'object'; } catch { return false; } };
   const recorded = $derived.by(() => { revision; return Object.values(observation.state(turn.id)?.message ?? {}).flat(); });
-  const drafts = $derived(recorded.flatMap(message => message.content ?? []).filter((part: JSONObject) => part.type === 'text' && structured(part.text) && part.text !== turn.result));
+  const drafts = $derived(recorded.flatMap(message => message.content ?? []).filter((part: JSONObject) => part.type === 'text' && (interactive ? protocol(part.text) : structured(part.text)) && part.text !== turn.result));
   const toolCount = $derived(recorded.flatMap(message => message.content ?? []).filter((part: JSONObject) => part.type === 'tool').length);
   const messages = $derived.by(() => {
     revision;
@@ -18,7 +28,7 @@
     // than appearing repeatedly as prose while a provider finalizes it.
     return recorded.filter((message, index) => !(index === 0 && message.type === 'user')).map((message): JSONObject => ({ ...message,
       content: message.content?.filter((part: { type?: string; text?: string }) => {
-        return part.type !== 'text' || !structured(part.text);
+        return part.type !== 'text' || !(interactive ? protocol(part.text) || (reply !== undefined && part.text === reply) : structured(part.text));
       }),
     }));
   });
@@ -28,13 +38,15 @@
 <article class="turn" aria-label={`Turn ${ordinal}`}>
   <div class="turn-head"><b>Turn {ordinal}</b><span>·</span><span>{turn.scope || session?.name || 'root'}</span><span>·</span><Pip state={turn.unresolved ? 'needs-you' : turn.interrupted ? 'cancelled' : !turn.ended ? 'running' : turn.error && !turn.interrupted ? 'failed' : 'ended'} /><span>{turn.unresolved ? 'delivery unresolved' : !turn.ended ? 'running' : turn.interrupted ? 'stopped' : turn.error ? 'failed' : 'ended'}</span><span>·</span><span>{Math.floor(seconds / 60)}m {String(seconds % 60).padStart(2, '0')}s</span><span>·</span><span>{toolCount} tool calls</span></div>
   <div class="prose"><ConversationTranscript {messages} {revision} {messageRevisions} provider={session?.name || 'Agent'} model={session?.model || ''} location={session?.workdir || ''} compact /></div>
-  {#if !messages.length}<p class="empty">{turn.events_unavailable ? 'Transcript events are unavailable for this turn.' : turn.ended ? 'No transcript recorded for this turn.' : 'Waiting for transcript events…'}</p>{/if}
+  {#if !messages.length && reply === undefined}<p class="empty">{turn.events_unavailable ? 'Transcript events are unavailable for this turn.' : turn.ended ? 'No transcript recorded for this turn.' : 'Waiting for transcript events…'}</p>{/if}
+  {#if reply !== undefined}<p class="reply">{reply}</p>{/if}
   {#if turn.error}<p class="error">{turn.error}</p>{/if}
   {#if turn.observation_error}<p class="empty">{turn.observation_error}</p>{/if}
   {#if drafts.length}<details><summary>Structured response drafts · {drafts.length} events</summary>{#each drafts as draft, index (index)}<Payload label={`draft ${index+1}`} text={draft.text} />{/each}</details>{/if}
-  {#if turn.result}<details open><summary>Structured result</summary><Payload label="result" text={turn.result} /></details>{/if}
+  {#if turn.result}<details open={!interactive}><summary>Structured result</summary><Payload label="result" text={turn.result} /></details>{/if}
   <details><summary>Prompt & context</summary><Payload label="prompt" text={turn.prompt} />{#each turn.context ?? [] as item (`${item.scope}:${item.key}`)}<p class="empty">{item.key} · {item.scope || 'root'} · {item.complete ? 'complete' : 'shortened or omitted'}</p>{/each}</details>
 </article>
 <style>
+  .reply { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 15px/22px var(--font-sans); }
   .turn { display: flex; flex-direction: column; gap: 12px; min-width: 0; } .turn-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--muted-foreground); font: 12px/16px var(--font-sans); } b { font-weight: 500; color: var(--foreground); } .prose { display: flex; flex-direction: column; gap: 18px; } details { font-size: 12px; color: var(--muted-foreground); } summary { cursor: pointer; } .empty { margin: 0; font-size: 12px; line-height: 1.6; color: var(--muted-foreground); } .error { margin: 0; font-size: 13px; white-space: pre-wrap; color: var(--destructive); }
 </style>

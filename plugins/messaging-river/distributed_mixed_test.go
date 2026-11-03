@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,7 +62,11 @@ func TestDistributedMixedOwnedParticipants(t *testing.T) {
 	if err != nil {
 		t.Fatalf("external setup: River unavailable: %v", err)
 	}
-	defer bus.Close()
+	defer func() {
+		if err := bus.Close(); err != nil {
+			t.Errorf("close River: %v", err)
+		}
+	}()
 	input, _ := json.Marshal(map[string]string{"remote_dir": remoteDir})
 	accepted, err := web.Start(ctx, instance, invocation.Request{Workflow: "distributed-mixed-test", Input: input, Project: project, WorkDir: project, TaskRoute: route})
 	if err != nil {
@@ -105,7 +111,10 @@ func TestDistributedMixedOwnedParticipants(t *testing.T) {
 	}
 	// Replay once more after completion, asserting the independent subscriber
 	// retained its original identities and that both workers admitted real work.
-	local, remote, turns := false, false, map[string]bool{}
+	local, remote := false, false
+	turns := map[string]string{}
+	comparedTurns := map[string]bool{}
+	var localOutput []byte
 	replayed := 0
 	sessions := map[string]bool{}
 	replayEnd := errors.New("replayed")
@@ -116,6 +125,12 @@ func TestDistributedMixedOwnedParticipants(t *testing.T) {
 			if previous.RequestID != e.RequestID || previous.Source != e.Source || previous.Sequence != e.Sequence {
 				return fmt.Errorf("event identity changed: %s", e.ID)
 			}
+			if previous.Result != nil && (e.Result == nil || !bytes.Equal(previous.Result.Output, e.Result.Output) || !bytes.Equal(previous.Result.Stdout, e.Result.Stdout)) {
+				return fmt.Errorf("replayed result bytes changed: %s", e.ID)
+			}
+			if previous.WorkerID == "worker-b" && previous.Kind == "completed" && previous.Result != nil && len(previous.Result.Output) > 0 {
+				comparedTurns[e.RequestID] = true
+			}
 			replayed++
 		}
 		if e.Kind == "accepted" && e.WorkerID == "worker-a" && e.Environment == "workflow-local" {
@@ -124,13 +139,20 @@ func TestDistributedMixedOwnedParticipants(t *testing.T) {
 		if e.Kind == "accepted" && e.WorkerID == "worker-b" && e.Environment == "task-remote" {
 			remote = true
 		}
+		if e.Kind == "completed" && e.WorkerID == "worker-a" && e.Result != nil && e.Result.Process != nil {
+			localOutput = append([]byte(nil), e.Result.Stdout...)
+		}
 		if e.Kind == "completed" && e.WorkerID == "worker-b" && e.Result != nil && len(e.Result.Output) > 0 {
-			turns[e.RequestID] = true
+			var output string
+			if err := json.Unmarshal(e.Result.Output, &output); err != nil {
+				return fmt.Errorf("invalid turn output %s: %w", e.RequestID, err)
+			}
+			turns[e.RequestID] = strings.TrimSpace(output)
 			if e.SessionID != "" {
 				sessions[e.SessionID] = true
 			}
 		}
-		if local && remote && len(turns) >= 2 && replayed > 0 {
+		if local && remote && len(localOutput) > 0 && len(turns) >= 2 && len(comparedTurns) >= 2 {
 			return replayEnd
 		}
 		return nil
@@ -140,6 +162,23 @@ func TestDistributedMixedOwnedParticipants(t *testing.T) {
 	}
 	if len(sessions) != 1 {
 		t.Fatalf("remote turn session identities: %v", sessions)
+	}
+	parts := strings.Split(strings.TrimSpace(string(localOutput)), "\n")
+	if len(parts) != 3 {
+		t.Fatalf("invalid replayed local output: %q", localOutput)
+	}
+	first, followup := false, false
+	for _, output := range turns {
+		lines := strings.Split(output, "\n")
+		if len(lines) == 5 && lines[0] != "" && lines[0] != parts[0] && lines[1] == parts[1] && lines[2] == "buried-"+parts[2] && lines[3] == "file-"+parts[1] && lines[4] == "child-value" {
+			first = true
+		}
+		if output == "file-"+parts[1] {
+			followup = true
+		}
+	}
+	if !first || !followup {
+		t.Fatalf("replayed turn content does not match local values: first=%t followup=%t", first, followup)
 	}
 	t.Logf("replayed %d observed event identities; two remote turn outputs arrived through River", replayed)
 }

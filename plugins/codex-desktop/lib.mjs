@@ -123,7 +123,7 @@ export class Worker {
       if (typeof requestId !== 'string' || !requestId.trim() || typeof prompt !== 'string' || !prompt.trim() || !target) {
         throw fail('invalid_request', 'start requires requestId, prompt and a desktop create_thread target.');
       }
-      const model = request.model || 'gpt-5.6-luna';
+      const model = request.model || 'gpt-6-luna';
       const input = { prompt, target, model, ...(request.thinking ? { thinking: request.thinking } : {}) };
       const fingerprint = createHash('sha256').update(JSON.stringify({ input, requiredApps: request.requiredApps || [] })).digest('hex');
       const previous = Object.hasOwn(this.ledger.requests, requestId) ? this.ledger.requests[requestId] : undefined;

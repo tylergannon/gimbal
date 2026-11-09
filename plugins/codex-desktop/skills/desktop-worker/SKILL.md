@@ -22,7 +22,7 @@ store or automatically approve GUI prompts.
 Before work, call `status` with the required native bundle IDs. Saved approval is
 not proof of OS permission or successful computer use. Submit authorized work
 with a stable `requestId`, a real desktop target, and local absolute paths for any
-requirements files. Default to `gpt-5.6-luna` unless a model was explicitly chosen.
+requirements files. Default to `gpt-6-luna` unless a model was explicitly chosen.
 Inspect running work through `read`; it attempts archive-and-stop when approval
 is required and returns an explicit failure. Check cancellationConfirmed and retry
 `cancel` if cleanup is unconfirmed. Declared requiredApps are preflight, not app

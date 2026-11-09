@@ -80,7 +80,7 @@ node client.mjs --timeout-ms 60000 <<'JSON'
 JSON
 
 node client.mjs <<'JSON'
-{"method":"start","requestId":"textedit-check-001","prompt":"Use TextEdit to inspect the open document and report its title.","model":"gpt-5.6-luna","target":{"type":"projectless"},"requiredApps":["com.apple.TextEdit"]}
+{"method":"start","requestId":"textedit-check-001","prompt":"Use TextEdit to inspect the open document and report its title.","model":"gpt-6-luna","target":{"type":"projectless"},"requiredApps":["com.apple.TextEdit"]}
 JSON
 ```
 
@@ -92,7 +92,7 @@ saved files by absolute path.
 | Method | Request fields | Behavior |
 | --- | --- | --- |
 | `status` | Optional `requiredApps` array of bundle IDs | Bound owner, saved approvals, readiness scope, and request ledger |
-| `start` | `requestId`, `prompt`, `target`; optional `model`, `thinking`, `requiredApps` | Creates one task; defaults to `gpt-5.6-luna` |
+| `start` | `requestId`, `prompt`, `target`; optional `model`, `thinking`, `requiredApps` | Creates one task; defaults to `gpt-6-luna` |
 | `read` | `threadId` | Recent native task state and outputs |
 | `message` | `threadId`, `prompt` | Sends a follow-up; active-turn steering is not guaranteed |
 | `cancel` | `threadId` | Archives the task and verifies that it is unloaded with no observed running turn |

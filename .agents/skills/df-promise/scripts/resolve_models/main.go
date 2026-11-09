@@ -2,15 +2,18 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -170,7 +173,20 @@ func invocation(skill, role string, fields spec) (*string, []string, error) {
 		}
 	}
 	if cli == "" {
-		return nil, nil, fmt.Errorf("unsupported model prefix: %s", model)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		output, err := exec.CommandContext(ctx, "gimbal", "resolve-model", model).Output()
+		if err != nil {
+			return nil, nil, fmt.Errorf("resolve alias %q with the Gimbal CLI on PATH: %w", model, err)
+		}
+		var resolved struct{ Model, Harness string }
+		if err := json.Unmarshal(output, &resolved); err != nil {
+			return nil, nil, fmt.Errorf("decode model alias: %w", err)
+		}
+		if resolved.Model == "" || (resolved.Harness != "codex" && resolved.Harness != "claude" && resolved.Harness != "agy") {
+			return nil, nil, fmt.Errorf("unsupported model alias %q", model)
+		}
+		model, cli = resolved.Model, resolved.Harness
 	}
 	if strings.HasPrefix(skill, "df-easy-loop-") && cli == "agy" {
 		return nil, nil, fmt.Errorf("easy loop supports Claude and Codex models only")

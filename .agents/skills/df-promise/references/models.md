@@ -20,26 +20,26 @@ Both files use the same schema (include only the overrides you want):
 skills:
   df-easy-loop-e2e:
     coding:
-      model: gpt-6-astra
+      model: astra
       reasoning_effort: high
   df-easy-loop-simple:
     plan:
-      model: claude-fable-5-1
+      model: fable
   df-sprint-plan:
     claude:
-      model: claude-fable-5-1
+      model: fable
   df-sprint-execute:
     codex:
-      model: gpt-6-astra
+      model: astra
   df-chapter-create:
     main:
-      model: claude-fable-5-1
+      model: fable
   df-semantic-index:
     reader:
-      model: gpt-6-astra
+      model: astra
   df-promise:
     main:
-      model: gpt-6-astra
+      model: astra
 ```
 
 Use the bundled `scripts/resolve_models` Go module beside the **loaded**
@@ -103,3 +103,5 @@ not permission to substitute a different model or discard independence.
 
 This bundled Go port is maintained locally. A borrowed-skill refresh must preserve
 its Go entry points and test them; it must not restore executable Python helpers.
+
+Role models use unversioned Gimbal aliases. Install the matching Gimbal CLI on PATH; the helper resolves aliases with `gimbal resolve-model` before building provider-native CLI arguments. Keep model version pointers in Gimbal’s central catalog.

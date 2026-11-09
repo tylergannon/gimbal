@@ -51,6 +51,19 @@ func TestYAMLRejectsDuplicateOrInvalidKeys(t *testing.T) {
 	}
 }
 func TestBundledDefaults(t *testing.T) {
+	bin := t.TempDir()
+	resolver := filepath.Join(bin, "gimbal")
+	put(t, resolver, `#!/bin/sh
+case "$2" in
+ fable) echo '{"Model":"claude-test","Harness":"claude"}' ;;
+ astra) echo '{"Model":"gpt-test","Harness":"codex"}' ;;
+ *) exit 1 ;;
+esac
+`)
+	if err := os.Chmod(resolver, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -96,5 +109,22 @@ func TestPartialOverrideSourcesAndErrors(t *testing.T) {
 		if _, err := resolve(skill, project, user); err != nil {
 			t.Fatalf("%q: %v", text, err)
 		}
+	}
+}
+
+func TestAliasUsesCentralResolverArguments(t *testing.T) {
+	bin := t.TempDir()
+	resolver := filepath.Join(bin, "gimbal")
+	put(t, resolver, `#!/bin/sh
+[ "$1" = resolve-model ] && [ "$2" = astra ] || exit 1
+echo '{"Model":"gpt-central-fixture","Harness":"codex"}'
+`)
+	if err := os.Chmod(resolver, 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	cli, args, err := invocation("df-sprint-plan", "codex", spec{"model": "astra", "reasoning_effort": "medium"})
+	if err != nil || cli == nil || *cli != "codex" || len(args) != 4 || args[1] != "gpt-central-fixture" {
+		t.Fatalf("%v %v %v", cli, args, err)
 	}
 }

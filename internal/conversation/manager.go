@@ -685,35 +685,23 @@ func (m *Manager) save(item *Conversation) error {
 // harness prefix (a bare "gpt-5-nano" resolves to Codex), so the selected
 // provider decides the prefix rather than the model string's shape.
 func providerModel(provider, model string) (string, string, error) {
-	switch provider {
-	case "codex":
-		if model == "" {
-			model = "gpt-6-luna"
+	if model == "" {
+		name := map[string]string{"codex": "luna", "claude": "haiku", "agy": "flash", "pi": "deepseek-flash"}[provider]
+		selection := modelalias.Selection{Name: name}
+		if provider == "agy" {
+			selection.Effort, selection.EffortPresent = "low", true
 		}
-		if !strings.HasPrefix(model, "gpt-") && !strings.HasPrefix(model, "o1") && !strings.HasPrefix(model, "o3") && !strings.HasPrefix(model, "o4") {
-			return "", "", fmt.Errorf("conversation: model %q is not a Codex model", model)
-		}
-		return model, "", nil
-	case "claude":
-		if model == "" {
-			resolved, err := modelalias.Resolve(modelalias.Selection{Name: "haiku"})
+		if name != "" {
+			resolved, err := modelalias.Resolve(selection)
 			if err != nil {
-				return "", "", fmt.Errorf("conversation: resolve default Claude model: %w", err)
+				return "", "", fmt.Errorf("conversation: resolve default %s model: %w", provider, err)
 			}
 			model = resolved.Model
 		}
-		if !strings.HasPrefix(model, "claude-") {
-			return "", "", fmt.Errorf("conversation: model %q is not a Claude model", model)
-		}
-		return model, "", nil
-	case "agy":
-		if model == "" {
-			model = "gemini-3.8-flash-low"
-		}
-		if !strings.HasPrefix(model, "gemini-") {
-			return "", "", fmt.Errorf("conversation: model %q is not an agy/Gemini model", model)
-		}
-		return model, "", nil
+	}
+	switch provider {
+	case "codex", "claude", "agy":
+		return providerSelection(provider, model)
 	case "opencode":
 		if model == "" {
 			return "", "", errors.New("conversation: choose an OpenCode model from this machine's catalog")
@@ -723,9 +711,6 @@ func providerModel(provider, model string) (string, string, error) {
 		}
 		return providerSelection(provider, model)
 	case "pi":
-		if model == "" {
-			model = "pi/diffusion/deepseek-4.1-flash"
-		}
 		if strings.HasPrefix(model, "diffusion/") {
 			model = "pi/" + model
 		}

@@ -9,7 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/tylergannon/gimbal"
-	"github.com/tylergannon/gimbal/codex"
+	"github.com/tylergannon/gimbal/internal/binding"
 	"github.com/tylergannon/gimbal/internal/workflows/notebook"
 	"github.com/tylergannon/gimbal/runstore"
 	"os"
@@ -23,7 +23,7 @@ func main() {
 	project := flag.String("project", "", "fresh local directory for run records")
 	revision := flag.String("revision", "", "evaluated Gimbal Git revision")
 	output := flag.String("output", "", "evaluation JSON destination")
-	model := flag.String("model", "gpt-6.1-sol", "Codex model for author and independent reviewer")
+	model := flag.String("model", "sol", "Codex model for author and independent reviewer")
 	effort := flag.String("effort", "medium", "reasoning effort for author and reviewer")
 	flag.Parse()
 	if (*example != "semantic-index" && *example != "sprint-plan") || *fixture == "" || *project == "" || *output == "" || *revision == "" {
@@ -44,10 +44,13 @@ func main() {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		panic(err)
 	}
-	adapter := codex.New()
+	selected, err := binding.Parse(*model + ":" + *effort)
+	if err != nil {
+		panic(err)
+	}
 	models := map[gimbal.WorkflowRole]gimbal.ModelBinding{}
 	for _, role := range []gimbal.WorkflowRole{gimbal.RoleBulkClassification, gimbal.RoleSprintPlanning, gimbal.RoleCodeReview} {
-		models[role] = gimbal.ModelBinding{Adapter: adapter, Model: *model, Effort: *effort}
+		models[role] = selected
 	}
 	started := time.Now().UTC()
 	ctx, cancel := context.WithTimeout(gimbal.Project(context.Background(), dir), 8*time.Minute)
@@ -76,7 +79,7 @@ func main() {
 			ids = append(ids, run.Name())
 		}
 	}
-	record := map[string]any{"example": *example, "gimbalRevision": *revision, "model": *model, "effort": *effort, "harness": "Codex app-server", "startedAt": started.Format(time.RFC3339), "finishedAt": time.Now().UTC().Format(time.RFC3339), "fixtureSHA256": hex.EncodeToString(digest[:]), "status": status, "error": failure, "runIDs": ids, "result": result, "scope": "bounded fixture; structural checks and independent agent review; informational, not a release gate"}
+	record := map[string]any{"example": *example, "gimbalRevision": *revision, "model": selected.Model, "effort": *effort, "harness": "Codex app-server", "startedAt": started.Format(time.RFC3339), "finishedAt": time.Now().UTC().Format(time.RFC3339), "fixtureSHA256": hex.EncodeToString(digest[:]), "status": status, "error": failure, "runIDs": ids, "result": result, "scope": "bounded fixture; structural checks and independent agent review; informational, not a release gate"}
 	data, _ := json.MarshalIndent(record, "", "  ")
 	if writeErr := os.WriteFile(*output, append(data, '\n'), 0600); writeErr != nil {
 		panic(writeErr)

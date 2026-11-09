@@ -9,7 +9,7 @@ gpt, deepseek-flash, glm, glm-flash, glm-vision) are listed in
 `internal/modelcatalog/main.go`; each unversioned alias resolves to the newest
 version found, so a new version of a tracked family needs no hand edit. To track
 a new family, add a line to that list (a new provider also needs its models
-fetched there). The hand-kept exception is Gemini `flash`, in
+fetched there). The hand-kept exceptions are Gemini `flash` and `pro`, in
 `internal/modelalias/modelalias.go`.
 
 The scheduled `Refresh model catalog` Actions job runs the same command daily
@@ -21,9 +21,13 @@ publish a release. Branch pushes use the checkout's default GitHub token;
 repository with Pull requests read/write and mandatory Metadata read-only. PR
 creation with that token allows the PR event to trigger downstream Actions.
 
-Review new and removed model IDs before merging. Aliases follow the catalog, but
-built-in role defaults in `internal/builtin/defaults.json` and other configured
-defaults, help, and skills name explicit models: update those to the new version
-where it applies, keeping each role's intended model tier. Check the rendered
-`gimbal run` role flags, not only the JSON. Tests for aliases should cover
-resolution and overrides without fixing a moving shorthand to today's version.
+Review new and removed model IDs before merging. Role defaults, examples and
+skills use unversioned aliases, with effort when needed (for example `sol:high`,
+`astra:medium`, `flash:medium`, or `luna`). They must not pin provider-native
+versions. A model refresh changes the central alias catalog; it does not require
+editing role defaults or examples. Gemini Flash and Pro version pointers live
+in `internal/modelalias/modelalias.go`. Resolve aliases at provider boundaries.
+Keep explicit model IDs only where behavior truly depends on that exact version,
+such as provider capability tests and historical fixtures. Tests for aliases
+must cover resolution and overrides without fixing a moving shorthand to today's
+version. Check rendered `gimbal run` role flags show aliases.

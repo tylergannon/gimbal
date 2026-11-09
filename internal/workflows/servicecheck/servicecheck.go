@@ -5,13 +5,13 @@
 //
 // The execution environment needs Docker, psql, Node, and access to the
 // postgres:17-alpine image. Services are stopped when their declaring scope ends.
-// The default devops-tasks model is gpt-6-luna; --devops-tasks overrides it.
+// The default devops-tasks model is luna; --devops-tasks overrides it.
 // Success means the database query, web response, and agent's fetched response
 // all contain GIMBAL_SERVICE_OK, followed by successful scoped cleanup.
 //
 // Example:
 //
-//	gimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks gpt-6-luna
+//	gimbal run service-check --work-dir /abs/work --task-route @/abs/route.json --devops-tasks luna
 package servicecheck
 
 import (

@@ -81,7 +81,7 @@ jobs:
           cat > /tmp/model-catalog-pr.md <<'EOF'
           Scheduled refresh from models.dev and the Diffusion Router. The commit regenerates the model-price table, the model aliases (haiku, sonnet, opus, fable, luna, terra, sol, astra, gpt, deepseek-flash, glm, glm-flash, glm-vision), and the Diffusion model limits. Each unversioned alias already points at the newest version in the catalog.
 
-          Before merging, inspect added and removed model IDs. Review the built-in role defaults in `internal/builtin/defaults.json` and other configured defaults, help, and skills: they name explicit models and do not follow an alias. Preserve each role's intended model tier. Do not add assertions that pin a moving shorthand to one version.
+          Before merging, inspect added and removed model IDs. Role defaults, examples, help, and skills must use unversioned aliases so a catalog refresh updates them together. Keep provider-native version pointers in the central alias catalog; do not pin roles to model versions. Do not add assertions that pin a moving shorthand to one version.
 
           Follow `skills/gimbal-release/references/model-catalog.md` for model review, then the normal Automatic release pipeline after merge. Verify the published version and updater feed; do not repeat unchanged builds at commit, merge, or tag milestones.
           EOF

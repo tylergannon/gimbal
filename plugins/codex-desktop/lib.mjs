@@ -3,6 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import net from 'node:net';
 import { randomUUID, createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 export const maxBytes = 4 * 1024 * 1024;
 export const defaultDirectory = () => process.env.GIMBAL_DESKTOP_DIR || path.join(os.homedir(), '.gimbal', 'codex-desktop');
@@ -72,12 +74,22 @@ export function desktopCall(pipe, caller, tool, args, timeoutMs = 30000) {
   });
 }
 
+export async function resolveDesktopModel(selection) {
+  const { stdout } = await promisify(execFile)('gimbal', ['resolve-model', selection], { timeout: 10000 });
+  const resolved = JSON.parse(stdout);
+  if (resolved.Harness !== 'codex' || !resolved.Model) {
+    throw fail('invalid_model', 'The desktop worker requires a Codex model alias.');
+  }
+  return resolved.Model;
+}
+
 export class Worker {
-  constructor(directory, caller, call, readiness = appReadiness) {
+  constructor(directory, caller, call, readiness = appReadiness, resolveModel = resolveDesktopModel) {
     this.directory = directory;
     this.caller = caller;
     this.call = call;
     this.readiness = readiness;
+    this.resolveModel = resolveModel;
     this.ledger = { version: 1, ownerThreadId: caller.thread_id, requests: {} };
     this.tail = Promise.resolve();
   }
@@ -123,7 +135,7 @@ export class Worker {
       if (typeof requestId !== 'string' || !requestId.trim() || typeof prompt !== 'string' || !prompt.trim() || !target) {
         throw fail('invalid_request', 'start requires requestId, prompt and a desktop create_thread target.');
       }
-      const model = request.model || 'gpt-6-luna';
+      const model = request.model || 'luna';
       const input = { prompt, target, model, ...(request.thinking ? { thinking: request.thinking } : {}) };
       const fingerprint = createHash('sha256').update(JSON.stringify({ input, requiredApps: request.requiredApps || [] })).digest('hex');
       const previous = Object.hasOwn(this.ledger.requests, requestId) ? this.ledger.requests[requestId] : undefined;
@@ -134,6 +146,7 @@ export class Worker {
       }
       const apps = await this.readiness(request.requiredApps);
       if (apps.missing.length) throw fail('native_app_not_provisioned', 'During one-time native app provisioning, choose Always allow in the actual app-access prompt before submitting work; review saved access in Codex Settings > Computer Use.', { missing: apps.missing });
+      input.model = await this.resolveModel(model);
       const entry = { fingerprint, state: 'starting', startedAt: new Date().toISOString() };
       Object.defineProperty(this.ledger.requests, requestId, { value: entry, enumerable: true, writable: true, configurable: true });
       await this.save();

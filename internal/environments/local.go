@@ -58,11 +58,18 @@ func localFactsFor(lookPath func(string) (string, error)) (string, []Harness) {
 	hs := []Harness{}
 	for _, id := range []string{"claude", "codex", "agy", "opencode", "pi"} {
 		h := Harness{ID: id, Models: models[id], State: HarnessUnknown, Detail: "Sign-in has not been verified on this machine"}
-		defaults := map[string]string{"claude": "haiku", "codex": "gpt-6-luna", "agy": "gemini-3.8-flash-low", "pi": "pi/diffusion/deepseek-4.1-flash"}
+		defaults := map[string]string{"claude": "haiku", "codex": "luna", "agy": "flash", "pi": "deepseek-flash"}
 		h.Default = defaults[id]
 		// OpenCode and Pi native ids do not name their harness; their selection does.
-		if resolved, e := modelalias.Resolve(modelalias.Selection{Name: h.Default}); e == nil && id != "opencode" && id != "pi" {
+		selection := modelalias.Selection{Name: h.Default}
+		if id == "agy" {
+			selection.Effort, selection.EffortPresent = "low", true
+		}
+		if resolved, e := modelalias.Resolve(selection); e == nil {
 			h.Default = resolved.Model
+			if id == "pi" {
+				h.Default = "pi/" + h.Default
+			}
 		}
 		if h.Default != "" && !slices.Contains(h.Models, h.Default) {
 			h.Models = append([]string{h.Default}, h.Models...)

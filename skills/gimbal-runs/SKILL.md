@@ -128,7 +128,7 @@ curl -fsS https://router.diffusion.io/v1/models \
 ```
 
 Prefix a chosen open-weight ID with `pi/diffusion/` on a workflow role flag or
-`gimbal run-prompt --model`, for example `pi/diffusion/deepseek-4.1-flash-background`.
+`gimbal run-prompt --model`, for example `deepseek-flash`.
 Gimbal does not require models.dev to route these models. Set
 `DIFFUSION_API_KEY` in the server environment. The Pi harness runs natively
 in the Gimbal process; it does not require a separate Pi, Bun, or Node
@@ -236,7 +236,7 @@ The `service-check` workflow needs Docker, psql, Node, and an agent harness
 in the daemon environment. It owns Postgres and a web service, publishes scoped
 connection values, queries the database through parallel consumers, and has an
 agent fetch the web response using a Gimbal secrets callback. Use a fresh work
-directory and an explicit inexpensive model such as `gpt-6-luna`.
+directory and an explicit inexpensive model such as `luna`.
 
 Workers and callers share local paths in this implementation. Retained daemon
 indexes and executor records preserve session and operation identity after

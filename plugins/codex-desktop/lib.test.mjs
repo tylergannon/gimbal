@@ -11,7 +11,7 @@ const start = { method: 'start', requestId: 'one', prompt: 'bounded task', targe
 async function fixture(t, call, readiness = async () => ({ approved: [], missing: [] })) {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gimbal-desktop-'));
   t.after(() => fs.rm(directory, { recursive: true, force: true }));
-  const worker = new Worker(directory, caller, call, readiness);
+  const worker = new Worker(directory, caller, call, readiness, async alias => alias);
   await worker.load();
   return worker;
 }
@@ -119,4 +119,32 @@ test('bridge decodes fragmented framed response and forwards real context', asyn
   await new Promise(resolve => server.listen(socketPath, resolve));
   t.after(() => server.close());
   assert.deepEqual(await desktopCall(socketPath, caller, 'create_thread', {}), { threadId: 'native1' });
+});
+
+
+test('aliases resolve only on new starts and catalog changes do not replay existing work', async t => {
+  const inputs = [];
+  let native = 'gpt-fixture-before';
+  let resolutions = 0;
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'gimbal-model-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const worker = new Worker(directory, caller, async (name, input) => {
+    assert.equal(name, 'create_thread');
+    inputs.push(input);
+    return { threadId: `native${inputs.length}` };
+  }, async () => ({ approved: [], missing: [] }), async alias => {
+    resolutions++;
+    assert.ok(['luna', 'terra'].includes(alias));
+    return native;
+  });
+  await worker.load();
+  await worker.handle(start);
+  assert.equal(inputs[0].model, 'gpt-fixture-before');
+  native = 'gpt-fixture-after';
+  await worker.handle(start);
+  assert.equal(resolutions, 1);
+  assert.equal(inputs.length, 1);
+  await worker.handle({ ...start, requestId: 'two', model: 'terra', thinking: 'medium' });
+  assert.equal(inputs[1].model, 'gpt-fixture-after');
+  assert.equal(inputs[1].thinking, 'medium');
 });

@@ -14,6 +14,8 @@ func TestResolve(t *testing.T) {
 		{Selection{Name: "gpt"}, "codex", "high"},
 		{Selection{Name: "fable"}, "claude", "high"},
 		{Selection{Name: "flash"}, "agy", "medium"},
+		{Selection{Name: "pro"}, "agy", "high"},
+		{Selection{Name: "pro", Effort: "low", EffortPresent: true}, "agy", "low"},
 		{Selection{Name: "opus"}, "claude", "high"},
 		{Selection{Name: "sonnet"}, "claude", "high"},
 		{Selection{Name: "haiku"}, "claude", "high"},

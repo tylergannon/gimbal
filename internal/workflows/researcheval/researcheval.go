@@ -586,8 +586,8 @@ func materializeSuite(ctx context.Context, dir string) error {
 }
 func loadCandidates(ctx context.Context, root string, file polytype.Optional[string]) ([]candidate, error) {
 	models := []struct{ id, model string }{
-		{"flash", "gemini-3.8-flash-medium"}, {"luna", "gpt-6-luna"},
-		{"terra", "gpt-6.1-terra"}, {"haiku", "claude-haiku-5-5"}, {"sonnet", "claude-sonnet-5-5"},
+		{"flash", "flash:medium"}, {"luna", "luna"},
+		{"terra", "terra"}, {"haiku", "haiku"}, {"sonnet", "sonnet"},
 	}
 	var list []candidate
 	for _, research := range models {

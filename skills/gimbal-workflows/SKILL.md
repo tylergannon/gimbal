@@ -231,7 +231,7 @@ Generate an external module with the installed host:
 
 ```sh
 gimbal generate --dir . --entry Review --name review \
-  --role-default code-review=gpt-6-luna
+  --role-default code-review=luna
 ```
 
 Declare `github.com/tylergannon/polytype/polytype` as a Go tool in the project's

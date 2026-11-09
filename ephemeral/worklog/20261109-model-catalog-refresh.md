@@ -13,3 +13,5 @@ friction: Fresh-worktree generation and broad CLI tests require installed Svelte
 friction: The inherited GH_TOKEN is invalid; env -u GH_TOKEN -u GITHUB_TOKEN gh uses the working stored GitHub authentication.
 
 decision: All fourteen existing shorthand families were checked against fresh source catalogs (Gemini flash checked separately against Google). Gemini 4 Argon is a separate new model line in Google documentation, absent from models.dev and not a new Flash or Pro version; this refresh does not invent an alias or replace the chosen Pro tier.
+
+correction: User rejected updating versioned role pointers: roles and examples must always name aliases, so a model upgrade changes exactly one central location. The earlier refresh guidance explicitly instructed repinning defaults; replaced that guidance and the automated PR instructions. Converted all active roles/examples/candidate lists and native boundary defaults to aliases; added Gemini pro centrally and a standalone central resolver for the JS desktop boundary. Initial narrow validation missed this architectural requirement.

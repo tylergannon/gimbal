@@ -28,7 +28,7 @@ var Workflows = []Workflow{
 	{Package: "validateproduct", Entry: "ValidateProduct", Name: "validate-product", Command: "validateproduct_gen.go"},
 }
 
-// defaults.json assigns models to the established roles in roles.go. It is not
+// defaults.json assigns unversioned model aliases to the established roles. It is not
 // a place to invent workflow- or provider-specific roles. Existing noncatalog
 // entries require migration; do not copy that pattern into new workflows.
 // Track that work at https://github.com/tylergannon/gimbal-view/issues/14.

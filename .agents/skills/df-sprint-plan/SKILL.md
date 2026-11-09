@@ -34,9 +34,9 @@ model_defaults:
   main:
     model: inherit
   claude:
-    model: claude-fable-5-1
+    model: fable
   codex:
-    model: gpt-6-astra
+    model: astra
   gemini:
     model: cli-default
 ```
@@ -51,8 +51,8 @@ Everything in `$ARGUMENTS` is the **seed prompt** — the user's description of 
 
 In the commands below, replace `<claude-model-args>`, `<codex-model-args>`,
 and `<gemini-model-args>` with the corresponding resolved `model_args` argv,
-shell-quoting each argument. Defaults expand to `--model claude-fable-5-1`,
-`--model gpt-6-astra`, and no Gemini model flag. Never run literal placeholders.
+shell-quoting each argument. The helper resolves `fable` and `astra` through Gimbal’s central catalog
+before producing native CLI arguments; Gemini uses no model flag. Never run literal placeholders.
 Use the same assignments for preflight and every later call. If a configured
 model is unavailable, report that error instead of silently using a CLI default.
 

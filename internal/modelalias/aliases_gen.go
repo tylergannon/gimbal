@@ -7,6 +7,7 @@ var generatedFamilies = []familyVersion{
 	{family: "deepseek-flash", provider: "diffusion", version: "4.1", native: "diffusion/deepseek-4.1-flash"},
 	{family: "fable", provider: "anthropic", version: "5", native: "claude-fable-5"},
 	{family: "fable", provider: "anthropic", version: "5.1", native: "claude-fable-5-1"},
+	{family: "fable", provider: "anthropic", version: "5.2", native: "claude-fable-5-2"},
 	{family: "glm", provider: "diffusion", version: "5.3", native: "diffusion/glm-5.3"},
 	{family: "glm-flash", provider: "diffusion", version: "5.3", native: "diffusion/glm-5.3-flash"},
 	{family: "glm-vision", provider: "diffusion", version: "5.3", native: "diffusion/glm-5.3-vision"},
@@ -31,4 +32,5 @@ var generatedFamilies = []familyVersion{
 	{family: "sonnet", provider: "anthropic", version: "5", native: "claude-sonnet-5"},
 	{family: "sonnet", provider: "anthropic", version: "5.5", native: "claude-sonnet-5-5"},
 	{family: "terra", provider: "openai", version: "5.6", native: "gpt-5.6-terra"},
+	{family: "terra", provider: "openai", version: "6.1", native: "gpt-6.1-terra"},
 }

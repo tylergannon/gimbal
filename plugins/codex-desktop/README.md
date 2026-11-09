@@ -80,7 +80,7 @@ node client.mjs --timeout-ms 60000 <<'JSON'
 JSON
 
 node client.mjs <<'JSON'
-{"method":"start","requestId":"textedit-check-001","prompt":"Use TextEdit to inspect the open document and report its title.","model":"gpt-5.6-luna","target":{"type":"projectless"},"requiredApps":["com.apple.TextEdit"]}
+{"method":"start","requestId":"textedit-check-001","prompt":"Use TextEdit to inspect the open document and report its title.","model":"luna","target":{"type":"projectless"},"requiredApps":["com.apple.TextEdit"]}
 JSON
 ```
 
@@ -92,7 +92,7 @@ saved files by absolute path.
 | Method | Request fields | Behavior |
 | --- | --- | --- |
 | `status` | Optional `requiredApps` array of bundle IDs | Bound owner, saved approvals, readiness scope, and request ledger |
-| `start` | `requestId`, `prompt`, `target`; optional `model`, `thinking`, `requiredApps` | Creates one task; defaults to `gpt-5.6-luna` |
+| `start` | `requestId`, `prompt`, `target`; optional `model`, `thinking`, `requiredApps` | Creates one task; defaults to `luna` |
 | `read` | `threadId` | Recent native task state and outputs |
 | `message` | `threadId`, `prompt` | Sends a follow-up; active-turn steering is not guaranteed |
 | `cancel` | `threadId` | Archives the task and verifies that it is unloaded with no observed running turn |
@@ -163,3 +163,5 @@ it does not establish that marketplace discovery, installation, or reload works.
 
 Run the package tests with `npm test` in this folder. Fake socket tests establish
 protocol behavior, not live desktop or native-app access.
+
+Model selections use Gimbal aliases (default `luna`). Install the matching Gimbal CLI on PATH; the worker calls `gimbal resolve-model` before passing the native ID to Codex. Model versions are owned by Gimbal’s central catalog.

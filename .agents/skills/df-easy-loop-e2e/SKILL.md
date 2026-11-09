@@ -252,7 +252,7 @@ agents:
   # Entry point. It may ask the user questions only by writing question.md and
   # routing back to itself; the top-level agent handles the verbatim handoff.
   requirements:
-    model: claude-fable-5-1 # -> Claude Code
+    model: fable # -> Claude Code
     reasoning_effort: high
     context: continue
     max_visits_per_step: unlimited
@@ -284,7 +284,7 @@ agents:
       with `next: plan`.
 
   plan:
-    model: claude-fable-5-1 # -> Claude Code
+    model: fable # -> Claude Code
     reasoning_effort: high
     context: empty
     reads:
@@ -301,7 +301,7 @@ agents:
       `plan-critique`.
 
   plan-critique:
-    model: gpt-6-astra # -> Codex
+    model: astra # -> Codex
     reasoning_effort: high
     context: empty
     reads:
@@ -318,7 +318,7 @@ agents:
       only next option is `plan-update`.
 
   plan-update:
-    model: claude-fable-5-1 # -> Claude Code
+    model: fable # -> Claude Code
     reasoning_effort: high
     context: empty
     reads:
@@ -340,7 +340,7 @@ agents:
       and make it more maintainable or well tested.
 
   coding:
-    model: gpt-6-astra # -> Codex
+    model: astra # -> Codex
     reasoning_effort: high
     context: continue
     reads:
@@ -369,7 +369,7 @@ agents:
       `-A` (add specific paths only). Its only next option is `validation`.
 
   validation:
-    model: gpt-6-astra # -> Codex
+    model: astra # -> Codex
     reasoning_effort: high
     context: empty
     reads:
@@ -394,7 +394,7 @@ agents:
       only next option is `review`.
 
   review:
-    model: claude-fable-5-1 # -> Claude Code
+    model: fable # -> Claude Code
     reasoning_effort: high
     context: continue
     reads:

@@ -36,12 +36,16 @@ type familyVersion struct {
 	family, provider, version, native string
 }
 
-// flashFamily is the one hand-kept family: Gemini encodes effort in the model
-// ID, which the catalog generator does not model.
+// Gemini families encode effort in their native model IDs. Keep their version
+// pointers here; roles and examples use only the family names.
 var flashFamily = map[string]model{
 	"3.8": {alias: "flash", provider: "gemini", native: "gemini-3.8-flash-medium", version: "3.8", effort: "medium"},
 	"3.7": {alias: "flash", provider: "gemini", native: "gemini-3.7-flash-medium", version: "3.7", effort: "medium"},
 	"3.6": {alias: "flash", provider: "gemini", native: "gemini-3.6-flash-medium", version: "3.6", effort: "medium"},
+}
+
+var proFamily = map[string]model{
+	"3.1": {alias: "pro", provider: "gemini", native: "gemini-3.1-pro-high", version: "3.1", effort: "high"},
 }
 
 // families maps an alias family to its versions; aliases maps every name a
@@ -51,7 +55,7 @@ var flashFamily = map[string]model{
 var families, aliases = deriveAliases()
 
 func deriveAliases() (map[string]map[string]model, map[string]model) {
-	families := map[string]map[string]model{"flash": flashFamily}
+	families := map[string]map[string]model{"flash": flashFamily, "pro": proFamily}
 	for _, generated := range generatedFamilies {
 		effort := "high"
 		if generated.provider == "diffusion" {
@@ -74,7 +78,7 @@ func deriveAliases() (map[string]map[string]model, map[string]model) {
 			}
 		}
 		aliases[name] = versions[newest]
-		if name == "flash" {
+		if versions[newest].provider == "gemini" {
 			continue
 		}
 		for version, entry := range versions {
@@ -199,7 +203,7 @@ func Resolve(selection Selection) (ResolvedSelection, error) {
 	}
 	if selection.EffortPresent {
 		if fixedEffort != "" && fixedEffort != selection.Effort {
-			if selection.Name != "flash" {
+			if _, family := families[selection.Name]; !family || entry.provider != "gemini" {
 				return ResolvedSelection{}, fmt.Errorf("model name %q fixes effort at %q and conflicts with explicit effort %q", selection.Name, fixedEffort, selection.Effort)
 			}
 			entry.native = strings.TrimSuffix(entry.native, "-"+fixedEffort) + "-" + selection.Effort

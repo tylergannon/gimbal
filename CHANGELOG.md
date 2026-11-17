@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-17
+
+### Changed
+
+- feat: retain run-prompt sessions with resume hints (#689)
+
 ## [0.20.5] - 2026-11-09
 
 ### Changed
@@ -617,7 +623,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.20.5...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.21.0...main
+[0.21.0]: https://github.com/tylergannon/gimbal/compare/v0.20.5...v0.21.0
 [0.20.5]: https://github.com/tylergannon/gimbal/compare/v0.20.4...v0.20.5
 [0.20.4]: https://github.com/tylergannon/gimbal/compare/v0.20.3...v0.20.4
 [0.20.3]: https://github.com/tylergannon/gimbal/compare/v0.20.2...v0.20.3

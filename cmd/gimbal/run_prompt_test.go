@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tylergannon/gimbal/internal/modelalias"
 )
 
 func TestResolvePromptModelPrecedence(t *testing.T) {
@@ -17,10 +19,13 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 		options runPromptOptions
 		caller  promptCaller
 		harness string
+		alias   string
 		wantErr bool
 	}{
-		{name: "Codex gets opposite provider", caller: promptCallerCodex, harness: "claude"},
-		{name: "Claude gets opposite provider", caller: promptCallerClaude, harness: "codex"},
+		{name: "Codex gets latest opus", caller: promptCallerCodex, harness: "claude", alias: "opus"},
+		{name: "Claude gets latest sol", caller: promptCallerClaude, harness: "codex", alias: "sol"},
+		{name: "explicit model overrides Codex default", caller: promptCallerCodex, options: runPromptOptions{model: "luna"}, harness: "codex", alias: "luna"},
+		{name: "explicit model overrides Claude default", caller: promptCallerClaude, options: runPromptOptions{model: "haiku"}, harness: "claude", alias: "haiku"},
 		{name: "explicit flash effort", caller: promptCallerCodex, options: runPromptOptions{model: "flash", effort: "low"}, harness: "agy"},
 		{name: "OpenCode default provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/ling-3.0-flash-fin-free"}, harness: "opencode"},
 		{name: "OpenCode explicit provider", caller: promptCallerNone, options: runPromptOptions{model: "opencode/opencode/ling-3.0-flash-fin-free"}, harness: "opencode"},
@@ -42,6 +47,12 @@ func TestResolvePromptModelPrecedence(t *testing.T) {
 			}
 			if got.Harness != test.harness {
 				t.Fatalf("selection = %#v", got)
+			}
+			if test.alias != "" {
+				want, err := modelalias.Resolve(modelalias.Selection{Name: test.alias})
+				if err != nil || got.Model != want.Model {
+					t.Fatalf("selection = %#v, want latest %s: %#v (%v)", got, test.alias, want, err)
+				}
 			}
 		})
 	}
@@ -80,6 +91,13 @@ func TestResolvePromptModelCarriesEffort(t *testing.T) {
 
 func TestDetectPromptCallerPrefersClaude(t *testing.T) {
 	environment := map[string]string{"CLAUDE_CODE_SESSION_ID": "claude", "CODEX_THREAD_ID": "codex"}
+	if got := detectPromptCaller(func(name string) string { return environment[name] }); got != promptCallerClaude {
+		t.Fatalf("caller = %q", got)
+	}
+}
+
+func TestDetectPromptCallerRecognizesClaudeCodeEnvironment(t *testing.T) {
+	environment := map[string]string{"CLAUDECODE": "1", "CODEX_THREAD_ID": "inherited"}
 	if got := detectPromptCaller(func(name string) string { return environment[name] }); got != promptCallerClaude {
 		t.Fatalf("caller = %q", got)
 	}

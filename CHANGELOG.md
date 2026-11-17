@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.22.0] - 2026-11-17
+
+### Changed
+
+- feat: support local model alias overrides (#691)
+
 ## [0.21.1] - 2026-11-17
 
 ### Changed
@@ -629,7 +635,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `opencode/provider/model` routing, one shared server managed by
   `gimbal opencode start|stop`, and raw event/request captures for diagnostics.
 
-[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.21.1...main
+[Unreleased]: https://github.com/tylergannon/gimbal/compare/v0.22.0...main
+[0.22.0]: https://github.com/tylergannon/gimbal/compare/v0.21.1...v0.22.0
 [0.21.1]: https://github.com/tylergannon/gimbal/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/tylergannon/gimbal/compare/v0.20.5...v0.21.0
 [0.20.5]: https://github.com/tylergannon/gimbal/compare/v0.20.4...v0.20.5

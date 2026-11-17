@@ -6,6 +6,7 @@ import (
 )
 
 func TestResolve(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	tests := []struct {
 		selection Selection
 		harness   string
@@ -51,6 +52,7 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveRejectsInvalidSelections(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	tests := []struct {
 		selection Selection
 		want      string
@@ -79,6 +81,7 @@ func TestResolveRejectsInvalidSelections(t *testing.T) {
 // The unversioned alias is the newest generated version of its family, and an
 // explicit version selects that version, whatever today's catalog holds.
 func TestFamilyAliasIsNewestGeneratedVersion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	for name, versions := range families {
 		if name == "flash" {
 			continue

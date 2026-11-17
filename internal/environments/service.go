@@ -272,7 +272,10 @@ func (s *Service) Snapshot(ctx context.Context, project string) (Snapshot, error
 	}
 	out := Snapshot{Project: project, ConfigPath: s.path, Revision: doc.Revision, Issues: doc.Issues, Machines: []MachineState{}, Environments: []EnvironmentRow{}, Sessions: []SessionUsage{}}
 	out.Issues = append(out.Issues, s.pendingIssues()...)
-	build, hs := localFacts()
+	build, hs, err := localFacts()
+	if err != nil {
+		return Snapshot{}, err
+	}
 	out.Machines = append(out.Machines, MachineState{ID: Local, Name: "This Mac", Kind: "local", State: StateConnected, Build: build, Harnesses: hs, Capabilities: Capabilities{Steer: true, Fork: true, Browse: true, Clone: true}, Issues: []Issue{}})
 	for _, m := range cfg.Machines {
 		out.Machines = append(out.Machines, s.machineState(m))

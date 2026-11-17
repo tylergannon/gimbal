@@ -106,10 +106,13 @@ func newerVersion(a, b string) bool {
 	return false
 }
 
-// Newest lists, for each harness, the newest native model of every alias
-// family it serves. Families that share a native model (gpt and sol) list it
-// once.
-func Newest() map[string][]string {
+// Newest lists the effective default model of each family, grouped by
+// harness. Families that share a native model list it once.
+func Newest() (map[string][]string, error) {
+	overrides, err := configuredAliases()
+	if err != nil {
+		return nil, err
+	}
 	names := make([]string, 0, len(families))
 	for name := range families {
 		names = append(names, name)
@@ -119,6 +122,9 @@ func Newest() map[string][]string {
 	newest := map[string][]string{}
 	for _, name := range names {
 		entry := aliases[name]
+		if override, ok := overrides[name]; ok {
+			entry = override
+		}
 		if listed[entry.native] {
 			continue
 		}
@@ -126,12 +132,24 @@ func Newest() map[string][]string {
 		harness := harnesses[entry.provider]
 		newest[harness] = append(newest[harness], entry.native)
 	}
-	return newest
+	return newest, nil
 }
 
 var harnesses = map[string]string{"openai": "codex", "anthropic": "claude", "gemini": "agy", "opencode": "opencode", "diffusion": "pi"}
 
 func Resolve(selection Selection) (ResolvedSelection, error) {
+	var override model
+	if _, family := families[selection.Name]; family && !selection.VersionPresent {
+		overrides, err := configuredAliases()
+		if err != nil {
+			return ResolvedSelection{}, err
+		}
+		override = overrides[selection.Name]
+	}
+	return resolve(selection, override)
+}
+
+func resolve(selection Selection, override model) (ResolvedSelection, error) {
 	if strings.TrimSpace(selection.Name) == "" {
 		return ResolvedSelection{}, fmt.Errorf("model name must be a nonblank string")
 	}
@@ -149,6 +167,9 @@ func Resolve(selection Selection) (ResolvedSelection, error) {
 	}
 
 	entry, known := aliases[selection.Name]
+	if override.native != "" {
+		entry = override
+	}
 	if after, ok := strings.CutPrefix(selection.Name, "pi/diffusion/"); ok {
 		if after == "" || strings.HasPrefix(after, "/") || strings.HasSuffix(after, "/") || strings.Contains(after, "//") {
 			return ResolvedSelection{}, fmt.Errorf("invalid Pi model name %q; expected pi/diffusion/<model-id>", selection.Name)

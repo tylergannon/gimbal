@@ -102,7 +102,10 @@ func TestExplicitCloneReconcilesAndRejectsNewMutation(t *testing.T) {
 	}
 }
 func TestHarnessMetadataUsesCheapDefaultsAndNeverInventsAuthentication(t *testing.T) {
-	_, hs := localFacts()
+	_, hs, err := localFacts()
+	if err != nil {
+		t.Fatal(err)
+	}
 	claudeDefault, err := modelalias.Resolve(modelalias.Selection{Name: "haiku"})
 	if err != nil {
 		t.Fatal(err)
@@ -125,7 +128,10 @@ func TestHarnessMetadataUsesCheapDefaultsAndNeverInventsAuthentication(t *testin
 
 func TestInProcessPiIsNotMissingWithoutAnExecutable(t *testing.T) {
 	absent := func(string) (string, error) { return "", exec.ErrNotFound }
-	_, hs := localFactsFor(absent)
+	_, hs, err := localFactsFor(absent)
+	if err != nil {
+		t.Fatal(err)
+	}
 	states := map[string]Harness{}
 	for _, h := range hs {
 		states[h.ID] = h
@@ -154,7 +160,10 @@ func TestMissingExternalHarnessIsReportedAndPiOnlyWarnsAboutSignIn(t *testing.T)
 		}
 		return "", exec.ErrNotFound
 	}
-	_, hs := localFactsFor(present)
+	_, hs, err := localFactsFor(present)
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, h := range hs {
 		switch h.ID {
 		case "claude", "pi":

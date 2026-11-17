@@ -12,6 +12,7 @@ func newResolveModelCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "resolve-model ALIAS[:EFFORT]",
 		Short: "Resolve a model selection through Gimbal's central alias catalog",
+		Long:  "Resolve a model selection. Override built-in alias defaults under modelAliases in ~/.gimbal/config.json.",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name, effort, explicit := strings.Cut(args[0], ":")

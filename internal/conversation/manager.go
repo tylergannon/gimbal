@@ -368,7 +368,10 @@ type Setup struct {
 
 // Setup reports the choices and the fixed environment for a new conversation.
 func (m *Manager) Setup(ctx context.Context) (Setup, error) {
-	newest := modelalias.Newest()
+	newest, err := modelalias.Newest()
+	if err != nil {
+		return Setup{}, err
+	}
 	setup := Setup{Harnesses: []Harness{}, Bases: []string{}}
 	for _, provider := range []string{"claude", "codex", "agy", "pi"} {
 		model, _, err := providerModel(provider, "")

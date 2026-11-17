@@ -76,7 +76,7 @@ gimbal run-prompt --close session_ID
 Resume keeps the session's native conversation, resolved model, harness,
 effort and workspace. Do not reapply caller defaults or change the workspace
 on follow-up. Session state is retained under `~/.gimbal/run-prompt/sessions`
-without automatic expiry; close releases resources and prevents new turns,
+without automatic expiry; close releases idle resources and prevents new turns,
 preserving history. This is separate from hosted workflow runs.
 
 Gimbal requires `TYPESAFE_API_KEY` only when a workflow uses

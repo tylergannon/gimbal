@@ -101,6 +101,15 @@ func TestPromptSessionCloseWithoutNativeTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stdout, stderr bytes.Buffer
+	lease, err := executor.Lock(promptSessionDir(root, string(saved.ID)))
+	if err != nil || lease == nil {
+		t.Fatalf("lock: %v", err)
+	}
+	err = runPrompt([]string{"--close", string(saved.ID)}, &stdout, &stderr, os.Getenv)
+	lease.Close()
+	if err == nil || !strings.Contains(err.Error(), "active turn") {
+		t.Fatalf("close accepted a busy session: %v", err)
+	}
 	for range 2 {
 		if err = runPrompt([]string{"--close", string(saved.ID)}, &stdout, &stderr, os.Getenv); err != nil {
 			t.Fatal(err)

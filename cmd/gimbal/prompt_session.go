@@ -136,8 +136,21 @@ func closePromptSession(id string, stderr io.Writer) error {
 	defer stop()
 	ctx, cancel := context.WithTimeout(ctx, 45*time.Second)
 	defer cancel()
-	if err = (&agentexecutor.Adapter{Root: root}).Close(ctx, id); err != nil {
-		return err
+	if executor.Exists(filepath.Join(promptSessionDir(root, id), "closed.json")) {
+		err = (&agentexecutor.Adapter{Root: root}).Close(ctx, id)
+	} else {
+		// Submit close as an operation so the executor claims the session
+		// atomically and rejects an active turn rather than cancelling it.
+		descriptor, submitErr := agentexecutor.Submit(root, agentexecutor.Request{
+			ID: executor.NewTurnID(), Session: executor.SessionID(id), Close: true, Timeout: 30 * time.Second,
+		})
+		err = submitErr
+		if err == nil {
+			_, err = agentexecutor.Wait(ctx, descriptor, nil)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("close session %s (wait for any active turn to finish): %w", id, err)
 	}
 	_, err = fmt.Fprintf(stderr, "Closed session %s\n", id)
 	return err

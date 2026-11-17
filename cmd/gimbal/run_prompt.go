@@ -51,14 +51,14 @@ func runPrompt(args []string, stdout, stderr io.Writer, getenv func(string) stri
 		flags.PrintDefaults()
 	}
 	var options runPromptOptions
-	flags.StringVar(&options.model, "model", "", "model name or alias; Pi: pi/diffusion/MODEL; OpenCode: opencode/MODEL or opencode/PROVIDER/MODEL; omitted inside Codex or Claude selects the opposite provider")
+	flags.StringVar(&options.model, "model", "", "model name or alias; defaults to latest sol inside Claude, latest opus inside ChatGPT/Codex; resume keeps the saved model; Pi: pi/diffusion/MODEL; OpenCode: opencode/MODEL or opencode/PROVIDER/MODEL")
 	flags.StringVar(&options.modelVersion, "model-version", "", "exact model-family version")
 	flags.StringVar(&options.effort, "effort", "", "reasoning effort: low, medium, high, xhigh, or max")
 	flags.StringVar(&options.outputSchema, "output-schema", "", "exact JSON Schema for structured output; omit for plain text")
 	flags.StringVar(&options.workdir, "workdir", ".", "agent workspace")
 	flags.StringVar(&options.logs, "logs", "", "new directory for .gimbal run records; default is a temporary directory")
 	flags.StringVar(&options.resume, "resume", "", "continue this retained session")
-	flags.StringVar(&options.close, "close", "", "close this retained session without sending a prompt")
+	flags.StringVar(&options.close, "close", "", "close this idle retained session without sending a prompt; active turns are rejected")
 	flags.DurationVar(&options.timeout, "timeout", 20*time.Minute, "turn timeout")
 	if err := flags.Parse(args); err != nil {
 		return err

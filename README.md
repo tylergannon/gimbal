@@ -279,7 +279,7 @@ Session identity, its state directory and logs are written to stderr, followed
 after the answer by a final copyable `gimbal run-prompt --resume ...` command.
 Session state stays under `~/.gimbal/run-prompt/sessions/` without automatic
 expiry. `--close ID` releases native resources and prevents later turns;
-saved history remains available on disk.
+an active turn must finish first. Saved history remains available on disk.
 
 Both standalone paths inherit the caller's environment,
 not the hosted instance's environment. Keep these directories separate from

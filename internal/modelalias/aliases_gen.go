@@ -4,6 +4,7 @@ package modelalias
 
 var generatedFamilies = []familyVersion{
 	{family: "astra", provider: "openai", version: "6", native: "gpt-6-astra"},
+	{family: "astra", provider: "openai", version: "6.2", native: "gpt-6.2-astra"},
 	{family: "deepseek-flash", provider: "diffusion", version: "4.1", native: "diffusion/deepseek-4.1-flash"},
 	{family: "fable", provider: "anthropic", version: "5", native: "claude-fable-5"},
 	{family: "fable", provider: "anthropic", version: "5.1", native: "claude-fable-5-1"},

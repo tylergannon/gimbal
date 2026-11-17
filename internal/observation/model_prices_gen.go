@@ -90,6 +90,7 @@ var modelPrices = []modelPrice{
 	{provider: "openai", id: "gpt-6-sol", name: "GPT-6 Sol", releaseDate: "2026-09-22", lastUpdated: "2026-09-22", input: 2, output: 10, cacheRead: 0.2, cacheWrite: 2.5},
 	{provider: "openai", id: "gpt-6.1-sol", name: "GPT-6.1 Sol", releaseDate: "2026-09-29", lastUpdated: "2026-09-29", input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5},
 	{provider: "openai", id: "gpt-6.1-terra", name: "GPT-6.1 Terra", releaseDate: "2026-10-26", lastUpdated: "2026-10-26", input: 1, output: 5, cacheRead: 0.05, cacheWrite: 1.25},
+	{provider: "openai", id: "gpt-6.2-astra", name: "GPT-6.2 Astra", releaseDate: "2026-11-17", lastUpdated: "2026-11-17", input: 8, output: 40, cacheRead: 0.4, cacheWrite: 10},
 	{provider: "openai", id: "gpt-6.2-sol", name: "GPT-6.2 Sol", releaseDate: "2026-11-17", lastUpdated: "2026-11-17", input: 2, output: 10, cacheRead: 0.1, cacheWrite: 2.5},
 	{provider: "openai", id: "gpt-daybreak-blue-latest", name: "Daybreak Blue", releaseDate: "2026-08-07", lastUpdated: "2026-08-07", input: 4, output: 20, cacheRead: 0.4, cacheWrite: 5},
 	{provider: "openai", id: "gpt-daybreak-red-latest", name: "Daybreak Red", releaseDate: "2026-08-07", lastUpdated: "2026-08-07", input: 12.5, output: 75, cacheRead: 1.25, cacheWrite: 15.625},

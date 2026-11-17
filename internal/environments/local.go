@@ -48,13 +48,16 @@ func buildRevision() string {
 // is expected on the machine. Pi's adapter is native Go.
 var inProcessHarnesses = []string{"pi"}
 
-func localFacts() (string, []Harness) {
+func localFacts() (string, []Harness, error) {
 	return localFactsFor(exec.LookPath)
 }
 
-func localFactsFor(lookPath func(string) (string, error)) (string, []Harness) {
+func localFactsFor(lookPath func(string) (string, error)) (string, []Harness, error) {
 	build := buildRevision()
-	models := modelalias.Newest()
+	models, err := modelalias.Newest()
+	if err != nil {
+		return build, nil, err
+	}
 	hs := []Harness{}
 	for _, id := range []string{"claude", "codex", "agy", "opencode", "pi"} {
 		h := Harness{ID: id, Models: models[id], State: HarnessUnknown, Detail: "Sign-in has not been verified on this machine"}
@@ -93,7 +96,7 @@ func localFactsFor(lookPath func(string) (string, error)) (string, []Harness) {
 		}
 		hs = append(hs, h)
 	}
-	return build, hs
+	return build, hs, nil
 }
 
 // openCodeModels reads metadata only: it starts neither a server nor inference.
@@ -245,7 +248,10 @@ func inspectLocal(ctx context.Context, path string, list bool) (Directory, error
 	return d, nil
 }
 func RunHelper(ctx context.Context, r HelperRequest) (HelperResult, error) {
-	build, hs := localFacts()
+	build, hs, err := localFacts()
+	if err != nil {
+		return HelperResult{}, err
+	}
 	out := HelperResult{Build: build, Harnesses: hs}
 	var e error
 	switch r.Operation {

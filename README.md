@@ -179,6 +179,32 @@ The binary includes the `implement`, `review`, `validate-product`,
 `internal/builtin/defaults.json`; pass the role's flag, such as `--code-review`, to
 override it.
 
+### Override model aliases
+
+Add a `modelAliases` object to `~/.gimbal/config.json` on the machine
+running Gimbal. Create the file if needed, or keep its other settings and add
+this field.
+
+```json
+{
+  "modelAliases": {
+    "astra": "gpt-6.2-astra",
+    "sol": "gpt-6.2-sol"
+  }
+}
+```
+
+Each key is an unversioned built-in alias. Use a model ID from the alias's
+provider, such as `gpt-6.2-astra` for Codex or `pi/diffusion/<model-id>` for
+Pi. Gimbal reads the file on the next lookup, including in a running server,
+and accepts model IDs that the provider supports ahead of a catalog refresh.
+Each alias has its own entry, so set `gpt` too if you want it to follow a
+custom `sol` override.
+
+Run `gimbal resolve-model astra` to check the selected model. Remove an
+entry to return to the built-in default. Explicit effort flags still apply,
+and existing sessions retain their selected model.
+
 Select the legacy OpenCode adapter with `opencode/<model-id>`, or name an
 explicit OpenCode provider with `opencode/<provider>/<model-id>`. The same
 forms work with `gimbal run-prompt --model` and every workflow role-model flag:

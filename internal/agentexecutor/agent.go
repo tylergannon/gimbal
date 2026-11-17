@@ -19,6 +19,7 @@ import (
 	"github.com/tylergannon/gimbal/backend"
 	"github.com/tylergannon/gimbal/claude"
 	"github.com/tylergannon/gimbal/codex"
+	"github.com/tylergannon/gimbal/opencode"
 
 	"github.com/tylergannon/gimbal/internal/effects"
 	"github.com/tylergannon/gimbal/internal/executor"
@@ -97,6 +98,8 @@ func native(harness string) (nativeAdapter, error) {
 		a = claude.New()
 	case "codex":
 		a = codex.New()
+	case "opencode":
+		a = opencode.New()
 	default:
 		return nil, fmt.Errorf("unsupported executor harness %q", harness)
 	}

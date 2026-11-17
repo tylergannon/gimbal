@@ -259,7 +259,29 @@ Standalone `gimbal.Run(gimbal.Project(ctx, dir), ...)` executes in its caller's
 process and writes durable state under `dir/runs`; it does not join a running
 instance's live registry or controls. `gimbal run-prompt` runs its own headless
 runtime in the CLI process. Its logs default to a temporary directory; `--logs`
-must name a fresh, empty directory. Both inherit the caller's environment,
+names a fresh, empty log directory. Each prompt session survives the CLI exit:
+
+```sh
+gimbal run-prompt --model sol --workdir /abs/worktree "Review this implementation"
+gimbal run-prompt --resume session_ID "Reconsider your second finding"
+gimbal run-prompt --close session_ID
+```
+
+Omit `--model` inside Claude to select the latest `sol`, or inside
+ChatGPT/Codex to select the latest `opus`. Outside those coding agents, supply
+a model. An explicit model overrides the new-session default. Resume preserves
+the resolved model, harness, effort, workspace and native conversation; omit
+model and workspace flags, or supply matching values. Busy, closed, missing,
+or conflicting sessions return errors.
+
+Only the answer is written to stdout, including JSON with `--output-schema`.
+Session identity, its state directory and logs are written to stderr, followed
+after the answer by a final copyable `gimbal run-prompt --resume ...` command.
+Session state stays under `~/.gimbal/run-prompt/sessions/` without automatic
+expiry. `--close ID` releases native resources and prevents later turns;
+an active turn must finish first. Saved history remains available on disk.
+
+Both standalone paths inherit the caller's environment,
 not the hosted instance's environment. Keep these directories separate from
 projects admitted to a running instance: concurrent shared-state use is not a
 supported contract. Their records are local durable state, not live hosted

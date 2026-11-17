@@ -63,6 +63,22 @@ that the outcome has been delivered.
 
 ## Start a run
 
+For a single prompt, use `gimbal run-prompt --workdir /abs/project "Prompt"`.
+Without `--model`, Claude callers get latest `sol` and ChatGPT/Codex callers
+get latest `opus`; other callers must supply a model. The answer alone is on
+stdout. The final stderr line gives a copyable continuation command:
+
+```sh
+gimbal run-prompt --resume session_ID "Follow-up prompt"
+gimbal run-prompt --close session_ID
+```
+
+Resume keeps the session's native conversation, resolved model, harness,
+effort and workspace. Do not reapply caller defaults or change the workspace
+on follow-up. Session state is retained under `~/.gimbal/run-prompt/sessions`
+without automatic expiry; close releases idle resources and prevents new turns,
+preserving history. This is separate from hosted workflow runs.
+
 Gimbal requires `TYPESAFE_API_KEY` only when a workflow uses
 `WithSupervisor` for Jev supervision. `run-prompt`, workflows without Jev, and
 instance startup work without that key. A supervised workflow reports a clear

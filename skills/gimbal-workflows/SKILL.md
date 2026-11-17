@@ -310,6 +310,14 @@ the hosted instance's live controls or inherits its startup environment. Keep
 their durable state separate from projects admitted to a running instance;
 concurrent shared-state use has no supported contract.
 
+Prompt sessions survive CLI exit. Follow the final stderr instruction with
+`gimbal run-prompt --resume ID "Next prompt"` to keep the native conversation,
+workspace, resolved model and effort. For new sessions, omitting `--model`
+selects latest `sol` from Claude or latest `opus` from ChatGPT/Codex; elsewhere
+the model is required. The answer alone remains on stdout. State is retained
+under `~/.gimbal/run-prompt/sessions` without automatic expiry; use
+`gimbal run-prompt --close ID` to release it and prevent more turns.
+
 CLI documentation is part of authoring. A caller should understand purpose,
 required inputs, meaningful defaults, outputs or changes, completion and proof
 expectations, limits, and a useful invocation without reading implementation.

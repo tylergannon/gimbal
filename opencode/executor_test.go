@@ -41,4 +41,15 @@ func TestExecutorRetainsNativeConversationAcrossAdapters(t *testing.T) {
 	if err != nil || string(result.Output) != `"pear"` {
 		t.Fatalf("continued = %s (%v)", result.Output, err)
 	}
+	closing := newAdapter(adapterConfig{connect: func(context.Context, string, string) (*Client, error) {
+		t.Fatal("closing an idle retained session must not reconnect")
+		return nil, nil
+	}})
+	closedID, err := closing.LoadSession(t.Context(), checkpoint, true)
+	if err != nil || closedID != id {
+		t.Fatalf("closing load = %q (%v)", closedID, err)
+	}
+	if err := closing.Close(t.Context(), closedID); err != nil {
+		t.Fatal(err)
+	}
 }

@@ -28,6 +28,11 @@ func (a *adapter) LoadSession(ctx context.Context, path string, closing bool) (s
 	if err := executor.Read(path, &saved); err != nil {
 		return "", err
 	}
+	if closing {
+		// Idle OpenCode sessions have no local resources to release. Native
+		// history belongs to the shared server, which Close never deletes.
+		return saved.ID, nil
+	}
 	client, err := a.config.connect(ctx, saved.Workdir, saved.StateDir)
 	if err != nil {
 		return "", fmt.Errorf("opencode: reconnect session: %w", err)
@@ -36,10 +41,8 @@ func (a *adapter) LoadSession(ctx context.Context, path string, closing bool) (s
 	if err := a.ensureCapture(); err != nil {
 		return "", err
 	}
-	if !closing {
-		if err := a.ensureEvents(ctx, client); err != nil {
-			return "", err
-		}
+	if err := a.ensureEvents(ctx, client); err != nil {
+		return "", err
 	}
 	a.mu.Lock()
 	a.sessions[saved.ID] = &adapterSession{client: client, model: saved.Model, provider: saved.Provider, variant: saved.Variant, workdir: saved.Workdir}
